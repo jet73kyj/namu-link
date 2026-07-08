@@ -7,3 +7,7 @@ Thumbs.db
 ~$*
 .claude/
 *.xlsx
+# 개인정보 포함 백업 파일 - 절대 커밋 금지
+namu-link-backup*.json
+backup*.json
+*-backup.json
