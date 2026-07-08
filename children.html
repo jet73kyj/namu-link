@@ -40,7 +40,6 @@
   </header>
   <nav>
     <a href="children.html" class="active">아동 관리</a>
-    <a href="intake.html">신규아동</a>
     <a href="records.html">치료 기록</a>
     <a href="calendar.html">아동 스케줄</a>
     <a href="payments.html">납부 관리</a>
@@ -51,17 +50,68 @@
   <div class="container">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
       <div class="page-title">아동 관리</div>
-      <span style="font-size:12px; color:#aaa;">납부현황 기준 자동 표기 (수정은 납부 관리에서)</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-size:12px; color:#aaa;">납부현황 기준 자동 표기</span>
+        <button onclick="openIntakeForm()" style="padding:8px 14px;background:#2e7d32;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">+ 신규 상담 등록</button>
+      </div>
     </div>
 
     <div class="card" style="padding:14px 16px;">
       <div class="search-wrap">
         <input type="text" id="searchInput" placeholder="아동 이름 검색..." oninput="renderList()">
         <button class="filter-btn active" id="f_all"    onclick="setFilter('all')">전체</button>
+        <button class="filter-btn"        id="f_intake" onclick="setFilter('intake')">대기중</button>
         <button class="filter-btn"        id="f_active" onclick="setFilter('active')">치료중</button>
         <button class="filter-btn"        id="f_end"    onclick="setFilter('end')">종결/대기</button>
       </div>
       <div id="childList"></div>
+    </div>
+  </div>
+
+  <!-- 신규 상담 등록/편집 모달 -->
+  <div id="_intakeBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:10px;width:560px;max-width:92vw;max-height:92vh;overflow-y:auto;">
+      <div style="padding:14px 20px;background:#2e7d32;color:white;display:flex;justify-content:space-between;align-items:center;">
+        <span id="_intakeTitle" style="font-weight:bold;">신규 상담 등록</span>
+        <button onclick="closeIntakeForm()" style="background:transparent;color:white;border:none;font-size:20px;cursor:pointer;">✕</button>
+      </div>
+      <div style="padding:18px 20px;">
+        <input type="hidden" id="itId">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div><label style="font-size:12px;font-weight:bold;">이름 *</label><input type="text" id="itName" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">생년월일</label><input type="text" id="itBirth" placeholder="예: 2020.03.15" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">보호자 성함</label><input type="text" id="itGuardian" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">보호자 연락처 *</label><input type="text" id="itPhone" placeholder="010-0000-0000" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">희망 영역</label><input type="text" id="itArea" placeholder="예: 언어치료, 감각통합" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">희망 요일·시간</label><input type="text" id="itPref" placeholder="예: 화요일 4시대" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">문의 첫 날짜</label><input type="date" id="itInquiryDate" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">상담 예정일</label><input type="date" id="itSchedDate" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">지원사업 유형</label>
+            <select id="itProgram" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;">
+              <option value="">선택</option><option>발달재활서비스</option><option>방과후활동비지원</option><option>치료지원</option><option>개인결제</option>
+            </select>
+          </div>
+          <div><label style="font-size:12px;font-weight:bold;">상태</label>
+            <select id="itStatus" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;">
+              <option>대기중</option><option>상담완료</option><option>보류</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:10px;"><label style="font-size:12px;font-weight:bold;">유입 경로</label>
+          <select id="itSource" onchange="_toggleSrcEtc()" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;">
+            <option value="">선택</option><option>지인소개</option><option>블로그</option><option>인스타그램</option><option>바우처센터 안내</option><option>병원 연계</option><option>기타</option>
+          </select>
+          <input type="text" id="itSourceEtc" placeholder="직접 입력" style="display:none;width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;margin-top:6px;">
+        </div>
+        <div style="margin-top:10px;"><label style="font-size:12px;font-weight:bold;">메모</label>
+          <textarea id="itNote" placeholder="특이사항·상담 내용 등" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;min-height:70px;"></textarea>
+        </div>
+        <div style="text-align:right;margin-top:14px;">
+          <button id="_intakeDelBtn" onclick="deleteIntake()" style="display:none;padding:7px 14px;background:#c62828;color:white;border:none;border-radius:5px;font-size:13px;font-weight:bold;cursor:pointer;">삭제</button>
+          <button onclick="closeIntakeForm()" style="padding:7px 14px;background:#eee;border:none;border-radius:5px;font-size:13px;cursor:pointer;">취소</button>
+          <button onclick="saveIntake()" style="padding:7px 14px;background:#2e7d32;color:white;border:none;border-radius:5px;font-size:13px;font-weight:bold;cursor:pointer;">저장</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -137,9 +187,165 @@
 
     function setFilter(f) {
       currentFilter = f;
-      ['all','active','end'].forEach(k=>{
+      ['all','intake','active','end'].forEach(k=>{
         document.getElementById('f_'+k).classList.toggle('active', k===f);
       });
+      renderList();
+    }
+
+    // ===== intake_list → children 일회성 마이그레이션 =====
+    function _migrateIntakeIfNeeded() {
+      if (localStorage.getItem('_intake_migrated_v1') === '1') return;
+      const intake = JSON.parse(localStorage.getItem('intake_list')||'[]');
+      if (!intake.length) { localStorage.setItem('_intake_migrated_v1','1'); return; }
+      const children = JSON.parse(localStorage.getItem('children')||'[]');
+      const existingIntakeIds = new Set(children.filter(c=>c.intakeId).map(c=>c.intakeId));
+      let added = 0;
+      intake.forEach(it => {
+        if (existingIntakeIds.has(it.id)) return;   // 이미 등록확정으로 이관됨
+        children.push({
+          id: 'ch_int_'+it.id,
+          managerId: it.managerId || '',
+          name: it.name,
+          birth: it.birth || '',
+          phone: it.phone || '',
+          guardian: it.guardian || '',
+          phase: 'intake',
+          status: (it.status === '등록확정') ? '치료중' : (it.status || '대기중'),
+          intakeId: it.id,
+          intakeArea: it.area || '',
+          intakePref: it.pref || '',
+          intakeSource: it.source || '',
+          intakeProgram: it.program || '',
+          intakeNote: it.note || '',
+          inquiryDate: it.inquiryDate || '',
+          schedDate: it.schedDate || '',
+          createdAt: it.createdAt || new Date().toISOString(),
+          therapies: [],
+        });
+        // 등록확정 이었으면 phase 를 active 로
+        const last = children[children.length-1];
+        if (it.status === '등록확정') last.phase = 'active';
+        added++;
+      });
+      if (added) localStorage.setItem('children', JSON.stringify(children));
+      localStorage.setItem('_intake_migrated_v1','1');
+    }
+    _migrateIntakeIfNeeded();
+
+    // 기존 children 에 phase 필드 없으면 'active' 로 간주하는 헬퍼
+    function _getPhase(c) { return c.phase || 'active'; }
+
+    // ===== 관리자번호 자동 생성 =====
+    function _parseSeq(mid, year) {
+      const prefix = `${year}01자라는`;
+      if (!mid || !String(mid).startsWith(prefix)) return 0;
+      const n = parseInt(String(mid).slice(prefix.length), 10);
+      return Number.isFinite(n) ? n : 0;
+    }
+    function _generateManagerId(inquiryDate) {
+      const year = (inquiryDate || new Date().toISOString().slice(0,10)).slice(0,4);
+      const children = JSON.parse(localStorage.getItem('children')||'[]');
+      let max = 0;
+      children.forEach(c => { max = Math.max(max, _parseSeq(c.managerId, year)); });
+      return `${year}01자라는${String(max+1).padStart(3,'0')}`;
+    }
+
+    // ===== 신규 상담 등록 모달 =====
+    function _toggleSrcEtc(){
+      const v = document.getElementById('itSource').value;
+      document.getElementById('itSourceEtc').style.display = (v==='기타')?'block':'none';
+    }
+    const SOURCE_OPTS = ['지인소개','블로그','인스타그램','바우처센터 안내','병원 연계','기타'];
+    function openIntakeForm(childId){
+      const rec = childId ? getChildren().find(c=>c.id===childId) : null;
+      document.getElementById('itId').value = childId || '';
+      document.getElementById('_intakeTitle').textContent = childId ? '상담 정보 편집' : '신규 상담 등록';
+      document.getElementById('_intakeDelBtn').style.display = childId ? 'inline-block' : 'none';
+      const today = new Date().toISOString().slice(0,10);
+      document.getElementById('itName').value = rec?.name || '';
+      document.getElementById('itBirth').value = rec?.birth || '';
+      document.getElementById('itGuardian').value = rec?.guardian || '';
+      document.getElementById('itPhone').value = rec?.phone || '';
+      document.getElementById('itArea').value = rec?.intakeArea || '';
+      document.getElementById('itPref').value = rec?.intakePref || '';
+      document.getElementById('itInquiryDate').value = rec?.inquiryDate || today;
+      document.getElementById('itSchedDate').value = rec?.schedDate || '';
+      document.getElementById('itProgram').value = rec?.intakeProgram || '';
+      document.getElementById('itStatus').value = rec?.status || '대기중';
+      document.getElementById('itNote').value = rec?.intakeNote || '';
+      const src = rec?.intakeSource || '';
+      const srcSel = document.getElementById('itSource');
+      const srcEtc = document.getElementById('itSourceEtc');
+      if (SOURCE_OPTS.includes(src) && src!=='기타') { srcSel.value = src; srcEtc.value = ''; }
+      else if (src) { srcSel.value = '기타'; srcEtc.value = src; }
+      else { srcSel.value = ''; srcEtc.value = ''; }
+      _toggleSrcEtc();
+      document.getElementById('_intakeBg').style.display = 'flex';
+    }
+    function closeIntakeForm(){ document.getElementById('_intakeBg').style.display = 'none'; }
+    function saveIntake(){
+      const name = document.getElementById('itName').value.trim();
+      const phone = document.getElementById('itPhone').value.trim();
+      if (!name || !phone) { alert('이름과 보호자 연락처는 필수입니다.'); return; }
+      const editId = document.getElementById('itId').value;
+      const arr = getChildren();
+      const srcSel = document.getElementById('itSource').value;
+      const srcEtc = document.getElementById('itSourceEtc').value.trim();
+      const source = (srcSel==='기타') ? (srcEtc||'기타') : srcSel;
+      const inquiryDate = document.getElementById('itInquiryDate').value || new Date().toISOString().slice(0,10);
+      let rec;
+      if (editId) {
+        const idx = arr.findIndex(c=>c.id===editId);
+        if (idx<0) return alert('레코드를 찾을 수 없습니다.');
+        rec = arr[idx];
+      } else {
+        rec = {
+          id: 'ch_int_itk_'+Date.now(),
+          phase: 'intake',
+          therapies: [],
+          createdAt: new Date().toISOString(),
+        };
+        rec.managerId = _generateManagerId(inquiryDate);
+        arr.push(rec);
+      }
+      rec.name = name;
+      rec.phone = phone;
+      rec.birth = document.getElementById('itBirth').value.trim();
+      rec.guardian = document.getElementById('itGuardian').value.trim();
+      rec.intakeArea = document.getElementById('itArea').value.trim();
+      rec.intakePref = document.getElementById('itPref').value.trim();
+      rec.inquiryDate = inquiryDate;
+      rec.schedDate = document.getElementById('itSchedDate').value;
+      rec.intakeProgram = document.getElementById('itProgram').value;
+      rec.status = document.getElementById('itStatus').value;
+      rec.intakeSource = source;
+      rec.intakeNote = document.getElementById('itNote').value.trim();
+      rec.updatedAt = new Date().toISOString();
+      localStorage.setItem('children', JSON.stringify(arr));
+      closeIntakeForm();
+      renderList();
+    }
+    function deleteIntake(){
+      const editId = document.getElementById('itId').value;
+      if (!editId) return;
+      if (!confirm('이 상담 기록을 삭제하시겠습니까?')) return;
+      const arr = getChildren().filter(c=>c.id!==editId);
+      localStorage.setItem('children', JSON.stringify(arr));
+      closeIntakeForm();
+      renderList();
+    }
+    function confirmRegister(childId){
+      const arr = getChildren();
+      const rec = arr.find(c=>c.id===childId);
+      if (!rec) return;
+      if (!confirm(`"${rec.name}" 아동을 정식 등록(치료중) 하시겠습니까?`)) return;
+      rec.phase = 'active';
+      rec.status = '치료중';
+      rec.confirmedAt = new Date().toISOString();
+      localStorage.setItem('children', JSON.stringify(arr));
+      // 상담지 토큰·응답의 child_id 를 그대로 유지 (동일 child.id 사용중이므로 변경 불필요)
+      alert(`✅ "${rec.name}" 아동이 치료중으로 전환되었습니다.`);
       renderList();
     }
 
@@ -148,14 +354,49 @@
       const year  = new Date().getFullYear();
       const payments = getPayments();
 
-      let list = getChildren().filter(c=>c.name.toLowerCase().includes(query));
-      if (currentFilter==='active') list = list.filter(c=>c.status!=='종결'&&c.status!=='대기중');
-      if (currentFilter==='end')    list = list.filter(c=>c.status==='종결'||c.status==='대기중');
+      let list = getChildren().filter(c=>(c.name||'').toLowerCase().includes(query));
+      if (currentFilter==='intake') list = list.filter(c => _getPhase(c)==='intake');
+      if (currentFilter==='active') list = list.filter(c => _getPhase(c)==='active' && c.status!=='종결' && c.status!=='대기중');
+      if (currentFilter==='end')    list = list.filter(c => _getPhase(c)==='active' && (c.status==='종결' || c.status==='대기중'));
 
       const container = document.getElementById('childList');
       if (!list.length) { container.innerHTML='<div class="no-therapy">해당하는 아동이 없습니다.</div>'; return; }
 
       container.innerHTML = list.map(c=>{
+        // 신규 상담(intake) 카드는 별도 형식으로 렌더
+        if (_getPhase(c) === 'intake') {
+          const st = c.status || '대기중';
+          return `
+          <div class="child-card" style="border-left:4px solid #fb8c00;">
+            <div class="child-header">
+              <div>
+                <span class="child-name" style="color:#e65100;">🆕 ${c.name}</span>
+                <span class="child-birth" style="margin-left:8px;">${fmtBirth(c.birth)}</span>
+                <span class="child-age" style="margin-left:6px;">(${calcAge(c.birth)})</span>
+              </div>
+              <div>
+                <span class="status-dot" style="background:#e65100;"></span>
+                <span class="status-label">${st}</span>
+              </div>
+              ${c.managerId ? `<div style="font-size:11px;color:#999;">관리자번호: ${c.managerId}</div>` : ''}
+              <div style="margin-left:auto;display:flex;gap:6px;">
+                <button onclick="openIntakeForm('${c.id}')" style="padding:5px 10px;background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">✏️ 편집</button>
+                <button onclick="_issueAssessmentLink('${c.id}')" style="padding:5px 10px;background:#fee500;color:#3c1e1e;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📩 초기상담지</button>
+                <button onclick="confirmRegister('${c.id}')" style="padding:5px 10px;background:#2e7d32;color:white;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">✅ 등록확정</button>
+              </div>
+            </div>
+            <div style="padding:10px 16px;font-size:12px;color:#555;background:#fff8e1;">
+              <span style="margin-right:12px;"><b>보호자:</b> ${c.guardian||'-'} · ${c.phone||'-'}</span>
+              <span style="margin-right:12px;"><b>희망영역:</b> ${c.intakeArea||'-'}</span>
+              <span style="margin-right:12px;"><b>희망시간:</b> ${c.intakePref||'-'}</span>
+              ${c.intakeProgram?`<span style="margin-right:12px;"><b>지원사업:</b> ${c.intakeProgram}</span>`:''}
+              ${c.intakeSource?`<span style="margin-right:12px;"><b>유입:</b> ${c.intakeSource}</span>`:''}
+              ${c.inquiryDate?`<span style="margin-right:12px;"><b>문의일:</b> ${c.inquiryDate}</span>`:''}
+              ${c.schedDate?`<span><b>상담예정:</b> ${c.schedDate}</span>`:''}
+              ${c.intakeNote?`<div style="margin-top:6px;color:#666;">📝 ${c.intakeNote}</div>`:''}
+            </div>
+          </div>`;
+        }
         const st    = c.status||'치료중';
         const color = STATUS_COLOR[st]||'#2e7d32';
         const therapies = c.therapies||[];
