@@ -1627,6 +1627,9 @@
         return specific.indexOf(s) >= 0 ? 10 : (s.includes('치료지원') ? 1 : 0);
       };
 
+      // 평가 이벤트 캐시 (이 요일 렌더 전체에서 재사용)
+      const _allEvals = _getEvents();
+
       timeSlots.forEach(slot=>{
         dates.forEach((date,wi)=>{
           const dStr=dateStr(currentYear,currentMonth,date);
@@ -1956,6 +1959,21 @@
               if (regular.length === 0) vacCellHTML += `<span style="color:#aaa;font-size:11px;">수업 없음</span>`;
               html+=`<td class="appt-cell" style="background:#f0f0f0;">${vacCellHTML}</td>`;
             } else {
+              // 이 (요일·주차·시간대·치료사) 셀과 매칭되는 평가 이벤트 삽입
+              const _slotMin = _slotStartMin(slot);
+              const _matchEvals = _allEvals.filter(e => {
+                if (!e || !e.date || e.date !== dStr) return false;
+                if ((e.therapist||'').trim() !== therapist) return false;
+                const t = String(e.time||'').replace(/^(오전|오후)\s*/,'').trim();
+                if (!t) return false;
+                return _slotStartMin(t) === _slotMin;
+              });
+              _matchEvals.forEach(e => {
+                cellHTML += `<div class="chip chip-eval" style="cursor:pointer;background:#ffe0b2;color:#bf360c;border:2px solid #e65100;font-weight:bold;padding:4px 6px;margin:2px;border-radius:5px;" onclick="_openEvalDetail('${e.id}')" title="${(e.note||'').replace(/"/g,'&quot;')}">
+                  🧡 ${escHtml(e.childName||'-')}<br>
+                  <span style="font-size:10px;font-weight:normal;">${escHtml(e.time||'')} · 평가</span>
+                </div>`;
+              });
               const isEmpty = !cellHTML;
               if (isEmpty) cellHTML=`<span class="empty-cell" style="color:#43a047;font-size:11px;font-weight:bold;">🟢 <span style="color:#b0bec5;font-weight:normal;">${escHtml(therapist)}</span> 빈 타임</span>`;
               // 1~4주차에는 아동 수업이 있고 5주차만 비어있는 경우만 초록색
