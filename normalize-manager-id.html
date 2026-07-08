@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>관리자번호 정규화 도구 - 나무링크</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .wrap { max-width:1040px; margin:0 auto; padding:20px; }
+  .card { background:white; border-radius:10px; padding:18px 22px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .card h3 { margin:0 0 10px; color:#2e7d32; font-size:15px; border-left:4px solid #66bb6a; padding-left:6px; }
+  .btn { padding:10px 18px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:14px; }
+  .btn-primary { background:#2e7d32; color:white; }
+  .btn-sub { background:#f5f5f5; color:#333; border:1px solid #ccc; }
+  .info-box { background:#e3f2fd; padding:12px 16px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#0d47a1; }
+  table.pv { width:100%; border-collapse:collapse; font-size:12px; }
+  table.pv th { background:#f5f9f0; color:#2e7d32; padding:7px 8px; border-bottom:2px solid #2e7d32; text-align:left; }
+  table.pv td { padding:6px 8px; border-bottom:1px solid #eee; }
+  .change { background:#fff9c4; }
+  .conflict { background:#ffcdd2; color:#c62828; font-weight:bold; }
+  .override { background:#e8f5e9; }
+</style>
+</head>
+<body>
+<header><h1>🌿 관리자번호 정규화 도구</h1></header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="records.html">치료 기록</a>
+</nav>
+
+<div class="wrap">
+  <div class="info-box">
+    <b>📋 규칙</b><br>
+    올바른 형식: <code>YYYY01자라는NNN</code> (예: <code>202601자라는001</code>) — 하이픈·공백 없음<br><br>
+    처리:<br>
+    1) 공백·하이픈·특수문자 제거 (예: <code>202601-자라는 001</code> → <code>202601자라는001</code>)<br>
+    2) <code>자라는</code> 누락 시 삽입 (예: <code>202601001</code> → <code>202601자라는001</code>)<br>
+    3) 개별 지정:<br>
+    &nbsp;&nbsp;• <b>오예린</b> → <code>202601자라는058</code><br>
+    &nbsp;&nbsp;• <b>김단아</b> → <code>202601자라는058</code> (사용자 확인 필요 — 오예린과 중복 시 경고 표시)
+  </div>
+
+  <div class="card">
+    <h3>🔍 미리보기</h3>
+    <div id="pv"></div>
+    <div style="margin-top:14px;text-align:right;">
+      <button class="btn btn-sub" onclick="renderPreview()">🔄 다시 분석</button>
+      <button class="btn btn-primary" onclick="doApply()">✅ 정규화 실행</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+// 이름별 개별 지정
+const MANUAL_OVERRIDES = {
+  '오예린': '202601자라는058',
+  '김단아': '202601자라는058',
+};
+
+function normalizeMid(raw) {
+  if (!raw) return '';
+  // 공백·하이픈·언더스코어·점 제거
+  let s = String(raw).replace(/[\s\-–—_.]/g, '');
+  // 이미 YYYY01자라는NNN 형식이면 반환
+  if (/^\d{6}자라는\d{3,}$/.test(s)) return s;
+  // YYYY자라는NNN (01 누락) → YYYY01자라는NNN
+  if (/^\d{4}자라는\d{3,}$/.test(s)) {
+    return s.slice(0,4) + '01' + s.slice(4);
+  }
+  // YYYY01NNN (자라는 누락) — 순수 숫자 9자리 이상
+  const digits = s.replace(/[^\d]/g,'');
+  if (/^자라는/.test(s)) return s; // '자라는123' 처럼 시작이면 그대로
+  if (digits.length >= 9 && s === digits) {
+    // 202601001 → YYYY(4) + 01(2) + NNN(3자리 이상)
+    const yy = digits.slice(0,4);
+    const type = digits.slice(4,6);
+    const seq = digits.slice(6);
+    if (type === '01') return `${yy}01자라는${seq.padStart(3,'0')}`;
+  }
+  return s;   // 다른 이상 형식은 손대지 않고 그대로 반환 (수동 확인)
+}
+
+function plan() {
+  const arr = JSON.parse(localStorage.getItem('children')||'[]');
+  const actions = [];
+  arr.forEach((c, i) => {
+    const name = (c.name||'').trim();
+    const old = (c.managerId||'').trim();
+    let next = old;
+    let reason = '';
+    if (MANUAL_OVERRIDES[name]) {
+      next = MANUAL_OVERRIDES[name];
+      reason = '개별지정';
+    } else if (old) {
+      next = normalizeMid(old);
+      if (next !== old) reason = '포맷정규화';
+    }
+    if (next && next !== old) actions.push({ i, name, old, next, reason });
+  });
+  // 중복 감지
+  const midMap = new Map(); // mid → [idx list]
+  arr.forEach((c, i) => {
+    let mid = (c.managerId||'').trim();
+    const act = actions.find(a=>a.i===i);
+    if (act) mid = act.next;
+    if (!mid) return;
+    if (!midMap.has(mid)) midMap.set(mid, []);
+    midMap.get(mid).push(i);
+  });
+  const conflicts = [...midMap.entries()].filter(([m, idxs]) => idxs.length > 1);
+  return { arr, actions, conflicts };
+}
+
+function renderPreview() {
+  const { arr, actions, conflicts } = plan();
+  let html = `<div style="margin-bottom:10px;font-size:13px;">
+    총 <b>${arr.length}</b>명 · 변경 예정 <b style="color:#2e7d32;">${actions.length}</b>건
+    ${conflicts.length ? ` · <span style="color:#c62828;">중복 관리자번호 ${conflicts.length}건</span>` : ''}
+  </div>`;
+
+  if (actions.length) {
+    html += '<h4>변경 예정</h4><table class="pv"><thead><tr><th>이름</th><th>기존</th><th>변경</th><th>사유</th></tr></thead><tbody>';
+    actions.forEach(a => {
+      const cls = a.reason === '개별지정' ? 'override' : 'change';
+      html += `<tr class="${cls}"><td><b>${escapeHtml(a.name)}</b></td><td>${escapeHtml(a.old)||'<i>비어있음</i>'}</td><td style="font-family:monospace;font-weight:bold;">${escapeHtml(a.next)}</td><td>${escapeHtml(a.reason)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  } else {
+    html += '<div style="color:#aaa;padding:20px;text-align:center;">변경할 항목이 없습니다.</div>';
+  }
+
+  if (conflicts.length) {
+    html += '<h4 style="margin-top:14px;color:#c62828;">⚠️ 중복 관리자번호 (수동 조정 필요)</h4><table class="pv"><thead><tr><th>관리자번호</th><th>중복 아동</th></tr></thead><tbody>';
+    conflicts.forEach(([mid, idxs]) => {
+      const names = idxs.map(i => arr[i].name).join(', ');
+      html += `<tr class="conflict"><td>${escapeHtml(mid)}</td><td>${escapeHtml(names)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    html += '<div style="margin-top:8px;font-size:12px;color:#c62828;">→ 실행 후 아동관리에서 한쪽을 편집해서 다른 번호로 조정해주세요.</div>';
+  }
+
+  document.getElementById('pv').innerHTML = html;
+}
+
+function doApply() {
+  const { arr, actions } = plan();
+  if (!actions.length) { alert('변경할 항목이 없습니다.'); return; }
+  if (!confirm(`${actions.length}건의 관리자번호를 정규화합니다.\n계속하시겠습니까?`)) return;
+  actions.forEach(a => { arr[a.i].managerId = a.next; arr[a.i].updatedAt = new Date().toISOString(); });
+  localStorage.setItem('children', JSON.stringify(arr));
+  alert(`✅ ${actions.length}건 정규화 완료.`);
+  renderPreview();
+}
+
+renderPreview();
+</script>
+</body>
+</html>
