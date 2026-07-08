@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supabase 동기화 - 나무링크</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .wrap { max-width:960px; margin:0 auto; padding:20px; }
+  .card { background:white; border-radius:10px; padding:20px 24px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .card h3 { margin:0 0 10px; color:#2e7d32; font-size:16px; border-left:4px solid #66bb6a; padding-left:8px; }
+  .btn { padding:12px 22px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:14px; margin-right:6px; }
+  .btn-primary { background:#2e7d32; color:white; }
+  .btn-blue { background:#1565c0; color:white; }
+  .btn-orange { background:#e65100; color:white; }
+  .btn-sub { background:#f5f5f5; color:#333; border:1px solid #ccc; }
+  .info-box { background:#e3f2fd; padding:14px 18px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#0d47a1; }
+  .warn-box { background:#fff3e0; padding:14px 18px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#5d4037; }
+  .log { background:#263238; color:#aed581; font-family:'Consolas',monospace; font-size:12px; padding:14px; border-radius:6px; min-height:200px; max-height:400px; overflow-y:auto; white-space:pre-wrap; margin-top:10px; }
+  .log .err { color:#ef5350; }
+  .log .ok  { color:#66bb6a; }
+  .log .info { color:#4fc3f7; }
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin-top:10px; }
+  .stat { background:#f5f9f0; padding:10px 12px; border-radius:6px; }
+  .stat .k { font-size:11px; color:#666; }
+  .stat .v { font-size:16px; font-weight:bold; color:#2e7d32; }
+</style>
+</head>
+<body>
+<header><h1>🌿 Supabase 동기화</h1></header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="records.html">치료 기록</a>
+  <a href="calendar.html">스케줄</a>
+  <a href="payments.html">납부</a>
+  <a href="therapists.html">치료사</a>
+</nav>
+
+<div class="wrap">
+  <div class="warn-box">
+    <b>⚠️ 하이브리드 방식</b><br>
+    나무링크는 여전히 <b>localStorage 를 주 저장소</b>로 사용합니다. 이 페이지에서는:
+    <ul style="margin:6px 0 0 20px;">
+      <li>📤 <b>클라우드 저장</b>: 현재 브라우저의 데이터 전체를 Supabase 에 업로드</li>
+      <li>📥 <b>클라우드 불러오기</b>: Supabase 데이터로 localStorage 덮어쓰기 (다른 기기 데이터 가져오기)</li>
+      <li>📦 <b>JSON 마이그레이션</b>: 백업 파일을 Supabase 에 직접 업로드</li>
+    </ul>
+    수동으로 동기화 시점을 관리하시기 때문에, 여러 기기에서 동시 편집 시 마지막 저장이 이깁니다.
+  </div>
+
+  <div class="card">
+    <h3>1️⃣ 연결 상태</h3>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">Project URL</div><div class="v" style="font-size:11px;font-family:monospace;">mrezaqgfyvgdtukzkidb</div></div>
+      <div class="stat"><div class="k">연결 상태</div><div class="v" id="connStatus">확인 안 됨</div></div>
+    </div>
+    <div style="margin-top:14px;">
+      <button class="btn btn-sub" onclick="testConn()">🔌 연결 테스트</button>
+      <button class="btn btn-sub" onclick="showSchemaSql()">📄 스키마 SQL 보기</button>
+    </div>
+    <div id="schemaBox" style="display:none;margin-top:10px;">
+      <div style="font-size:12px;color:#666;margin-bottom:6px;">👇 Supabase 대시보드 → SQL Editor 에 붙여넣고 실행:</div>
+      <textarea readonly style="width:100%;height:200px;font-family:monospace;font-size:11px;padding:10px;" id="schemaSql"></textarea>
+      <div style="text-align:right;margin-top:4px;">
+        <button class="btn btn-sub" onclick="copySchema()">📋 복사</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>2️⃣ 현재 localStorage 데이터</h3>
+    <div id="lsStats" class="stat-grid"></div>
+    <button class="btn btn-sub" style="margin-top:12px;" onclick="renderLsStats()">🔄 새로고침</button>
+  </div>
+
+  <div class="card">
+    <h3>3️⃣ 동기화</h3>
+    <button class="btn btn-primary" onclick="doPush()">📤 localStorage → Supabase (클라우드 저장)</button>
+    <button class="btn btn-blue" onclick="doPull()">📥 Supabase → localStorage (클라우드 불러오기)</button>
+    <button class="btn btn-sub" onclick="clearLog()">지우기</button>
+  </div>
+
+  <div class="card">
+    <h3>4️⃣ 백업 JSON 마이그레이션</h3>
+    <p style="font-size:13px;color:#555;">
+      <code>namu-link-backup.json</code> 등 백업 파일을 Supabase 에 직접 업로드합니다.<br>
+      기존 localStorage 는 변경하지 않고, 파일 → 클라우드로만 이동합니다.
+    </p>
+    <input type="file" id="_bkFile" accept=".json" style="display:none;" onchange="doImportFile(this.files[0])">
+    <button class="btn btn-orange" onclick="document.getElementById('_bkFile').click()">📦 백업 파일 → Supabase 업로드</button>
+  </div>
+
+  <div class="card">
+    <h3>📝 실행 로그</h3>
+    <div id="log" class="log">준비됨.</div>
+  </div>
+</div>
+
+<script src="js/supabase-client.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+function log(msg, cls='') {
+  const el = $('log');
+  const time = new Date().toLocaleTimeString('ko-KR');
+  const line = `[${time}] ${msg}`;
+  el.innerHTML += (cls ? `<span class="${cls}">${line}</span>` : line) + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog(){ $('log').textContent = '준비됨.\n'; }
+
+async function testConn() {
+  log('연결 테스트 중...', 'info');
+  try {
+    const { ok, error } = await Supa.testConnection();
+    if (ok) { log('✅ 연결 성공', 'ok'); $('connStatus').textContent = '✅ 정상'; $('connStatus').style.color = '#2e7d32'; }
+    else { log('❌ 연결 실패: ' + error, 'err'); $('connStatus').textContent = '❌ 실패'; $('connStatus').style.color = '#c62828'; }
+  } catch(e) {
+    log('❌ 오류: ' + e.message, 'err');
+    $('connStatus').textContent = '❌ 오류';
+    $('connStatus').style.color = '#c62828';
+  }
+}
+
+function renderLsStats() {
+  const KEYS = ['children','therapists','payments','records','voucher_data','intake_list','assessment_tokens','initial_assessments'];
+  let extras = 0;
+  Object.keys(localStorage).forEach(k => {
+    if (k.startsWith('child_docs_') || k.startsWith('child_timeline_') || k.startsWith('child_parent_memos_')) extras++;
+  });
+  let html = '';
+  KEYS.forEach(k => {
+    let n = 0;
+    try { const v = JSON.parse(localStorage.getItem(k)||'[]'); n = Array.isArray(v)?v.length:Object.keys(v).length; } catch(e){}
+    html += `<div class="stat"><div class="k">${k}</div><div class="v">${n}</div></div>`;
+  });
+  html += `<div class="stat"><div class="k">child_extras (총)</div><div class="v">${extras}</div></div>`;
+  $('lsStats').innerHTML = html;
+}
+
+async function doPush() {
+  if (!confirm('현재 브라우저의 localStorage 전체를 Supabase 로 업로드합니다.\n\n같은 ID 의 클라우드 데이터는 덮어써집니다. 계속하시겠습니까?')) return;
+  log('=== 📤 업로드 시작 ===', 'info');
+  try {
+    const results = await Supa.pushAll(msg => log(msg));
+    let total = 0, errs = 0;
+    results.forEach(r => {
+      if (r.error) { log(`❌ ${r.table}: ${r.error}`, 'err'); errs++; }
+      else { log(`✅ ${r.table}: ${r.count}건`, 'ok'); total += r.count; }
+    });
+    log(`=== 완료: 총 ${total}건 업로드, 실패 ${errs}건 ===`, errs?'err':'ok');
+  } catch(e) { log('❌ 치명 오류: ' + e.message, 'err'); }
+}
+
+async function doPull() {
+  if (!confirm('Supabase 데이터로 이 브라우저의 localStorage 를 덮어씁니다.\n\n⚠️ 이 브라우저에만 있고 클라우드에 없는 데이터는 사라질 수 있습니다.\n\n계속하시겠습니까?')) return;
+  log('=== 📥 다운로드 시작 ===', 'info');
+  try {
+    const results = await Supa.pullAll(msg => log(msg));
+    let total = 0, errs = 0;
+    results.forEach(r => {
+      if (r.error) { log(`❌ ${r.table}: ${r.error}`, 'err'); errs++; }
+      else { log(`✅ ${r.table}: ${r.count}건`, 'ok'); total += r.count; }
+    });
+    log(`=== 완료: 총 ${total}건 다운로드, 실패 ${errs}건 ===`, errs?'err':'ok');
+    log('페이지를 새로고침해 반영을 확인하세요.', 'info');
+    renderLsStats();
+  } catch(e) { log('❌ 치명 오류: ' + e.message, 'err'); }
+}
+
+// 백업 JSON 파일 → Supabase 직접 업로드
+async function doImportFile(file) {
+  if (!file) return;
+  if (!confirm(`${file.name} 을 Supabase 에 직접 업로드합니다.\n(현재 localStorage 는 변경 안 됨)\n계속하시겠습니까?`)) { $('_bkFile').value = ''; return; }
+  log(`=== 📦 파일 마이그레이션 시작: ${file.name} ===`, 'info');
+  try {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const dump = JSON.parse(reader.result);
+        // 임시로 localStorage 를 백업하고, 파일 내용으로 교체 → push → 복원
+        const backup = {};
+        Supa.KEYS.forEach(k => backup[k] = localStorage.getItem(k));
+        Object.keys(localStorage).forEach(k => {
+          if (k.startsWith('child_')) backup[k] = localStorage.getItem(k);
+        });
+        // 파일 내용 임시 반영
+        Object.keys(dump).forEach(k => {
+          if (k === '_meta') return;
+          localStorage.setItem(k, typeof dump[k] === 'string' ? dump[k] : JSON.stringify(dump[k]));
+        });
+        // push
+        const results = await Supa.pushAll(msg => log(msg));
+        // 복원
+        Object.keys(localStorage).forEach(k => localStorage.removeItem(k));
+        Object.keys(backup).forEach(k => backup[k] !== null && localStorage.setItem(k, backup[k]));
+        let total = 0, errs = 0;
+        results.forEach(r => {
+          if (r.error) { log(`❌ ${r.table}: ${r.error}`, 'err'); errs++; }
+          else { log(`✅ ${r.table}: ${r.count}건`, 'ok'); total += r.count; }
+        });
+        log(`=== 파일 마이그레이션 완료: ${total}건, 실패 ${errs}건 ===`, errs?'err':'ok');
+        log('현재 브라우저 localStorage 는 원복됐습니다.', 'info');
+      } catch(e) { log('❌ 파일 파싱 오류: ' + e.message, 'err'); }
+      $('_bkFile').value = '';
+    };
+    reader.readAsText(file);
+  } catch(e) { log('❌ 오류: ' + e.message, 'err'); }
+}
+
+async function showSchemaSql() {
+  const box = $('schemaBox');
+  if (box.style.display === 'none') {
+    box.style.display = 'block';
+    if (!$('schemaSql').value) {
+      try {
+        const r = await fetch('supabase/schema.sql');
+        $('schemaSql').value = await r.text();
+      } catch(e) {
+        $('schemaSql').value = '(fetch 실패 — supabase/schema.sql 파일을 직접 열어 확인하세요.)';
+      }
+    }
+  } else {
+    box.style.display = 'none';
+  }
+}
+function copySchema() {
+  $('schemaSql').select();
+  document.execCommand('copy');
+  alert('✅ 스키마 SQL 이 클립보드에 복사되었습니다.');
+}
+
+renderLsStats();
+testConn();
+</script>
+</body>
+</html>
