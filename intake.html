@@ -24,6 +24,18 @@
   .st-등록확정 { background:#e8f5e9; color:#2e7d32; }
   .st-보류 { background:#f5f5f5; color:#888; }
   .empty { text-align:center; color:#aaa; padding:40px; font-size:14px; }
+  .stats-grid { display:grid; grid-template-columns:1fr 1fr 260px; gap:12px; margin-bottom:16px; }
+  .stat-card { background:white; border-radius:10px; padding:14px 16px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .stat-card h4 { margin:0 0 10px; color:#2e7d32; font-size:13px; border-left:3px solid #66bb6a; padding-left:6px; }
+  .bar-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:12px; }
+  .bar-row .lbl { min-width:100px; color:#555; }
+  .bar-row .bar-bg { flex:1; background:#eef2ea; border-radius:4px; height:14px; overflow:hidden; position:relative; }
+  .bar-row .bar-fill { background:linear-gradient(90deg,#66bb6a,#2e7d32); height:100%; border-radius:4px; }
+  .bar-row .cnt { min-width:34px; text-align:right; font-weight:bold; color:#2e7d32; }
+  .month-box { display:flex; flex-direction:column; align-items:center; justify-content:center; background:linear-gradient(135deg,#e8f5e9,#f5f9f0); border-radius:10px; padding:18px; }
+  .month-box .big-num { font-size:38px; font-weight:bold; color:#2e7d32; line-height:1; margin:6px 0; }
+  .month-box .lbl { font-size:12px; color:#666; }
+  @media (max-width:900px) { .stats-grid { grid-template-columns:1fr; } }
   .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:none; z-index:100; align-items:center; justify-content:center; }
   .modal-bg.show { display:flex; }
   .modal-box { background:white; border-radius:10px; width:520px; max-width:92vw; max-height:92vh; overflow-y:auto; }
@@ -57,6 +69,8 @@
     <h2 style="margin:0;color:#2e7d32;">📋 신규아동 · 상담 대기 명단</h2>
     <button class="btn btn-primary" onclick="openForm()">+ 신규 상담 등록</button>
   </div>
+
+  <div id="statsArea"></div>
 
   <div class="toolbar">
     <input type="text" id="qSearch" class="search" placeholder="이름·연락처·희망영역 검색..." oninput="render()">
@@ -92,20 +106,24 @@
       </div>
       <div class="row2">
         <div class="fld"><label>희망 영역</label>
-          <select id="fArea">
-            <option value="">선택</option>
-            <option>발달재활서비스</option>
-            <option>언어치료</option>
-            <option>작업치료</option>
-            <option>감각통합</option>
-            <option>인지·학습</option>
-            <option>기타</option>
-          </select>
+          <input type="text" id="fArea" placeholder="예: 언어치료, 감각통합">
         </div>
         <div class="fld"><label>희망 요일·시간</label><input type="text" id="fPref" placeholder="예: 화요일 4시대"></div>
       </div>
       <div class="row2">
+        <div class="fld"><label>문의 첫 날짜</label><input type="date" id="fInquiryDate"></div>
         <div class="fld"><label>상담 예정일</label><input type="date" id="fSchedDate"></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>지원사업 유형</label>
+          <select id="fProgram">
+            <option value="">선택</option>
+            <option>발달재활서비스</option>
+            <option>방과후활동비지원</option>
+            <option>치료지원</option>
+            <option>개인결제</option>
+          </select>
+        </div>
         <div class="fld"><label>상태</label>
           <select id="fStatus">
             <option>대기중</option>
@@ -115,7 +133,18 @@
           </select>
         </div>
       </div>
-      <div class="fld"><label>유입 경로</label><input type="text" id="fSource" placeholder="예: 지인 소개, 블로그, 바우처센터 안내 등"></div>
+      <div class="fld"><label>유입 경로</label>
+        <select id="fSource" onchange="_toggleSourceEtc()">
+          <option value="">선택</option>
+          <option>지인소개</option>
+          <option>블로그</option>
+          <option>인스타그램</option>
+          <option>바우처센터 안내</option>
+          <option>병원 연계</option>
+          <option>기타</option>
+        </select>
+        <input type="text" id="fSourceEtc" placeholder="직접 입력" style="display:none;margin-top:6px;">
+      </div>
       <div class="fld"><label>메모</label><textarea id="fNote" placeholder="특이사항·상담 내용 등"></textarea></div>
     </div>
     <div class="modal-foot">
@@ -149,13 +178,14 @@ function render(){
   const area = document.getElementById('listArea');
   if (!data.length) { area.innerHTML = '<div class="empty">등록된 신규 상담이 없습니다.<br>우측 상단 <b>+ 신규 상담 등록</b> 버튼을 눌러 추가하세요.</div>'; return; }
   let html = `<table class="intake-tbl"><thead><tr>
-    <th style="width:70px;">상담예정</th><th style="width:70px;">상태</th><th>이름</th><th>생년월일</th>
-    <th>보호자</th><th>연락처</th><th>희망영역</th><th>희망시간</th><th style="width:200px;">관리</th>
+    <th style="width:80px;">문의일</th><th style="width:80px;">상담예정</th><th style="width:70px;">상태</th><th>이름</th><th>생년월일</th>
+    <th>보호자</th><th>연락처</th><th>희망영역</th><th>지원사업</th><th>유입</th><th style="width:200px;">관리</th>
   </tr></thead><tbody>`;
   data.forEach(x => {
     const st = x.status || '대기중';
     const canConfirm = st !== '등록확정';
     html += `<tr>
+      <td class="center" style="font-size:12px;">${x.inquiryDate||'-'}</td>
       <td class="center" style="font-size:12px;">${x.schedDate||'-'}</td>
       <td class="center"><span class="status-pill st-${st}">${st}</span></td>
       <td><b>${escapeHtml(x.name||'')}</b>${x.note?`<div style="font-size:11px;color:#888;margin-top:2px;">📝 ${escapeHtml(x.note).slice(0,40)}</div>`:''}</td>
@@ -163,7 +193,8 @@ function render(){
       <td>${escapeHtml(x.guardian||'')}</td>
       <td>${escapeHtml(x.phone||'')}</td>
       <td>${escapeHtml(x.area||'')}</td>
-      <td>${escapeHtml(x.pref||'')}</td>
+      <td>${escapeHtml(x.program||'-')}</td>
+      <td style="font-size:11px;">${escapeHtml(x.source||'-')}</td>
       <td class="center" style="white-space:nowrap;">
         <button class="btn btn-sub btn-small" onclick="openForm('${x.id}')">편집</button>
         <button class="btn btn-small" style="background:#fee500;color:#3c1e1e;" onclick="issueLink('${x.id}')">📩 상담지</button>
@@ -177,16 +208,36 @@ function render(){
 
 function escapeHtml(s){ return String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
 
+const SOURCE_OPTS = ['지인소개','블로그','인스타그램','바우처센터 안내','병원 연계','기타'];
+function _toggleSourceEtc(){
+  const v = document.getElementById('fSource').value;
+  document.getElementById('fSourceEtc').style.display = (v==='기타') ? 'block' : 'none';
+}
 function openForm(id){
   document.getElementById('fId').value = id || '';
   document.getElementById('mTitle').textContent = id ? '상담 정보 편집' : '신규 상담 등록';
   document.getElementById('fDeleteBtn').style.display = id ? 'inline-block' : 'none';
   const rec = id ? loadAll().find(x=>x.id===id) : null;
-  ['fName','fBirth','fGuardian','fPhone','fArea','fPref','fSchedDate','fStatus','fSource','fNote'].forEach(k => {
+  const today = new Date().toISOString().slice(0,10);
+  const keys = ['fName','fBirth','fGuardian','fPhone','fArea','fPref','fInquiryDate','fSchedDate','fProgram','fStatus','fNote'];
+  keys.forEach(k => {
     const el = document.getElementById(k);
     const key = k.replace(/^f/,'').charAt(0).toLowerCase() + k.slice(2);
-    el.value = rec ? (rec[key]||'') : (k==='fStatus'?'대기중':'');
+    let v = rec ? (rec[key]||'') : '';
+    if (!rec) {
+      if (k==='fStatus') v = '대기중';
+      if (k==='fInquiryDate') v = today;  // 문의 첫 날짜 자동 오늘
+    }
+    el.value = v;
   });
+  // 유입경로: 프리셋 옵션이면 그대로, 아니면 '기타'로 세팅하고 실제값을 fSourceEtc 에
+  const srcSel = document.getElementById('fSource');
+  const srcEtc = document.getElementById('fSourceEtc');
+  const src = rec ? (rec.source||'') : '';
+  if (SOURCE_OPTS.includes(src) && src !== '기타') { srcSel.value = src; srcEtc.value = ''; }
+  else if (src) { srcSel.value = '기타'; srcEtc.value = src; }
+  else { srcSel.value = ''; srcEtc.value = ''; }
+  _toggleSourceEtc();
   document.getElementById('mBg').classList.add('show');
 }
 function closeForm(){ document.getElementById('mBg').classList.remove('show'); }
@@ -196,24 +247,33 @@ function save(){
   const phone = document.getElementById('fPhone').value.trim();
   if (!name || !phone) { alert('이름과 보호자 연락처는 필수입니다.'); return; }
   const id = document.getElementById('fId').value || ('itk_'+Date.now());
+  // 유입경로: 드롭다운값 (기타면 직접입력값 사용)
+  const srcSel = document.getElementById('fSource').value;
+  const srcEtc = document.getElementById('fSourceEtc').value.trim();
+  const source = (srcSel === '기타') ? (srcEtc || '기타') : srcSel;
+  const arr = loadAll();
+  const existing = arr.find(x=>x.id===id);
   const rec = {
     id,
     name, phone,
     birth: document.getElementById('fBirth').value.trim(),
     guardian: document.getElementById('fGuardian').value.trim(),
-    area: document.getElementById('fArea').value,
+    area: document.getElementById('fArea').value.trim(),
     pref: document.getElementById('fPref').value.trim(),
+    inquiryDate: document.getElementById('fInquiryDate').value || (existing?.inquiryDate) || new Date().toISOString().slice(0,10),
     schedDate: document.getElementById('fSchedDate').value,
+    program: document.getElementById('fProgram').value,
     status: document.getElementById('fStatus').value,
-    source: document.getElementById('fSource').value.trim(),
+    source,
     note: document.getElementById('fNote').value.trim(),
+    createdAt: existing?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  const arr = loadAll();
   const idx = arr.findIndex(x=>x.id===id);
   if (idx>=0) arr[idx] = rec; else arr.unshift(rec);
   saveAll(arr);
   closeForm();
+  renderStats();
   render();
 }
 
@@ -222,16 +282,17 @@ function delItem(){
   const id = document.getElementById('fId').value;
   saveAll(loadAll().filter(x=>x.id!==id));
   closeForm();
+  renderStats();
   render();
 }
 
 function exportCSV(){
   const rows = loadAll();
   if (!rows.length) { alert('내보낼 데이터가 없습니다.'); return; }
-  const headers = ['상담예정','상태','이름','생년월일','보호자','연락처','희망영역','희망시간','유입','메모'];
+  const headers = ['문의일','상담예정','상태','이름','생년월일','보호자','연락처','희망영역','희망시간','지원사업','유입경로','메모'];
   const lines = [headers.join(',')];
   rows.forEach(x => {
-    const line = [x.schedDate,x.status,x.name,x.birth,x.guardian,x.phone,x.area,x.pref,x.source,x.note]
+    const line = [x.inquiryDate,x.schedDate,x.status,x.name,x.birth,x.guardian,x.phone,x.area,x.pref,x.program,x.source,x.note]
       .map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',');
     lines.push(line);
   });
@@ -345,8 +406,64 @@ function confirmRegister(intakeId){
   }
 
   alert(`✅ "${rec.name}" 아동이 아동관리로 이관되었습니다.\n\n확인하시려면 상단 "아동 관리" 탭을 클릭하세요.`);
+  renderStats();
   render();
 }
+// ===== 통계 =====
+function renderStats(){
+  const rows = loadAll();
+  const now = new Date();
+  const thisYm = now.toISOString().slice(0,7);
+  // 이번 달 신규 문의 (inquiryDate 우선, 없으면 createdAt)
+  const thisMonthCount = rows.filter(x => {
+    const d = (x.inquiryDate || (x.createdAt||'').slice(0,10) || '').slice(0,7);
+    return d === thisYm;
+  }).length;
+
+  // 유입경로 집계
+  const bySource = {};
+  rows.forEach(x => {
+    const s = x.source || '(미기재)';
+    bySource[s] = (bySource[s]||0) + 1;
+  });
+  const sourceMax = Math.max(1, ...Object.values(bySource));
+  const sourceEntries = Object.entries(bySource).sort((a,b)=>b[1]-a[1]);
+
+  // 지원사업 집계
+  const byProgram = {};
+  rows.forEach(x => {
+    const p = x.program || '(미기재)';
+    byProgram[p] = (byProgram[p]||0) + 1;
+  });
+  const progMax = Math.max(1, ...Object.values(byProgram));
+  const progEntries = Object.entries(byProgram).sort((a,b)=>b[1]-a[1]);
+
+  const bars = (entries, max) => entries.map(([lbl,cnt]) => `
+    <div class="bar-row">
+      <div class="lbl">${escapeHtml(lbl)}</div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${Math.round(cnt/max*100)}%;"></div></div>
+      <div class="cnt">${cnt}</div>
+    </div>`).join('');
+
+  document.getElementById('statsArea').innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h4>📊 유입경로별 건수</h4>
+        ${sourceEntries.length ? bars(sourceEntries, sourceMax) : '<div style="color:#aaa;font-size:12px;">데이터 없음</div>'}
+      </div>
+      <div class="stat-card">
+        <h4>💼 지원사업 유형별 건수</h4>
+        ${progEntries.length ? bars(progEntries, progMax) : '<div style="color:#aaa;font-size:12px;">데이터 없음</div>'}
+      </div>
+      <div class="stat-card month-box">
+        <div class="lbl">📅 이번 달 신규 문의</div>
+        <div class="big-num">${thisMonthCount}</div>
+        <div class="lbl">${now.getFullYear()}년 ${now.getMonth()+1}월</div>
+      </div>
+    </div>`;
+}
+
+renderStats();
 render();
 </script>
 </body>
