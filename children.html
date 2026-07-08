@@ -858,6 +858,19 @@
         const color = STATUS_COLOR[st]||'#2e7d32';
         const therapies = c.therapies||[];
 
+        // 납부이력에서 감지된 지원유형 중 therapies 에 없는 것 추론
+        const existingSupports = new Set(therapies.map(t => (t.support||'').trim()).filter(Boolean));
+        const paymentsForChild = payments.filter(p => p.childId === c.id);
+        const inferredSupports = [];
+        const seenInferred = new Set();
+        paymentsForChild.forEach(p => {
+          const sup = (p.support||'').trim();
+          if (!sup || sup.startsWith('평가') || sup === '1회성 수업') return;   // 첫방문 결제는 별도
+          if (existingSupports.has(sup) || seenInferred.has(sup)) return;
+          seenInferred.add(sup);
+          inferredSupports.push(sup);
+        });
+
         // 지원유형별 rows
         const rows = therapies.map(t=>{
           const isBandal  = t.support===BANDAL_SUPPORT;
@@ -882,8 +895,19 @@
           </tr>`;
         }).join('');
 
-        const tableBody = therapies.length
-          ? rows
+        // 추론된 지원유형 행 추가 (요일/시간 정보 없음 표시)
+        const inferredRows = inferredSupports.map(sup => {
+          return `<tr title="납부이력에서 감지 - 수업 상세정보 미입력" style="background:#fff8e1;">
+            <td>${supportBadge(sup)} <span style="font-size:10px;color:#e65100;font-weight:bold;">📌 납부기록 감지</span></td>
+            <td style="color:#e65100;">?</td>
+            <td style="color:#e65100;">?</td>
+            <td style="color:#e65100;">?</td>
+            <td style="color:#e65100;font-size:11px;">수업정보 미입력</td>
+          </tr>`;
+        }).join('');
+
+        const tableBody = (therapies.length || inferredRows)
+          ? (rows + inferredRows)
           : `<tr><td colspan="6" class="no-therapy">납부현황에 등록된 수업 정보가 없습니다.</td></tr>`;
 
         return `
