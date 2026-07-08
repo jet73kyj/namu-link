@@ -615,7 +615,37 @@
         body += '</table>';
       }
       // 제출된 응답
-      body += '<h4 style="margin:0 0 8px;color:#2e7d32;">📋 제출된 초기상담지</h4>';
+      // 업로드된 PDF 목록
+      const docsKey = `child_docs_${childId}`;
+      const docs = JSON.parse(localStorage.getItem(docsKey)||'[]').filter(d => d.category === 'assessment_upload');
+      body += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h4 style="margin:0;color:#2e7d32;">📎 업로드된 초기상담지 PDF (${docs.length})</h4>
+        <label style="padding:5px 10px;background:#fee500;color:#3c1e1e;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">
+          📤 PDF 파일 업로드
+          <input type="file" accept=".pdf" style="display:none;" onchange="_uploadAssessmentPdf('${childId}', this.files[0])">
+        </label>
+      </div>`;
+      if (!docs.length) body += '<div style="color:#aaa;font-size:12px;margin-bottom:14px;">업로드된 PDF 가 없습니다. 우측 상단 버튼으로 학부모가 종이/이메일로 보낸 상담지를 등록해주세요.</div>';
+      else {
+        docs.forEach((d, idx) => {
+          const globalIdx = JSON.parse(localStorage.getItem(docsKey)||'[]').indexOf(d);
+          body += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#fafafa;border:1px solid #eee;border-radius:6px;margin-bottom:6px;">
+            <div style="flex:1;font-size:12px;">
+              <div style="font-weight:bold;">📄 ${escapeHtml(d.filename||'상담지.pdf')}</div>
+              <div style="color:#888;font-size:11px;margin-top:2px;">${new Date(d.uploadedAt).toLocaleString('ko-KR')} · ${d.size?Math.round(d.size/1024)+' KB':''}</div>
+              ${d.note?`<div style="margin-top:3px;color:#555;">${escapeHtml(d.note)}</div>`:''}
+            </div>
+            <div style="display:flex;gap:5px;">
+              <button onclick="_previewAssessmentPdf('${childId}', ${globalIdx})" style="padding:4px 10px;background:#e3f2fd;color:#1565c0;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;">🔍 미리보기</button>
+              <button onclick="_deleteAssessmentPdf('${childId}', ${globalIdx})" style="padding:4px 10px;background:#c62828;color:white;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;">삭제</button>
+            </div>
+          </div>`;
+        });
+      }
+      body += '<hr style="margin:16px 0;border:none;border-top:1px solid #eee;">';
+      body += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h4 style="margin:0;color:#2e7d32;">📋 온라인 제출된 초기상담지 (${list.length})</h4>
+      </div>`;
       if (!list.length) body += '<div style="color:#aaa;font-size:13px;">제출된 상담지가 없습니다.</div>';
       else list.forEach(r => {
         const domains = {social_emotional:'사회·정서', language:'언어', cognitive:'인지', motor:'운동'};
@@ -625,19 +655,22 @@
           const keys = Object.keys(resp);
           if (!keys.length) return;
           domainHtml += `<div style="margin-top:8px;"><b style="color:#558b2f;">${domains[dk]}</b><ul style="margin:4px 0 0 20px;padding:0;font-size:12px;">`;
-          keys.forEach(k => { domainHtml += `<li>${k}: <b>${r['responses_'+dk][k]}</b></li>`; });
+          keys.forEach(k => { domainHtml += `<li>${escapeHtml(k)}: <b>${escapeHtml(r['responses_'+dk][k])}</b></li>`; });
           domainHtml += '</ul></div>';
         });
         body += `<div style="border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:10px;background:#fafafa;">
-          <div style="font-size:11px;color:#888;margin-bottom:6px;">제출: ${new Date(r.submitted_at).toLocaleString('ko-KR')} · ${AG_LABEL[r.age_group]||r.age_group}</div>
-          <div style="font-size:13px;"><b>상담자:</b> ${r.counselor_name||'-'} | <b>연락처:</b> ${r.contact||'-'}</div>
-          <div style="font-size:13px;margin-top:4px;"><b>주 호소:</b> ${r.main_concern||'-'}</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div style="font-size:11px;color:#888;margin-bottom:6px;">제출: ${new Date(r.submitted_at).toLocaleString('ko-KR')} · ${AG_LABEL[r.age_group]||r.age_group}</div>
+            <button onclick="_printAssessmentResponse('${r.id}')" style="padding:4px 10px;background:#2e7d32;color:white;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;">🖨️ PDF 출력</button>
+          </div>
+          <div style="font-size:13px;"><b>상담자:</b> ${escapeHtml(r.counselor_name)||'-'} | <b>연락처:</b> ${escapeHtml(r.contact)||'-'}</div>
+          <div style="font-size:13px;margin-top:4px;"><b>주 호소:</b> ${escapeHtml(r.main_concern)||'-'}</div>
           ${domainHtml}
-          ${r.regression_note?`<div style="margin-top:6px;font-size:12px;"><b>퇴행:</b> ${r.regression_note}</div>`:''}
-          ${r.prior_evaluation?`<div style="font-size:12px;"><b>이전 평가:</b> ${r.prior_evaluation}</div>`:''}
-          ${r.daycare_status?`<div style="font-size:12px;"><b>어린이집:</b> ${r.daycare_status}</div>`:''}
-          ${r.family_history?`<div style="font-size:12px;"><b>가족력:</b> ${r.family_history}</div>`:''}
-          ${r.summary_memo?`<div style="font-size:12px;"><b>종합 메모:</b> ${r.summary_memo}</div>`:''}
+          ${r.regression_note?`<div style="margin-top:6px;font-size:12px;"><b>퇴행:</b> ${escapeHtml(r.regression_note)}</div>`:''}
+          ${r.prior_evaluation?`<div style="font-size:12px;"><b>이전 평가:</b> ${escapeHtml(r.prior_evaluation)}</div>`:''}
+          ${r.daycare_status?`<div style="font-size:12px;"><b>어린이집:</b> ${escapeHtml(r.daycare_status)}</div>`:''}
+          ${r.family_history?`<div style="font-size:12px;"><b>가족력:</b> ${escapeHtml(r.family_history)}</div>`:''}
+          ${r.summary_memo?`<div style="font-size:12px;"><b>종합 메모:</b> ${escapeHtml(r.summary_memo)}</div>`:''}
         </div>`;
       });
       modal.innerHTML = `
@@ -649,6 +682,130 @@
           <div style="padding:18px 20px;">${body}</div>
         </div>`;
       document.body.appendChild(modal);
+    }
+
+    function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+    // ===== PDF 업로드 (관리자가 학부모 종이·이메일 상담지 등록) =====
+    function _uploadAssessmentPdf(childId, file) {
+      if (!file) return;
+      if (file.size > 5*1024*1024) { alert('파일 크기가 5MB 를 초과합니다.\nlocalStorage 용량 한계로 저장이 어렵습니다.'); return; }
+      if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
+        if (!confirm('PDF 파일이 아닌 것 같습니다. 그래도 업로드할까요?')) return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const key = `child_docs_${childId}`;
+        const arr = JSON.parse(localStorage.getItem(key)||'[]');
+        arr.push({
+          category: 'assessment_upload',
+          filename: file.name,
+          size: file.size,
+          dataUrl: reader.result,
+          uploadedAt: new Date().toISOString(),
+          note: '초기상담지 (관리자 업로드)',
+        });
+        localStorage.setItem(key, JSON.stringify(arr));
+        alert('✅ PDF 가 업로드되었습니다.');
+        // 모달 재렌더 (변경사항 반영)
+        document.getElementById('_assessModal')?.remove();
+        _viewAssessments(childId);
+      };
+      reader.readAsDataURL(file);
+    }
+    function _previewAssessmentPdf(childId, idx) {
+      const arr = JSON.parse(localStorage.getItem(`child_docs_${childId}`)||'[]');
+      const d = arr[idx];
+      if (!d || !d.dataUrl) return alert('파일 데이터가 없습니다.');
+      const w = window.open('');
+      w.document.write(`<title>${d.filename||'상담지.pdf'}</title><body style="margin:0;"><embed src="${d.dataUrl}" style="width:100vw;height:100vh;">`);
+    }
+    function _deleteAssessmentPdf(childId, idx) {
+      if (!confirm('이 PDF 를 삭제하시겠습니까?')) return;
+      const key = `child_docs_${childId}`;
+      const arr = JSON.parse(localStorage.getItem(key)||'[]');
+      arr.splice(idx, 1);
+      localStorage.setItem(key, JSON.stringify(arr));
+      document.getElementById('_assessModal')?.remove();
+      _viewAssessments(childId);
+    }
+
+    // ===== 온라인 제출 응답 → PDF 출력 =====
+    function _printAssessmentResponse(responseId) {
+      const r = JSON.parse(localStorage.getItem('initial_assessments')||'[]').find(x=>x.id===responseId);
+      if (!r) return alert('응답을 찾을 수 없습니다.');
+      const AG_LABEL = {'19_24':'19~24개월','25_36':'25~36개월','37_48':'37~48개월','49_60':'49~60개월'};
+      const domains = {social_emotional:'사회·정서', language:'언어', cognitive:'인지', motor:'운동'};
+      const child = JSON.parse(localStorage.getItem('children')||'[]').find(c=>c.id===r.child_id);
+      let domainHtml = '';
+      Object.keys(domains).forEach(dk => {
+        const resp = r['responses_'+dk] || {};
+        const keys = Object.keys(resp);
+        if (!keys.length) return;
+        domainHtml += `<div class="domain"><h3>${domains[dk]}</h3><table><tbody>`;
+        keys.forEach(k => {
+          const v = resp[k];
+          const chosen = v==='가능'?'✔':(v==='부분'?'△':(v==='어려움'?'✘':''));
+          domainHtml += `<tr><td class="q">${escapeHtml(k)}</td><td class="a">${chosen} ${escapeHtml(v)}</td></tr>`;
+        });
+        domainHtml += '</tbody></table></div>';
+      });
+      const html = `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><title>초기상담지 - ${escapeHtml(r.child_name_dob||'')}</title>
+<style>
+  @page { size:A4 portrait; margin:14mm; }
+  * { box-sizing:border-box; }
+  body { font-family:'맑은 고딕','Malgun Gothic',sans-serif; color:#222; margin:0; padding:0; font-size:12px; line-height:1.5; }
+  .hd { text-align:center; margin-bottom:14px; padding-bottom:10px; border-bottom:3px double #2e7d32; }
+  .hd h1 { margin:0; color:#2e7d32; font-size:22px; letter-spacing:2px; }
+  .hd .sub { color:#666; font-size:11px; margin-top:4px; }
+  table.meta { width:100%; border-collapse:collapse; margin-bottom:14px; font-size:11px; }
+  table.meta td { padding:5px 8px; border:1px solid #ccc; }
+  table.meta td.lbl { background:#f5f9f0; font-weight:bold; width:100px; color:#2e7d32; }
+  .section { margin-top:14px; page-break-inside:avoid; }
+  .section h2 { color:#2e7d32; font-size:13px; border-left:4px solid #66bb6a; padding-left:6px; margin:0 0 6px; }
+  .box { border:1px solid #ddd; padding:8px 10px; background:#fafafa; font-size:11px; white-space:pre-wrap; min-height:16px; }
+  .domain { margin-top:8px; }
+  .domain h3 { color:#558b2f; font-size:12px; margin:6px 0 4px; padding-bottom:2px; border-bottom:1px solid #c8e6c9; }
+  .domain table { width:100%; border-collapse:collapse; font-size:11px; }
+  .domain td { padding:4px 6px; border:1px solid #e0e0e0; }
+  .domain td.q { width:70%; background:white; }
+  .domain td.a { width:30%; text-align:center; background:#f5f9f0; font-weight:bold; }
+  .foot { margin-top:24px; text-align:right; font-size:11px; color:#666; }
+  .foot .stamp { display:inline-block; margin-left:16px; padding:6px 20px; border:2px solid #2e7d32; color:#2e7d32; font-weight:bold; }
+  @media print { .no-print { display:none; } body { padding:0; } }
+  .no-print { position:fixed; top:14px; right:14px; }
+  .no-print button { padding:10px 20px; font-size:14px; background:#2e7d32; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold; }
+</style>
+</head><body>
+<div class="no-print"><button onclick="window.print()">🖨️ 인쇄 / PDF 저장</button></div>
+<div class="hd">
+  <h1>🌿 초 기 상 담 지</h1>
+  <div class="sub">자라는나무 아동발달센터</div>
+</div>
+<table class="meta">
+  <tr><td class="lbl">아동 성명</td><td>${escapeHtml(r.child_name_dob||child?.name||'-')}</td>
+      <td class="lbl">생년월일</td><td>${escapeHtml(child?.birth||'-')}</td></tr>
+  <tr><td class="lbl">연령대</td><td>${AG_LABEL[r.age_group]||r.age_group||'-'}</td>
+      <td class="lbl">제출일</td><td>${new Date(r.submitted_at).toLocaleString('ko-KR')}</td></tr>
+  <tr><td class="lbl">보호자 연락처</td><td>${escapeHtml(r.contact||'-')}</td>
+      <td class="lbl">상담자</td><td>${escapeHtml(r.counselor_name||'-')}</td></tr>
+</table>
+<div class="section"><h2>■ 주 호소 문제</h2><div class="box">${escapeHtml(r.main_concern||'-')}</div></div>
+<div class="section"><h2>■ 발달 영역 체크</h2>${domainHtml||'<div class="box" style="color:#aaa;">응답 없음</div>'}</div>
+${r.regression_note?`<div class="section"><h2>■ 퇴행</h2><div class="box">${escapeHtml(r.regression_note)}</div></div>`:''}
+${r.prior_evaluation?`<div class="section"><h2>■ 이전 평가/치료 이력</h2><div class="box">${escapeHtml(r.prior_evaluation)}</div></div>`:''}
+${r.daycare_status?`<div class="section"><h2>■ 어린이집·유치원 재원 상태</h2><div class="box">${escapeHtml(r.daycare_status)}</div></div>`:''}
+${r.family_history?`<div class="section"><h2>■ 가족력</h2><div class="box">${escapeHtml(r.family_history)}</div></div>`:''}
+${r.summary_memo?`<div class="section"><h2>■ 종합 메모 · 추천 방향</h2><div class="box">${escapeHtml(r.summary_memo)}</div></div>`:''}
+<div class="foot">
+  ${new Date().toLocaleDateString('ko-KR')} 출력<br>
+  자라는나무 아동발달센터 <span class="stamp">자라는나무</span>
+</div>
+<script>setTimeout(()=>window.print(),400);</script>
+</body></html>`;
+      const w = window.open('');
+      w.document.open(); w.document.write(html); w.document.close();
     }
 
     renderList();
