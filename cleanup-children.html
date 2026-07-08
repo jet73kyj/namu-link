@@ -59,7 +59,7 @@ const CSV_LOOKUP = [
   ['방예나','20190522','202201자라는009'],
   ['최예준','20200429','202201자라는035'],
   ['이수아','20200618','202301자라는006'],
-  ['최유주','20201015','202301자라는008'],
+  ['최아린','20201015','202301자라는008'],
   ['박서아','20200501','202301자라는010'],
   ['박채아','20200501','202301자라는011'],
   ['한빛','20200423','202301자라는017'],
@@ -160,16 +160,21 @@ function normBirth(b) {
 function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
 
 // 이 이름의 아동은 중복 시 하나만 남긴다 (관리자번호 있는 항목 우선)
-const DEDUP_NAMES = ['김시윤','이하윤','설연호','강은우'];
+const DEDUP_NAMES = ['김시윤','이하윤','설연호','강은우','윤정후'];
 // 별칭 병합 규칙 — {aliasName: canonicalName}
-const RENAME_MAP = { '예빛': '이태은' };
+const RENAME_MAP = { '예빛': '이태은', '최유주': '최아린' };
+// 종결 아동 - 관리자번호 부여 대상에서 제외
+const TERMINATED_NAMES = new Set([
+  '지윤성','신영윤','박서현','조수연','윤정후','김수현','김도현',
+  '배준호','정대겸','김도하','정승빈','김시우','고은우'
+]);
 
 function plan() {
   const arr = JSON.parse(localStorage.getItem('children')||'[]');
   const actions = [];   // {type:'delete'|'rename'|'birthfix'|'assignMid', childIdx, ...}
 
-  // 1) 생년월일 정규화 대상 감지 (김시윤 110217, 이하윤 210802 등)
-  const shortBirthKids = new Set(['김시윤','이하윤']);
+  // 1) 생년월일 정규화 대상 감지 (6자리 → 8자리)
+  const shortBirthKids = new Set(['김시윤','이하윤','강은우','설연호','윤정후']);
   arr.forEach((c, i) => {
     const rawB = String(c.birth||'').replace(/\D/g,'');
     if (shortBirthKids.has((c.name||'').trim()) && rawB.length === 6) {
@@ -220,6 +225,7 @@ function plan() {
   sim.forEach(({clone, i}) => {
     if (deletedSet.has(i)) return;
     if ((clone.managerId||'').trim()) return;
+    if (TERMINATED_NAMES.has((clone.name||'').trim())) return;   // 종결 아동 제외
     const nb = normBirth(clone.birth);
     const key = `${(clone.name||'').trim()}|${nb}`;
     const mid = csvByKey.get(key);
