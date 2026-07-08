@@ -145,7 +145,7 @@ async function doPush() {
     let total = 0, errs = 0;
     results.forEach(r => {
       if (r.error) { log(`❌ ${r.table}: ${r.error}`, 'err'); errs++; }
-      else { log(`✅ ${r.table}: ${r.count}건`, 'ok'); total += r.count; }
+      else { log(`✅ ${r.table}: ${r.count}건${r.dupCount?` (중복 ${r.dupCount}건 자동 병합)`:''}`, 'ok'); total += r.count; }
     });
     log(`=== 완료: 총 ${total}건 업로드, 실패 ${errs}건 ===`, errs?'err':'ok');
   } catch(e) { log('❌ 치명 오류: ' + e.message, 'err'); }
@@ -159,7 +159,7 @@ async function doPull() {
     let total = 0, errs = 0;
     results.forEach(r => {
       if (r.error) { log(`❌ ${r.table}: ${r.error}`, 'err'); errs++; }
-      else { log(`✅ ${r.table}: ${r.count}건`, 'ok'); total += r.count; }
+      else { log(`✅ ${r.table}: ${r.count}건${r.dupCount?` (중복 ${r.dupCount}건 자동 병합)`:''}`, 'ok'); total += r.count; }
     });
     log(`=== 완료: 총 ${total}건 다운로드, 실패 ${errs}건 ===`, errs?'err':'ok');
     log('페이지를 새로고침해 반영을 확인하세요.', 'info');
@@ -196,7 +196,7 @@ async function doImportFile(file) {
         let total = 0, errs = 0;
         results.forEach(r => {
           if (r.error) { log(`❌ ${r.table}: ${r.error}`, 'err'); errs++; }
-          else { log(`✅ ${r.table}: ${r.count}건`, 'ok'); total += r.count; }
+          else { log(`✅ ${r.table}: ${r.count}건${r.dupCount?` (중복 ${r.dupCount}건 자동 병합)`:''}`, 'ok'); total += r.count; }
         });
         log(`=== 파일 마이그레이션 완료: ${total}건, 실패 ${errs}건 ===`, errs?'err':'ok');
         log('현재 브라우저 localStorage 는 원복됐습니다.', 'info');

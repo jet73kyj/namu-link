@@ -46,6 +46,21 @@
     return sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   }
 
+  // 배열에서 id 중복 제거 (마지막 값 우선 — 최신 상태 유지)
+  // Postgres upsert 는 한 배치 안에 같은 id 가 두 번 이상 있으면
+  // "ON CONFLICT DO UPDATE command cannot affect row a second time" 오류.
+  function dedupById(rows) {
+    const map = new Map();
+    let dupCount = 0;
+    rows.forEach(r => {
+      if (r.id == null || r.id === '') return; // id 없는 건 그대로 유지 (bigserial)
+      if (map.has(r.id)) dupCount++;
+      map.set(r.id, r);
+    });
+    const noId = rows.filter(r => r.id == null || r.id === '');
+    return { rows: [...map.values(), ...noId], dupCount };
+  }
+
   // localStorage 의 특정 key 를 Supabase 로 업로드 (배열 → 각 row 로 upsert)
   async function pushKey(key) {
     const cfg = KEY_TABLE[key];
@@ -53,7 +68,13 @@
     const client = await getClient();
     const raw = JSON.parse(localStorage.getItem(key) || '[]');
     if (!Array.isArray(raw) || !raw.length) return { table: cfg.table, count: 0 };
-    const rows = raw.map(r => toRow(cfg, r));
+    let rows = raw.map(r => toRow(cfg, r));
+    let dupCount = 0;
+    if (cfg.idKey !== false) {
+      const dedup = dedupById(rows);
+      rows = dedup.rows;
+      dupCount = dedup.dupCount;
+    }
     // 배치 upsert (500건씩) — id 없는 테이블(voucher_data)은 그냥 insert
     let count = 0;
     for (let i = 0; i < rows.length; i += 500) {
@@ -67,7 +88,7 @@
       if (res.error) throw new Error(`${cfg.table}: ${res.error.message}`);
       count += chunk.length;
     }
-    return { table: cfg.table, count };
+    return { table: cfg.table, count, dupCount };
   }
 
   // Supabase 에서 특정 key 데이터 전체 로드 → localStorage 에 저장
