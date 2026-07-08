@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>중복 아동 병합 도구 - 나무링크</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="js/supabase-client.js"></script>
+<style>
+  .wrap { max-width:1200px; margin:0 auto; padding:20px; }
+  .card { background:white; border-radius:10px; padding:18px 22px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .card h3 { margin:0 0 10px; color:#2e7d32; font-size:15px; border-left:4px solid #66bb6a; padding-left:6px; }
+  .btn { padding:9px 16px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px; }
+  .btn-primary { background:#2e7d32; color:white; }
+  .btn-orange { background:#e65100; color:white; }
+  .btn-danger { background:#c62828; color:white; }
+  .btn-sub { background:#f5f5f5; color:#333; border:1px solid #ccc; }
+  .info-box { background:#e3f2fd; padding:12px 16px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#0d47a1; }
+  .warn-box { background:#fff3e0; padding:12px 16px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#5d4037; }
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin-bottom:14px; }
+  .stat { background:#f5f9f0; padding:10px 12px; border-radius:6px; text-align:center; }
+  .stat .v { font-size:22px; font-weight:bold; color:#2e7d32; }
+  .stat.warn .v { color:#e65100; }
+  .stat.err .v { color:#c62828; }
+  .group { border:1px solid #ddd; border-radius:8px; padding:12px 16px; margin-bottom:10px; background:#fafafa; }
+  .group-title { font-size:14px; font-weight:bold; color:#e65100; margin-bottom:6px; }
+  .keep-row { background:#e8f5e9; }
+  .delete-row { background:#ffebee; opacity:0.7; }
+  table.pv { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
+  table.pv th { background:#f5f9f0; color:#2e7d32; padding:6px 8px; border-bottom:2px solid #2e7d32; text-align:left; }
+  table.pv td { padding:5px 8px; border-bottom:1px solid #eee; }
+  .badge-keep { background:#2e7d32; color:white; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:bold; }
+  .badge-del { background:#c62828; color:white; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:bold; }
+  .rule-box { background:#f5f9f0; padding:10px 14px; border-radius:6px; font-size:12px; margin-bottom:14px; }
+  .filter-tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .filter-tab { padding:6px 14px; border:1.5px solid #c8e6c9; border-radius:20px; background:#f5f9f0; color:#2e7d32; font-size:12px; font-weight:bold; cursor:pointer; }
+  .filter-tab.active { background:#2e7d32; color:white; border-color:#2e7d32; }
+</style>
+</head>
+<body>
+<header><h1>🌿 중복 아동 병합 도구</h1></header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="cleanup-therapies.html">수업 정리</a>
+  <a href="supabase-sync.html">클라우드 동기화</a>
+</nav>
+<div class="wrap">
+  <div class="warn-box">
+    <b>⚠️ 삭제는 되돌릴 수 없습니다.</b><br>
+    실행 전 <a href="supabase-sync.html" style="color:#c62828;font-weight:bold;">☁️ 클라우드 저장</a> 으로 백업 권장.
+  </div>
+
+  <div class="card">
+    <h3>📊 진단 요약</h3>
+    <div id="stats" class="stat-grid"></div>
+    <button class="btn btn-primary" onclick="scan()">🔍 다시 진단</button>
+  </div>
+
+  <div class="card">
+    <h3>📋 병합 규칙</h3>
+    <div class="rule-box">
+      <b>동일 (이름 + 생년월일) 그룹에 대해 자동 판정:</b><br>
+      1) <b>유지할 레코드</b> 선정 우선순위:<br>
+      &nbsp;&nbsp;① status='종결' 인 레코드 우선 (종결 이력 보존)<br>
+      &nbsp;&nbsp;② phase='active' + 치료 개수 많은 순<br>
+      &nbsp;&nbsp;③ managerId 있는 레코드<br>
+      &nbsp;&nbsp;④ 가장 오래된 createdAt<br>
+      2) <b>병합 필드</b>:<br>
+      &nbsp;&nbsp;• therapies: 유지 레코드 + 나머지 유일 (support+cycle+timeSlot) 로 dedup 후 union<br>
+      &nbsp;&nbsp;• managerId · guardian · phone: 유지 레코드가 비어있으면 다른 값으로 채움<br>
+      &nbsp;&nbsp;• status: 어느 하나라도 '종결' 이면 '종결' 로 병합<br>
+      &nbsp;&nbsp;• intakeArea/Pref/Program/Note: 유지 레코드가 비어있으면 채움<br>
+      3) <b>연동 데이터</b> 이관:<br>
+      &nbsp;&nbsp;• payments 의 childId → 유지 레코드 id 로 변경<br>
+      &nbsp;&nbsp;• assessment_events 의 childId·id 접두어 → 유지 id 로<br>
+      &nbsp;&nbsp;• child_docs_/timeline_/parent_memos_ 키 재작성
+    </div>
+  </div>
+
+  <div class="filter-tabs">
+    <div class="filter-tab active" data-cat="all" onclick="setFilter('all')">전체</div>
+    <div class="filter-tab" data-cat="실중복" onclick="setFilter('실중복')">실중복</div>
+    <div class="filter-tab" data-cat="등록·종결분리" onclick="setFilter('등록·종결분리')">등록·종결분리</div>
+    <div class="filter-tab" data-cat="마이그레이션잔재" onclick="setFilter('마이그레이션잔재')">마이그레이션잔재</div>
+    <div class="filter-tab" data-cat="관리자번호리셋" onclick="setFilter('관리자번호리셋')">관리자번호리셋</div>
+  </div>
+
+  <div class="card">
+    <h3>🔧 병합 대상 그룹</h3>
+    <div style="margin-bottom:10px;">
+      <button class="btn btn-orange" onclick="mergeAllVisible()">🔀 표시된 그룹 전체 자동 병합</button>
+      <button class="btn btn-sub" onclick="collapseAll()">모두 접기</button>
+    </div>
+    <div id="groupsArea"></div>
+  </div>
+</div>
+
+<script>
+function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+function normBirth(b) {
+  const d = String(b||'').replace(/\D/g,'');
+  if (d.length === 8) return d;
+  if (d.length === 6) return (parseInt(d.slice(0,2),10) <= 30 ? '20' : '19') + d;
+  return '';
+}
+function fmtBirth(b) {
+  const d = normBirth(b);
+  return d.length === 8 ? `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : b;
+}
+
+let LAST_SCAN = null;
+let CURRENT_FILTER = 'all';
+
+function categorize(group) {
+  const births = new Set(group.map(c => normBirth(c.birth)));
+  const phases = new Set(group.map(c => c.phase || 'active'));
+  const statuses = new Set(group.map(c => c.status));
+  const managerIds = new Set(group.map(c => c.managerId).filter(Boolean));
+  const migrationRefs = group.some(c => c.intakeId);
+  if (births.size > 1) return '동명이인';
+  if (statuses.has('종결') && (statuses.has('치료중') || phases.has('intake'))) return '등록·종결분리';
+  if (migrationRefs && group.some(c => (c.id||'').startsWith('ch_int_'))) return '마이그레이션잔재';
+  if (managerIds.size > 1) return '관리자번호리셋';
+  if (phases.has('intake') && phases.has('active')) return '형제자매';
+  return '실중복';
+}
+
+// 유지 레코드 선정
+function pickKeeper(group) {
+  return [...group].sort((a, b) => {
+    // ① status='종결' 우선
+    const aEnd = a.status === '종결' ? 1 : 0;
+    const bEnd = b.status === '종결' ? 1 : 0;
+    if (aEnd !== bEnd) return bEnd - aEnd;
+    // ② phase='active' 우선
+    const aAct = (a.phase||'active') === 'active' ? 1 : 0;
+    const bAct = (b.phase||'active') === 'active' ? 1 : 0;
+    if (aAct !== bAct) return bAct - aAct;
+    // ③ therapies 개수
+    const at = (a.therapies||[]).length;
+    const bt = (b.therapies||[]).length;
+    if (at !== bt) return bt - at;
+    // ④ managerId 있는 것
+    if (!!a.managerId !== !!b.managerId) return (!!b.managerId - !!a.managerId);
+    // ⑤ 오래된 createdAt
+    return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1;
+  })[0];
+}
+
+function mergeGroup(group) {
+  const keeper = pickKeeper(group);
+  const others = group.filter(c => c.id !== keeper.id);
+  const merged = { ...keeper };
+
+  // therapies 병합 (dedup by support+cycle+timeSlot)
+  const seen = new Set();
+  const allTherapies = [...(keeper.therapies||[])];
+  allTherapies.forEach(t => {
+    const k = `${(t.support||'').trim()}|${(t.cycle||'').trim()}|${(t.timeSlot||'').trim()}`;
+    seen.add(k);
+  });
+  others.forEach(o => {
+    (o.therapies||[]).forEach(t => {
+      const k = `${(t.support||'').trim()}|${(t.cycle||'').trim()}|${(t.timeSlot||'').trim()}`;
+      if (!seen.has(k)) { allTherapies.push(t); seen.add(k); }
+    });
+  });
+  merged.therapies = allTherapies;
+
+  // 필드 병합 (빈 값 채우기)
+  const fillFields = ['managerId','guardian','phone','gender','intakeArea','intakePref','intakeSource','intakeProgram','intakeNote','diagnosis'];
+  fillFields.forEach(f => {
+    if (!merged[f]) {
+      for (const o of others) { if (o[f]) { merged[f] = o[f]; break; } }
+    }
+  });
+
+  // status: 어느 하나라도 종결이면 종결
+  if (group.some(c => c.status === '종결')) merged.status = '종결';
+  // phase: active 우선
+  if (group.some(c => (c.phase||'active') === 'active')) merged.phase = 'active';
+
+  // createdAt: 가장 오래된 것
+  merged.createdAt = group
+    .map(c => c.createdAt || '9999')
+    .sort()[0];
+
+  merged.updatedAt = new Date().toISOString();
+  merged.mergedFrom = others.map(o => o.id);
+
+  return { keeper: merged, deleteIds: others.map(o => o.id) };
+}
+
+function applyMerge(nameKey, group) {
+  const arr = JSON.parse(localStorage.getItem('children')||'[]');
+  const { keeper, deleteIds } = mergeGroup(group);
+  const delSet = new Set(deleteIds);
+  const kept = arr.filter(c => !delSet.has(c.id) && c.id !== keeper.id);
+  kept.push(keeper);
+  localStorage.setItem('children', JSON.stringify(kept));
+
+  // 연동 데이터 이관
+  const payments = JSON.parse(localStorage.getItem('payments')||'[]');
+  let payChanged = 0;
+  payments.forEach(p => { if (delSet.has(p.childId)) { p.childId = keeper.id; payChanged++; } });
+  if (payChanged) localStorage.setItem('payments', JSON.stringify(payments));
+
+  const events = JSON.parse(localStorage.getItem('assessment_events')||'[]');
+  let evChanged = 0;
+  events.forEach(e => {
+    if (delSet.has(e.childId)) { e.childId = keeper.id; evChanged++; }
+    delSet.forEach(oldId => {
+      if (e.id && e.id.startsWith('ev_'+oldId)) {
+        e.id = e.id.replace('ev_'+oldId, 'ev_'+keeper.id); evChanged++;
+      }
+    });
+  });
+  if (evChanged) localStorage.setItem('assessment_events', JSON.stringify(events));
+
+  // child_extras (docs/timeline/parent_memos) 키 재작성
+  ['docs','timeline','parent_memos'].forEach(kind => {
+    delSet.forEach(oldId => {
+      const oldKey = `child_${kind}_${oldId}`;
+      const newKey = `child_${kind}_${keeper.id}`;
+      const val = localStorage.getItem(oldKey);
+      if (!val) return;
+      const existing = localStorage.getItem(newKey);
+      if (existing) {
+        // 병합: 두 배열 union (id 있으면 dedup)
+        try {
+          const a = JSON.parse(existing); const b = JSON.parse(val);
+          const seen = new Set(a.map(x => JSON.stringify(x)));
+          b.forEach(x => { const s = JSON.stringify(x); if (!seen.has(s)) { a.push(x); seen.add(s); } });
+          localStorage.setItem(newKey, JSON.stringify(a));
+        } catch(e) {}
+      } else {
+        localStorage.setItem(newKey, val);
+      }
+      localStorage.removeItem(oldKey);
+    });
+  });
+
+  // Supabase push
+  if (window.Supa) {
+    window.Supa.pushKey('children').catch(()=>{});
+    window.Supa.pushKey('payments').catch(()=>{});
+    window.Supa.pushKey('assessment_events').catch(()=>{});
+    window.Supa.pushChildExtras().catch(()=>{});
+  }
+}
+
+function scan() {
+  const children = JSON.parse(localStorage.getItem('children')||'[]');
+  const payments = JSON.parse(localStorage.getItem('payments')||'[]');
+  const paidChildIds = new Set(payments.map(p => p.childId).filter(Boolean));
+  const by = new Map();
+  children.forEach(c => {
+    const n = (c.name||'').trim();
+    if (!n) return;
+    if (!by.has(n)) by.set(n, []);
+    by.get(n).push(c);
+  });
+  const dupGroups = [];
+  by.forEach((group, name) => {
+    if (group.length > 1) {
+      const cat = categorize(group);
+      dupGroups.push({ name, group, cat });
+    }
+  });
+  // 카테고리별 카운트
+  const catCount = { 실중복:0, '등록·종결분리':0, 마이그레이션잔재:0, 관리자번호리셋:0, 형제자매:0, 동명이인:0 };
+  dupGroups.forEach(g => { catCount[g.cat] = (catCount[g.cat]||0) + 1; });
+  LAST_SCAN = { children, payments, paidChildIds, dupGroups, catCount };
+  renderStats();
+  renderGroups();
+}
+
+function renderStats() {
+  const { children, dupGroups, catCount } = LAST_SCAN;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div style="font-size:11px;color:#666;">전체 아동</div><div class="v">${children.length}</div></div>
+    <div class="stat warn"><div style="font-size:11px;color:#666;">중복 그룹</div><div class="v">${dupGroups.length}</div></div>
+    <div class="stat err"><div style="font-size:11px;color:#666;">실중복</div><div class="v">${catCount['실중복']||0}</div></div>
+    <div class="stat warn"><div style="font-size:11px;color:#666;">등록·종결분리</div><div class="v">${catCount['등록·종결분리']||0}</div></div>
+    <div class="stat"><div style="font-size:11px;color:#666;">마이그레이션잔재</div><div class="v">${catCount['마이그레이션잔재']||0}</div></div>
+    <div class="stat"><div style="font-size:11px;color:#666;">관리자번호리셋</div><div class="v">${catCount['관리자번호리셋']||0}</div></div>
+    <div class="stat"><div style="font-size:11px;color:#666;">동명이인 (병합 안 함)</div><div class="v">${catCount['동명이인']||0}</div></div>`;
+}
+
+function setFilter(cat) {
+  CURRENT_FILTER = cat;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.cat === cat));
+  renderGroups();
+}
+function collapseAll() {
+  document.querySelectorAll('.group details').forEach(d => d.removeAttribute('open'));
+}
+
+function renderGroups() {
+  const wrap = document.getElementById('groupsArea');
+  let groups = LAST_SCAN.dupGroups.filter(g => g.cat !== '동명이인'); // 동명이인은 병합 안 함
+  if (CURRENT_FILTER !== 'all') groups = groups.filter(g => g.cat === CURRENT_FILTER);
+  if (!groups.length) { wrap.innerHTML = '<div style="color:#aaa;text-align:center;padding:20px;">병합 대상 그룹이 없습니다.</div>'; return; }
+  const paid = LAST_SCAN.paidChildIds;
+  wrap.innerHTML = groups.map((g, gi) => {
+    const { keeper, deleteIds } = mergeGroup(g.group);
+    const rows = g.group.map(c => {
+      const isKeep = c.id === keeper.id;
+      const hasPay = paid.has(c.id);
+      return `<tr class="${isKeep?'keep-row':'delete-row'}">
+        <td>${isKeep ? '<span class="badge-keep">유지</span>' : '<span class="badge-del">삭제</span>'}</td>
+        <td style="font-family:monospace;font-size:10px;">${escapeHtml(c.id)}</td>
+        <td>${fmtBirth(c.birth)}</td>
+        <td>${escapeHtml(c.managerId)||'-'}</td>
+        <td>${c.phase||'active'}</td>
+        <td>${escapeHtml(c.status)||'-'}</td>
+        <td style="text-align:center;">${(c.therapies||[]).length}</td>
+        <td style="text-align:center;color:${hasPay?'#2e7d32':'#c62828'};">${hasPay?'✅':'❌'}</td>
+        <td>${escapeHtml(c.guardian)||'-'}</td>
+      </tr>`;
+    }).join('');
+    const thNames = keeper.therapies.map(t => `${t.support||'?'}·${t.therapist||'?'}·${t.cycle||'?'}`).join(' / ');
+    return `<div class="group" data-cat="${g.cat}" data-idx="${gi}">
+      <details open>
+        <summary class="group-title" style="cursor:pointer;">
+          [${g.cat}] ${escapeHtml(g.name)} · ${g.group.length}건 → 유지 1건 · 삭제 ${deleteIds.length}건
+        </summary>
+        <table class="pv">
+          <thead><tr><th></th><th>ID</th><th>생년월일</th><th>관리자번호</th><th>phase</th><th>status</th><th>수업</th><th>납부</th><th>보호자</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div style="margin-top:8px;font-size:11px;color:#555;">
+          <b>병합 후 수업:</b> ${escapeHtml(thNames) || '(없음)'}<br>
+          <b>병합 후 status:</b> ${escapeHtml(keeper.status)||'-'} · <b>managerId:</b> ${escapeHtml(keeper.managerId)||'-'}
+        </div>
+        <div style="text-align:right;margin-top:8px;">
+          <button class="btn btn-orange" onclick="mergeOne(${gi})">이 그룹 병합 실행</button>
+        </div>
+      </details>
+    </div>`;
+  }).join('');
+}
+
+function mergeOne(idx) {
+  const groups = LAST_SCAN.dupGroups.filter(g => g.cat !== '동명이인');
+  const filtered = CURRENT_FILTER === 'all' ? groups : groups.filter(g => g.cat === CURRENT_FILTER);
+  const g = filtered[idx];
+  if (!g) return;
+  if (!confirm(`"${g.name}" 그룹을 병합합니다. 계속하시겠습니까?`)) return;
+  applyMerge(g.name, g.group);
+  scan();
+}
+
+function mergeAllVisible() {
+  const groups = LAST_SCAN.dupGroups.filter(g => g.cat !== '동명이인');
+  const filtered = CURRENT_FILTER === 'all' ? groups : groups.filter(g => g.cat === CURRENT_FILTER);
+  if (!filtered.length) return alert('병합할 그룹이 없습니다.');
+  if (!confirm(`표시된 ${filtered.length}개 그룹을 모두 자동 병합합니다.\n\n동명이인은 병합에서 제외됩니다.\n계속하시겠습니까?`)) return;
+  filtered.forEach(g => applyMerge(g.name, g.group));
+  alert(`✅ ${filtered.length}개 그룹 병합 완료.`);
+  scan();
+}
+
+scan();
+</script>
+</body>
+</html>
