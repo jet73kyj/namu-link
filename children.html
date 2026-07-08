@@ -323,17 +323,16 @@
       el.value = next;
     };
     function _generateManagerId(inquiryDate) {
+      // 항상 등록 시점의 연도 기준 · 연도 바뀌면 001 부터 다시 시작
       const year = (inquiryDate || new Date().toISOString().slice(0,10)).slice(0,4);
       const children = JSON.parse(localStorage.getItem('children')||'[]');
-      let maxThisYear = 0, maxAny = 0;
+      let maxThisYear = 0;
       children.forEach(c => {
         const p = _parseAnyMid(c.managerId);
-        if (!p) return;
-        if (p.seq > maxAny) maxAny = p.seq;
-        if (p.year === year && p.seq > maxThisYear) maxThisYear = p.seq;
+        if (!p || p.year !== year) return;
+        if (p.seq > maxThisYear) maxThisYear = p.seq;
       });
-      const base = maxThisYear > 0 ? maxThisYear : maxAny;
-      return `${year}01자라는${String(base + 1).padStart(3,'0')}`;
+      return `${year}01자라는${String(maxThisYear + 1).padStart(3,'0')}`;
     }
 
     // ===== 신규 상담 등록 모달 =====
