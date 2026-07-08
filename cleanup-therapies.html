@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>수업 데이터 정리 - 나무링크</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="js/supabase-client.js"></script>
+<style>
+  .wrap { max-width:1100px; margin:0 auto; padding:20px; }
+  .card { background:white; border-radius:10px; padding:18px 22px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .card h3 { margin:0 0 10px; color:#2e7d32; font-size:15px; border-left:4px solid #66bb6a; padding-left:6px; }
+  .btn { padding:9px 16px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px; }
+  .btn-primary { background:#2e7d32; color:white; }
+  .btn-danger { background:#c62828; color:white; }
+  .btn-orange { background:#e65100; color:white; }
+  .btn-sub { background:#f5f5f5; color:#333; border:1px solid #ccc; }
+  .info-box { background:#e3f2fd; padding:12px 16px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#0d47a1; }
+  .warn-box { background:#fff3e0; padding:12px 16px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#e65100; }
+  table.pv { width:100%; border-collapse:collapse; font-size:12px; }
+  table.pv th { background:#f5f9f0; color:#2e7d32; padding:7px 8px; border-bottom:2px solid #2e7d32; text-align:left; }
+  table.pv td { padding:6px 8px; border-bottom:1px solid #eee; }
+  .empty-support { background:#ffcdd2; color:#c62828; font-weight:bold; }
+  .dup { background:#fff9c4; }
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; margin-bottom:14px; }
+  .stat { background:#f5f9f0; padding:10px 12px; border-radius:6px; text-align:center; }
+  .stat .v { font-size:20px; font-weight:bold; color:#2e7d32; }
+  .stat.err .v { color:#c62828; }
+  .stat.warn .v { color:#e65100; }
+</style>
+</head>
+<body>
+<header><h1>🌿 수업 데이터 정리 도구</h1></header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="payments.html">납부 관리</a>
+  <a href="records.html">치료 기록</a>
+</nav>
+<div class="wrap">
+  <div class="info-box">
+    <b>📋 진단 항목</b><br>
+    1) 지원유형이 <code>없음</code> 또는 <code>빈 문자열</code> 인 수업 항목<br>
+    2) 한 아동 내에서 동일 (지원유형+요일+시간) 이 중복 등록된 항목<br>
+    3) 이름 중복 아동 (동명이인 · 중복 등록 구분 필요)<br><br>
+    실행 순서: <b>진단 → 화면 검토 → 개별/일괄 삭제</b>
+  </div>
+
+  <div class="warn-box">
+    ⚠️ 삭제는 되돌릴 수 없습니다. 실행 전에 <a href="supabase-sync.html" style="color:#c62828;font-weight:bold;">☁️ 클라우드 저장</a> 으로 백업 권장.
+  </div>
+
+  <div class="card">
+    <h3>📊 요약</h3>
+    <div id="stats" class="stat-grid"></div>
+    <button class="btn btn-primary" onclick="scan()">🔍 진단 재실행</button>
+  </div>
+
+  <div class="card">
+    <h3>1) 지원유형 <code>없음</code>·빈 수업 항목</h3>
+    <div id="emptySupportArea"></div>
+  </div>
+
+  <div class="card">
+    <h3>2) 동일 아동 내 중복 수업</h3>
+    <div id="dupTherapyArea"></div>
+  </div>
+
+  <div class="card">
+    <h3>3) 이름 중복 아동</h3>
+    <div id="dupChildArea"></div>
+  </div>
+</div>
+
+<script>
+function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+function fmtBirth(b) {
+  const d = String(b||'').replace(/\D/g,'');
+  if (d.length === 8) return `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
+  if (d.length === 6) return `${d.slice(0,2)}.${d.slice(2,4)}.${d.slice(4,6)}`;
+  return b||'-';
+}
+function isEmptySupport(s) {
+  const v = String(s||'').trim();
+  return !v || v === '없음' || v === '-' || v.toLowerCase() === 'none';
+}
+
+let LAST_SCAN = null;
+
+function scan() {
+  const children = JSON.parse(localStorage.getItem('children')||'[]');
+  const payments = JSON.parse(localStorage.getItem('payments')||'[]');
+  const paidChildIds = new Set(payments.map(p => p.childId).filter(Boolean));
+
+  // 1) 없음/빈 지원유형
+  const emptyRows = [];
+  children.forEach((c, ci) => {
+    (c.therapies||[]).forEach((t, ti) => {
+      if (isEmptySupport(t.support)) {
+        emptyRows.push({ childId: c.id, childIndex: ci, therapyIndex: ti,
+          name: c.name, birth: c.birth, phase: c.phase||'active', status: c.status,
+          therapist: t.therapist, cycle: t.cycle, timeSlot: t.timeSlot, support: t.support||'' });
+      }
+    });
+  });
+
+  // 2) 동일 아동 내 중복 수업 (support+cycle+timeSlot 동일)
+  const dupTherapyRows = [];
+  children.forEach((c, ci) => {
+    const seen = new Map();
+    (c.therapies||[]).forEach((t, ti) => {
+      const key = `${(t.support||'').trim()}|${(t.cycle||'').trim()}|${(t.timeSlot||'').trim()}`;
+      if (!seen.has(key)) seen.set(key, []);
+      seen.get(key).push({ ti, t });
+    });
+    seen.forEach((list, key) => {
+      if (list.length > 1) {
+        list.forEach(({ ti, t }) => {
+          dupTherapyRows.push({ childId: c.id, childIndex: ci, therapyIndex: ti,
+            name: c.name, birth: c.birth, phase: c.phase||'active', status: c.status,
+            support: t.support, cycle: t.cycle, timeSlot: t.timeSlot, therapist: t.therapist,
+            dupKey: key, dupCount: list.length });
+        });
+      }
+    });
+  });
+
+  // 3) 이름 중복 아동 그룹
+  const byName = new Map();
+  children.forEach((c, ci) => {
+    const nm = (c.name||'').trim();
+    if (!nm) return;
+    if (!byName.has(nm)) byName.set(nm, []);
+    byName.get(nm).push({ childIndex: ci, id: c.id, name: nm, birth: c.birth,
+      phase: c.phase||'active', status: c.status, managerId: c.managerId,
+      therapyCount: (c.therapies||[]).length,
+      hasPayment: paidChildIds.has(c.id) });
+  });
+  const dupChildGroups = [];
+  byName.forEach((group, name) => {
+    if (group.length > 1) dupChildGroups.push({ name, group });
+  });
+
+  LAST_SCAN = { children, emptyRows, dupTherapyRows, dupChildGroups };
+  renderStats();
+  renderEmptySupport();
+  renderDupTherapy();
+  renderDupChild();
+}
+
+function renderStats() {
+  const { children, emptyRows, dupTherapyRows, dupChildGroups } = LAST_SCAN;
+  const el = document.getElementById('stats');
+  el.innerHTML = `
+    <div class="stat"><div style="font-size:11px;color:#666;">전체 아동</div><div class="v">${children.length}</div></div>
+    <div class="stat err"><div style="font-size:11px;color:#666;">'없음'·빈 지원유형</div><div class="v">${emptyRows.length}</div></div>
+    <div class="stat warn"><div style="font-size:11px;color:#666;">중복 수업 (개별 행)</div><div class="v">${dupTherapyRows.length}</div></div>
+    <div class="stat warn"><div style="font-size:11px;color:#666;">이름 중복 아동 (그룹)</div><div class="v">${dupChildGroups.length}</div></div>`;
+}
+
+function renderEmptySupport() {
+  const el = document.getElementById('emptySupportArea');
+  const rows = LAST_SCAN.emptyRows;
+  if (!rows.length) { el.innerHTML = '<div style="color:#aaa;text-align:center;padding:20px;">✅ 없음/빈 지원유형 없음</div>'; return; }
+  let html = `<div style="margin-bottom:8px;">
+    <button class="btn btn-danger" onclick="deleteAllEmptySupport()">🗑️ ${rows.length}건 일괄 삭제</button>
+  </div>
+  <table class="pv"><thead><tr>
+    <th>아동</th><th>생년월일</th><th>상태</th><th>지원유형</th><th>담당</th><th>요일</th><th>시간</th><th style="width:80px;">관리</th>
+  </tr></thead><tbody>`;
+  rows.forEach((r, i) => {
+    html += `<tr class="empty-support">
+      <td><b>${escapeHtml(r.name)}</b></td>
+      <td>${fmtBirth(r.birth)}</td>
+      <td>${r.phase==='intake'?'대기':(r.status||'-')}</td>
+      <td>${escapeHtml(r.support)||'<i>비어있음</i>'}</td>
+      <td>${escapeHtml(r.therapist)||'-'}</td>
+      <td>${escapeHtml(r.cycle)||'-'}</td>
+      <td>${escapeHtml(r.timeSlot)||'-'}</td>
+      <td><button class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="deleteEmptySupportOne(${i})">삭제</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderDupTherapy() {
+  const el = document.getElementById('dupTherapyArea');
+  const rows = LAST_SCAN.dupTherapyRows;
+  if (!rows.length) { el.innerHTML = '<div style="color:#aaa;text-align:center;padding:20px;">✅ 중복 수업 없음</div>'; return; }
+  // 그룹핑
+  const grouped = {};
+  rows.forEach(r => {
+    const key = `${r.childId}|${r.dupKey}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(r);
+  });
+  let html = '<table class="pv"><thead><tr><th>아동</th><th>지원유형</th><th>요일</th><th>시간</th><th>담당</th><th>중복 개수</th><th>관리</th></tr></thead><tbody>';
+  Object.entries(grouped).forEach(([key, list]) => {
+    const first = list[0];
+    html += `<tr class="dup">
+      <td><b>${escapeHtml(first.name)}</b><br><span style="font-size:10px;color:#888;">${fmtBirth(first.birth)}</span></td>
+      <td>${escapeHtml(first.support)||'-'}</td>
+      <td>${escapeHtml(first.cycle)||'-'}</td>
+      <td>${escapeHtml(first.timeSlot)||'-'}</td>
+      <td>${escapeHtml(first.therapist)||'-'}</td>
+      <td><b>${first.dupCount}</b>개 중복</td>
+      <td>
+        <button class="btn btn-orange" style="padding:3px 8px;font-size:11px;" onclick="dedupTherapy('${first.childId}','${escapeHtml(first.dupKey)}')">
+          중복 1개만 남기기
+        </button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderDupChild() {
+  const el = document.getElementById('dupChildArea');
+  const groups = LAST_SCAN.dupChildGroups;
+  if (!groups.length) { el.innerHTML = '<div style="color:#aaa;text-align:center;padding:20px;">✅ 이름 중복 아동 없음</div>'; return; }
+  let html = '';
+  groups.forEach(({ name, group }) => {
+    html += `<div style="border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafafa;">
+      <div style="font-size:13px;font-weight:bold;color:#e65100;margin-bottom:8px;">${escapeHtml(name)} · ${group.length}건</div>
+      <table class="pv"><thead><tr>
+        <th>ID</th><th>생년월일</th><th>관리자번호</th><th>phase</th><th>상태</th><th>치료 수</th><th>납부기록</th><th>관리</th>
+      </tr></thead><tbody>`;
+    group.forEach(g => {
+      html += `<tr>
+        <td style="font-family:monospace;font-size:10px;">${escapeHtml(g.id)}</td>
+        <td>${fmtBirth(g.birth)}</td>
+        <td style="font-family:monospace;">${escapeHtml(g.managerId)||'-'}</td>
+        <td>${g.phase}</td>
+        <td>${escapeHtml(g.status)||'-'}</td>
+        <td style="text-align:center;">${g.therapyCount}</td>
+        <td style="text-align:center;color:${g.hasPayment?'#2e7d32':'#c62828'};">${g.hasPayment?'✅ 있음':'❌ 없음'}</td>
+        <td><button class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="deleteChild('${g.id}')">삭제</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  });
+  el.innerHTML = html;
+}
+
+function _save(arr) {
+  localStorage.setItem('children', JSON.stringify(arr));
+  if (window.Supa && window.Supa.pushKey) window.Supa.pushKey('children').catch(e=>console.warn('push failed', e));
+}
+
+function deleteEmptySupportOne(rowIdx) {
+  const row = LAST_SCAN.emptyRows[rowIdx];
+  if (!row) return;
+  if (!confirm(`${row.name} 아동의 "없음/빈" 수업 항목을 삭제합니다.\n계속하시겠습니까?`)) return;
+  const arr = JSON.parse(localStorage.getItem('children')||'[]');
+  const c = arr.find(x => x.id === row.childId);
+  if (!c) return alert('아동을 찾을 수 없습니다.');
+  // support 로 재매칭 (인덱스가 삭제 후 이동했을 수 있어서)
+  c.therapies = (c.therapies||[]).filter((t,i) => !(i === row.therapyIndex && isEmptySupport(t.support)));
+  _save(arr);
+  scan();
+}
+
+function deleteAllEmptySupport() {
+  const rows = LAST_SCAN.emptyRows;
+  if (!rows.length) return;
+  if (!confirm(`${rows.length}건의 "없음/빈" 수업 항목을 일괄 삭제합니다.\n각 아동의 다른 수업은 그대로 유지됩니다.\n\n계속하시겠습니까?`)) return;
+  const arr = JSON.parse(localStorage.getItem('children')||'[]');
+  arr.forEach(c => {
+    if (!c.therapies) return;
+    c.therapies = c.therapies.filter(t => !isEmptySupport(t.support));
+  });
+  _save(arr);
+  scan();
+}
+
+function dedupTherapy(childId, dupKey) {
+  if (!confirm('동일 (지원유형+요일+시간) 항목 중 첫 번째만 남기고 나머지를 삭제합니다.\n계속하시겠습니까?')) return;
+  const arr = JSON.parse(localStorage.getItem('children')||'[]');
+  const c = arr.find(x => x.id === childId);
+  if (!c) return alert('아동을 찾을 수 없습니다.');
+  const seen = new Set();
+  c.therapies = (c.therapies||[]).filter(t => {
+    const key = `${(t.support||'').trim()}|${(t.cycle||'').trim()}|${(t.timeSlot||'').trim()}`;
+    if (key !== dupKey) return true;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+  _save(arr);
+  scan();
+}
+
+function deleteChild(childId) {
+  if (!confirm(`이 아동 (id: ${childId}) 을 완전히 삭제합니다.\n연동된 평가·1회성수업 이벤트와 미납현황도 함께 삭제됩니다.\n\n계속하시겠습니까?`)) return;
+  const arr = JSON.parse(localStorage.getItem('children')||'[]').filter(c => c.id !== childId);
+  localStorage.setItem('children', JSON.stringify(arr));
+  const evPrefix = 'ev_' + childId;
+  const pyPrefix = 'py_intake_' + childId;
+  const events = JSON.parse(localStorage.getItem('assessment_events')||'[]').filter(e => !e.id || !e.id.startsWith(evPrefix));
+  localStorage.setItem('assessment_events', JSON.stringify(events));
+  const payments = JSON.parse(localStorage.getItem('payments')||'[]').filter(p => !p.id || (!p.id.startsWith(pyPrefix) && p.childId !== childId));
+  localStorage.setItem('payments', JSON.stringify(payments));
+  if (window.Supa && window.Supa.pushKey) {
+    window.Supa.pushKey('children').catch(()=>{});
+    window.Supa.pushKey('assessment_events').catch(()=>{});
+    window.Supa.pushKey('payments').catch(()=>{});
+  }
+  scan();
+}
+
+scan();
+</script>
+</body>
+</html>
