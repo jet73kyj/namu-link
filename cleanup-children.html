@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>아동 정리 도구 - 나무링크</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .wrap { max-width:1080px; margin:0 auto; padding:20px; }
+  .card { background:white; border-radius:10px; padding:16px 20px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .card h3 { margin:0 0 10px; color:#2e7d32; font-size:15px; border-left:4px solid #66bb6a; padding-left:6px; }
+  .btn { padding:9px 16px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px; }
+  .btn-primary { background:#2e7d32; color:white; }
+  .btn-danger { background:#c62828; color:white; }
+  .btn-sub { background:#f5f5f5; color:#333; border:1px solid #ccc; }
+  table.pv { width:100%; border-collapse:collapse; font-size:12px; }
+  table.pv th { background:#f5f9f0; color:#2e7d32; padding:7px 8px; border-bottom:2px solid #2e7d32; text-align:left; }
+  table.pv td { padding:6px 8px; border-bottom:1px solid #eee; }
+  .delete-row { background:#ffebee; color:#c62828; text-decoration:line-through; }
+  .keep-row { background:#e8f5e9; }
+  .update-row { background:#fff9c4; }
+  .info-box { background:#e3f2fd; padding:12px 16px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#0d47a1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌿 나무링크 - 아동 정리 도구</h1>
+</header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="records.html">치료 기록</a>
+  <a href="payments.html">납부 관리</a>
+</nav>
+
+<div class="wrap">
+  <div class="info-box">
+    <b>📋 처리 내용</b><br>
+    1) 중복 아동 정리 (김시윤·이하윤·이태은/예빛·설연호·강은우)<br>
+    2) 관리자번호 없는 아동에 CSV 기준 관리자번호 일괄 부여
+  </div>
+
+  <div class="card">
+    <h3>🔍 미리보기</h3>
+    <div id="previewArea">읽는 중...</div>
+    <div style="margin-top:14px;text-align:right;">
+      <button class="btn btn-sub" onclick="renderPreview()">🔄 다시 분석</button>
+      <button class="btn btn-primary" onclick="applyAll()">✅ 정리 실행</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// CSV 기준 관리자번호 참조 데이터
+const CSV_LOOKUP = [
+  ['배재인','20071222','201801자라는048'],
+  ['서승현','20151206','202101자라는010'],
+  ['최윤건','20180219','202101자라는012'],
+  ['최윤강','20180219','202101자라는013'],
+  ['신유진','20110115','202101자라는026'],
+  ['방예나','20190522','202201자라는009'],
+  ['최예준','20200429','202201자라는035'],
+  ['이수아','20200618','202301자라는006'],
+  ['최유주','20201015','202301자라는008'],
+  ['박서아','20200501','202301자라는010'],
+  ['박채아','20200501','202301자라는011'],
+  ['한빛','20200423','202301자라는017'],
+  ['유시연','20210429','202301자라는026'],
+  ['허윤','20170720','202301자라는027'],
+  ['이승유','20171016','202001자라는057'],
+  ['이시호','20200508','202301자라는041'],
+  ['엄도윤','20190713','202301자라는044'],
+  ['곽로운','20210716','202301자라는047'],
+  ['곽로하','20210716','202301자라는048'],
+  ['김수빈','20190619','202301자라는049'],
+  ['성다겸','20190524','202301자라는050'],
+  ['최진우','20180327','202401자라는002'],
+  ['김예빈','20220428','202401자라는004'],
+  ['유시온','20180512','202401자라는008'],
+  ['이도윤','20201111','202401자라는014'],
+  ['신라엘','20190521','202401자라는015'],
+  ['이서준','20210517','202401자라는021'],
+  ['마준희','20210813','202401자라는025'],
+  ['김지오','20210809','202401자라는031'],
+  ['임도윤','20210702','202401자라는034'],
+  ['임은우','20221103','202401자라는035'],
+  ['유승민','20130511','202401자라는036'],
+  ['윤태하','20210923','202401자라는001'],
+  ['이유주','20140123','202501자라는003'],
+  ['이하윤','20210802','202501자라는005'],
+  ['이지연','20160328','202501자라는007'],
+  ['서태준','20220415','202501자라는009'],
+  ['이하랑','20211113','202501자라는016'],
+  ['하늘아름','20230612','202501자라는017'],
+  ['신승윤','20170726','202501자라는018'],
+  ['임은휴','20230808','202501자라는019'],
+  ['강은우','20230812','202501자라는023'],
+  ['김하리','20190717','202501자라는025'],
+  ['원수빈','20210902','202501자라는026'],
+  ['장선우','20190510','202501자라는027'],
+  ['최시우','20220915','202501자라는028'],
+  ['송희연','20190218','202501자라는029'],
+  ['이우주','20220407','202501자라는030'],
+  ['강다현','20171124','202501자라는031'],
+  ['강나안','20190928','202101자라는050'],
+  ['이지호','20230903','202601자라는001'],
+  ['이지민','20230903','202601자라는002'],
+  ['김지우','20220628','202601자라는003'],
+  ['조아윤','20220829','202601자라는004'],
+  ['황이현','20231213','202601자라는006'],
+  ['김건우','20200527','202601자라는007'],
+  ['임수호','20211023','202601자라는008'],
+  ['유지안','20180122','202601자라는010'],
+  ['이윤솔','20221012','202601자라는012'],
+  ['남지우','20211007','202601자라는013'],
+  ['이찬희','20220705','202601자라는015'],
+  ['이도원','20221109','202601자라는017'],
+  ['류환희','20160601','202601자라는018'],
+  ['김은우','20221028','202601자라는020'],
+  ['조해나','20230926','202601자라는021'],
+  ['송지안','20230524','202601자라는022'],
+  ['강지안','20230916','202601자라는023'],
+  ['임재우','20200908','202601자라는025'],
+  ['이태은','20220112','202601자라는026'],
+  ['여민준','20180111','202601자라는030'],
+  ['김백찬','20240510','202601자라는031'],
+  ['박도하','20231230','202601자라는032'],
+  ['곽민석','20200531','202601자라는033'],
+  ['이재율','20230501','202601자라는034'],
+  ['에케데이빗재민','20220923','202601자라는035'],
+  ['이세연','20170903','202601자라는036'],
+  ['지승환','20140719','202601자라는037'],
+  ['송유담','20200311','202601자라는038'],
+  ['유지원','20190614','202601자라는039'],
+  ['김연우','20180227','202601자라는041'],
+  ['노영재','20160204','202601자라는042'],
+  ['강보미','20190110','202601자라는043'],
+  ['김찬승','20180911','202601자라는044'],
+  ['정성윤','20140313','202601자라는045'],
+  ['김시윤','20110217','202601자라는046'],
+  ['김수아','20190506','202601자라는047'],
+  ['설연호','20240925','202601자라는048'],
+  ['윤정한','20100929','202601자라는049'],
+  ['정윤영','20190730','202601자라는050'],
+  ['황현','20140722','202601자라는051'],
+  ['배소영','20120725','202601자라는052'],
+  ['진이한','20190323','202601자라는053'],
+  ['최효준','20230422','202601자라는054'],
+  ['강하음','20210304','202601자라는055'],
+  ['김동건','20170823','202601자라는056'],
+  ['박건후','20220123','202601자라는057'],
+];
+const csvByKey = new Map();
+CSV_LOOKUP.forEach(([n,b,m]) => csvByKey.set(`${n}|${b}`, m));
+
+function normBirth(b) {
+  const d = String(b||'').replace(/\D/g,'');
+  if (d.length === 8) return d;
+  if (d.length === 6) return '20' + d;   // 6자리는 2000년대로 확장
+  return d;
+}
+function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+// 이 이름의 아동은 중복 시 하나만 남긴다 (관리자번호 있는 항목 우선)
+const DEDUP_NAMES = ['김시윤','이하윤','설연호','강은우'];
+// 별칭 병합 규칙 — {aliasName: canonicalName}
+const RENAME_MAP = { '예빛': '이태은' };
+
+function plan() {
+  const arr = JSON.parse(localStorage.getItem('children')||'[]');
+  const actions = [];   // {type:'delete'|'rename'|'birthfix'|'assignMid', childIdx, ...}
+
+  // 1) 생년월일 정규화 대상 감지 (김시윤 110217, 이하윤 210802 등)
+  const shortBirthKids = new Set(['김시윤','이하윤']);
+  arr.forEach((c, i) => {
+    const rawB = String(c.birth||'').replace(/\D/g,'');
+    if (shortBirthKids.has((c.name||'').trim()) && rawB.length === 6) {
+      actions.push({ type:'birthfix', i, from: c.birth, to: '20'+rawB, name: c.name });
+    }
+  });
+
+  // 2) 별칭 이름 통합 (예빛 → 이태은)
+  arr.forEach((c, i) => {
+    const nm = (c.name||'').trim();
+    if (RENAME_MAP[nm]) {
+      actions.push({ type:'rename', i, from: nm, to: RENAME_MAP[nm] });
+    }
+  });
+
+  // 3) 중복 정리 — DEDUP_NAMES · '이태은' (별칭 병합 후)
+  const dedupTargets = new Set([...DEDUP_NAMES, ...Object.values(RENAME_MAP)]);
+  // 시뮬레이션: 위 액션 반영 후 상태를 미리 계산
+  const sim = arr.map((c,i) => {
+    const clone = { ...c };
+    actions.forEach(a => {
+      if (a.i !== i) return;
+      if (a.type === 'birthfix') clone.birth = a.to;
+      if (a.type === 'rename')   clone.name  = a.to;
+    });
+    return { clone, i };
+  });
+  dedupTargets.forEach(name => {
+    const group = sim.filter(x => (x.clone.name||'').trim() === name);
+    if (group.length <= 1) return;
+    // 관리자번호 있는 것 우선, 없으면 CSV 매칭되는 것 우선, 그것도 없으면 첫 번째
+    group.sort((a,b) => {
+      const aM = !!(a.clone.managerId||'').trim(), bM = !!(b.clone.managerId||'').trim();
+      if (aM !== bM) return aM ? -1 : 1;
+      const aC = csvByKey.has(`${a.clone.name}|${normBirth(a.clone.birth)}`);
+      const bC = csvByKey.has(`${b.clone.name}|${normBirth(b.clone.birth)}`);
+      if (aC !== bC) return aC ? -1 : 1;
+      return 0;
+    });
+    // group[0] 은 유지, 나머지는 삭제
+    for (let k = 1; k < group.length; k++) {
+      actions.push({ type:'delete', i: group[k].i, name, reason:'중복' });
+    }
+  });
+
+  // 4) 관리자번호 부여 — 위 정리 반영 후, managerId 비어있는 아동만 대상
+  const deletedSet = new Set(actions.filter(a=>a.type==='delete').map(a=>a.i));
+  sim.forEach(({clone, i}) => {
+    if (deletedSet.has(i)) return;
+    if ((clone.managerId||'').trim()) return;
+    const nb = normBirth(clone.birth);
+    const key = `${(clone.name||'').trim()}|${nb}`;
+    const mid = csvByKey.get(key);
+    if (mid) actions.push({ type:'assignMid', i, name: clone.name, birth: clone.birth, mid });
+  });
+
+  return { arr, actions };
+}
+
+function renderPreview() {
+  const { arr, actions } = plan();
+  const birthfix = actions.filter(a=>a.type==='birthfix');
+  const rename = actions.filter(a=>a.type==='rename');
+  const del = actions.filter(a=>a.type==='delete');
+  const assign = actions.filter(a=>a.type==='assignMid');
+
+  let html = `<div style="margin-bottom:10px;font-size:13px;">
+    총 <b>${arr.length}</b>건 중:
+    <span style="color:#e65100;">생년월일 보정 ${birthfix.length}</span> ·
+    <span style="color:#1565c0;">이름 변경 ${rename.length}</span> ·
+    <span style="color:#c62828;">삭제 ${del.length}</span> ·
+    <span style="color:#2e7d32;">관리자번호 부여 ${assign.length}</span>
+  </div>`;
+
+  if (birthfix.length) {
+    html += '<h4>1) 생년월일 정규화</h4><table class="pv"><thead><tr><th>이름</th><th>기존</th><th>보정</th></tr></thead><tbody>';
+    birthfix.forEach(a => { html += `<tr class="update-row"><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.from)}</td><td><b>${escapeHtml(a.to)}</b></td></tr>`; });
+    html += '</tbody></table>';
+  }
+  if (rename.length) {
+    html += '<h4 style="margin-top:14px;">2) 이름 통합</h4><table class="pv"><thead><tr><th>기존</th><th>변경</th></tr></thead><tbody>';
+    rename.forEach(a => { html += `<tr class="update-row"><td>${escapeHtml(a.from)}</td><td><b>${escapeHtml(a.to)}</b></td></tr>`; });
+    html += '</tbody></table>';
+  }
+  if (del.length) {
+    html += '<h4 style="margin-top:14px;">3) 중복 삭제</h4><table class="pv"><thead><tr><th>이름</th><th>생년월일</th><th>관리자번호</th><th>사유</th></tr></thead><tbody>';
+    del.forEach(a => {
+      const c = arr[a.i];
+      html += `<tr class="delete-row"><td>${escapeHtml(c.name)}</td><td>${escapeHtml(c.birth)}</td><td>${escapeHtml(c.managerId||'-')}</td><td>${escapeHtml(a.reason)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+  if (assign.length) {
+    html += '<h4 style="margin-top:14px;">4) 관리자번호 부여</h4><table class="pv"><thead><tr><th>이름</th><th>생년월일</th><th>관리자번호 (부여)</th></tr></thead><tbody>';
+    assign.forEach(a => { html += `<tr class="keep-row"><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.birth)}</td><td style="font-family:monospace;font-weight:bold;">${escapeHtml(a.mid)}</td></tr>`; });
+    html += '</tbody></table>';
+  }
+  if (!birthfix.length && !rename.length && !del.length && !assign.length) {
+    html += '<div style="color:#aaa;padding:20px;text-align:center;">정리할 항목이 없습니다.</div>';
+  }
+  document.getElementById('previewArea').innerHTML = html;
+}
+
+function applyAll() {
+  const { arr, actions } = plan();
+  if (!actions.length) { alert('처리할 항목이 없습니다.'); return; }
+  if (!confirm(`${actions.length}건의 작업을 적용합니다.\n계속하시겠습니까?`)) return;
+
+  // 순서: birthfix → rename → assignMid → delete (삭제는 인덱스 변화 없이 마지막)
+  actions.filter(a=>a.type==='birthfix').forEach(a => { arr[a.i].birth = a.to; arr[a.i].updatedAt = new Date().toISOString(); });
+  actions.filter(a=>a.type==='rename').forEach(a => { arr[a.i].name = a.to; arr[a.i].updatedAt = new Date().toISOString(); });
+  actions.filter(a=>a.type==='assignMid').forEach(a => { arr[a.i].managerId = a.mid; arr[a.i].updatedAt = new Date().toISOString(); });
+
+  // 삭제는 인덱스 큰 것부터
+  const delIdxs = actions.filter(a=>a.type==='delete').map(a=>a.i).sort((x,y)=>y-x);
+  delIdxs.forEach(i => { arr.splice(i,1); });
+
+  localStorage.setItem('children', JSON.stringify(arr));
+  const summary = `✅ 정리 완료\n\n생년월일 보정: ${actions.filter(a=>a.type==='birthfix').length}건\n이름 통합: ${actions.filter(a=>a.type==='rename').length}건\n중복 삭제: ${delIdxs.length}건\n관리자번호 부여: ${actions.filter(a=>a.type==='assignMid').length}건\n\n남은 아동: ${arr.length}명`;
+  alert(summary);
+  renderPreview();
+}
+
+renderPreview();
+</script>
+</body>
+</html>
