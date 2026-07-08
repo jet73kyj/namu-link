@@ -84,6 +84,11 @@
       </div>
       <div style="padding:18px 20px;">
         <input type="hidden" id="itId">
+        <div style="grid-column:1/3;margin-bottom:10px;padding:8px 12px;background:#f5f9f0;border-left:4px solid #2e7d32;border-radius:5px;display:flex;gap:8px;align-items:center;">
+          <label style="font-size:12px;font-weight:bold;color:#2e7d32;min-width:80px;">관리자번호</label>
+          <input type="text" id="itManagerId" placeholder="예: 202601자라는059 (신규 등록 시 자동)" style="flex:1;padding:6px 10px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;font-family:monospace;font-size:13px;">
+          <button type="button" onclick="_regenManagerId()" style="padding:6px 10px;background:#f5f5f5;color:#333;border:1px solid #ccc;border-radius:5px;font-size:11px;cursor:pointer;" title="현재 데이터 기준으로 다음 번호 자동 채우기">🔄 자동</button>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div><label style="font-size:12px;font-weight:bold;">이름 *</label><input type="text" id="itName" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
           <div><label style="font-size:12px;font-weight:bold;">생년월일</label><input type="text" id="itBirth" placeholder="예: 2020.03.15" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
@@ -308,6 +313,15 @@
       const seq = parseInt(m[2], 10);
       return { year: m[1], seq: Number.isFinite(seq) ? seq : 0, mid };
     }
+    // "🔄 자동" 버튼: 현재 데이터 기준 다음 번호를 입력창에 채움
+    window._regenManagerId = function() {
+      const el = document.getElementById('itManagerId');
+      const next = _generateManagerId(new Date().toISOString().slice(0,10));
+      if (el.value && el.value !== next) {
+        if (!confirm(`현재 값: ${el.value}\n자동 계산 값: ${next}\n\n덮어쓸까요?`)) return;
+      }
+      el.value = next;
+    };
     function _generateManagerId(inquiryDate) {
       const year = (inquiryDate || new Date().toISOString().slice(0,10)).slice(0,4);
       const children = JSON.parse(localStorage.getItem('children')||'[]');
@@ -334,6 +348,10 @@
       document.getElementById('_intakeTitle').textContent = childId ? '상담 정보 편집' : '신규 상담 등록';
       document.getElementById('_intakeDelBtn').style.display = childId ? 'inline-block' : 'none';
       const today = new Date().toISOString().slice(0,10);
+      // 관리자번호: 편집이면 기존값 · 신규면 다음 번호 자동 채움
+      const managerInput = document.getElementById('itManagerId');
+      if (rec?.managerId) managerInput.value = rec.managerId;
+      else managerInput.value = _generateManagerId(new Date().toISOString().slice(0,10));
       document.getElementById('itName').value = rec?.name || '';
       document.getElementById('itBirth').value = rec?.birth || '';
       document.getElementById('itGuardian').value = rec?.guardian || '';
@@ -392,9 +410,11 @@
           therapies: [],
           createdAt: new Date().toISOString(),
         };
-        rec.managerId = _generateManagerId(inquiryDate);
         arr.push(rec);
       }
+      // 관리자번호: 폼 입력값 우선, 없으면 자동 생성 (신규·편집 모두 적용)
+      const inputMid = document.getElementById('itManagerId').value.replace(/[\s\-–—_]/g,'').trim();
+      rec.managerId = inputMid || rec.managerId || _generateManagerId(inquiryDate);
       rec.name = name;
       rec.phone = phone;
       rec.birth = document.getElementById('itBirth').value.trim();
