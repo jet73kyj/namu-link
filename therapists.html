@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>치료사 관리 - 나무링크</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .tab-bar { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+    .tab-btn { padding:9px 22px; border-radius:8px; border:2px solid #2e7d32; background:white; color:#2e7d32; font-weight:bold; font-size:14px; cursor:pointer; }
+    .tab-btn.active { background:#2e7d32; color:white; }
+
+    /* 치료사 카드 */
+    .therapist-cards { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:20px; }
+    .therapist-card { background:white; border:2px solid #e0e0e0; border-radius:12px; padding:16px 20px; min-width:200px; max-width:260px; cursor:pointer; transition:border-color 0.15s, box-shadow 0.15s; }
+    .therapist-card:hover { border-color:#2e7d32; box-shadow:0 2px 8px rgba(46,125,50,0.15); }
+    .therapist-card.selected { border-color:#2e7d32; box-shadow:0 2px 12px rgba(46,125,50,0.25); background:#f1f8e9; }
+    .therapist-card .t-name { font-size:17px; font-weight:bold; color:#2e7d32; margin-bottom:4px; }
+    .therapist-card .t-area { font-size:13px; color:#555; margin-bottom:8px; }
+    .therapist-card .t-meta { font-size:12px; color:#999; }
+    .add-card { border:2px dashed #ccc; color:#aaa; display:flex; align-items:center; justify-content:center; font-size:14px; flex-direction:column; gap:4px; min-height:90px; }
+    .add-card:hover { border-color:#2e7d32; color:#2e7d32; }
+
+    /* 통계 */
+    .stat-month-nav { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+    .stat-month-nav button { background:#2e7d32; color:white; border:none; border-radius:6px; padding:5px 14px; font-size:16px; cursor:pointer; }
+    .stat-month-nav h3 { margin:0; color:#2e7d32; font-size:18px; min-width:120px; text-align:center; }
+
+    table.stat { border-collapse:collapse; width:100%; font-size:13px; }
+    table.stat th, table.stat td { border:1px solid #e0e0e0; padding:8px 12px; text-align:center; }
+    table.stat thead th { background:#2e7d32; color:white; font-size:13px; }
+    table.stat tbody tr:hover { background:#f9fbe7; }
+    .stat-num { font-size:18px; font-weight:bold; color:#2e7d32; }
+    .stat-label { font-size:11px; color:#888; }
+
+    .support-chip { display:inline-block; padding:3px 10px; border-radius:10px; font-size:12px; font-weight:bold; }
+    .summary-cards { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+    .summary-card { background:white; border-radius:10px; padding:14px 18px; min-width:120px; text-align:center; border:1px solid #e0e0e0; }
+
+    /* 등록 폼 모달 */
+    .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1000; align-items:center; justify-content:center; }
+    .modal-bg.open { display:flex; }
+    .modal { background:white; border-radius:12px; padding:28px; width:400px; max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+    .modal h3 { margin:0 0 18px; color:#2e7d32; }
+    .field { margin-bottom:14px; }
+    .field label { display:block; font-size:13px; font-weight:bold; color:#555; margin-bottom:4px; }
+    .field input, .field select, .field textarea { width:100%; padding:9px 11px; border:1px solid #ccc; border-radius:7px; font-size:13px; box-sizing:border-box; }
+    .check-group { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+    .check-group label { display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; padding:4px 10px; border:1px solid #ccc; border-radius:6px; }
+    .check-group input:checked + span { color:#2e7d32; font-weight:bold; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌿 나무링크</h1>
+    <span id="userLabel" style="font-size:14px;"></span>
+  </header>
+  <nav>
+    <a href="children.html">아동 관리</a>
+    <a href="intake.html">신규아동</a>
+    <a href="records.html">치료 기록</a>
+    <a href="calendar.html">아동 스케줄</a>
+    <a href="payments.html">납부 관리</a>
+    <a href="therapists.html" class="active">치료사 관리</a>
+    <a href="#" onclick="logout()">로그아웃</a>
+  </nav>
+
+  <!-- 비밀번호 잠금 오버레이 -->
+  <div id="lockOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:14px;padding:36px 32px;width:320px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.25);text-align:center;">
+      <div style="font-size:32px;margin-bottom:8px;">🔒</div>
+      <h3 style="margin:0 0 6px;color:#2e7d32;">관리자 전용</h3>
+      <p style="font-size:13px;color:#777;margin:0 0 18px;">비밀번호를 입력하세요</p>
+      <input type="password" id="lockInput" placeholder="비밀번호" maxlength="20"
+        style="width:100%;padding:10px 12px;border:2px solid #ccc;border-radius:8px;font-size:16px;box-sizing:border-box;text-align:center;letter-spacing:4px;"
+        onkeydown="if(event.key==='Enter') checkLock()">
+      <div id="lockErr" style="color:#e53935;font-size:12px;margin-top:8px;display:none;">비밀번호가 틀렸습니다</div>
+      <button onclick="checkLock()" style="margin-top:14px;width:100%;padding:11px;background:#2e7d32;color:white;border:none;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;">확인</button>
+      <button onclick="location.href='children.html'" style="margin-top:8px;width:100%;padding:9px;background:none;border:1px solid #ccc;border-radius:8px;font-size:13px;color:#888;cursor:pointer;">돌아가기</button>
+    </div>
+  </div>
+
+  <div class="container" id="mainContent" style="display:none;">
+    <!-- 급여일 알림 배너 -->
+    <div id="paydayBanner" style="display:none;background:#e53935;color:white;padding:10px 16px;border-radius:8px;margin-bottom:14px;font-size:14px;font-weight:bold;"></div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tabInfo" onclick="switchTab('info')">👤 치료사 정보</button>
+      <button class="tab-btn" id="tabStat" onclick="switchTab('stat')">📊 월별 제공 통계</button>
+      <button class="tab-btn" id="tabStaff" onclick="switchTab('staff')">🗂️ 행정직원</button>
+    </div>
+
+    <!-- ── 치료사 정보 탭 ── -->
+    <div id="viewInfo">
+      <div class="therapist-cards" id="therapistCards"></div>
+    </div>
+
+    <!-- ── 행정직원 탭 ── -->
+    <div id="viewStaff" style="display:none;">
+      <div class="therapist-cards" id="staffCards"></div>
+    </div>
+
+    <!-- ── 월별 통계 탭 ── -->
+    <div id="viewStat" style="display:none;">
+      <div class="stat-month-nav">
+        <button onclick="changeStatMonth(-1)">◀</button>
+        <h3 id="statTitle"></h3>
+        <button onclick="changeStatMonth(1)">▶</button>
+      </div>
+
+      <!-- 치료사 전체 합산 요약 -->
+      <div id="statSummary" class="summary-cards"></div>
+
+      <!-- 치료사별 상세 -->
+      <div class="card" style="padding:12px;">
+        <div style="overflow-x:auto;">
+          <table class="stat" id="statTable"></table>
+        </div>
+      </div>
+
+      <!-- 치료사별 개인 상세 -->
+      <div id="statDetail"></div>
+    </div>
+  </div><!-- /mainContent -->
+
+  <!-- 행정직원 등록/수정 모달 -->
+  <div class="modal-bg" id="staffModalBg" style="overflow-y:auto;">
+    <div class="modal" style="max-height:90vh;overflow-y:auto;width:480px;">
+      <h3 id="staffModalTitle">행정직원 등록</h3>
+
+      <div style="font-size:12px;font-weight:bold;color:#2e7d32;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #e0e0e0;">기본 정보</div>
+      <div style="display:flex;gap:10px;">
+        <div class="field" style="flex:1;"><label>이름 *</label><input type="text" id="sName" placeholder="예: 김민지"></div>
+        <div class="field" style="flex:1;"><label>직책</label><input type="text" id="sRole" placeholder="예: 행정실장"></div>
+      </div>
+      <div class="field"><label>주민번호 (내부 보관용)</label><input type="text" id="sRrn" placeholder="990318-1234567" maxlength="14" oninput="fmtRrn(this)"></div>
+      <div style="display:flex;gap:10px;">
+        <div class="field" style="flex:1;"><label>연락처</label><input type="tel" id="sPhone" placeholder="010-0000-0000"></div>
+        <div class="field" style="flex:1;"><label>이메일</label><input type="email" id="sEmail" placeholder="staff@example.com"></div>
+      </div>
+
+      <div style="font-size:12px;font-weight:bold;color:#2e7d32;margin:12px 0 8px;padding-bottom:4px;border-bottom:1px solid #e0e0e0;">근무 정보</div>
+      <div class="field">
+        <label>근무 요일</label>
+        <div class="check-group" id="sDayGroup">
+          <label><input type="checkbox" value="월"><span>월</span></label>
+          <label><input type="checkbox" value="화"><span>화</span></label>
+          <label><input type="checkbox" value="수"><span>수</span></label>
+          <label><input type="checkbox" value="목"><span>목</span></label>
+          <label><input type="checkbox" value="금"><span>금</span></label>
+          <label><input type="checkbox" value="토"><span>토</span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label>근무 시간 (주중)</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="time" id="sTimeStart" style="flex:1;">
+          <span style="color:#888;">~</span>
+          <input type="time" id="sTimeEnd" style="flex:1;">
+        </div>
+      </div>
+      <div class="field">
+        <label>근무 시간 (토요일)</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="time" id="sTimeStartSat" style="flex:1;">
+          <span style="color:#888;">~</span>
+          <input type="time" id="sTimeEndSat" style="flex:1;">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="field" style="flex:1;"><label>입사일</label><input type="date" id="sHireDate"></div>
+        <div class="field" style="flex:1;"><label>4대보험 가입일</label><input type="date" id="sInsuranceDate"></div>
+      </div>
+
+      <div style="font-size:12px;font-weight:bold;color:#2e7d32;margin:12px 0 8px;padding-bottom:4px;border-bottom:1px solid #e0e0e0;">급여 정보</div>
+      <div style="display:flex;gap:10px;">
+        <div class="field" style="flex:1;"><label>기본급 (원)</label><input type="number" id="sSalary" placeholder="2045000" oninput="previewPayslip()"></div>
+        <div class="field" style="flex:1;">
+          <label>급여일 (매월)</label>
+          <select id="sPayday">
+            <option value="">선택</option>
+            <option value="">선택</option>
+            <option value="1">1일</option><option value="2">2일</option><option value="3">3일</option><option value="4">4일</option><option value="5">5일</option>
+            <option value="6">6일</option><option value="7">7일</option><option value="8">8일</option><option value="9">9일</option><option value="10">10일</option>
+            <option value="11">11일</option><option value="12">12일</option><option value="13">13일</option><option value="14">14일</option><option value="15">15일</option>
+            <option value="16">16일</option><option value="17">17일</option><option value="18">18일</option><option value="19">19일</option><option value="20">20일</option>
+            <option value="21">21일</option><option value="22">22일</option><option value="23">23일</option><option value="24">24일</option><option value="25">25일</option>
+            <option value="26">26일</option><option value="27">27일</option><option value="28">28일</option>
+          </select>
+        </div>
+      </div>
+      <div id="payslipPreview" style="display:none;background:#f9fbe7;border:1px solid #c8e6c9;border-radius:8px;padding:12px;font-size:12px;margin-top:4px;">
+        <div style="font-weight:bold;color:#2e7d32;margin-bottom:8px;">📋 예상 급여 계산</div>
+        <table style="width:100%;border-collapse:collapse;" id="previewTable"></table>
+      </div>
+      <div style="font-size:12px;font-weight:bold;color:#1565c0;margin:12px 0 8px;padding-bottom:4px;border-bottom:1px solid #bbdefb;">월차 관리 (근로기준법)</div>
+      <div id="leaveCalcInfo" style="font-size:12px;color:#888;background:#f3f8ff;border-radius:6px;padding:8px 10px;margin-bottom:8px;display:none;"></div>
+      <div id="leaveUsageArea" style="display:none;">
+        <div style="font-size:12px;color:#555;margin-bottom:6px;">월차 사용 내역 <span style="color:#888;">(발생월 클릭 → 사용 체크)</span></div>
+        <div id="leaveGrid" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div id="leaveNoHire" style="font-size:12px;color:#aaa;padding:4px 0;">입사일을 먼저 입력하면 월차가 자동 계산됩니다.</div>
+
+      <div class="field" style="margin-top:12px;"><label>메모 <span style="font-size:11px;color:#999;font-weight:normal;">(계약기간, 담당 업무, 기타 사항 등 자유롭게 기록)</span></label><textarea id="sNote" rows="3" placeholder="예) 육아휴직 대체인력 / 계약기간: 2026.06.01 ~ 2026.12.31&#10;담당 업무: 원무 행정, 보험청구"></textarea></div>
+
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="saveStaff()">저장</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeStaffModal()">취소</button>
+        <button class="btn btn-danger" id="btnStaffDelete" style="display:none;" onclick="deleteStaff()">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 급여명세서 보기 모달 -->
+  <div class="modal-bg" id="payslipModalBg">
+    <div class="modal" style="width:500px;max-height:90vh;overflow-y:auto;" id="payslipModalInner">
+      <div id="payslipContent"></div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="printPayslip()">🖨️ 인쇄</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('payslipModalBg').classList.remove('open')">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 치료사 급여명세서 모달 -->
+  <div class="modal-bg" id="tPayslipBg">
+    <div class="modal" style="width:560px;max-height:92vh;overflow-y:auto;">
+      <h3 style="color:#2e7d32;margin:0 0 14px;">📋 치료사 급여명세서</h3>
+      <!-- 월 선택 -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <button onclick="tPayslipChangeMonth(-1)" style="background:#2e7d32;color:white;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;">◀</button>
+        <span id="tPayslipTitle" style="font-weight:bold;font-size:15px;color:#2e7d32;min-width:100px;text-align:center;"></span>
+        <button onclick="tPayslipChangeMonth(1)" style="background:#2e7d32;color:white;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;">▶</button>
+      </div>
+
+      <!-- 세션 집계 테이블 -->
+      <div id="tPayslipTable" style="margin-bottom:14px;"></div>
+
+      <!-- 휴가 일정 -->
+      <div id="tPayslipVacation" style="margin-bottom:14px;"></div>
+
+      <!-- 월별 조정 항목 -->
+      <div style="background:#f9fbe7;border:1px solid #c8e6c9;border-radius:8px;padding:12px;margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:bold;color:#2e7d32;margin-bottom:10px;">월별 조정 항목</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div class="field" style="flex:1;min-width:120px;">
+            <label style="font-size:12px;">평가 수당 (원)</label>
+            <input type="number" id="tBonus" placeholder="0" oninput="tPayslipCalc()" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px;width:100%;box-sizing:border-box;">
+          </div>
+          <div class="field" style="flex:1;min-width:120px;">
+            <label style="font-size:12px;">공제액 (원)</label>
+            <input type="number" id="tDeduct" placeholder="0" oninput="tPayslipCalc()" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px;width:100%;box-sizing:border-box;">
+          </div>
+          <div class="field" style="flex:1;min-width:120px;">
+            <label style="font-size:12px;">제외금액 (원)</label>
+            <input type="number" id="tExclude" placeholder="0" oninput="tPayslipCalc()" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px;width:100%;box-sizing:border-box;">
+          </div>
+        </div>
+        <div class="field" style="margin-top:6px;">
+          <label style="font-size:12px;">조정 메모</label>
+          <input type="text" id="tAdjMemo" placeholder="예: 8월 평가비, 연차 공제 등" style="padding:6px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px;width:100%;box-sizing:border-box;">
+        </div>
+      </div>
+
+      <!-- 합계 -->
+      <div id="tPayslipTotal" style="background:#e8f5e9;border-radius:8px;padding:12px;font-size:14px;margin-bottom:14px;"></div>
+
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="saveTherapistPayroll()">💾 저장</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="printTherapistPayslip()">🖨️ 인쇄</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('tPayslipBg').classList.remove('open')">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 치료사 등록/수정 모달 -->
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <h3 id="modalTitle">치료사 등록</h3>
+      <div class="field">
+        <label>이름 *</label>
+        <input type="text" id="tName" placeholder="예: 정다혜">
+      </div>
+      <div class="field">
+        <label>담당 치료 영역</label>
+        <div class="check-group" id="tAreaGroup">
+          <label><input type="checkbox" value="언어치료"><span>언어치료</span></label>
+          <label><input type="checkbox" value="감각통합"><span>감각통합</span></label>
+          <label><input type="checkbox" value="음악치료"><span>음악치료</span></label>
+          <label><input type="checkbox" value="심리운동"><span>심리운동</span></label>
+          <label><input type="checkbox" value="전산화인지"><span>전산화인지</span></label>
+          <label><input type="checkbox" value="학습인지"><span>학습인지</span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label>근무 요일</label>
+        <div class="check-group" id="tDayGroup">
+          <label><input type="checkbox" value="월"><span>월</span></label>
+          <label><input type="checkbox" value="화"><span>화</span></label>
+          <label><input type="checkbox" value="수"><span>수</span></label>
+          <label><input type="checkbox" value="목"><span>목</span></label>
+          <label><input type="checkbox" value="금"><span>금</span></label>
+          <label><input type="checkbox" value="토"><span>토</span></label>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="field" style="flex:1;">
+          <label>연락처</label>
+          <input type="tel" id="tPhone" placeholder="010-0000-0000">
+        </div>
+        <div class="field" style="flex:1;">
+          <label>세션급여단가 (원)</label>
+          <input type="number" id="tRate" placeholder="예: 40000">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="field" style="flex:1;">
+          <label>매출단가 (원) <span style="font-size:11px;color:#1565c0;font-weight:normal;">→ 방/치 치료단가 자동 적용</span></label>
+          <input type="number" id="tSalesPrice" placeholder="예: 62000">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div class="field" style="flex:1;">
+          <label>퇴사 예정일 <span style="font-size:11px;color:#e57373;font-weight:normal;">(해당 시 기록)</span></label>
+          <input type="date" id="tResignDate" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:5px;font-size:13px;box-sizing:border-box;">
+        </div>
+      </div>
+      <div class="field">
+        <label>자격 · 면허 (최대 3개)</label>
+        <div style="display:flex;gap:6px;margin-bottom:4px;">
+          <input type="text" id="tLicName1" placeholder="자격명 1 (예: 언어재활사 2급)" style="flex:1.4;">
+          <input type="text" id="tLicNo1" placeholder="면허번호 1" style="flex:1;">
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:4px;">
+          <input type="text" id="tLicName2" placeholder="자격명 2" style="flex:1.4;">
+          <input type="text" id="tLicNo2" placeholder="면허번호 2" style="flex:1;">
+        </div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="tLicName3" placeholder="자격명 3" style="flex:1.4;">
+          <input type="text" id="tLicNo3" placeholder="면허번호 3" style="flex:1;">
+        </div>
+      </div>
+      <div class="field">
+        <label>메모</label>
+        <textarea id="tNote" rows="2" placeholder="경력, 기타 특이사항 등"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="saveTherapist()">저장</button>
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeModal()">취소</button>
+        <button class="btn btn-danger" id="btnDelete" style="display:none;" onclick="deleteTherapist()">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (!localStorage.getItem('currentUser')) location.href = 'index.html';
+    document.getElementById('userLabel').textContent = localStorage.getItem('currentUser') + '님';
+
+    // ── 비밀번호 잠금 ──
+    const ADMIN_PW = '2749';
+    function checkLock() {
+      const val = document.getElementById('lockInput').value;
+      if (val === ADMIN_PW) {
+        document.getElementById('lockOverlay').style.display = 'none';
+        document.getElementById('mainContent').style.display = '';
+        init();
+      } else {
+        document.getElementById('lockErr').style.display = '';
+        document.getElementById('lockInput').value = '';
+        document.getElementById('lockInput').focus();
+      }
+    }
+    document.getElementById('lockInput').focus();
+
+    // ── 행정직원 CRUD ──
+    let editingStaffId = null;
+    function getStaff() { return JSON.parse(localStorage.getItem('staff') || '[]'); }
+    function saveStaffData(d) { localStorage.setItem('staff', JSON.stringify(d)); }
+
+    function fmtRrn(el) {
+      let v = el.value.replace(/\D/g,'');
+      if (v.length > 6) v = v.slice(0,6) + '-' + v.slice(6,13);
+      el.value = v;
+    }
+
+    // ── 급여 계산 ──
+    function calcPayslip(salary) {
+      salary = parseInt(salary) || 0;
+      if (!salary) return null;
+      const 국민연금   = Math.round(salary * 0.045 / 10) * 10;
+      const 건강보험   = Math.round(salary * 0.03545 / 10) * 10;
+      const 장기요양   = Math.round(건강보험 * 0.1295 / 10) * 10;
+      const 고용보험   = Math.round(salary * 0.009 / 10) * 10;
+      const 소득세     = calcIncomeTax(salary);
+      const 농특세     = Math.round(소득세 * 0.1 / 10) * 10;
+      const 공제액계   = 국민연금 + 건강보험 + 장기요양 + 고용보험 + 소득세 + 농특세;
+      const 실수령액   = salary - 공제액계;
+      return { salary, 국민연금, 건강보험, 장기요양, 고용보험, 소득세, 농특세, 공제액계, 실수령액 };
+    }
+
+    function calcIncomeTax(salary) {
+      // 간이세액표 근사값 (부양가족 1인 기준)
+      if (salary < 1060000) return 0;
+      if (salary < 1500000) return Math.round(salary * 0.006 / 10) * 10;
+      if (salary < 2000000) return Math.round(salary * 0.010 / 10) * 10;
+      if (salary < 3000000) return Math.round(salary * 0.016 / 10) * 10;
+      if (salary < 4500000) return Math.round(salary * 0.024 / 10) * 10;
+      return Math.round(salary * 0.035 / 10) * 10;
+    }
+
+    function previewPayslip() {
+      const salary = parseInt(document.getElementById('sSalary').value) || 0;
+      const preview = document.getElementById('payslipPreview');
+      const table = document.getElementById('previewTable');
+      if (!salary) { preview.style.display = 'none'; return; }
+      const p = calcPayslip(salary);
+      table.innerHTML = `
+        <tr><td style="padding:3px 6px;color:#555;">기본급</td><td style="text-align:right;font-weight:bold;">${p.salary.toLocaleString()}원</td><td style="width:20px;"></td><td style="padding:3px 6px;color:#555;">국민연금</td><td style="text-align:right;">${p.국민연금.toLocaleString()}원</td></tr>
+        <tr><td></td><td></td><td></td><td style="padding:3px 6px;color:#555;">건강보험</td><td style="text-align:right;">${p.건강보험.toLocaleString()}원</td></tr>
+        <tr><td></td><td></td><td></td><td style="padding:3px 6px;color:#555;">장기요양보험</td><td style="text-align:right;">${p.장기요양.toLocaleString()}원</td></tr>
+        <tr><td></td><td></td><td></td><td style="padding:3px 6px;color:#555;">고용보험</td><td style="text-align:right;">${p.고용보험.toLocaleString()}원</td></tr>
+        <tr><td></td><td></td><td></td><td style="padding:3px 6px;color:#555;">소득세</td><td style="text-align:right;">${p.소득세.toLocaleString()}원</td></tr>
+        <tr><td></td><td></td><td></td><td style="padding:3px 6px;color:#555;">농특세</td><td style="text-align:right;">${p.농특세.toLocaleString()}원</td></tr>
+        <tr style="border-top:1px solid #c8e6c9;"><td style="padding:4px 6px;font-weight:bold;color:#2e7d32;">실수령액</td><td style="text-align:right;font-weight:bold;color:#2e7d32;font-size:14px;">${p.실수령액.toLocaleString()}원</td><td></td><td style="padding:3px 6px;color:#e53935;font-weight:bold;">공제액계</td><td style="text-align:right;color:#e53935;">${p.공제액계.toLocaleString()}원</td></tr>`;
+      preview.style.display = '';
+    }
+
+    function renderStaff() {
+      const list = getStaff();
+      const now = new Date();
+      const today = now.getDate();
+      const wrap = document.getElementById('staffCards');
+      wrap.innerHTML = list.map(s => {
+        const isPayday = s.payday && parseInt(s.payday) === today;
+        // 월차 현황
+        const leaves = calcMonthlyLeave(s.hireDate);
+        const leaveTotal = leaves ? leaves.length : 0;
+        const leaveUsed = leaveTotal > 0 ? Object.values(s.leaveUsed||{}).filter(v => v?.date || v===true).length : 0;
+        const leaveLeft = leaveTotal - leaveUsed;
+        const leaveAlert = leaveLeft > 0 && leaveTotal > 0;
+        return `
+        <div class="therapist-card" style="position:relative;" onclick="openStaffModal('${s.id}')">
+          ${isPayday ? '<div style="position:absolute;top:8px;right:8px;background:#e53935;color:white;font-size:10px;font-weight:bold;padding:2px 7px;border-radius:10px;">💰 오늘 급여일</div>' : ''}
+          <div class="t-name">${s.name}</div>
+          <div class="t-area">${s.role || '직책 미입력'}</div>
+          <div class="t-meta">${s.days ? s.days.join('·')+'요일' : ''}${s.timeStart ? ' (주중) '+s.timeStart+'~'+s.timeEnd : ''}${s.timeStartSat ? ' / (토) '+s.timeStartSat+'~'+s.timeEndSat : ''}</div>
+          <div class="t-meta">${s.phone || ''}${s.salary ? ' · 기본급 '+parseInt(s.salary).toLocaleString()+'원' : ''}</div>
+          ${s.payday ? `<div class="t-meta">급여일: 매월 ${s.payday}일</div>` : ''}
+          ${s.note ? `<div class="t-meta" style="color:#e65100;white-space:pre-line;">${s.note}</div>` : ''}
+          ${leaveTotal > 0 ? `<div style="margin-top:5px;font-size:11px;padding:3px 7px;border-radius:5px;background:${leaveAlert?'#e3f2fd':'#f5f5f5'};color:${leaveAlert?'#1565c0':'#999'};">🗓️ 월차 ${leaveTotal}일 발생 · 사용 ${leaveUsed}일 · <strong>잔여 ${leaveLeft}일</strong>${leaveAlert?' ← 미사용':''}</div>` : ''}
+          <button class="btn btn-secondary" style="margin-top:8px;padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();showPayslip('${s.id}')">📋 급여명세서</button>
+        </div>`;
+      }).join('') +
+        `<div class="therapist-card add-card" onclick="openStaffModal()"><span style="font-size:22px;">+</span><span>행정직원 등록</span></div>`;
+      checkPaydayAlert(list, today);
+    }
+
+    function checkPaydayAlert(list, today) {
+      const payees = list.filter(s => s.payday && parseInt(s.payday) === today && s.salary);
+      const banner = document.getElementById('paydayBanner');
+      if (payees.length > 0) {
+        banner.innerHTML = `💰 오늘(${today}일)은 <strong>${payees.map(s=>s.name).join(', ')}</strong> 급여일입니다!`;
+        banner.style.display = '';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    // ── 월차 계산 (근로기준법: 개근 1개월마다 1일 발생, 최대 11개월) ──
+    function calcMonthlyLeave(hireDate) {
+      if (!hireDate) return null;
+      const hire = new Date(hireDate);
+      const now = new Date();
+      const months = [];
+      for (let m = 1; m <= 11; m++) {
+        const earned = new Date(hire.getFullYear(), hire.getMonth() + m, hire.getDate());
+        if (earned > now) break;
+        months.push({
+          month: m,
+          earnedDate: earned.toISOString().slice(0,10),
+          label: `${earned.getFullYear()}.${String(earned.getMonth()+1).padStart(2,'0')} (입사 ${m}개월차)`,
+        });
+      }
+      return months;
+    }
+
+    function updateLeaveInfo() {
+      const rows = document.querySelectorAll('#leaveGrid .leave-row');
+      const total = rows.length;
+      const used  = Array.from(rows).filter(r => r.querySelector('input[type=date]').value).length;
+      document.getElementById('leaveCalcInfo').innerHTML =
+        `📅 발생 월차: <strong>${total}일</strong> &nbsp;|&nbsp; 사용: <strong style="color:#e53935;">${used}일</strong> &nbsp;|&nbsp; 잔여: <strong style="color:#1565c0;">${total-used}일</strong><br><span style="color:#aaa;font-size:11px;">※ 근로기준법: 1개월 개근 시 1일 발생 (최대 11일/연)</span>`;
+    }
+
+    function renderLeaveGrid(s) {
+      const hireDate = document.getElementById('sHireDate').value;
+      const info = document.getElementById('leaveCalcInfo');
+      const usageArea = document.getElementById('leaveUsageArea');
+      const noHire = document.getElementById('leaveNoHire');
+      if (!hireDate) {
+        info.style.display = 'none'; usageArea.style.display = 'none';
+        noHire.style.display = ''; return;
+      }
+      noHire.style.display = 'none';
+      const leaves = calcMonthlyLeave(hireDate);
+      if (!leaves || leaves.length === 0) {
+        info.style.display = ''; info.textContent = '아직 월차 발생 전입니다 (입사 1개월 후부터 발생)';
+        usageArea.style.display = 'none'; return;
+      }
+      // leaveUsed: { month: { date: 'YYYY-MM-DD', note: '...' } } 형태로 업그레이드
+      const usedMap = s?.leaveUsed || {};
+      info.style.display = '';
+      usageArea.style.display = '';
+      document.getElementById('leaveGrid').innerHTML = leaves.map(lv => {
+        const entry = typeof usedMap[lv.month] === 'object' ? usedMap[lv.month] : (usedMap[lv.month] ? {date:'', note:''} : {date:'', note:''});
+        const hasDate = !!entry.date;
+        return `<div class="leave-row" data-month="${lv.month}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid ${hasDate?'#e53935':'#90caf9'};border-radius:7px;background:${hasDate?'#fff8f8':'#f3f8ff'};width:100%;box-sizing:border-box;">
+          <div style="min-width:140px;font-size:12px;color:#444;font-weight:${hasDate?'bold':'normal'};">${lv.label}</div>
+          <div style="display:flex;align-items:center;gap:5px;flex:1;">
+            <label style="font-size:11px;color:#888;white-space:nowrap;">사용일</label>
+            <input type="date" value="${entry.date||''}" oninput="updateLeaveInfo()" style="border:1px solid #ccc;border-radius:5px;padding:3px 6px;font-size:12px;flex:1;">
+            <input type="text" value="${entry.note||''}" placeholder="비고 (예: 병원)" style="border:1px solid #ccc;border-radius:5px;padding:3px 6px;font-size:12px;width:80px;">
+          </div>
+          ${hasDate ? `<span style="font-size:11px;color:#e53935;white-space:nowrap;">✓ ${entry.date}</span>` : ''}
+        </div>`;
+      }).join('');
+      updateLeaveInfo();
+    }
+
+    function openStaffModal(id) {
+      editingStaffId = id || null;
+      const s = id ? getStaff().find(x => x.id === id) : null;
+      document.getElementById('staffModalTitle').textContent = id ? '행정직원 수정' : '행정직원 등록';
+      document.getElementById('sName').value          = s?.name          || '';
+      document.getElementById('sRole').value          = s?.role          || '';
+      document.getElementById('sRrn').value           = s?.rrn           || '';
+      document.getElementById('sPhone').value         = s?.phone         || '';
+      document.getElementById('sEmail').value         = s?.email         || '';
+      document.getElementById('sTimeStart').value     = s?.timeStart     || '';
+      document.getElementById('sTimeEnd').value       = s?.timeEnd       || '';
+      document.getElementById('sTimeStartSat').value  = s?.timeStartSat  || '';
+      document.getElementById('sTimeEndSat').value    = s?.timeEndSat    || '';
+      document.getElementById('sHireDate').value      = s?.hireDate      || '';
+      document.getElementById('sInsuranceDate').value = s?.insuranceDate || '';
+      document.getElementById('sSalary').value        = s?.salary        || '';
+      document.getElementById('sPayday').value        = s?.payday        || '';
+      document.getElementById('sNote').value          = s?.note          || '';
+      document.querySelectorAll('#sDayGroup input').forEach(cb => {
+        cb.checked = (s?.days || []).includes(cb.value);
+      });
+      document.getElementById('payslipPreview').style.display = 'none';
+      if (s?.salary) previewPayslip();
+      renderLeaveGrid(s);
+      document.getElementById('btnStaffDelete').style.display = id ? '' : 'none';
+      document.getElementById('staffModalBg').classList.add('open');
+    }
+    function closeStaffModal() { document.getElementById('staffModalBg').classList.remove('open'); }
+
+    function saveStaff() {
+      const name = document.getElementById('sName').value.trim();
+      if (!name) { alert('이름을 입력하세요'); return; }
+      const days = Array.from(document.querySelectorAll('#sDayGroup input:checked')).map(c=>c.value);
+      // 월차 사용 내역 수집 (사용일 + 비고)
+      const leaveUsed = {};
+      document.querySelectorAll('#leaveGrid .leave-row').forEach(row => {
+        const month = row.dataset.month;
+        const inputs = row.querySelectorAll('input');
+        leaveUsed[month] = { date: inputs[0].value, note: inputs[1].value.trim() };
+      });
+      const list = getStaff();
+      const existing = list.find(x => x.id === editingStaffId) || {};
+      const entry = {
+        ...existing,
+        id:            editingStaffId || Date.now().toString(),
+        name,
+        role:          document.getElementById('sRole').value.trim(),
+        rrn:           document.getElementById('sRrn').value.trim(),
+        phone:         document.getElementById('sPhone').value.trim(),
+        email:         document.getElementById('sEmail').value.trim(),
+        days,
+        timeStart:     document.getElementById('sTimeStart').value,
+        timeEnd:       document.getElementById('sTimeEnd').value,
+        timeStartSat:  document.getElementById('sTimeStartSat').value,
+        timeEndSat:    document.getElementById('sTimeEndSat').value,
+        hireDate:      document.getElementById('sHireDate').value,
+        insuranceDate: document.getElementById('sInsuranceDate').value,
+        salary:        document.getElementById('sSalary').value,
+        payday:        document.getElementById('sPayday').value,
+        note:          document.getElementById('sNote').value.trim(),
+        leaveUsed,
+      };
+      if (editingStaffId) {
+        const i = list.findIndex(x => x.id === editingStaffId);
+        if (i >= 0) list[i] = entry;
+      } else { list.push(entry); }
+      saveStaffData(list);
+      closeStaffModal();
+      renderStaff();
+    }
+
+    function deleteStaff() {
+      if (!confirm('행정직원을 삭제하시겠습니까?')) return;
+      saveStaffData(getStaff().filter(x => x.id !== editingStaffId));
+      closeStaffModal();
+      renderStaff();
+    }
+
+    // ── 급여명세서 보기 ──
+    function showPayslip(id) {
+      const s = getStaff().find(x => x.id === id);
+      if (!s) return;
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth()+1;
+      const p = calcPayslip(s.salary);
+      if (!p) { alert('기본급이 등록되지 않았습니다'); return; }
+      const rrnMasked = s.rrn ? s.rrn.replace(/(\d{6})-?(\d)(\d+)/, '$1-$2******') : '-';
+      document.getElementById('payslipContent').innerHTML = `
+        <div id="printArea" style="font-family:'맑은 고딕',sans-serif;font-size:13px;color:#222;">
+          <div style="text-align:center;font-size:16px;font-weight:bold;margin-bottom:16px;">${year}년 ${String(month).padStart(2,'0')}월분 급여명세서</div>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px;">
+            <tr><td style="padding:4px 8px;color:#555;width:100px;">회사명</td><td style="padding:4px 8px;font-weight:bold;">자라는나무</td></tr>
+            <tr><td style="padding:4px 8px;color:#555;">성명</td><td style="padding:4px 8px;">${s.name}</td></tr>
+            <tr><td style="padding:4px 8px;color:#555;">생년월일</td><td style="padding:4px 8px;">${rrnMasked}</td></tr>
+            ${s.hireDate ? `<tr><td style="padding:4px 8px;color:#555;">입사일</td><td style="padding:4px 8px;">${s.hireDate.replace(/-/g,'.')}</td></tr>` : ''}
+            ${s.payday ? `<tr><td style="padding:4px 8px;color:#555;">지급일</td><td style="padding:4px 8px;">${year}.${String(month).padStart(2,'0')}.${String(s.payday).padStart(2,'0')}.</td></tr>` : ''}
+          </table>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #ccc;font-size:13px;">
+            <tr style="background:#f5f5f5;">
+              <th colspan="4" style="padding:8px;border:1px solid #ccc;text-align:left;">세부내역</th>
+            </tr>
+            <tr style="background:#fafafa;">
+              <th colspan="2" style="padding:6px 10px;border:1px solid #ccc;">지급</th>
+              <th colspan="2" style="padding:6px 10px;border:1px solid #ccc;">공제</th>
+            </tr>
+            <tr style="background:#fafafa;">
+              <td style="padding:6px 10px;border:1px solid #ccc;">임금항목</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;">지급금액</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;">항목</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;">공제금액</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #ccc;">기본급</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;">${p.salary.toLocaleString()}</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;">국민연금</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;">${p.국민연금.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;">건강보험</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;">${p.건강보험.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;">장기요양보험</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;">${p.장기요양.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;">고용보험</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;">${p.고용보험.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;">소득세</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;">${p.소득세.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;">농특세</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;">${p.농특세.toLocaleString()}</td>
+            </tr>
+            <tr style="background:#f1f8e9;">
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:6px 10px;border:1px solid #ccc;font-weight:bold;">공제액계</td>
+              <td style="padding:6px 10px;border:1px solid #ccc;text-align:right;font-weight:bold;">${p.공제액계.toLocaleString()}</td>
+            </tr>
+            <tr style="background:#e8f5e9;">
+              <td colspan="2" style="padding:8px 10px;border:1px solid #ccc;"></td>
+              <td style="padding:8px 10px;border:1px solid #ccc;font-weight:bold;color:#1b5e20;">실수령액</td>
+              <td style="padding:8px 10px;border:1px solid #ccc;text-align:right;font-weight:bold;color:#1b5e20;font-size:15px;">${p.실수령액.toLocaleString()}</td>
+            </tr>
+          </table>
+          ${(() => {
+            const leaves = calcMonthlyLeave(s.hireDate);
+            const usedMap = s.leaveUsed || {};
+            const usedLeaves = (leaves||[]).map(lv => {
+              const e = usedMap[lv.month];
+              const date = typeof e === 'object' ? e.date : '';
+              const note = typeof e === 'object' ? e.note : '';
+              return date ? { label: lv.label, date, note } : null;
+            }).filter(Boolean);
+            if (!usedLeaves.length) return '';
+            return `<table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:13px;">
+              <tr style="background:#e3f2fd;">
+                <th colspan="3" style="padding:8px 10px;border:1px solid #ccc;text-align:left;color:#1565c0;">🗓️ 월차 사용 내역</th>
+              </tr>
+              <tr style="background:#fafafa;">
+                <th style="padding:6px 10px;border:1px solid #ccc;text-align:left;">발생월</th>
+                <th style="padding:6px 10px;border:1px solid #ccc;text-align:center;">사용일</th>
+                <th style="padding:6px 10px;border:1px solid #ccc;text-align:left;">비고</th>
+              </tr>
+              ${usedLeaves.map(lv => `<tr>
+                <td style="padding:6px 10px;border:1px solid #ccc;">${lv.label}</td>
+                <td style="padding:6px 10px;border:1px solid #ccc;text-align:center;font-weight:bold;">${lv.date}</td>
+                <td style="padding:6px 10px;border:1px solid #ccc;color:#777;">${lv.note||'-'}</td>
+              </tr>`).join('')}
+              <tr style="background:#e3f2fd;">
+                <td colspan="2" style="padding:6px 10px;border:1px solid #ccc;font-weight:bold;color:#1565c0;">합계 사용</td>
+                <td style="padding:6px 10px;border:1px solid #ccc;font-weight:bold;color:#1565c0;">${usedLeaves.length}일 / ${(leaves||[]).length}일</td>
+              </tr>
+            </table>`;
+          })()}
+          <div style="margin-top:12px;font-size:11px;color:#aaa;text-align:center;">※ 소득세·건강보험료는 간이 산출값입니다. 실제 공제액은 달라질 수 있습니다.</div>
+        </div>`;
+      document.getElementById('payslipModalBg').classList.add('open');
+    }
+
+    function printPayslip() {
+      const content = document.getElementById('printArea').innerHTML;
+      const w = window.open('', '_blank', 'width=600,height=800');
+      w.document.write(`<html><head><title>급여명세서</title><style>body{font-family:'맑은 고딕',sans-serif;padding:30px;}table{width:100%;border-collapse:collapse;}td,th{border:1px solid #ccc;padding:6px 10px;}@media print{button{display:none;}}</style></head><body>${content}<br><button onclick="window.print()">인쇄</button></body></html>`);
+      w.document.close();
+      w.focus();
+    }
+
+    const SUPPORT_COLORS = {
+      '발달재활서비스': {bg:'#e8f5e9', color:'#1b5e20'},
+      '방과후활동비':   {bg:'#e3f2fd', color:'#0d47a1'},
+      '치료지원 언어영역': {bg:'#fce4ec', color:'#880e4f'},
+      '치료지원 감통영역': {bg:'#f3e5f5', color:'#4a148c'},
+      '센터비용':       {bg:'#fff9c4', color:'#f57f17'},
+      '없음':           {bg:'#f5f5f5', color:'#555'},
+    };
+    const SUPPORT_SHORT = {
+      '발달재활서비스':'발달재활', '방과후활동비':'방과후', '방치':'방치',
+      '치료지원 언어영역':'치료지원(언어)', '치료지원 감통영역':'치료지원(감통)',
+      '센터비용':'센터', '없음':'기타',
+    };
+
+    let currentTab = 'info';
+    let statYear, statMonth;
+    let editingId = null;
+
+    function getTherapists() { return JSON.parse(localStorage.getItem('therapists') || '[]'); }
+    function saveTherapists(d) { localStorage.setItem('therapists', JSON.stringify(d)); }
+    function getChildren() { return JSON.parse(localStorage.getItem('children') || '[]'); }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('viewInfo').style.display  = tab==='info'  ? '' : 'none';
+      document.getElementById('viewStat').style.display  = tab==='stat'  ? '' : 'none';
+      document.getElementById('viewStaff').style.display = tab==='staff' ? '' : 'none';
+      document.getElementById('tabInfo').classList.toggle('active',  tab==='info');
+      document.getElementById('tabStat').classList.toggle('active',  tab==='stat');
+      document.getElementById('tabStaff').classList.toggle('active', tab==='staff');
+      if (tab==='stat') renderStat();
+      else if (tab==='staff') renderStaff();
+      else renderCards();
+    }
+
+    // ── 치료사 카드 ──
+    function renderCards() {
+      const list = getTherapists();
+      let html = list.map(t => `
+        <div class="therapist-card" onclick="openEdit('${t.id}')">
+          <div class="t-name">${t.name} 치료사</div>
+          <div class="t-area">${(t.areas||[]).join(' · ') || '-'}</div>
+          <div class="t-meta">
+            ${t.days ? t.days.join('·')+'요일' : ''}<br>
+            ${t.phone || ''}${t.salesPrice ? '<br>매출단가: '+t.salesPrice.toLocaleString()+'원' : ''}${t.rate ? '<br>세션급여: '+t.rate.toLocaleString()+'원' : ''}${t.resignDate ? '<br><span style="color:#e57373;font-weight:bold;">퇴사예정: '+t.resignDate+'</span>' : ''}
+          </div>
+          <button class="btn btn-secondary" style="margin-top:8px;padding:4px 10px;font-size:11px;"
+            onclick="event.stopPropagation();openTherapistPayslip('${t.id}')">📋 급여명세서</button>
+          <button class="btn" style="margin-top:4px;padding:4px 10px;font-size:11px;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;"
+            onclick="event.stopPropagation();openEmploymentCert('${t.id}')">📄 재직증명서</button>
+          <button class="btn" style="margin-top:4px;padding:4px 10px;font-size:11px;background:#fff8e1;color:#e65100;border:1px solid #ffe082;"
+            onclick="event.stopPropagation();openVacationModal('${t.id}','${t.name}')">🏖️ 휴가 관리</button>
+        </div>`).join('');
+      html += `<div class="therapist-card add-card" onclick="openAdd()">
+        <span style="font-size:26px;">＋</span>
+        <span>치료사 등록</span>
+      </div>`;
+      document.getElementById('therapistCards').innerHTML = html;
+    }
+
+    function openAdd() {
+      editingId = null;
+      document.getElementById('modalTitle').textContent = '치료사 등록';
+      document.getElementById('tName').value = '';
+      document.getElementById('tPhone').value = '';
+      document.getElementById('tRate').value = '';
+      document.getElementById('tSalesPrice').value = '';
+      document.getElementById('tResignDate').value = '';
+      document.getElementById('tNote').value = '';
+      for (let i=1; i<=3; i++) {
+        document.getElementById('tLicName'+i).value = '';
+        document.getElementById('tLicNo'+i).value = '';
+      }
+      document.querySelectorAll('#tAreaGroup input').forEach(c=>c.checked=false);
+      document.querySelectorAll('#tDayGroup input').forEach(c=>c.checked=false);
+      document.getElementById('btnDelete').style.display = 'none';
+      document.getElementById('modalBg').classList.add('open');
+    }
+
+    function openEdit(id) {
+      const t = getTherapists().find(x=>x.id===id);
+      if (!t) return;
+      editingId = id;
+      document.getElementById('modalTitle').textContent = '치료사 수정';
+      document.getElementById('tName').value = t.name || '';
+      document.getElementById('tPhone').value = t.phone || '';
+      document.getElementById('tRate').value = t.rate || '';
+      document.getElementById('tSalesPrice').value = t.salesPrice || '';
+      document.getElementById('tResignDate').value = t.resignDate || '';
+      document.getElementById('tNote').value = t.note || '';
+      // 자격·면허 3개 슬롯 불러오기
+      const licenses = t.licenses || [];
+      for (let i=1; i<=3; i++) {
+        document.getElementById('tLicName'+i).value = licenses[i-1]?.name || '';
+        document.getElementById('tLicNo'+i).value = licenses[i-1]?.no || '';
+      }
+      document.querySelectorAll('#tAreaGroup input').forEach(c=>{
+        c.checked = (t.areas||[]).includes(c.value);
+      });
+      document.querySelectorAll('#tDayGroup input').forEach(c=>{
+        c.checked = (t.days||[]).includes(c.value);
+      });
+      document.getElementById('btnDelete').style.display = '';
+      document.getElementById('modalBg').classList.add('open');
+    }
+
+    function saveTherapist() {
+      const name = document.getElementById('tName').value.trim();
+      if (!name) { alert('이름을 입력해주세요.'); return; }
+      const areas = [...document.querySelectorAll('#tAreaGroup input:checked')].map(c=>c.value);
+      const days  = [...document.querySelectorAll('#tDayGroup input:checked')].map(c=>c.value);
+      // 자격·면허 3개 슬롯 수집 (빈 슬롯 제외)
+      const licenses = [];
+      for (let i=1; i<=3; i++) {
+        const licName = document.getElementById('tLicName'+i)?.value.trim() || '';
+        const licNo   = document.getElementById('tLicNo'+i)?.value.trim() || '';
+        if (licName || licNo) licenses.push({ name: licName, no: licNo });
+      }
+      const record = {
+        id: editingId || Date.now().toString(),
+        name, areas, days,
+        phone: document.getElementById('tPhone').value.trim(),
+        rate:       parseInt(document.getElementById('tRate').value) || 0,
+        salesPrice:  parseInt(document.getElementById('tSalesPrice').value) || 0,
+        resignDate:  document.getElementById('tResignDate').value || '',
+        licenses,
+        note:        document.getElementById('tNote').value.trim(),
+      };
+      let list = getTherapists();
+      if (editingId) list = list.map(t=>t.id===editingId ? record : t);
+      else list.push(record);
+      saveTherapists(list);
+      closeModal();
+      renderCards();
+    }
+
+    function deleteTherapist() {
+      if (!confirm('정말 삭제하시겠습니까?')) return;
+      saveTherapists(getTherapists().filter(t=>t.id!==editingId));
+      closeModal();
+      renderCards();
+    }
+
+    function closeModal() { document.getElementById('modalBg').classList.remove('open'); }
+
+    // ── 치료사 휴가 관리 ──
+    function getVacations() { return JSON.parse(localStorage.getItem('therapistVacations')||'[]'); }
+    // 연도 오입력(0026 등) 자동 보정
+    (function fixVacationYears(){
+      const list = getVacations();
+      let changed = false;
+      list.forEach(v => {
+        ['startDate','endDate'].forEach(k => {
+          if (!v[k]) return;
+          const parts = v[k].split('-');
+          const y = parseInt(parts[0]);
+          if (y < 1000) { parts[0] = String(y + 2000); v[k] = parts.join('-'); changed = true; }
+        });
+      });
+      if (changed) localStorage.setItem('therapistVacations', JSON.stringify(list));
+    })();
+    function saveVacations(d) { localStorage.setItem('therapistVacations', JSON.stringify(d)); }
+
+    function openVacationModal(therapistId, therapistName) {
+      const existing = document.getElementById('vacationModal');
+      if (existing) existing.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'vacationModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:4000;display:flex;align-items:center;justify-content:center;';
+      modal.innerHTML = `
+        <div style="background:white;border-radius:12px;padding:22px 24px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+          <div style="font-size:15px;font-weight:bold;color:#e65100;margin-bottom:16px;">🏖️ ${therapistName} 치료사 — 휴가 관리</div>
+
+          <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:14px;margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:bold;color:#e65100;margin-bottom:10px;">🏖️ 휴가 등록 (날짜 + 선택적 시간대)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">휴가 시작일 *</label>
+                <input type="date" id="vac_start" style="width:100%;padding:6px 8px;border:1px solid #ffe082;border-radius:5px;font-size:13px;box-sizing:border-box;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">휴가 종료일 *</label>
+                <input type="date" id="vac_end" style="width:100%;padding:6px 8px;border:1px solid #ffe082;border-radius:5px;font-size:13px;box-sizing:border-box;">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">시작시간 (비우면 전일)</label>
+                <input type="text" id="vac_st" placeholder="예: 9:50" style="width:100%;padding:6px 8px;border:1px solid #ffe082;border-radius:5px;font-size:13px;box-sizing:border-box;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">종료시간</label>
+                <input type="text" id="vac_et" placeholder="예: 12:10" style="width:100%;padding:6px 8px;border:1px solid #ffe082;border-radius:5px;font-size:13px;box-sizing:border-box;">
+              </div>
+            </div>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">사유 (선택)</label>
+              <input type="text" id="vac_note" placeholder="예: 연차, 학회, 개인 사정 등" style="width:100%;padding:6px 8px;border:1px solid #ffe082;border-radius:5px;font-size:13px;box-sizing:border-box;">
+            </div>
+            <button onclick="_saveVacation('${therapistId}','${therapistName}')" style="padding:7px 18px;background:#e65100;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">등록</button>
+          </div>
+
+          <div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:14px;margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:bold;color:#0d47a1;margin-bottom:10px;">🔁 정기 차단 시간 등록 (매주 반복)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+              <div>
+                <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">요일 *</label>
+                <select id="blk_day" style="width:100%;padding:6px 8px;border:1px solid #90caf9;border-radius:5px;font-size:13px;box-sizing:border-box;">
+                  <option value="">선택</option>
+                  ${['월','화','수','목','금','토','일'].map(d=>`<option value="${d}">${d}요일</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">시작시간 *</label>
+                <input type="text" id="blk_st" placeholder="예: 9:50" style="width:100%;padding:6px 8px;border:1px solid #90caf9;border-radius:5px;font-size:13px;box-sizing:border-box;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">종료시간 *</label>
+                <input type="text" id="blk_et" placeholder="예: 12:10" style="width:100%;padding:6px 8px;border:1px solid #90caf9;border-radius:5px;font-size:13px;box-sizing:border-box;">
+              </div>
+            </div>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">사유 *</label>
+              <input type="text" id="blk_label" placeholder="예: 우송대 강의, 슈퍼비전 등" style="width:100%;padding:6px 8px;border:1px solid #90caf9;border-radius:5px;font-size:13px;box-sizing:border-box;">
+            </div>
+            <button onclick="_saveBlock('${therapistId}','${therapistName}')" style="padding:7px 18px;background:#1565c0;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">등록</button>
+          </div>
+
+          <div id="vac_list_${therapistId}"></div>
+          <div id="blk_list_${therapistId}"></div>
+
+          <button onclick="document.getElementById('vacationModal').remove()" style="width:100%;padding:9px;background:#f5f5f5;color:#555;border:1px solid #ccc;border-radius:7px;font-size:13px;cursor:pointer;margin-top:8px;">닫기</button>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', e => { if (e.target===modal) modal.remove(); });
+      _renderVacList(therapistId);
+      _renderBlockList(therapistId);
+    }
+
+    function _renderVacList(therapistId) {
+      const el = document.getElementById('vac_list_' + therapistId);
+      if (!el) return;
+      const list = getVacations().filter(v => v.therapistId === therapistId)
+        .sort((a,b) => a.startDate.localeCompare(b.startDate));
+      if (!list.length) {
+        el.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:12px;">등록된 휴가가 없습니다.</div>';
+        return;
+      }
+      el.innerHTML = `
+        <div style="font-size:12px;font-weight:bold;color:#555;margin-bottom:8px;">등록된 휴가</div>
+        ${list.map(v => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f9f9f9;border:1px solid #eee;border-radius:6px;margin-bottom:6px;">
+            <div>
+              <span style="font-weight:bold;color:#e65100;">📅 ${v.startDate} ~ ${v.endDate}</span>
+              ${v.note ? `<span style="font-size:12px;color:#777;margin-left:8px;">${v.note}</span>` : ''}
+            </div>
+            <button onclick="_deleteVacation('${v.id}','${therapistId}')" style="padding:3px 10px;background:white;color:#c62828;border:1px solid #ef9a9a;border-radius:4px;font-size:11px;cursor:pointer;">삭제</button>
+          </div>`).join('')}`;
+    }
+
+    function _fixVacDate(val) {
+      if (!val) return val;
+      const parts = val.split('-');
+      if (parts.length === 3) {
+        let y = parseInt(parts[0]);
+        if (y < 100) y += 2000;
+        else if (y < 1000) y += 2000;
+        parts[0] = String(y);
+        return parts.join('-');
+      }
+      return val;
+    }
+    function _saveVacation(therapistId, therapistName) {
+      const start = _fixVacDate(document.getElementById('vac_start')?.value);
+      const end   = _fixVacDate(document.getElementById('vac_end')?.value);
+      const st    = (document.getElementById('vac_st')?.value||'').trim();
+      const et    = (document.getElementById('vac_et')?.value||'').trim();
+      const note  = document.getElementById('vac_note')?.value.trim() || '';
+      if (!start || !end) { alert('시작일과 종료일을 입력해주세요.'); return; }
+      if (start > end)    { alert('종료일이 시작일보다 빨라요.'); return; }
+      const list = getVacations();
+      list.push({ id: Date.now().toString(), therapistId, therapistName, startDate: start, endDate: end, startTime: st, endTime: et, note });
+      saveVacations(list);
+      ['vac_start','vac_end','vac_st','vac_et','vac_note'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+      _renderVacList(therapistId);
+    }
+
+    // ── 정기 차단 시간 (매주 반복) ──
+    function getBlocks() { return JSON.parse(localStorage.getItem('therapistBlocks')||'[]'); }
+    function saveBlocks(d) { localStorage.setItem('therapistBlocks', JSON.stringify(d)); }
+    function _saveBlock(therapistId, therapistName) {
+      const day   = document.getElementById('blk_day')?.value || '';
+      const st    = (document.getElementById('blk_st')?.value||'').trim();
+      const et    = (document.getElementById('blk_et')?.value||'').trim();
+      const label = (document.getElementById('blk_label')?.value||'').trim();
+      if (!day || !st || !et || !label) { alert('요일, 시작시간, 종료시간, 사유를 모두 입력해주세요.'); return; }
+      const list = getBlocks();
+      list.push({ id: Date.now().toString(), therapistId, therapistName, day, startTime: st, endTime: et, label });
+      saveBlocks(list);
+      ['blk_day','blk_st','blk_et','blk_label'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+      _renderBlockList(therapistId);
+    }
+    function _deleteBlock(blockId, therapistId) {
+      if (!confirm('이 정기 차단을 삭제하시겠습니까?')) return;
+      saveBlocks(getBlocks().filter(b=>b.id!==blockId));
+      _renderBlockList(therapistId);
+    }
+    function _renderBlockList(therapistId) {
+      const el = document.getElementById('blk_list_' + therapistId);
+      if (!el) return;
+      const list = getBlocks().filter(b=>b.therapistId===therapistId);
+      if (!list.length) { el.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:12px;">등록된 정기 차단이 없습니다.</div>'; return; }
+      el.innerHTML = `
+        <div style="font-size:12px;font-weight:bold;color:#555;margin:10px 0 8px;">등록된 정기 차단 (매주)</div>
+        ${list.map(b => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f5f9ff;border:1px solid #bbdefb;border-radius:6px;margin-bottom:6px;">
+            <div>
+              <span style="font-weight:bold;color:#0d47a1;">🔁 매주 ${b.day}요일 ${b.startTime}~${b.endTime}</span>
+              <span style="font-size:12px;color:#555;margin-left:8px;">${b.label}</span>
+            </div>
+            <button onclick="_deleteBlock('${b.id}','${therapistId}')" style="padding:3px 10px;background:white;color:#c62828;border:1px solid #ef9a9a;border-radius:4px;font-size:11px;cursor:pointer;">삭제</button>
+          </div>`).join('')}`;
+    }
+
+    function _deleteVacation(vacId, therapistId) {
+      if (!confirm('이 휴가 일정을 삭제하시겠습니까?')) return;
+      saveVacations(getVacations().filter(v => v.id !== vacId));
+      _renderVacList(therapistId);
+    }
+    document.getElementById('modalBg').addEventListener('click', e=>{
+      if (e.target===document.getElementById('modalBg')) closeModal();
+    });
+
+    // ── 월별 통계 ──
+    function changeStatMonth(d) {
+      statMonth += d;
+      if (statMonth>12){statMonth=1;statYear++;}
+      if (statMonth<1){statMonth=12;statYear--;}
+      renderStat();
+    }
+
+    function getDatesForDay(year, month, dayName) {
+      const DAY_IDX = {'월':1,'화':2,'수':3,'목':4,'금':5,'토':6};
+      const target = DAY_IDX[dayName];
+      const dates = [];
+      const last = new Date(year, month, 0).getDate();
+      for (let d=1;d<=last;d++)
+        if (new Date(year,month-1,d).getDay()===target) dates.push(d);
+      return dates;
+    }
+
+    // 치료사별, 지원종류별 이번 달 예정 회기수 계산
+    function calcSessions(year, month) {
+      const children = getChildren();
+      // result: { therapistName: { supportType: count, _total: count } }
+      const result = {};
+
+      children.forEach(child => {
+        (child.therapies || []).forEach(therapy => {
+          if (!therapy.therapist) return;
+          const t = therapy.therapist;
+          if (!result[t]) result[t] = { _total:0 };
+
+          const days = (therapy.cycle||'').split(',').map(s=>s.trim()).filter(Boolean);
+          let count = 0;
+          days.forEach(day => {
+            const dates = getDatesForDay(year, month, day);
+            count += dates.length;
+          });
+          // 기본회수가 설정된 경우 그것을 우선
+          if (therapy.baseCount && therapy.baseCount > 0) {
+            // baseCount는 수동 설정값. 자동 계산(달력)과 다를 수 있으므로 둘 다 제공
+            // 여기서는 달력 기반 실제 횟수 사용
+          }
+          // 추가 회기
+          const extra = parseInt(therapy.extraCount) || 0;
+          const total = count + extra;
+
+          const sup = therapy.support || '없음';
+          result[t][sup] = (result[t][sup] || 0) + total;
+          result[t]._total = (result[t]._total || 0) + total;
+        });
+      });
+      return result;
+    }
+
+    function renderStat() {
+      document.getElementById('statTitle').textContent = `${statYear}년 ${statMonth}월`;
+      const data = calcSessions(statYear, statMonth);
+      const therapists = getTherapists();
+
+      // 등록된 치료사 + 아동 데이터에만 있는 치료사 합산
+      const allNames = new Set([
+        ...therapists.map(t=>t.name),
+        ...Object.keys(data),
+      ]);
+
+      // 지원 종류 — 항상 고정 순서로 표시 (데이터 유무 무관)
+      const FIXED_SUPPORTS = [
+        '발달재활서비스','방과후활동비','방치','치료지원 언어영역','치료지원 감통영역','센터비용','없음'
+      ];
+      // 데이터에 있지만 목록에 없는 항목도 추가
+      const extraSupports = new Set();
+      Object.values(data).forEach(d=>{
+        Object.keys(d).filter(k=>k!=='_total' && !FIXED_SUPPORTS.includes(k)).forEach(s=>extraSupports.add(s));
+      });
+      const supports = [...FIXED_SUPPORTS, ...extraSupports];
+
+      // 요약 카드 (지원종류별 센터 전체 합산)
+      const totals = {};
+      supports.forEach(s=>totals[s]=0);
+      let grandTotal = 0;
+      Object.values(data).forEach(d=>{
+        supports.forEach(s=>{ totals[s]=(totals[s]||0)+(d[s]||0); });
+        grandTotal += d._total||0;
+      });
+
+      document.getElementById('statSummary').innerHTML = [
+        `<div class="summary-card" style="border-color:#2e7d32;">
+          <div class="stat-num" style="color:#2e7d32;">${grandTotal}</div>
+          <div class="stat-label">전체 제공 회기</div>
+        </div>`,
+        ...supports.map(s=>{
+          const sc = SUPPORT_COLORS[s] || {bg:'#f5f5f5',color:'#555'};
+          return `<div class="summary-card" style="border-color:${sc.color};background:${sc.bg};">
+            <div class="stat-num" style="color:${sc.color};">${totals[s]||0}</div>
+            <div class="stat-label" style="color:${sc.color};">${SUPPORT_SHORT[s]||s}</div>
+          </div>`;
+        })
+      ].join('');
+
+      // 테이블
+      let html = '<thead><tr>';
+      html += '<th>치료사</th><th>담당 영역</th>';
+      supports.forEach(s=>{
+        const sc = SUPPORT_COLORS[s]||{bg:'#eee',color:'#333'};
+        html += `<th style="background:${sc.color};color:white;">${SUPPORT_SHORT[s]||s}</th>`;
+      });
+      html += '<th style="background:#1b5e20;">합계</th></tr></thead><tbody>';
+
+      [...allNames].sort().forEach(name=>{
+        const tInfo = therapists.find(t=>t.name===name);
+        const d = data[name] || {};
+        const areas = tInfo ? (tInfo.areas||[]).join('·') : '-';
+        html += `<tr>
+          <td style="font-weight:bold;white-space:nowrap;">${name}</td>
+          <td style="font-size:12px;color:#555;">${areas}</td>`;
+        supports.forEach(s=>{
+          const cnt = d[s]||0;
+          const sc = SUPPORT_COLORS[s]||{bg:'#f5f5f5',color:'#555'};
+          html += cnt>0
+            ? `<td style="background:${sc.bg};"><span style="color:${sc.color};font-weight:bold;font-size:15px;">${cnt}</span><br><span style="font-size:10px;color:#aaa;">회</span></td>`
+            : `<td style="color:#ddd;">-</td>`;
+        });
+        html += `<td style="background:#f1f8e9;"><span style="color:#2e7d32;font-weight:bold;font-size:17px;">${d._total||0}</span><br><span style="font-size:10px;color:#aaa;">회</span></td>`;
+        html += '</tr>';
+      });
+
+      // 합계 행
+      html += `<tr style="background:#f5f5f5;font-weight:bold;">
+        <td colspan="2" style="text-align:right;color:#555;">센터 합계</td>`;
+      supports.forEach(s=>{
+        html += `<td style="font-weight:bold;color:#333;">${totals[s]||0}</td>`;
+      });
+      html += `<td style="background:#e8f5e9;color:#2e7d32;font-size:17px;font-weight:bold;">${grandTotal}</td></tr>`;
+
+      html += '</tbody>';
+      document.getElementById('statTable').innerHTML = html;
+
+      // 치료사별 아동 목록 상세
+      let detailHTML = '';
+      [...allNames].sort().forEach(name=>{
+        const tInfo = therapists.find(t=>t.name===name);
+        const children = getChildren().filter(c=>
+          (c.therapies||[]).some(t=>t.therapist===name)
+        );
+        if (!children.length) return;
+
+        detailHTML += `<div class="card" style="margin-top:14px;padding:14px 16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <div>
+              <strong style="font-size:16px;color:#2e7d32;">${name} 치료사</strong>
+              <span style="font-size:13px;color:#777;margin-left:8px;">${tInfo?(tInfo.areas||[]).join(' · '):''}</span>
+            </div>
+            <span style="font-size:13px;color:#2e7d32;font-weight:bold;">
+              이달 총 ${data[name]?data[name]._total:0}회
+            </span>
+          </div>
+          <table class="stat" style="font-size:12px;">
+            <thead><tr>
+              <th>아동명</th><th>치료영역</th><th>지원종류</th><th>요일</th><th>단가</th><th>이달 예정</th>
+            </tr></thead>
+            <tbody>`;
+
+        children.forEach(child=>{
+          (child.therapies||[]).filter(t=>t.therapist===name).forEach(therapy=>{
+            const days=(therapy.cycle||'').split(',').map(s=>s.trim()).filter(Boolean);
+            let cnt = 0;
+            days.forEach(day=>{
+              cnt += getDatesForDay(statYear, statMonth, day).length;
+            });
+            cnt += parseInt(therapy.extraCount)||0;
+
+            const sup = therapy.support||'없음';
+            const sc = SUPPORT_COLORS[sup]||{bg:'#f5f5f5',color:'#555'};
+            detailHTML += `<tr>
+              <td style="font-weight:bold;">${child.name}</td>
+              <td>${therapy.type||'-'}</td>
+              <td><span class="support-chip" style="background:${sc.bg};color:${sc.color};">${SUPPORT_SHORT[sup]||sup}</span></td>
+              <td>${days.join('·') || '-'}요일</td>
+              <td style="font-size:12px;">${therapy.fee?therapy.fee.toLocaleString()+'원':'-'}</td>
+              <td style="font-weight:bold;color:#2e7d32;font-size:15px;">${cnt}회</td>
+            </tr>`;
+          });
+        });
+
+        detailHTML += '</tbody></table></div>';
+      });
+      document.getElementById('statDetail').innerHTML = detailHTML;
+    }
+
+    function logout() { localStorage.removeItem('currentUser'); location.href='index.html'; }
+
+    // ── 치료사 급여명세서 ──
+    let tPayslipId = null, tPayslipYear, tPayslipMonth;
+
+    function getTherapistPayroll() { return JSON.parse(localStorage.getItem('therapistPayroll') || '{}'); }
+    function saveTherapistPayrollData(d) { localStorage.setItem('therapistPayroll', JSON.stringify(d)); }
+
+    const SUPPORT_ORDER = ['발달재활서비스','방과후활동비','방치','치료지원 언어영역','치료지원 감통영역','센터비용','없음'];
+
+    // ────────────────────────────────
+    //   📄 재직(경력)증명서 발급
+    // ────────────────────────────────
+    function openEmploymentCert(id) {
+      const t = getTherapists().find(x=>x.id===id);
+      if (!t) { alert('치료사 정보를 찾을 수 없습니다.'); return; }
+      const today = new Date();
+      const todayStr = `${today.getFullYear()} 년 ${today.getMonth()+1} 월 ${today.getDate()} 일`;
+      const areasStr = (t.areas||[]).join(', ') || '치료';
+      // 기존 저장된 정보 또는 빈값
+      const birth = t.birth || '';
+      const address = t.address || '';
+      const dept = t.department || '치료팀';
+      const position = t.position || '치료사';
+      const startDate = t.startDate || '';
+      const endDate = t.resignDate || '';
+      const duty = t.duty || areasStr + ' 치료 / 아동 상담';
+
+      document.getElementById('_empCertModal')?.remove();
+      const modal = document.createElement('div');
+      modal.id = '_empCertModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:7000;pointer-events:none;';
+      modal.innerHTML = `
+        <div id="_empCertBox" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border-radius:10px;width:780px;max-width:96vw;max-height:95vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.25);pointer-events:auto;">
+          <div id="_empCertDrag" style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #eee;background:#e3f2fd;cursor:grab;user-select:none;">
+            <h3 style="margin:0;color:#1565c0;font-size:15px;">📄 재직(경력)증명서 — ${t.name} <span style="font-size:11px;color:#aaa;font-weight:normal;">↔ 드래그</span></h3>
+            <div style="display:flex;gap:6px;">
+              <button onclick="_saveEmpCertExtra('${id}')" style="padding:6px 12px;background:#1565c0;color:white;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">💾 입력 저장</button>
+              <button onclick="_printEmpCert()" style="padding:6px 14px;background:#2e7d32;color:white;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">🖨️ 인쇄/PDF 저장</button>
+              <button onclick="document.getElementById('_empCertModal').remove()" style="padding:6px 12px;background:#eee;border:none;border-radius:5px;cursor:pointer;">✕</button>
+            </div>
+          </div>
+          <div style="padding:14px 24px;background:#fffde7;border-bottom:1px solid #ffe082;font-size:12px;color:#555;">
+            ✏️ 아래 입력란을 작성하고 <strong>💾 입력 저장</strong>을 누르면 다음 발급 시 자동 표기됩니다. (생년월일·주소·소속·재직기간 등)
+          </div>
+          <div style="padding:14px 24px;display:grid;grid-template-columns:1fr 1fr;gap:10px;background:#f5f9ff;">
+            <label style="font-size:11px;color:#555;">생년월일 (YYYY-MM-DD)<input type="text" id="ec_birth" value="${birth}" placeholder="예: 1990-05-15" style="width:100%;padding:5px 8px;border:1px solid #90caf9;border-radius:4px;font-size:12px;box-sizing:border-box;margin-top:3px;"></label>
+            <label style="font-size:11px;color:#555;">주소<input type="text" id="ec_address" value="${address}" placeholder="예: 대전광역시 ○○구 ○○로 ○○" style="width:100%;padding:5px 8px;border:1px solid #90caf9;border-radius:4px;font-size:12px;box-sizing:border-box;margin-top:3px;"></label>
+            <label style="font-size:11px;color:#555;">소속<input type="text" id="ec_dept" value="${dept}" style="width:100%;padding:5px 8px;border:1px solid #90caf9;border-radius:4px;font-size:12px;box-sizing:border-box;margin-top:3px;"></label>
+            <label style="font-size:11px;color:#555;">직위<input type="text" id="ec_position" value="${position}" style="width:100%;padding:5px 8px;border:1px solid #90caf9;border-radius:4px;font-size:12px;box-sizing:border-box;margin-top:3px;"></label>
+            <label style="font-size:11px;color:#555;">재직 시작일<input type="date" id="ec_startDate" value="${startDate}" style="width:100%;padding:5px 8px;border:1px solid #90caf9;border-radius:4px;font-size:12px;box-sizing:border-box;margin-top:3px;"></label>
+            <label style="font-size:11px;color:#555;">재직 종료일 (현재 재직 시 비워두기)<input type="date" id="ec_endDate" value="${endDate}" style="width:100%;padding:5px 8px;border:1px solid #90caf9;border-radius:4px;font-size:12px;box-sizing:border-box;margin-top:3px;"></label>
+            <label style="font-size:11px;color:#555;grid-column:1/3;">담당 업무<input type="text" id="ec_duty" value="${duty}" style="width:100%;padding:5px 8px;border:1px solid #90caf9;border-radius:4px;font-size:12px;box-sizing:border-box;margin-top:3px;"></label>
+          </div>
+          <div id="_empCertContent" style="padding:24px;">
+            ${_buildEmpCertHTML(t, todayStr, birth, address, dept, position, startDate, endDate, duty)}
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      _enableEmpModalDrag('_empCertBox', '_empCertDrag');
+      // 입력 변경 시 미리보기 자동 갱신
+      ['ec_birth','ec_address','ec_dept','ec_position','ec_startDate','ec_endDate','ec_duty'].forEach(elid=>{
+        document.getElementById(elid)?.addEventListener('input', ()=>_refreshEmpCert(id, todayStr));
+      });
+    }
+
+    function _refreshEmpCert(id, todayStr) {
+      const t = getTherapists().find(x=>x.id===id);
+      if (!t) return;
+      const birth = document.getElementById('ec_birth')?.value || '';
+      const address = document.getElementById('ec_address')?.value || '';
+      const dept = document.getElementById('ec_dept')?.value || '';
+      const position = document.getElementById('ec_position')?.value || '';
+      const startDate = document.getElementById('ec_startDate')?.value || '';
+      const endDate = document.getElementById('ec_endDate')?.value || '';
+      const duty = document.getElementById('ec_duty')?.value || '';
+      const c = document.getElementById('_empCertContent');
+      if (c) c.innerHTML = _buildEmpCertHTML(t, todayStr, birth, address, dept, position, startDate, endDate, duty);
+    }
+
+    function _buildEmpCertHTML(t, todayStr, birth, address, dept, position, startDate, endDate, duty) {
+      const period = startDate ? `${startDate} ~ ${endDate || '현재'}` : '';
+      return `
+        <div id="_empCertPrintArea" style="font-family:'Malgun Gothic',sans-serif;color:#000;font-size:13px;max-width:720px;margin:0 auto;">
+          <h1 style="text-align:center;font-size:26px;font-weight:bold;letter-spacing:8px;margin:14px 0 18px;">재 직 증 명 서</h1>
+          <table style="width:100%;border-collapse:collapse;border:1.5px solid #333;">
+            <tr>
+              <td rowspan="2" style="border:1px solid #333;padding:8px;text-align:center;background:#f5f5f5;width:8%;font-weight:bold;">인<br>적<br>사<br>항</td>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;width:14%;font-weight:bold;">성 명</td>
+              <td style="border:1px solid #333;padding:8px;width:28%;"><strong>${t.name||''}</strong></td>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;width:14%;font-weight:bold;">생년월일</td>
+              <td style="border:1px solid #333;padding:8px;width:36%;">${birth||''}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;font-weight:bold;">주 소</td>
+              <td colspan="3" style="border:1px solid #333;padding:8px;">${address||''}</td>
+            </tr>
+            <tr>
+              <td rowspan="6" style="border:1px solid #333;padding:8px;text-align:center;background:#f5f5f5;font-weight:bold;">재<br>직<br>사<br>항</td>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;font-weight:bold;">기관(업체명)</td>
+              <td colspan="3" style="border:1px solid #333;padding:8px;">자라는 나무</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;font-weight:bold;">기관(업체)<br>주소</td>
+              <td colspan="3" style="border:1px solid #333;padding:8px;line-height:1.7;">
+                (전화번호) : 042-488-6011<br>
+                대전광역시 서구 문정로 22, 충렬공회관 10층
+              </td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;font-weight:bold;">사 업 자<br>등록번호</td>
+              <td style="border:1px solid #333;padding:8px;">314-82-75463</td>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;font-weight:bold;">대표자 성명</td>
+              <td style="border:1px solid #333;padding:8px;">김 은 정</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;font-weight:bold;">소 속</td>
+              <td style="border:1px solid #333;padding:8px;">${dept||''}</td>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;font-weight:bold;">직 위</td>
+              <td style="border:1px solid #333;padding:8px;">${position||''}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;font-weight:bold;">재직(경력)<br>기 간</td>
+              <td colspan="3" style="border:1px solid #333;padding:8px;">${period||''}</td>
+            </tr>
+            <tr>
+              <td style="border:1px solid #333;padding:8px;background:#fafafa;font-weight:bold;">담당 업무</td>
+              <td colspan="3" style="border:1px solid #333;padding:8px;">${duty||''}</td>
+            </tr>
+          </table>
+          <div style="margin-top:36px;text-align:center;font-size:14px;line-height:2;">
+            상기와 같이 <strong>자라는 나무 센터</strong> 재직하였음을 증명합니다.
+            <div style="margin-top:18px;">${todayStr}</div>
+          </div>
+          <div style="text-align:center;margin-top:30px;display:flex;justify-content:center;align-items:center;gap:20px;">
+            <img src="img/logo.png" onerror="this.style.display='none'" alt="자라는 나무" style="height:60px;width:auto;">
+            <img src="img/seal.png" onerror="this.style.display='none'" alt="직인" style="height:60px;width:auto;">
+          </div>
+        </div>`;
+    }
+
+    function _saveEmpCertExtra(id) {
+      const list = getTherapists();
+      const t = list.find(x=>x.id===id);
+      if (!t) return;
+      t.birth = document.getElementById('ec_birth')?.value || '';
+      t.address = document.getElementById('ec_address')?.value || '';
+      t.department = document.getElementById('ec_dept')?.value || '';
+      t.position = document.getElementById('ec_position')?.value || '';
+      t.startDate = document.getElementById('ec_startDate')?.value || '';
+      t.resignDate = document.getElementById('ec_endDate')?.value || t.resignDate || '';
+      t.duty = document.getElementById('ec_duty')?.value || '';
+      localStorage.setItem('therapists', JSON.stringify(list));
+      alert('✅ 입력값이 저장되었습니다.\n다음 발급 시 자동 표기됩니다.');
+    }
+
+    function _printEmpCert() {
+      const content = document.getElementById('_empCertPrintArea');
+      if (!content) return;
+      const win = window.open('', '', 'width=900,height=1100');
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>재직증명서</title>
+        <style>body{font-family:'Malgun Gothic',sans-serif;margin:30px;}@media print{@page{size:A4;margin:15mm;}}</style>
+        </head><body>${content.outerHTML}</body></html>`);
+      win.document.close();
+      setTimeout(()=>{ win.print(); }, 400);
+    }
+
+    function _enableEmpModalDrag(boxId, handleId) {
+      const box = document.getElementById(boxId);
+      const handle = document.getElementById(handleId);
+      if (!box || !handle) return;
+      let drag=false, sx=0, sy=0, ox=0, oy=0;
+      handle.addEventListener('mousedown', e=>{
+        drag=true; sx=e.clientX; sy=e.clientY;
+        const r = box.getBoundingClientRect();
+        ox = r.left; oy = r.top;
+        box.style.transform = 'none';
+        box.style.left = ox+'px'; box.style.top = oy+'px';
+        handle.style.cursor = 'grabbing';
+      });
+      document.addEventListener('mousemove', e=>{
+        if (!drag) return;
+        box.style.left = (ox + e.clientX - sx) + 'px';
+        box.style.top  = (oy + e.clientY - sy) + 'px';
+      });
+      document.addEventListener('mouseup', ()=>{ drag=false; if(handle) handle.style.cursor='grab'; });
+    }
+
+    function openTherapistPayslip(id) {
+      tPayslipId = id;
+      const now = new Date();
+      tPayslipYear  = now.getFullYear();
+      tPayslipMonth = now.getMonth() + 1;
+      renderTherapistPayslip();
+      document.getElementById('tPayslipBg').classList.add('open');
+    }
+
+    function tPayslipChangeMonth(delta) {
+      tPayslipMonth += delta;
+      if (tPayslipMonth > 12) { tPayslipMonth = 1; tPayslipYear++; }
+      if (tPayslipMonth < 1)  { tPayslipMonth = 12; tPayslipYear--; }
+      renderTherapistPayslip();
+    }
+
+    function renderTherapistPayslip() {
+      const t = getTherapists().find(x => x.id === tPayslipId);
+      if (!t) return;
+      document.getElementById('tPayslipTitle').textContent = `${tPayslipYear}년 ${tPayslipMonth}월`;
+
+      // 저장된 월별 조정값 불러오기
+      const payroll = getTherapistPayroll();
+      const key = `${t.id}_${tPayslipYear}_${String(tPayslipMonth).padStart(2,'0')}`;
+      const adj = payroll[key] || {};
+      document.getElementById('tBonus').value   = adj.bonus   || '';
+      document.getElementById('tDeduct').value  = adj.deduct  || '';
+      document.getElementById('tExclude').value = adj.exclude || '';
+      document.getElementById('tAdjMemo').value = adj.memo    || '';
+
+      // 세션 집계
+      const sessions = calcSessions(tPayslipYear, tPayslipMonth);
+      const tData = sessions[t.name] || {};
+      const rate = t.rate || 0;
+
+      const supports = SUPPORT_ORDER.filter(s => tData[s]);
+      let tableHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#2e7d32;color:white;">
+            <th style="padding:7px 10px;text-align:left;">지원 종류</th>
+            <th style="padding:7px 10px;text-align:center;">회수</th>
+            <th style="padding:7px 10px;text-align:right;">회당 단가</th>
+            <th style="padding:7px 10px;text-align:right;">소계</th>
+          </tr>
+        </thead><tbody>`;
+
+      let sessionTotal = 0;
+      if (supports.length === 0) {
+        tableHTML += `<tr><td colspan="4" style="padding:12px;text-align:center;color:#aaa;border:1px solid #eee;">이 달 수업 데이터 없음</td></tr>`;
+      } else {
+        supports.forEach(sup => {
+          const cnt = tData[sup] || 0;
+          const sub = cnt * rate;
+          sessionTotal += sub;
+          tableHTML += `<tr style="border-bottom:1px solid #f0f0f0;">
+            <td style="padding:7px 10px;border:1px solid #eee;">${sup}</td>
+            <td style="padding:7px 10px;text-align:center;border:1px solid #eee;font-weight:bold;">${cnt}회</td>
+            <td style="padding:7px 10px;text-align:right;border:1px solid #eee;">${rate ? rate.toLocaleString()+'원' : '단가 미설정'}</td>
+            <td style="padding:7px 10px;text-align:right;border:1px solid #eee;font-weight:bold;">${sub.toLocaleString()}원</td>
+          </tr>`;
+        });
+        tableHTML += `<tr style="background:#f9fbe7;">
+          <td colspan="3" style="padding:7px 10px;border:1px solid #eee;font-weight:bold;">수업료 합계</td>
+          <td style="padding:7px 10px;text-align:right;border:1px solid #eee;font-weight:bold;color:#2e7d32;">${sessionTotal.toLocaleString()}원</td>
+        </tr>`;
+      }
+      tableHTML += '</tbody></table>';
+      document.getElementById('tPayslipTable').innerHTML = tableHTML;
+      document.getElementById('tPayslipTable').dataset.sessionTotal = sessionTotal;
+
+      // 휴가 일정 렌더링
+      const vacations = JSON.parse(localStorage.getItem('therapistVacations')||'[]');
+      const monthStr  = `${tPayslipYear}-${String(tPayslipMonth).padStart(2,'0')}`;
+      const monthVacs = vacations.filter(v => v.therapistId === t.id && (
+        v.startDate.startsWith(monthStr) || v.endDate.startsWith(monthStr) ||
+        (v.startDate <= monthStr+'-31' && v.endDate >= monthStr+'-01')
+      ));
+      const vacEl = document.getElementById('tPayslipVacation');
+      if (monthVacs.length) {
+        // 이번 달 내 휴가 일수 계산
+        const mStart = new Date(`${monthStr}-01T00:00:00`);
+        const mEnd   = new Date(tPayslipYear, tPayslipMonth, 0); // 말일
+        let totalVacDays = 0;
+        monthVacs.forEach(v => {
+          const s = new Date(Math.max(new Date(v.startDate+'T00:00:00'), mStart));
+          const e = new Date(Math.min(new Date(v.endDate+'T00:00:00'),   mEnd));
+          if (s <= e) totalVacDays += Math.round((e-s)/(1000*60*60*24))+1;
+        });
+        vacEl.innerHTML = `
+          <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;">
+            <div style="font-size:12px;font-weight:bold;color:#e65100;margin-bottom:8px;">🏖️ 이달 휴가 일정 (총 ${totalVacDays}일)</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead>
+                <tr style="background:#e65100;color:white;">
+                  <th style="padding:5px 8px;text-align:center;">#</th>
+                  <th style="padding:5px 8px;text-align:left;">기간</th>
+                  <th style="padding:5px 8px;text-align:center;">일수</th>
+                  <th style="padding:5px 8px;text-align:left;">사유</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${monthVacs.map((v,i) => {
+                  const s = new Date(Math.max(new Date(v.startDate+'T00:00:00'), mStart));
+                  const e = new Date(Math.min(new Date(v.endDate+'T00:00:00'),   mEnd));
+                  const days = Math.round((e-s)/(1000*60*60*24))+1;
+                  return `<tr style="border-bottom:1px solid #ffe082;">
+                    <td style="padding:5px 8px;text-align:center;color:#888;">${i+1}</td>
+                    <td style="padding:5px 8px;font-weight:bold;">${v.startDate} ~ ${v.endDate}</td>
+                    <td style="padding:5px 8px;text-align:center;color:#e65100;font-weight:bold;">${days}일</td>
+                    <td style="padding:5px 8px;color:#777;">${v.note||'-'}</td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      } else {
+        vacEl.innerHTML = '';
+      }
+
+      tPayslipCalc();
+    }
+
+    function tPayslipCalc() {
+      const sessionTotal = parseInt(document.getElementById('tPayslipTable').dataset.sessionTotal) || 0;
+      const bonus   = parseInt(document.getElementById('tBonus').value)   || 0;
+      const deduct  = parseInt(document.getElementById('tDeduct').value)  || 0;
+      const exclude = parseInt(document.getElementById('tExclude').value) || 0;
+      const total = sessionTotal + bonus - deduct - exclude;
+      document.getElementById('tPayslipTotal').innerHTML = `
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
+          <span style="color:#555;">수업료 합계</span><span>${sessionTotal.toLocaleString()}원</span>
+        </div>
+        ${bonus   ? `<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px;"><span style="color:#1565c0;">+ 평가 수당</span><span style="color:#1565c0;">+${bonus.toLocaleString()}원</span></div>` : ''}
+        ${deduct  ? `<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px;"><span style="color:#e53935;">− 공제액</span><span style="color:#e53935;">-${deduct.toLocaleString()}원</span></div>` : ''}
+        ${exclude ? `<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px;"><span style="color:#e65100;">− 제외금액</span><span style="color:#e65100;">-${exclude.toLocaleString()}원</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;border-top:2px solid #2e7d32;padding-top:8px;margin-top:4px;">
+          <span style="font-weight:bold;font-size:15px;">지급 합계</span>
+          <span style="font-weight:bold;font-size:18px;color:#2e7d32;">${total.toLocaleString()}원</span>
+        </div>`;
+    }
+
+    function saveTherapistPayroll() {
+      const t = getTherapists().find(x => x.id === tPayslipId);
+      if (!t) return;
+      const key = `${t.id}_${tPayslipYear}_${String(tPayslipMonth).padStart(2,'0')}`;
+      const payroll = getTherapistPayroll();
+      payroll[key] = {
+        bonus:   parseInt(document.getElementById('tBonus').value)   || 0,
+        deduct:  parseInt(document.getElementById('tDeduct').value)  || 0,
+        exclude: parseInt(document.getElementById('tExclude').value) || 0,
+        memo:    document.getElementById('tAdjMemo').value.trim(),
+      };
+      saveTherapistPayrollData(payroll);
+      alert('저장됐습니다.');
+    }
+
+    function printTherapistPayslip() {
+      const t = getTherapists().find(x => x.id === tPayslipId);
+      if (!t) return;
+      const sessions = calcSessions(tPayslipYear, tPayslipMonth);
+      const tData = sessions[t.name] || {};
+      const rate = t.rate || 0;
+      const bonus   = parseInt(document.getElementById('tBonus').value)   || 0;
+      const deduct  = parseInt(document.getElementById('tDeduct').value)  || 0;
+      const exclude = parseInt(document.getElementById('tExclude').value) || 0;
+      const adjMemo = document.getElementById('tAdjMemo').value.trim();
+      const supports = SUPPORT_ORDER.filter(s => tData[s]);
+      let sessionTotal = 0;
+      const rows = supports.map(sup => {
+        const cnt = tData[sup] || 0;
+        const sub = cnt * rate;
+        sessionTotal += sub;
+        return `<tr><td>${sup}</td><td style="text-align:center;">${cnt}회</td><td style="text-align:right;">${rate.toLocaleString()}원</td><td style="text-align:right;">${sub.toLocaleString()}원</td></tr>`;
+      }).join('');
+      const total = sessionTotal + bonus - deduct - exclude;
+      const w = window.open('', '_blank', 'width=620,height:900');
+      w.document.write(`<html><head><title>급여명세서_${t.name}_${tPayslipYear}${tPayslipMonth}</title>
+      <style>body{font-family:'맑은 고딕',sans-serif;padding:30px;font-size:13px;}
+      table{width:100%;border-collapse:collapse;margin-bottom:16px;}
+      th,td{border:1px solid #ccc;padding:7px 10px;}
+      thead th{background:#2e7d32;color:white;}
+      .total{font-size:16px;font-weight:bold;}
+      @media print{button{display:none;}}</style></head><body>
+      <h2 style="text-align:center;">${tPayslipYear}년 ${tPayslipMonth}월 급여명세서</h2>
+      <table style="margin-bottom:12px;">
+        <tr><td style="color:#555;width:100px;">치료사명</td><td><strong>${t.name}</strong></td><td style="color:#555;width:100px;">회당 단가</td><td><strong>${rate.toLocaleString()}원</strong></td></tr>
+        <tr><td style="color:#555;">담당 영역</td><td colspan="3">${(t.areas||[]).join(', ')||'-'}</td></tr>
+      </table>
+      <table>
+        <thead><tr><th>지원 종류</th><th>회수</th><th>회당 단가</th><th>소계</th></tr></thead>
+        <tbody>${rows}
+        <tr style="background:#f9fbe7;"><td colspan="3"><strong>수업료 합계</strong></td><td style="text-align:right;"><strong>${sessionTotal.toLocaleString()}원</strong></td></tr>
+        ${bonus   ? `<tr><td colspan="3" style="color:#1565c0;">+ 평가 수당</td><td style="text-align:right;color:#1565c0;">+${bonus.toLocaleString()}원</td></tr>` : ''}
+        ${deduct  ? `<tr><td colspan="3" style="color:#e53935;">− 공제액</td><td style="text-align:right;color:#e53935;">-${deduct.toLocaleString()}원</td></tr>` : ''}
+        ${exclude ? `<tr><td colspan="3" style="color:#e65100;">− 제외금액</td><td style="text-align:right;color:#e65100;">-${exclude.toLocaleString()}원</td></tr>` : ''}
+        ${adjMemo ? `<tr><td colspan="4" style="color:#888;font-size:12px;">메모: ${adjMemo}</td></tr>` : ''}
+        <tr style="background:#e8f5e9;"><td colspan="3" class="total">지급 합계</td><td style="text-align:right;" class="total">${total.toLocaleString()}원</td></tr>
+        </tbody>
+      </table>
+      ${(()=>{
+        const vacations = JSON.parse(localStorage.getItem('therapistVacations')||'[]');
+        const monthStr  = `${tPayslipYear}-${String(tPayslipMonth).padStart(2,'0')}`;
+        const mStart = new Date(`${monthStr}-01T00:00:00`);
+        const mEnd   = new Date(tPayslipYear, tPayslipMonth, 0);
+        const mv = vacations.filter(v => v.therapistId === t.id &&
+          v.startDate <= monthStr+'-31' && v.endDate >= monthStr+'-01');
+        if (!mv.length) return '';
+        let total = 0;
+        const rows = mv.map((v,i) => {
+          const s = new Date(Math.max(new Date(v.startDate+'T00:00:00'), mStart));
+          const e = new Date(Math.min(new Date(v.endDate  +'T00:00:00'), mEnd));
+          const d = Math.round((e-s)/(1000*60*60*24))+1;
+          total += d;
+          return `<tr><td>${i+1}</td><td>${v.startDate} ~ ${v.endDate}</td><td style="text-align:center;">${d}일</td><td>${v.note||'-'}</td></tr>`;
+        }).join('');
+        return `<h4 style="margin:16px 0 6px;color:#e65100;">🏖️ 휴가 일정 (총 ${total}일)</h4>
+          <table><thead><tr style="background:#e65100;color:white;"><th>#</th><th>기간</th><th>일수</th><th>사유</th></tr></thead>
+          <tbody>${rows}</tbody></table>`;
+      })()}
+      <p style="font-size:11px;color:#aaa;text-align:center;">※ 회수는 아동 스케줄 데이터 기준 자동 집계입니다.</p>
+      <button onclick="window.print()" style="margin-top:10px;">인쇄</button>
+      </body></html>`);
+      w.document.close();
+      w.focus();
+    }
+
+    function init() {
+      const now = new Date();
+      statYear = now.getFullYear();
+      statMonth = now.getMonth()+1;
+      // 김민선·김아름 기본 등록 (없을 때만)
+      const staffList = getStaff();
+      const defaultStaff = [
+        { name: '김민선', role: '행정직원' },
+        { name: '김아름', role: '행정직원' },
+      ];
+      let changed = false;
+      defaultStaff.forEach(d => {
+        if (!staffList.find(s => s.name === d.name)) {
+          staffList.push({ id: Date.now().toString() + Math.random(), ...d, days:[], leaveUsed:{} });
+          changed = true;
+        }
+      });
+      if (changed) saveStaffData(staffList);
+      renderCards();
+      checkPaydayAlert(getStaff(), now.getDate());
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>회계 관리 - 나무링크</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/nav.css">
+<style>
+  body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; background:#f5f7fa; margin:0; }
+  header { background:#2e7d32; color:white; padding:12px 24px; display:flex; align-items:center; gap:12px; }
+  header h1 { margin:0; font-size:20px; }
+  nav { background:#1b5e20; padding:8px 20px; display:flex; gap:8px; }
+  nav a { color:white; text-decoration:none; padding:8px 16px; border-radius:6px; font-size:14px; }
+  nav a:hover, nav a.active { background:rgba(255,255,255,0.15); }
+  .container { max-width:1400px; margin:16px auto; padding:0 16px; }
+  .card { background:white; border-radius:10px; padding:16px 20px; margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .card h2 { margin:0 0 12px; font-size:16px; color:#2e7d32; border-bottom:2px solid #2e7d32; padding-bottom:6px; }
+  .sum-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
+  .sum-box { padding:14px 16px; border-radius:8px; border:1.5px solid; }
+  .sum-box .lbl { font-size:12px; color:#666; margin-bottom:4px; }
+  .sum-box .val { font-size:22px; font-weight:bold; }
+  .sum-box .sub { font-size:11px; color:#888; margin-top:2px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { border:1px solid #e0e0e0; padding:6px 8px; text-align:left; }
+  th { background:#e8f5e9; color:#1b5e20; font-weight:bold; }
+  .month-nav { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .month-nav button { background:#2e7d32; color:white; border:none; border-radius:5px; padding:5px 12px; font-size:14px; cursor:pointer; }
+  .amt { text-align:right; font-family:monospace; font-weight:bold; }
+  .amt.paid { color:#2e7d32; }
+  .amt.unpaid { color:#e65100; }
+  .amt.refund { color:#c62828; }
+  .tab-btn { padding:8px 16px; border:1.5px solid #2e7d32; background:white; color:#2e7d32; border-radius:6px; cursor:pointer; font-weight:bold; margin-right:6px; }
+  .tab-btn.active { background:#2e7d32; color:white; }
+  .locked { text-align:center; padding:80px 20px; }
+  .locked h2 { color:#c62828; margin-bottom:10px; }
+</style>
+</head>
+<body>
+<header>
+  <span style="font-size:22px;">🌿</span>
+  <h1>나무링크 · 회계 관리 (김은정 관리자 전용)</h1>
+</header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="intake.html">신규아동</a>
+  <a href="records.html">치료 기록</a>
+  <a href="calendar.html">아동 스케줄</a>
+  <a href="payments.html">납부 관리</a>
+  <a href="therapists.html">치료사 관리</a>
+  <a href="accounting.html" class="active">회계 관리</a>
+  <a href="#" onclick="_logout()">로그아웃</a>
+</nav>
+
+<div class="container" id="mainContent">
+  <div class="card locked" id="lockedView" style="display:none;">
+    <h2>🔒 접근 권한 없음</h2>
+    <p>회계 관리는 김은정 관리자 전용 페이지입니다. 납부 관리 화면에서 회계 관리 메뉴를 통해 인증 후 접근해주세요.</p>
+    <button onclick="location.href='payments.html'" style="padding:10px 24px;background:#2e7d32;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;">납부 관리로 이동</button>
+  </div>
+
+  <div id="authedView" style="display:none;">
+    <div class="card">
+      <div class="month-nav">
+        <button onclick="_changeYear(-1)">◀ 이전 연도</button>
+        <h2 id="titleYear" style="margin:0;border:none;padding:0;font-size:20px;"></h2>
+        <button onclick="_changeYear(1)">다음 연도 ▶</button>
+        <span style="margin-left:14px;font-size:13px;color:#555;">기간:</span>
+        <select id="viewMode" onchange="_changeViewMode(this.value)" style="padding:5px 8px;border:1px solid #2e7d32;border-radius:5px;font-size:13px;background:white;font-weight:bold;color:#1b5e20;">
+          <option value="year">연간 전체</option>
+          <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option>
+          <option value="4">4월</option><option value="5">5월</option><option value="6">6월</option>
+          <option value="7">7월</option><option value="8">8월</option><option value="9">9월</option>
+          <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+        </select>
+        <span style="flex:1;"></span>
+        <button onclick="_exportCsv()" style="background:#1565c0;">💾 CSV 내보내기</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 id="summaryTitle">📊 연간 요약</h2>
+      <div class="sum-grid" id="yearSummary"></div>
+    </div>
+
+    <div class="card" id="monthlyTableCard">
+      <h2>📅 월별 매출/미납 현황</h2>
+      <table id="monthlyTable">
+        <thead>
+          <tr>
+            <th>월</th>
+            <th>발본</th>
+            <th>발추</th>
+            <th>방/치</th>
+            <th>센터</th>
+            <th>평가/수업</th>
+            <th class="amt">총 매출</th>
+            <th class="amt">납부완료</th>
+            <th class="amt">미납</th>
+            <th class="amt">환불</th>
+            <th class="amt">순매출</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>💳 결제방식별 집계 (선택 연도)</h2>
+      <table id="methodTable">
+        <thead>
+          <tr>
+            <th>결제방식</th>
+            <th>건수</th>
+            <th class="amt">금액</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>💰 환불 내역 (선택 연도)</h2>
+      <table id="refundTable">
+        <thead>
+          <tr>
+            <th>일자</th>
+            <th>아동명</th>
+            <th class="amt">금액</th>
+            <th>사유</th>
+            <th>은행/계좌</th>
+            <th>메모</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>👨‍⚕️ 치료사별 월별 매출 (발본+발추+방/치+센터 합산)</h2>
+      <div style="overflow-x:auto;">
+        <table id="therapistTable" style="min-width:1400px;">
+          <thead>
+            <tr>
+              <th>치료사</th>
+              <th>담당 아동수</th>
+              <th class="amt">1월</th><th class="amt">2월</th><th class="amt">3월</th>
+              <th class="amt">4월</th><th class="amt">5월</th><th class="amt">6월</th>
+              <th class="amt">7월</th><th class="amt">8월</th><th class="amt">9월</th>
+              <th class="amt">10월</th><th class="amt">11월</th><th class="amt">12월</th>
+              <th class="amt" style="background:#e8f5e9;">총 매출</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 세션 인증 확인
+  function _checkAuth() {
+    const until = parseInt(sessionStorage.getItem('accounting_authed_until')||'0');
+    return until > Date.now();
+  }
+  function _logout() {
+    sessionStorage.removeItem('accounting_authed_until');
+    location.href = 'payments.html';
+  }
+  let curYear = new Date().getFullYear();
+  if (curYear < 2026) curYear = 2026;
+  let curMonth = 0; // 0 = 연간 전체, 1~12 = 해당 월만
+
+  function _changeYear(d) {
+    curYear += d;
+    if (curYear < 2026) curYear = 2026;
+    if (curYear > new Date().getFullYear()+1) curYear = new Date().getFullYear()+1;
+    _render();
+  }
+  function _changeViewMode(v) {
+    curMonth = v === 'year' ? 0 : parseInt(v)||0;
+    _render();
+  }
+
+  function _init() { _render(); }
+
+  const BANCHI = ['방치','방과후활동비','치료지원 언어영역','치료지원 작업치료','방과후 치료지원 언어영역','방과후 치료지원 작업치료'];
+
+  function _classify(p) {
+    if (p.isEval) return '평가/수업';
+    if (p.support === '발달재활서비스') {
+      // 발본과 발추 구분: extraCount>0 && extraFee>0 이면 발추 컴포넌트도 존재
+      return '발본';
+    }
+    if (BANCHI.includes(p.support)) return '방/치';
+    if (p.support === '센터비용') return '센터';
+    return '기타';
+  }
+
+  function _isPaid(p) {
+    return !!p.basePaid || !!p.extraPaid || !!p.paidDate || p.status==='paid' || (parseInt(p.amount)||0)===0;
+  }
+
+  function _render() {
+    const periodLabel = curMonth ? `${curYear}년 ${curMonth}월` : `${curYear}년`;
+    document.getElementById('titleYear').textContent = `${periodLabel} 회계 요약`;
+    const _sumTitle = document.getElementById('summaryTitle');
+    if (_sumTitle) _sumTitle.textContent = curMonth ? `📊 ${curMonth}월 요약` : '📊 연간 요약';
+    // 특정 월 선택 시 12개월 표는 숨김
+    const _monthlyCard = document.getElementById('monthlyTableCard');
+    if (_monthlyCard) _monthlyCard.style.display = curMonth ? 'none' : '';
+    // 드롭다운 상태 유지
+    const _vm = document.getElementById('viewMode');
+    if (_vm) _vm.value = curMonth ? String(curMonth) : 'year';
+    // 월 필터 반영: curMonth=0 이면 연간, 아니면 해당 월만
+    const mkPrefix = curMonth ? `${curYear}-${String(curMonth).padStart(2,'0')}` : `${curYear}`;
+    const _matchesPeriod = (mk) => curMonth ? mk === mkPrefix : (mk||'').startsWith(mkPrefix+'');
+    const _matchesDate = (d) => curMonth ? (d||'').startsWith(mkPrefix) : (d||'').startsWith(curYear+'');
+    const payments = JSON.parse(localStorage.getItem('payments')||'[]').filter(p => _matchesPeriod(p.monthKey||''));
+    const children = JSON.parse(localStorage.getItem('children')||'[]');
+    const refunds = JSON.parse(localStorage.getItem('refunds')||'[]').filter(r => _matchesDate(r.date||''));
+
+    // 연간 요약
+    const total = payments.reduce((s,p)=>s+(parseInt(p.amount)||0),0);
+    const paid = payments.filter(_isPaid).reduce((s,p)=>s+(parseInt(p.amount)||0),0);
+    const unpaid = total - paid;
+    const refundTotal = refunds.reduce((s,r)=>s+(parseInt(r.amount)||0),0);
+    const net = paid - refundTotal;
+
+    document.getElementById('yearSummary').innerHTML = `
+      <div class="sum-box" style="border-color:#1565c0;">
+        <div class="lbl">총 매출 (계약금액)</div>
+        <div class="val" style="color:#1565c0;">${total.toLocaleString()}원</div>
+        <div class="sub">${payments.length}건</div>
+      </div>
+      <div class="sum-box" style="border-color:#2e7d32;">
+        <div class="lbl">납부완료</div>
+        <div class="val" style="color:#2e7d32;">${paid.toLocaleString()}원</div>
+        <div class="sub">${payments.filter(_isPaid).length}건</div>
+      </div>
+      <div class="sum-box" style="border-color:#e65100;">
+        <div class="lbl">미납</div>
+        <div class="val" style="color:#e65100;">${unpaid.toLocaleString()}원</div>
+        <div class="sub">${payments.length - payments.filter(_isPaid).length}건</div>
+      </div>
+      <div class="sum-box" style="border-color:#c62828;">
+        <div class="lbl">환불 합계</div>
+        <div class="val" style="color:#c62828;">-${refundTotal.toLocaleString()}원</div>
+        <div class="sub">${refunds.length}건</div>
+      </div>
+      <div class="sum-box" style="border-color:#6a1b9a;background:#f3e5f5;">
+        <div class="lbl">순 매출 (납부 - 환불)</div>
+        <div class="val" style="color:#6a1b9a;">${net.toLocaleString()}원</div>
+      </div>
+    `;
+
+    // 월별 표
+    const rows = [];
+    for (let m=1; m<=12; m++) {
+      const mk = `${curYear}-${String(m).padStart(2,'0')}`;
+      const mp = payments.filter(p => p.monthKey === mk);
+      const byCat = { '발본':0,'발추':0,'방/치':0,'센터':0,'평가/수업':0 };
+      const byCatPaid = { '발본':0,'발추':0,'방/치':0,'센터':0,'평가/수업':0 };
+      const byCatCount = { '발본':0,'발추':0,'방/치':0,'센터':0,'평가/수업':0 };
+      // 발본 record 에서 발추 부분 별도 계산
+      mp.forEach(p => {
+        if (p.support === '발달재활서비스') {
+          const ch = children.find(c=>c.id===p.childId);
+          const t = (ch?.therapies||[]).find(x=>x.support==='발달재활서비스');
+          const ec = parseInt(t?.extraCount)||0;
+          const ef = parseInt(t?.extraFee)||0;
+          const baseAmt = (parseInt(p.amount)||0);
+          const extraAmt = (ec>0 && ef>0) ? ec*ef : 0;
+          byCat['발본'] += baseAmt;
+          byCatCount['발본']++;
+          if (!!p.basePaid) byCatPaid['발본'] += baseAmt;
+          if (extraAmt > 0) {
+            byCat['발추'] += extraAmt;
+            byCatCount['발추']++;
+            if (!!p.extraPaid) byCatPaid['발추'] += extraAmt;
+          }
+        } else {
+          const cat = _classify(p);
+          byCat[cat] = (byCat[cat]||0) + (parseInt(p.amount)||0);
+          byCatCount[cat] = (byCatCount[cat]||0) + 1;
+          if (_isPaid(p)) byCatPaid[cat] = (byCatPaid[cat]||0) + (parseInt(p.amount)||0);
+        }
+      });
+      const mTotal = Object.values(byCat).reduce((s,v)=>s+v,0);
+      const mPaid  = Object.values(byCatPaid).reduce((s,v)=>s+v,0);
+      const mUnpaid = mTotal - mPaid;
+      const mRefund = refunds.filter(r => (r.date||'').substring(0,7) === mk).reduce((s,r)=>s+(parseInt(r.amount)||0),0);
+      const mNet = mPaid - mRefund;
+      rows.push(`<tr>
+        <td style="font-weight:bold;">${m}월</td>
+        <td>${byCat['발본'].toLocaleString()}원<br><span style="color:#888;font-size:10px;">${byCatCount['발본']}건</span></td>
+        <td>${byCat['발추'].toLocaleString()}원<br><span style="color:#888;font-size:10px;">${byCatCount['발추']}건</span></td>
+        <td>${byCat['방/치'].toLocaleString()}원<br><span style="color:#888;font-size:10px;">${byCatCount['방/치']}건</span></td>
+        <td>${byCat['센터'].toLocaleString()}원<br><span style="color:#888;font-size:10px;">${byCatCount['센터']}건</span></td>
+        <td>${byCat['평가/수업'].toLocaleString()}원<br><span style="color:#888;font-size:10px;">${byCatCount['평가/수업']}건</span></td>
+        <td class="amt">${mTotal.toLocaleString()}원</td>
+        <td class="amt paid">${mPaid.toLocaleString()}원</td>
+        <td class="amt unpaid">${mUnpaid.toLocaleString()}원</td>
+        <td class="amt refund">-${mRefund.toLocaleString()}원</td>
+        <td class="amt" style="color:#6a1b9a;">${mNet.toLocaleString()}원</td>
+      </tr>`);
+    }
+    document.querySelector('#monthlyTable tbody').innerHTML = rows.join('');
+
+    // 결제방식별
+    const byMethod = {};
+    payments.filter(_isPaid).forEach(p => {
+      const m = p.payMethod || '계좌';
+      if (!byMethod[m]) byMethod[m] = { count:0, amt:0 };
+      byMethod[m].count++;
+      byMethod[m].amt += parseInt(p.amount)||0;
+    });
+    document.querySelector('#methodTable tbody').innerHTML = Object.entries(byMethod)
+      .sort((a,b)=>b[1].amt-a[1].amt)
+      .map(([m,v]) => `<tr><td>${m}</td><td>${v.count}건</td><td class="amt">${v.amt.toLocaleString()}원</td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;color:#aaa;padding:20px;">데이터 없음</td></tr>';
+
+    // 환불 내역
+    document.querySelector('#refundTable tbody').innerHTML = refunds.length
+      ? refunds.sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+        .map(r => {
+          const ch = children.find(c=>c.id===r.childId);
+          return `<tr>
+            <td>${r.date||'-'}</td>
+            <td>${ch?.name||'-'}</td>
+            <td class="amt refund">-${(parseInt(r.amount)||0).toLocaleString()}원</td>
+            <td>${r.reason||'-'}</td>
+            <td>${(r.bank||'')} ${(r.account||'')}</td>
+            <td>${r.memo||'-'}</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px;">환불 내역 없음</td></tr>';
+
+    // 치료사별 월별 매출 (발본+발추+방/치+센터 합산)
+    // 원칙: payment record 의 therapist 필드 우선, 없으면 아동의 해당 support therapy 의 therapist 사용
+    // 발달재활 record 는 발본(치료사)과 발추(치료사) 두 컴포넌트로 분리 (인수인계 시 후임에게도 매출 반영)
+    const byTher = {};
+    const _addToTher = (therName, month, amt, childKey) => {
+      if (!therName || !amt) return;
+      if (!byTher[therName]) {
+        byTher[therName] = { children: new Set(), monthly: Array(13).fill(0), total: 0 };
+      }
+      byTher[therName].children.add(childKey);
+      byTher[therName].monthly[month] += amt;
+      byTher[therName].total += amt;
+    };
+    payments.forEach(p => {
+      const m = parseInt((p.monthKey||'').substring(5,7)) || 0;
+      if (!m) return;
+      const ch = children.find(c => c.id === p.childId);
+      const childKey = (ch?.name||p.childName||'') + '|' + (ch?.birth||'');
+      if (p.support === '발달재활서비스') {
+        // 발본 / 발추 분리 — 각각 개별 paid 판정
+        const t = (ch?.therapies||[]).find(x => x.support === '발달재활서비스');
+        const baseTher = (p.therapist || t?.therapist || '').trim();
+        const ec = parseInt(t?.extraCount) || 0;
+        const ef = parseInt(t?.extraFee) || 0;
+        const baseAmt = parseInt(p.amount) || 0;
+        const extraAmt = ec > 0 && ef > 0 ? ec * ef : 0;
+        // 인수인계 반영
+        let effBaseTher = baseTher;
+        const handoff = t?.handoff;
+        if (handoff?.date && handoff?.therapist) {
+          const hoPfx = (handoff.date||'').substring(0,7);
+          if (hoPfx && (p.monthKey||'') >= hoPfx) effBaseTher = handoff.therapist;
+        }
+        // 발본은 basePaid 만 확인
+        if (!!p.basePaid) _addToTher(effBaseTher, m, baseAmt, childKey);
+        // 발추는 extraPaid 만 확인
+        if (extraAmt > 0 && !!p.extraPaid) {
+          const extraTher = ((t?.extraHandoff?.therapist) && (p.monthKey||'') >= ((t.extraHandoff.date||'').substring(0,7)))
+            ? t.extraHandoff.therapist
+            : (t?.therapist || effBaseTher);
+          _addToTher(extraTher, m, extraAmt, childKey);
+        }
+      } else {
+        // 방/치·센터·평가: 납부완료 record 만 집계
+        if (!_isPaid(p)) return;
+        let therName = (p.therapist||'').trim();
+        if (!therName) {
+          const t = (ch?.therapies||[]).find(x => x.support === p.support);
+          therName = (t?.therapist||'').trim();
+        }
+        const amt = parseInt(p.amount) || 0;
+        _addToTher(therName || '미지정', m, amt, childKey);
+      }
+    });
+    document.querySelector('#therapistTable tbody').innerHTML = Object.entries(byTher)
+      .sort((a,b) => b[1].total - a[1].total)
+      .map(([therName, v]) => {
+        const monthCells = Array.from({length:12},(_,i)=>i+1)
+          .map(m => `<td class="amt" style="color:${v.monthly[m]>0?'#1565c0':'#ccc'};">${v.monthly[m]>0?v.monthly[m].toLocaleString()+'원':'-'}</td>`).join('');
+        return `<tr>
+          <td style="font-weight:bold;">${therName}</td>
+          <td>${v.children.size}명</td>
+          ${monthCells}
+          <td class="amt" style="background:#e8f5e9;color:#1b5e20;font-weight:bold;">${v.total.toLocaleString()}원</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="15" style="text-align:center;color:#aaa;padding:20px;">데이터 없음</td></tr>';
+  }
+
+  function _exportCsv() {
+    const payments = JSON.parse(localStorage.getItem('payments')||'[]').filter(p => (p.monthKey||'').startsWith(curYear+''));
+    const children = JSON.parse(localStorage.getItem('children')||'[]');
+    const rows = [['월','아동명','생년','지원종류','치료사','금액','납부상태','입금일자','결제방식','메모']];
+    payments.forEach(p => {
+      const ch = children.find(c=>c.id===p.childId);
+      const dt = p.baseDepositDate || p.extraDepositDate || p.paidDate || '';
+      rows.push([
+        p.monthKey||'',
+        (ch?.name||p.childName||'').trim(),
+        ch?.birth||'',
+        p.support||'',
+        p.therapist||'',
+        parseInt(p.amount)||0,
+        _isPaid(p)?'납부':'미납',
+        dt,
+        p.payMethod||'',
+        (p.payMemo||p.baseDepositorName||p.extraMemo||'').replace(/[",\n]/g,' ')
+      ]);
+    });
+    const csv = '﻿' + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `namulink_회계_${curYear}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 100);
+  }
+
+  // 모든 함수·변수 선언 이후 실행
+  if (!_checkAuth()) {
+    document.getElementById('lockedView').style.display = '';
+  } else {
+    document.getElementById('authedView').style.display = '';
+    _init();
+  }
+</script>
+</body>
+</html>

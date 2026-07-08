@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>치료 기록 - 나무링크</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>🌿 나무링크</h1>
+    <span id="userLabel" style="font-size:14px;"></span>
+  </header>
+  <nav>
+    <a href="children.html">아동 관리</a>
+    <a href="intake.html">신규아동</a>
+    <a href="records.html" class="active">치료 기록</a>
+    <a href="calendar.html">아동 스케줄</a>
+    <a href="payments.html">납부 관리</a>
+    <a href="therapists.html">치료사 관리</a>
+    <a href="#" onclick="logout()">로그아웃</a>
+  </nav>
+
+  <div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div class="page-title">치료 기록</div>
+      <div style="display:flex;gap:8px;">
+        <input type="file" id="_voucherFile" accept=".xlsx,.xls,.csv" style="display:none;" onchange="_uploadVoucher(this.files[0])">
+        <button onclick="document.getElementById('_voucherFile').click()" style="padding:8px 14px;background:#e65100;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">📥 바우처 엑셀 업로드</button>
+      </div>
+    </div>
+
+    <!-- ⭐ 아동별 기록지 매트릭스 (발달·치료·센터 3열, 12개월 버튼) -->
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+        <div style="flex:1;min-width:220px;">
+          <label style="display:block;font-size:12px;color:#555;margin-bottom:4px;font-weight:bold;">아동 이름 검색</label>
+          <input type="text" id="matrixChildSearch" list="matrixChildList" placeholder="아동 이름 입력..." oninput="try{sessionStorage.setItem('records_lastChild', this.value);}catch(e){} _renderMatrix()"
+            style="width:100%;padding:8px 10px;border:1.5px solid #2e7d32;border-radius:6px;font-size:14px;">
+          <datalist id="matrixChildList"></datalist>
+        </div>
+        <div>
+          <select id="matrixYear" onchange="_renderMatrix()" style="padding:8px 10px;border:1.5px solid #2e7d32;border-radius:6px;font-size:14px;background:white;font-weight:bold;">
+            <option value="2026">2026년</option>
+            <option value="2027">2027년</option>
+            <option value="2028">2028년</option>
+            <option value="2029">2029년</option>
+            <option value="2030">2030년</option>
+          </select>
+        </div>
+        <div>
+          <select id="matrixMonth" onchange="_renderMatrix()" style="padding:8px 10px;border:1.5px solid #2e7d32;border-radius:6px;font-size:14px;background:white;font-weight:bold;">
+            <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option>
+            <option value="4">4월</option><option value="5">5월</option><option value="6">6월</option>
+            <option value="7">7월</option><option value="8">8월</option><option value="9">9월</option>
+            <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+          </select>
+        </div>
+      </div>
+      <div id="matrixResult"></div>
+    </div>
+
+  </div>
+
+  <script>
+    if (!localStorage.getItem('currentUser')) location.href = 'index.html';
+    document.getElementById('userLabel').textContent = localStorage.getItem('currentUser') + '님';
+
+    const now = new Date();
+    // monthFilter, childFilter 는 이전 삭제된 옛 UI 요소 → 존재할 때만 접근
+
+    function getChildren() { return JSON.parse(localStorage.getItem('children') || '[]'); }
+    function getRecords() { return JSON.parse(localStorage.getItem('records') || '[]'); }
+
+    function initFilters() {
+      // 각 블록을 개별 try-catch 로 감싸 하나 실패해도 나머지는 실행
+      try {
+        const sel = document.getElementById('childFilter');
+        if (sel) {
+          getChildren().forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            sel.appendChild(opt);
+          });
+          const params = new URLSearchParams(location.search);
+          if (params.get('childId')) sel.value = params.get('childId');
+        }
+      } catch(e) { console.error('childFilter init error:', e); }
+
+      // 매트릭스용 아동 datalist 채움
+      try {
+        const dl = document.getElementById('matrixChildList');
+        if (dl) {
+          const uniq = new Set();
+          getChildren().forEach(c => uniq.add((c.name||'').trim()));
+          [...uniq].filter(Boolean).sort((a,b)=>a.localeCompare(b,'ko')).forEach(nm => {
+            const o = document.createElement('option');
+            o.value = nm;
+            dl.appendChild(o);
+          });
+        }
+      } catch(e) { console.error('matrixChildList init error:', e); }
+
+      // 매트릭스 기본 월: 당월
+      try {
+        const mSel = document.getElementById('matrixMonth');
+        if (mSel) mSel.value = String(now.getMonth()+1);
+      } catch(e) { console.error('matrixMonth init error:', e); }
+
+      // 매트릭스 연도 옵션 채움 (2026 ~ 당년+1) 및 기본값: 당년
+      try {
+        const ySel = document.getElementById('matrixYear');
+        if (ySel) {
+          const curY = now.getFullYear();
+          const startY = 2026;
+          const endY = Math.max(curY + 1, startY + 1);
+          for (let y = startY; y <= endY; y++) {
+            const o = document.createElement('option');
+            o.value = String(y);
+            o.textContent = `${y}년`;
+            ySel.appendChild(o);
+          }
+          ySel.value = String(Math.max(curY, startY));
+        }
+      } catch(e) { console.error('matrixYear init error:', e); }
+    }
+
+    // ⭐ 아동별 기록지 매트릭스 렌더링
+    // 발달재활서비스 → 발달, 방/치 지원 지원 → 치료, 센터비용 → 센터. 방과후활동비는 기록지 없음(제외)
+    const BANCHI_RECORD = ['방치','치료지원 언어영역','치료지원 작업치료','방과후 치료지원 언어영역','방과후 치료지원 작업치료'];
+    function _renderMatrix() {
+      try { _renderMatrixInner(); }
+      catch (err) {
+        const container = document.getElementById('matrixResult');
+        if (container) container.innerHTML = `<div style="padding:20px;background:#ffebee;border:1px solid #c62828;border-radius:6px;color:#c62828;font-size:12px;"><strong>매트릭스 렌더 오류:</strong><br>${err.message}<br><br>F12 콘솔에 상세 로그 확인.</div>`;
+        console.error('_renderMatrix error:', err);
+      }
+    }
+    function _renderMatrixInner() {
+      const q = (document.getElementById('matrixChildSearch')?.value||'').trim();
+      const container = document.getElementById('matrixResult');
+      if (!q) { container.innerHTML = '<div style="padding:30px;text-align:center;color:#aaa;">아동 이름을 입력하세요</div>'; return; }
+      const targetMonth = parseInt(document.getElementById('matrixMonth')?.value)||(new Date().getMonth()+1);
+      // 이름으로 아동 찾기 (여러 sibling entry 통합)
+      const matches = getChildren().filter(c => (c.name||'').trim() === q);
+      if (!matches.length) {
+        container.innerHTML = `<div style="padding:30px;text-align:center;color:#c62828;">"${q}" 아동을 찾을 수 없습니다.</div>`;
+        return;
+      }
+      // 사업 유형별 담당 치료사 수집 — 인수인계는 각 월별로 계산 (상단 헤더에는 모든 치료사 나열)
+      const info = { '발달': [], '치료': [], '센터': [] };
+      // 카테고리별 therapy 배열 저장 (월별 치료사 계산용)
+      const therapiesByCat = { '발달': [], '치료': [], '센터': [] };
+      matches.forEach(c => {
+        (c.therapies||[]).forEach(t => {
+          const th = (t.therapist||'').trim();
+          const support = t.support || '';
+          let cat = null;
+          if (support === '발달재활서비스') cat = '발달';
+          else if (BANCHI_RECORD.includes(support)) cat = '치료';
+          else if (support === '센터비용') cat = '센터';
+          if (!cat) return;
+          therapiesByCat[cat].push(t);
+          // 헤더 라벨: 전임·후임 각각 별도 표기 (화살표 없음)
+          if (th && !info[cat].includes(th)) info[cat].push(th);
+          if (t.handoff?.therapist && !info[cat].includes(t.handoff.therapist)) info[cat].push(t.handoff.therapist);
+          // 발추 별도 표기
+          if (cat === '발달' && (parseInt(t.extraCount)||0)>0 && (parseInt(t.extraFee)||0)>0) {
+            const extraTh = t.therapist || '';
+            const extraHo = t.extraHandoff?.therapist || '';
+            if (extraTh && !info['발달'].includes(`${extraTh} (발추)`)) info['발달'].push(`${extraTh} (발추)`);
+            if (extraHo && !info['발달'].includes(`${extraHo} (발추)`)) info['발달'].push(`${extraHo} (발추)`);
+          }
+        });
+      });
+      // 치료사 관리에서 퇴사 정보 조회 (퇴사예정일 이후 월은 후임자 사용)
+      const _therapistsList = JSON.parse(localStorage.getItem('therapists')||'[]');
+      const _resignDateOf = name => {
+        const nm = (name||'').trim();
+        if (!nm) return null;
+        const t = _therapistsList.find(x => (x.name||'').trim() === nm);
+        return t?.resignDate || null;
+      };
+      // 카테고리 · 연/월 → 담당 치료사 이름 계산 (인수인계 + 치료사 퇴사 + 종결·신규 시작 반영)
+      const _therapistForMonth = (cat, year, month) => {
+        const mk = `${year}-${String(month).padStart(2,'0')}`;
+        const cats = therapiesByCat[cat] || [];
+        // 해당 월에 활성인 therapy 만 필터
+        // - 개시일(serviceStartDate) 이전 월은 제외
+        // - 종결일(centerEndDate/banchiEndDate) 이후 월은 제외
+        const active = cats.filter(t => {
+          const start = (t.serviceStartDate||'').substring(0,7);
+          if (start && mk < start) return false;
+          const endC = (t.centerEndDate||'').substring(0,7);
+          if (endC && mk > endC) return false;
+          const endB = (t.banchiEndDate||'').substring(0,7);
+          if (endB && mk > endB) return false;
+          return true;
+        });
+        if (!active.length) return '';
+        // 활성 therapy 중 우선순위대로 치료사 결정
+        for (const t of active) {
+          // 1순위: therapy.handoff 명시적 인수일 이후
+          const hoDate = (t.handoff?.date||'').substring(0,7);
+          if (hoDate && t.handoff?.therapist && mk >= hoDate) return t.handoff.therapist;
+          // 2순위: 원 치료사가 퇴사한 경우
+          const rd = _resignDateOf(t.therapist);
+          if (rd) {
+            const rdMk = String(rd).substring(0,7);
+            if (mk > rdMk) {
+              if (t.handoff?.therapist) return t.handoff.therapist;
+              return '⚠️ 인수인계 미배정';
+            }
+          }
+          if (t.therapist) return t.therapist;
+        }
+        return '';
+      };
+      // 첫 번째 아동의 id 를 기록 작성 링크에 사용
+      const primaryChild = matches[0];
+      const _year = parseInt(document.getElementById('matrixYear')?.value) || new Date().getFullYear();
+      const _cats = ['발달','치료','센터'].filter(cat => info[cat].length > 0);
+      if (!_cats.length) {
+        container.innerHTML = `<div style="padding:30px;text-align:center;color:#e65100;">"${q}" 아동은 기록지 대상 사업이 없습니다.</div>`;
+        return;
+      }
+      const colHtml = _cats.map(cat => {
+        const _todayNow = new Date();
+        const _isCurrentYear = _year === _todayNow.getFullYear();
+        const months = Array.from({length:12},(_,i)=>i+1).map(m => {
+          const isTarget = _isCurrentYear && m === targetMonth;
+          const _monthTh = _therapistForMonth(cat, _year, m);
+          return `<button onclick="_openRecordForm('${primaryChild.id}','${cat}',${_year},${m})"
+            style="display:block;width:100%;padding:8px 10px;margin-bottom:5px;border:${isTarget?'2px solid #e65100':'1px solid #ddd'};
+                   background:${isTarget?'#fff3e0':'white'};color:${isTarget?'#e65100':'#333'};
+                   border-radius:6px;cursor:pointer;font-size:13px;font-weight:${isTarget?'bold':'normal'};text-align:left;">
+            <span>${m}월${isTarget?' (당월)':''}</span>
+            <span style="color:${isTarget?'#e65100':'#1565c0'};font-weight:bold;margin-left:8px;">· ${_monthTh || '미지정'}</span>
+          </button>`;
+        }).join('');
+        const catColor = cat==='발달'?'#2e7d32':cat==='치료'?'#6a1b9a':'#f57f17';
+        return `<div style="flex:1;min-width:200px;padding:14px;background:#fafafa;border:2px solid ${catColor}22;border-radius:8px;">
+          <div style="font-size:16px;font-weight:bold;color:${catColor};margin-bottom:8px;border-bottom:2px solid ${catColor};padding-bottom:6px;">
+            ${cat==='발달'?'🌱':cat==='치료'?'💊':'🏢'} ${cat}
+          </div>
+          ${months}
+        </div>`;
+      }).join('');
+      container.innerHTML = `
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          ${colHtml}
+        </div>
+        <div style="margin-top:12px;padding:10px 14px;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;font-size:12px;color:#5d4037;">
+          💡 각 월 버튼을 클릭하면 해당 사업·월의 기록지 작성 화면이 열립니다. 방과후활동비는 기록지가 없어 표시되지 않습니다.
+        </div>`;
+    }
+
+    function _openRecordForm(childId, category, year, month) {
+      // 발달 카테고리는 전용 양식(record-develop.html) 으로 이동, 그 외는 기존 record-form.html
+      const target = category === '발달' ? 'record-develop.html' : 'record-form.html';
+      location.href = `${target}?childId=${childId}&category=${encodeURIComponent(category)}&year=${year}&month=${month}`;
+    }
+
+    // ── 바우처 엑셀 업로드 ──
+    // 헤더 예: 아동명, 생년월일, 서비스제공일자, 승인일자, 승인번호
+    // 파싱된 데이터는 localStorage 'voucher_data' 에 저장 → record-develop.html 에서 아동+월 매칭 자동 채움
+    function _uploadVoucher(file) {
+      if (!file) return;
+      const ext = (file.name||'').split('.').pop().toLowerCase();
+      if (['xlsx','xls'].includes(ext)) {
+        // SheetJS 동적 로드 (CDN)
+        if (typeof XLSX === 'undefined') {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+          s.onload = () => _uploadVoucher(file);
+          s.onerror = () => alert('❌ 엑셀 파서 로드 실패. 인터넷 연결 확인 후 재시도해주세요.');
+          document.head.appendChild(s);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            _saveVoucherRows(rows);
+          } catch(err) { alert('❌ 엑셀 파싱 실패: '+err.message); }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        // CSV 파싱 (간단한 구현)
+        const reader = new FileReader();
+        reader.onload = e => {
+          const text = e.target.result;
+          const lines = text.split(/\r?\n/).filter(l=>l.trim());
+          if (lines.length < 2) { alert('❌ CSV에 데이터가 없습니다.'); return; }
+          const headers = lines[0].split(',').map(s=>s.trim().replace(/^"|"$/g,''));
+          const rows = lines.slice(1).map(line => {
+            const cells = line.split(',').map(s=>s.trim().replace(/^"|"$/g,''));
+            const obj = {};
+            headers.forEach((h,i) => obj[h] = cells[i]||'');
+            return obj;
+          });
+          _saveVoucherRows(rows);
+        };
+        reader.readAsText(file, 'UTF-8');
+      }
+    }
+
+    function _saveVoucherRows(rows) {
+      // 컬럼 헤더 유연하게 인식 (아동명·생년월일·서비스제공일자·승인일자·승인번호)
+      const _find = (obj, keys) => {
+        for (const k of Object.keys(obj)) {
+          const norm = k.replace(/\s/g,'');
+          for (const kw of keys) if (norm.includes(kw)) return obj[k];
+        }
+        return '';
+      };
+      const parsed = rows.map(r => ({
+        childName: String(_find(r, ['대상자명','아동명','성명','이름'])||'').trim(),
+        birth: String(_find(r, ['생년월일','생년'])||'').trim(),
+        provDate: String(_find(r, ['서비스제공일자','제공일자','서비스일자'])||'').trim(),
+        apprDate: String(_find(r, ['결제일시','결제일자','결제일','승인일자','승인일'])||'').trim(),
+        apprNo: String(_find(r, ['승인번호'])||'').trim(),
+        therapist: String(_find(r, ['제공인력명','담당치료사','담당재활사','치료사','재활사'])||'').trim(),
+        amount: String(_find(r, ['승인금액','금액'])||'').trim(),
+      })).filter(x => x.childName && (x.apprDate || x.provDate));
+      if (!parsed.length) { alert('❌ 유효한 데이터가 없습니다. 컬럼명(대상자명·생년월일·결제일시·승인번호 등)을 확인해주세요.'); return; }
+      // 기존 데이터에 병합
+      const existing = JSON.parse(localStorage.getItem('voucher_data')||'[]');
+      // 중복 제거: 이름+생년+제공일자 기준
+      const key = v => `${v.childName}|${(v.birth||'').replace(/\D/g,'').slice(-6)}|${(v.provDate||'').replace(/\D/g,'')}`;
+      const map = {};
+      existing.forEach(v => { map[key(v)] = v; });
+      parsed.forEach(v => { map[key(v)] = v; });
+      const merged = Object.values(map);
+      localStorage.setItem('voucher_data', JSON.stringify(merged));
+      alert(`✅ 바우처 데이터 ${parsed.length}건 업로드 완료 (총 ${merged.length}건 저장). 발달 기록지 열 때 자동으로 채워집니다.`);
+      document.getElementById('_voucherFile').value = '';
+    }
+
+    function renderRecords() {
+      const childFilterEl = document.getElementById('childFilter');
+      const monthFilterEl = document.getElementById('monthFilter');
+      const tbody = document.getElementById('recordTable');
+      // 옛 UI 삭제됨 → 관련 요소 없으면 조기 리턴
+      if (!childFilterEl || !monthFilterEl || !tbody) return;
+      const childId = childFilterEl.value;
+      const month = monthFilterEl.value;
+      const children = getChildren();
+
+      let records = getRecords();
+      if (childId) records = records.filter(r => r.childId === childId);
+      if (month) records = records.filter(r => r.date && r.date.startsWith(month));
+
+      records.sort((a, b) => b.date.localeCompare(a.date));
+
+      if (records.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">기록이 없습니다.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = records.map(r => {
+        const child = children.find(c => c.id === r.childId);
+        const summary = r.content ? r.content.substring(0, 30) + (r.content.length > 30 ? '...' : '') : '-';
+        return `
+          <tr>
+            <td>${r.date || '-'}</td>
+            <td>${child ? child.name : '-'}</td>
+            <td>${r.therapist || '-'}</td>
+            <td>${summary}</td>
+            <td>
+              <a href="record-form.html?id=${r.id}"><button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;">수정</button></a>
+              <button class="btn btn-danger" style="padding:4px 12px;font-size:12px;margin-left:6px;" onclick="deleteRecord('${r.id}')">삭제</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function deleteRecord(id) {
+      if (!confirm('정말 삭제하시겠습니까?')) return;
+      const list = getRecords().filter(r => r.id !== id);
+      localStorage.setItem('records', JSON.stringify(list));
+      renderRecords();
+    }
+
+    function logout() { localStorage.removeItem('currentUser'); location.href = 'index.html'; }
+
+    // 즉시 실행 + DOMContentLoaded 이벤트에서도 재실행 (안전장치)
+    function _bootstrap() {
+      try { initFilters(); } catch(e) { console.error('initFilters err', e); }
+      try { renderRecords(); } catch(e) { console.error('renderRecords err', e); }
+      // 명시적으로 matrixYear 재확인/재채움
+      try {
+        const y = document.getElementById('matrixYear');
+        if (y && y.options.length === 0) {
+          const curY = new Date().getFullYear();
+          for (let yr = 2026; yr <= Math.max(curY+1, 2027); yr++) {
+            const o = document.createElement('option');
+            o.value = String(yr); o.textContent = yr + '년';
+            y.appendChild(o);
+          }
+          y.value = String(Math.max(curY, 2026));
+        }
+        const m = document.getElementById('matrixMonth');
+        if (m && !m.value) m.value = String(new Date().getMonth()+1);
+      } catch(e) { console.error('bootstrap fallback err', e); }
+      // 이전 검색 아동 복원 (기록지 작성 후 되돌아오기 대응)
+      try {
+        const last = sessionStorage.getItem('records_lastChild') || '';
+        const inp = document.getElementById('matrixChildSearch');
+        if (inp && last && !inp.value) inp.value = last;
+      } catch(e) {}
+      // 매트릭스 초기 렌더 (아동명 입력창에 이미 값 있으면 자동 렌더)
+      try { _renderMatrix(); } catch(e) { console.error('initial renderMatrix err', e); }
+    }
+    _bootstrap();
+    document.addEventListener('DOMContentLoaded', _bootstrap);
+  </script>
+</body>
+</html>

@@ -1,0 +1,186 @@
+{
+  "meta": {
+    "version": "1.1",
+    "created": "2026-07-08",
+    "description": "자라는나무 초기상담지 질문 데이터 (19~60개월)"
+  },
+  "common_fields": [
+    { "id": "counselor_name", "label": "상담자 명", "type": "text", "required": true },
+    { "id": "child_name_dob", "label": "아동명과 생년월일", "type": "text", "required": true },
+    { "id": "contact", "label": "연락처", "type": "text", "required": true },
+    { "id": "main_concern", "label": "주 호소문제", "type": "textarea", "required": true }
+  ],
+  "common_tail": [
+    { "id": "regression", "label": "퇴행(습득했던 기술이 사라졌나요?) - 있다면 언제부터 무엇이 사라졌는지 기록", "type": "textarea", "required": false },
+    { "id": "prior_evaluation", "label": "이전 평가/치료 이력이 있나요?", "placeholder": "기관명/평가내용 기록해주세요", "type": "textarea", "required": false },
+    { "id": "daycare_status", "label": "어린이집·유치원 재원여부 및 적응 상태", "type": "textarea", "required": false },
+    { "id": "family_history", "label": "가족력(발달 지연, ASD, ADHD, 언어 지연 등)", "placeholder": "진단 이력 기재", "type": "textarea", "required": false },
+    { "id": "summary_memo", "label": "종합 메모 및 추천 방향", "type": "textarea", "required": false }
+  ],
+  "age_groups": {
+    "19_24": {
+      "label": "19~24개월",
+      "domains": {
+        "social_emotional": {
+          "label": "사회·정서",
+          "questions": [
+            { "id": "q_se_1", "label": "또래 아이 옆에서 평행 놀이를 하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_2", "label": "자신의 이름을 알고 반응하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_3", "label": "거울 속 자신을 알아보나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_4", "label": "다른 사람의 감정(슬픔·기쁨)에 반응하나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "language": {
+          "label": "언어",
+          "questions": [
+            { "id": "q_la_1", "label": "현재 사용하는 단어가 50개 이상인가요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_2", "label": "두 단어 연결 표현을 사용하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_3", "label": "신체 부위 2~3곳을 가리킬 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_4", "label": "두 단계 지시를 따를 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_5", "label": "낯선 사람도 아이의 말을 50% 이상 알아듣나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "cognitive": {
+          "label": "인지",
+          "questions": [
+            { "id": "q_co_1", "label": "블록을 2~3개 쌓을 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_2", "label": "일상용품을 모방해서 사용하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_3", "label": "같은 색끼리 분류할 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "motor": {
+          "label": "운동",
+          "questions": [
+            { "id": "q_mo_1", "label": "계단을 두 발씩 오를 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_mo_2", "label": "공을 발로 찰 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_mo_3", "label": "뚜껑을 열거나 돌릴 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        }
+      }
+    },
+    "25_36": {
+      "label": "25~36개월",
+      "domains": {
+        "social_emotional": {
+          "label": "사회·정서",
+          "questions": [
+            { "id": "q_se_1", "label": "또래와 간단한 놀이를 하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_2", "label": "'내 것·네 것' 소유 개념을 이해하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_3", "label": "감정을 말로 표현하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_4", "label": "규칙 있는 게임에 참여하나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "language": {
+          "label": "언어",
+          "questions": [
+            { "id": "q_la_1", "label": "세 단어 이상 조합한 문장을 사용하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_2", "label": "이름과 나이를 말할 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_3", "label": "과거 일을 간단히 이야기할 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_4", "label": "의문사(누가·어디·왜)를 사용하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_5", "label": "발음이 75% 이상 명확한가요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_6", "label": "대화 주고받기 2~3회가 가능한가요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "cognitive": {
+          "label": "인지",
+          "questions": [
+            { "id": "q_co_1", "label": "4~6조각 퍼즐을 맞출 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_2", "label": "크기·양 개념을 이해하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_3", "label": "상징 놀이(가상 놀이)를 하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_4", "label": "색깔 이름 2~3가지를 아나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "motor": {
+          "label": "운동",
+          "questions": [
+            { "id": "q_mo_1", "label": "세발자전거를 탈 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_mo_2", "label": "가위질을 시도하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_mo_3", "label": "한 발로 잠깐 서기가 가능한가요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        }
+      }
+    },
+    "37_48": {
+      "label": "37~48개월",
+      "domains": {
+        "social_emotional": {
+          "label": "사회·정서",
+          "questions": [
+            { "id": "q_se_1", "label": "친구와 협동 놀이를 하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_2", "label": "보드게임에 참여하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_3", "label": "화날 때 말로 표현하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_4", "label": "다툼 시 협상하거나 도움을 구하나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "language": {
+          "label": "언어",
+          "questions": [
+            { "id": "q_la_1", "label": "4~5단어 이상 긴 문장을 사용하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_2", "label": "연결어(그리고·그런데 등)를 사용하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_3", "label": "경험을 순서대로 이야기하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_4", "label": "이름·나이·사는 곳을 말할 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_5", "label": "'어제·내일' 시간 개념을 이해하나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "cognitive": {
+          "label": "인지",
+          "questions": [
+            { "id": "q_co_1", "label": "1~10 숫자를 세고 짚어 셀 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_2", "label": "도형(원·네모·세모)을 그릴 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_3", "label": "사람 그림에 신체 부위를 그리나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_4", "label": "이름을 따라 쓸 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "motor": {
+          "label": "운동",
+          "questions": [
+            { "id": "q_mo_1", "label": "한 발 뛰기(깽깽이)를 할 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_mo_2", "label": "계단을 손 없이 오르내리나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_mo_3", "label": "공을 던지고 받을 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        }
+      }
+    },
+    "49_60": {
+      "label": "49~60개월",
+      "domains": {
+        "social_emotional": {
+          "label": "사회·정서",
+          "questions": [
+            { "id": "q_se_1", "label": "친구 관계를 스스로 맺고 유지하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_2", "label": "역할놀이에서 역할을 지속 수행하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_3", "label": "타인 감정을 이해하고 공감하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_se_4", "label": "규칙을 지키고 불리한 상황을 말로 표현하나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "language": {
+          "label": "언어",
+          "questions": [
+            { "id": "q_la_1", "label": "들은 이야기를 다시 말할 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_2", "label": "모르는 단어를 물어보나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_3", "label": "미래 계획을 말할 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_4", "label": "낯선 사람도 아이 말을 대부분 알아듣나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_la_5", "label": "자기 이름을 읽거나 쓸 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "cognitive": {
+          "label": "인지",
+          "questions": [
+            { "id": "q_co_1", "label": "1~20 세고 간단한 덧셈·뺄셈 개념을 이해하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_2", "label": "시간 개념(오전·오후·요일)을 이해하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_3", "label": "속성으로 분류하고 이유를 설명할 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_co_4", "label": "10조각 이상 퍼즐을 완성할 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        },
+        "motor": {
+          "label": "운동",
+          "questions": [
+            { "id": "q_mo_1", "label": "줄넘기를 1~2회 이상 하나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_mo_2", "label": "가위로 직선·곡선을 자를 수 있나요?", "type": "radio", "options": ["가능","부분","어려움"] },
+            { "id": "q_mo_3", "label": "연필을 바른 자세로 쥐고 쓰려고 하나요?", "type": "radio", "options": ["가능","부분","어려움"] }
+          ]
+        }
+      }
+    }
+  }
+}

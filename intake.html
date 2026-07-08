@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>신규아동 관리 - 나무링크</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .intake-wrap { max-width:1100px; margin:0 auto; padding:20px; }
+  .toolbar { display:flex; gap:8px; margin-bottom:14px; align-items:center; flex-wrap:wrap; }
+  .toolbar input, .toolbar select { padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; }
+  .toolbar .search { flex:1; min-width:200px; }
+  .btn { padding:8px 14px; border:none; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; }
+  .btn-primary { background:#2e7d32; color:white; }
+  .btn-sub { background:#f5f5f5; color:#333; border:1px solid #ddd; }
+  .btn-danger { background:#c62828; color:white; }
+  .btn-small { padding:5px 10px; font-size:12px; }
+  table.intake-tbl { width:100%; border-collapse:collapse; background:white; box-shadow:0 1px 4px rgba(0,0,0,0.06); border-radius:8px; overflow:hidden; }
+  table.intake-tbl th { background:#f5f9f0; color:#2e7d32; font-size:12px; padding:10px 8px; border-bottom:1px solid #e0e0e0; text-align:center; }
+  table.intake-tbl td { padding:8px; border-bottom:1px solid #f0f0f0; font-size:13px; vertical-align:middle; }
+  table.intake-tbl td.center { text-align:center; }
+  .status-pill { padding:3px 10px; border-radius:12px; font-size:11px; font-weight:bold; }
+  .st-대기중 { background:#fff3e0; color:#e65100; }
+  .st-상담완료 { background:#e3f2fd; color:#1565c0; }
+  .st-등록확정 { background:#e8f5e9; color:#2e7d32; }
+  .st-보류 { background:#f5f5f5; color:#888; }
+  .empty { text-align:center; color:#aaa; padding:40px; font-size:14px; }
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:none; z-index:100; align-items:center; justify-content:center; }
+  .modal-bg.show { display:flex; }
+  .modal-box { background:white; border-radius:10px; width:520px; max-width:92vw; max-height:92vh; overflow-y:auto; }
+  .modal-head { padding:14px 20px; background:#2e7d32; color:white; font-weight:bold; display:flex; justify-content:space-between; align-items:center; }
+  .modal-body { padding:18px 20px; }
+  .fld { margin-bottom:12px; }
+  .fld label { display:block; font-size:12px; color:#555; margin-bottom:4px; font-weight:bold; }
+  .fld input, .fld select, .fld textarea { width:100%; padding:8px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; box-sizing:border-box; font-family:inherit; }
+  .fld textarea { min-height:70px; resize:vertical; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .modal-foot { padding:12px 20px; text-align:right; border-top:1px solid #eee; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌿 나무링크</h1>
+  <span id="userLabel" style="font-size:14px;"></span>
+</header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="intake.html" class="active">신규아동</a>
+  <a href="records.html">치료 기록</a>
+  <a href="calendar.html">아동 스케줄</a>
+  <a href="payments.html">납부 관리</a>
+  <a href="therapists.html">치료사 관리</a>
+  <a href="#" onclick="logout()">로그아웃</a>
+</nav>
+
+<div class="intake-wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <h2 style="margin:0;color:#2e7d32;">📋 신규아동 · 상담 대기 명단</h2>
+    <button class="btn btn-primary" onclick="openForm()">+ 신규 상담 등록</button>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="qSearch" class="search" placeholder="이름·연락처·희망영역 검색..." oninput="render()">
+    <select id="qStatus" onchange="render()">
+      <option value="">전체 상태</option>
+      <option value="대기중">대기중</option>
+      <option value="상담완료">상담완료</option>
+      <option value="등록확정">등록확정</option>
+      <option value="보류">보류</option>
+    </select>
+    <button class="btn btn-sub" onclick="exportCSV()">📤 CSV 내보내기</button>
+  </div>
+
+  <div id="listArea"></div>
+</div>
+
+<!-- 등록/편집 모달 -->
+<div class="modal-bg" id="mBg">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="mTitle">신규 상담 등록</span>
+      <button onclick="closeForm()" style="background:transparent;color:white;border:none;font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="fId">
+      <div class="row2">
+        <div class="fld"><label>이름 *</label><input type="text" id="fName"></div>
+        <div class="fld"><label>생년월일</label><input type="text" id="fBirth" placeholder="예: 2020.03.15"></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>보호자 성함</label><input type="text" id="fGuardian"></div>
+        <div class="fld"><label>보호자 연락처 *</label><input type="text" id="fPhone" placeholder="010-0000-0000"></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>희망 영역</label>
+          <select id="fArea">
+            <option value="">선택</option>
+            <option>발달재활서비스</option>
+            <option>언어치료</option>
+            <option>작업치료</option>
+            <option>감각통합</option>
+            <option>인지·학습</option>
+            <option>기타</option>
+          </select>
+        </div>
+        <div class="fld"><label>희망 요일·시간</label><input type="text" id="fPref" placeholder="예: 화요일 4시대"></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>상담 예정일</label><input type="date" id="fSchedDate"></div>
+        <div class="fld"><label>상태</label>
+          <select id="fStatus">
+            <option>대기중</option>
+            <option>상담완료</option>
+            <option>등록확정</option>
+            <option>보류</option>
+          </select>
+        </div>
+      </div>
+      <div class="fld"><label>유입 경로</label><input type="text" id="fSource" placeholder="예: 지인 소개, 블로그, 바우처센터 안내 등"></div>
+      <div class="fld"><label>메모</label><textarea id="fNote" placeholder="특이사항·상담 내용 등"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sub" onclick="closeForm()">취소</button>
+      <button class="btn btn-danger" id="fDeleteBtn" style="display:none;" onclick="delItem()">삭제</button>
+      <button class="btn btn-primary" onclick="save()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function logout(){ sessionStorage.clear(); location.href='index.html'; }
+try { const u = sessionStorage.getItem('user'); if (u) document.getElementById('userLabel').textContent = u; } catch(e){}
+
+const KEY = 'intake_list';
+function loadAll(){ try { return JSON.parse(localStorage.getItem(KEY)||'[]'); } catch(e){ return []; } }
+function saveAll(arr){ localStorage.setItem(KEY, JSON.stringify(arr)); }
+
+function render(){
+  const q = (document.getElementById('qSearch').value||'').trim().toLowerCase();
+  const st = document.getElementById('qStatus').value;
+  let data = loadAll();
+  if (st) data = data.filter(x => x.status === st);
+  if (q) data = data.filter(x =>
+    (x.name||'').toLowerCase().includes(q) ||
+    (x.phone||'').toLowerCase().includes(q) ||
+    (x.area||'').toLowerCase().includes(q) ||
+    (x.guardian||'').toLowerCase().includes(q));
+  // 상담예정일 오름차순 (없는 것은 뒤로)
+  data.sort((a,b) => (a.schedDate||'9999') > (b.schedDate||'9999') ? 1 : -1);
+  const area = document.getElementById('listArea');
+  if (!data.length) { area.innerHTML = '<div class="empty">등록된 신규 상담이 없습니다.<br>우측 상단 <b>+ 신규 상담 등록</b> 버튼을 눌러 추가하세요.</div>'; return; }
+  let html = `<table class="intake-tbl"><thead><tr>
+    <th style="width:70px;">상담예정</th><th style="width:70px;">상태</th><th>이름</th><th>생년월일</th>
+    <th>보호자</th><th>연락처</th><th>희망영역</th><th>희망시간</th><th style="width:200px;">관리</th>
+  </tr></thead><tbody>`;
+  data.forEach(x => {
+    const st = x.status || '대기중';
+    const canConfirm = st !== '등록확정';
+    html += `<tr>
+      <td class="center" style="font-size:12px;">${x.schedDate||'-'}</td>
+      <td class="center"><span class="status-pill st-${st}">${st}</span></td>
+      <td><b>${escapeHtml(x.name||'')}</b>${x.note?`<div style="font-size:11px;color:#888;margin-top:2px;">📝 ${escapeHtml(x.note).slice(0,40)}</div>`:''}</td>
+      <td>${escapeHtml(x.birth||'')}</td>
+      <td>${escapeHtml(x.guardian||'')}</td>
+      <td>${escapeHtml(x.phone||'')}</td>
+      <td>${escapeHtml(x.area||'')}</td>
+      <td>${escapeHtml(x.pref||'')}</td>
+      <td class="center" style="white-space:nowrap;">
+        <button class="btn btn-sub btn-small" onclick="openForm('${x.id}')">편집</button>
+        <button class="btn btn-small" style="background:#fee500;color:#3c1e1e;" onclick="issueLink('${x.id}')">📩 상담지</button>
+        ${canConfirm ? `<button class="btn btn-primary btn-small" onclick="confirmRegister('${x.id}')">등록확정</button>` : `<span style="font-size:11px;color:#2e7d32;">✅ 이관됨</span>`}
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  area.innerHTML = html;
+}
+
+function escapeHtml(s){ return String(s).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+function openForm(id){
+  document.getElementById('fId').value = id || '';
+  document.getElementById('mTitle').textContent = id ? '상담 정보 편집' : '신규 상담 등록';
+  document.getElementById('fDeleteBtn').style.display = id ? 'inline-block' : 'none';
+  const rec = id ? loadAll().find(x=>x.id===id) : null;
+  ['fName','fBirth','fGuardian','fPhone','fArea','fPref','fSchedDate','fStatus','fSource','fNote'].forEach(k => {
+    const el = document.getElementById(k);
+    const key = k.replace(/^f/,'').charAt(0).toLowerCase() + k.slice(2);
+    el.value = rec ? (rec[key]||'') : (k==='fStatus'?'대기중':'');
+  });
+  document.getElementById('mBg').classList.add('show');
+}
+function closeForm(){ document.getElementById('mBg').classList.remove('show'); }
+
+function save(){
+  const name = document.getElementById('fName').value.trim();
+  const phone = document.getElementById('fPhone').value.trim();
+  if (!name || !phone) { alert('이름과 보호자 연락처는 필수입니다.'); return; }
+  const id = document.getElementById('fId').value || ('itk_'+Date.now());
+  const rec = {
+    id,
+    name, phone,
+    birth: document.getElementById('fBirth').value.trim(),
+    guardian: document.getElementById('fGuardian').value.trim(),
+    area: document.getElementById('fArea').value,
+    pref: document.getElementById('fPref').value.trim(),
+    schedDate: document.getElementById('fSchedDate').value,
+    status: document.getElementById('fStatus').value,
+    source: document.getElementById('fSource').value.trim(),
+    note: document.getElementById('fNote').value.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  const arr = loadAll();
+  const idx = arr.findIndex(x=>x.id===id);
+  if (idx>=0) arr[idx] = rec; else arr.unshift(rec);
+  saveAll(arr);
+  closeForm();
+  render();
+}
+
+function delItem(){
+  if (!confirm('이 상담 기록을 삭제할까요?')) return;
+  const id = document.getElementById('fId').value;
+  saveAll(loadAll().filter(x=>x.id!==id));
+  closeForm();
+  render();
+}
+
+function exportCSV(){
+  const rows = loadAll();
+  if (!rows.length) { alert('내보낼 데이터가 없습니다.'); return; }
+  const headers = ['상담예정','상태','이름','생년월일','보호자','연락처','희망영역','희망시간','유입','메모'];
+  const lines = [headers.join(',')];
+  rows.forEach(x => {
+    const line = [x.schedDate,x.status,x.name,x.birth,x.guardian,x.phone,x.area,x.pref,x.source,x.note]
+      .map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',');
+    lines.push(line);
+  });
+  const blob = new Blob(['﻿'+lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `신규아동_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ===== 초기상담지 링크 발급 =====
+function _calcMonths(birth) {
+  const d = String(birth||'').replace(/\D/g,'');
+  let y,m,day;
+  if (d.length === 8) { y=+d.slice(0,4); m=+d.slice(4,6); day=+d.slice(6,8); }
+  else if (d.length === 6) { y=2000+ +d.slice(0,2); m=+d.slice(2,4); day=+d.slice(4,6); }
+  else return null;
+  const now=new Date(), bd=new Date(y,m-1,day);
+  if (isNaN(bd)) return null;
+  let mo=(now.getFullYear()-bd.getFullYear())*12+(now.getMonth()-bd.getMonth());
+  if (now.getDate()<bd.getDate()) mo--;
+  return mo;
+}
+function _monthsToAg(mo){
+  if (mo==null) return null;
+  if (mo>=19&&mo<=24) return '19_24';
+  if (mo>=25&&mo<=36) return '25_36';
+  if (mo>=37&&mo<=48) return '37_48';
+  if (mo>=49&&mo<=60) return '49_60';
+  return null;
+}
+function _genToken(){
+  const arr = new Uint8Array(24);
+  (window.crypto||window.msCrypto).getRandomValues(arr);
+  return Array.from(arr,b=>b.toString(16).padStart(2,'0')).join('');
+}
+function issueLink(intakeId){
+  const rec = loadAll().find(x=>x.id===intakeId);
+  if (!rec) return alert('상담 기록을 찾을 수 없습니다.');
+  if (!rec.birth) return alert('생년월일이 없어 연령대 계산이 불가합니다. 편집에서 생년월일을 입력해주세요.');
+  const months = _calcMonths(rec.birth);
+  const ag = _monthsToAg(months);
+  if (!ag) {
+    if (!confirm(`아동 개월수: ${months==null?'계산불가':months+'개월'}\n초기상담지 지원 범위(19~60개월) 밖입니다.\n그래도 발급할까요?`)) return;
+  }
+  const tokens = JSON.parse(localStorage.getItem('assessment_tokens')||'[]');
+  const now = new Date();
+  const exp = new Date(now.getTime()+30*24*60*60*1000);
+  const token = {
+    id: 'tk_'+Date.now(),
+    child_id: 'intake:'+intakeId,   // 아직 정식 아동이 아니므로 intake ID 참조
+    intake_id: intakeId,
+    token: _genToken(),
+    age_group: ag || '',
+    issued_at: now.toISOString(),
+    expires_at: exp.toISOString(),
+    is_used: false,
+  };
+  tokens.unshift(token);
+  localStorage.setItem('assessment_tokens', JSON.stringify(tokens));
+  const url = `${location.origin}${location.pathname.replace(/[^\/]+$/,'')}assessment.html?token=${token.token}`;
+  const msg = `📩 초기상담지 링크 발급 완료\n\n아동: ${rec.name} (${months||'?'}개월, ${ag||'범위밖'})\n만료: ${exp.toLocaleDateString('ko-KR')}\n\n[학부모께 아래 링크 전달]\n${url}\n\n"확인" 클릭 시 클립보드에 복사됩니다.`;
+  if (confirm(msg)) {
+    try { navigator.clipboard.writeText(url); alert('✅ 링크가 클립보드에 복사되었습니다.\n카카오톡·문자로 학부모께 전달해주세요.'); }
+    catch(e) { prompt('아래 링크를 복사해서 전달해주세요:', url); }
+  }
+}
+
+// ===== 등록확정 → 아동관리로 이관 =====
+function confirmRegister(intakeId){
+  const rec = loadAll().find(x=>x.id===intakeId);
+  if (!rec) return alert('상담 기록을 찾을 수 없습니다.');
+  if (!confirm(`"${rec.name}" 아동을 정식 등록(치료중 상태) 하시겠습니까?\n\n아동 관리 화면으로 이관되며, 신규아동 상태는 "등록확정"으로 변경됩니다.`)) return;
+
+  // children 배열 로드
+  const children = JSON.parse(localStorage.getItem('children')||'[]');
+  const newChild = {
+    id: 'ch_'+Date.now(),
+    name: rec.name,
+    birth: rec.birth || '',
+    phone: rec.phone || '',
+    guardian: rec.guardian || '',
+    status: '치료중',          // 자동으로 치료중
+    intakeId: intakeId,        // 이관 출처 추적
+    intakeArea: rec.area || '',
+    intakePref: rec.pref || '',
+    intakeSource: rec.source || '',
+    intakeNote: rec.note || '',
+    createdAt: new Date().toISOString(),
+    therapies: [],
+  };
+  children.push(newChild);
+  localStorage.setItem('children', JSON.stringify(children));
+
+  // 발급된 초기상담지 토큰 · 응답도 새 child_id 로 연결
+  const tokens = JSON.parse(localStorage.getItem('assessment_tokens')||'[]');
+  tokens.forEach(t => { if (t.intake_id === intakeId) t.child_id = newChild.id; });
+  localStorage.setItem('assessment_tokens', JSON.stringify(tokens));
+  const responses = JSON.parse(localStorage.getItem('initial_assessments')||'[]');
+  responses.forEach(r => { if (r.child_id === 'intake:'+intakeId) r.child_id = newChild.id; });
+  localStorage.setItem('initial_assessments', JSON.stringify(responses));
+
+  // intake 상태 변경 + 이관 시각 기록
+  const arr = loadAll();
+  const idx = arr.findIndex(x=>x.id===intakeId);
+  if (idx>=0) {
+    arr[idx].status = '등록확정';
+    arr[idx].migratedChildId = newChild.id;
+    arr[idx].migratedAt = new Date().toISOString();
+    saveAll(arr);
+  }
+
+  alert(`✅ "${rec.name}" 아동이 아동관리로 이관되었습니다.\n\n확인하시려면 상단 "아동 관리" 탭을 클릭하세요.`);
+  render();
+}
+render();
+</script>
+</body>
+</html>

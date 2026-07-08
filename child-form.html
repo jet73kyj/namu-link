@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>아동 정보 - 나무링크</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .therapy-card {
+      border: 1px solid #c8e6c9;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+      background: #fafffe;
+      position: relative;
+    }
+    .therapy-card .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .therapy-card .card-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      align-items: flex-end;
+    }
+    .therapy-card .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .therapy-card .field label {
+      font-size: 11px;
+      color: #777;
+      font-weight: bold;
+    }
+    .therapy-card .field select,
+    .therapy-card .field input {
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .therapy-card .day-checks {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 6px 0;
+    }
+    .therapy-card .day-checks label {
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+    }
+    .therapy-card .calc-result {
+      margin-top: 10px;
+      background: #f1f8e9;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: #1b5e20;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .therapy-card .calc-result .calc-detail {
+      font-size: 12px;
+      color: #555;
+      font-weight: normal;
+    }
+    .btn-remove-card {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: #c62828;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .total-box { margin-top:16px; background:#f1f8e9; border-radius:8px; padding:14px 18px; }
+    .total-row { display:flex; justify-content:space-between; padding:5px 0; font-size:14px; border-bottom:1px solid #e0e0e0; }
+    .total-row:last-child { border-bottom:none; }
+    .total-final { font-size:16px; font-weight:bold; color:#2e7d32; border-top:2px solid #2e7d32; padding-top:10px; margin-top:6px; display:flex; justify-content:space-between; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌿 나무링크</h1>
+    <span id="userLabel" style="font-size:14px;"></span>
+  </header>
+  <nav>
+    <a href="children.html">아동 관리</a>
+    <a href="intake.html">신규아동</a>
+    <a href="records.html">치료 기록</a>
+    <a href="calendar.html">아동 스케줄</a>
+    <a href="payments.html">납부 관리</a>
+    <a href="therapists.html">치료사 관리</a>
+    <a href="#" onclick="logout()">로그아웃</a>
+  </nav>
+
+  <div class="container">
+    <div class="page-title" id="pageTitle">아동 등록</div>
+
+    <!-- 기본 정보 -->
+    <div class="card">
+      <h2>기본 정보</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>아동 이름 *</label>
+          <input type="text" id="name" placeholder="홍길동">
+        </div>
+        <div class="form-group">
+          <label>생년월일</label>
+          <input type="date" id="birth">
+        </div>
+        <div class="form-group">
+          <label>성별</label>
+          <select id="gender">
+            <option value="">선택</option>
+            <option value="남">남</option>
+            <option value="여">여</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>상태</label>
+          <div class="radio-group">
+            <label><input type="radio" name="status" value="상담중"> 상담중</label>
+            <label><input type="radio" name="status" value="평가중"> 평가중</label>
+            <label><input type="radio" name="status" value="치료중" checked> 치료중</label>
+            <label><input type="radio" name="status" value="종결"> 종결</label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>보호자 이름</label>
+          <input type="text" id="guardian" placeholder="보호자 이름">
+        </div>
+        <div class="form-group">
+          <label>연락처</label>
+          <input type="tel" id="phone" placeholder="010-0000-0000">
+        </div>
+      </div>
+    </div>
+
+    <!-- 바우처 정보 -->
+    <div class="card">
+      <h2>바우처 정보</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>관리자번호</label>
+          <input type="text" id="managerId" placeholder="사회복지서비스 관리번호">
+        </div>
+        <div class="form-group">
+          <label>장애 등록</label>
+          <div class="radio-group">
+            <label><input type="radio" name="disability" value="장애등록"> 장애등록</label>
+            <label><input type="radio" name="disability" value="비장애등록"> 비장애등록</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 치료 영역 및 비용 -->
+    <div class="card">
+      <h2>치료 영역 및 비용</h2>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label style="font-size:14px;font-weight:bold;color:#2e7d32;">기준 월</label>
+          <input type="month" id="basMonth" style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;" onchange="autoCountAll()">
+        </div>
+        <button class="btn btn-secondary" style="padding:6px 14px;font-size:13px;" onclick="autoCountAll()">회수 자동 계산</button>
+      </div>
+
+      <div id="therapyCards"></div>
+      <button class="btn btn-secondary" onclick="addCard()">+ 치료 영역 추가</button>
+
+      <div class="total-box" id="totalBox" style="display:none;">
+        <div id="totalRows"></div>
+      </div>
+    </div>
+
+    <!-- 치료사 전달사항 -->
+    <div class="card" style="border:2px solid #f9a825;">
+      <h2>📌 치료사 전달사항 <span style="font-size:13px;color:#888;font-weight:normal;">(아동 스케줄에 표시됩니다)</span></h2>
+      <div class="form-group">
+        <label>전달 내용</label>
+        <textarea id="therapistNote" rows="3" placeholder="예) 신규 아동 / 청각 자극에 민감함 / 첫 수업 시 보호자 동반 / 이전 기관에서 언어치료 6개월 경험 있음"></textarea>
+      </div>
+      <div class="form-group">
+        <label>전달 상태</label>
+        <div class="radio-group">
+          <label><input type="radio" name="noteStatus" value="미전달"> ⚠️ 미전달</label>
+          <label><input type="radio" name="noteStatus" value="전달완료"> ✅ 전달완료</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 교육비 메모 -->
+    <div class="card">
+      <h2>💰 교육비 메모</h2>
+      <div class="form-group">
+        <label>납부 방식 특이사항</label>
+        <div class="radio-group" style="margin-bottom:10px;">
+          <label><input type="radio" name="payType" value="월납"> 월납</label>
+          <label><input type="radio" name="payType" value="연간납부"> 연간 납부 완료</label>
+          <label><input type="radio" name="payType" value="기타"> 기타</label>
+        </div>
+        <textarea id="paymentMemo" rows="2" placeholder="예) 2025년 연간 교육비 납부 완료 (2025-03-05) / 선납 기간: 2025.03~2026.02"></textarea>
+      </div>
+    </div>
+
+    <!-- 메모 -->
+    <div class="card">
+      <h2>메모</h2>
+      <div class="form-group">
+        <textarea id="memo" placeholder="기타 특이사항, 주의사항 등 자유롭게 입력하세요."></textarea>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="save()">저장</button>
+      <a href="children.html"><button class="btn btn-secondary">취소</button></a>
+    </div>
+  </div>
+
+  <script>
+    if (!localStorage.getItem('currentUser')) location.href = 'index.html';
+    document.getElementById('userLabel').textContent = localStorage.getItem('currentUser') + '님';
+
+    const params = new URLSearchParams(location.search);
+    const editId = params.get('id');
+
+    const SERVICE_TYPES = ['감각통합','언어치료','음악치료','심리운동','전산화인지','학습인지'];
+    const SUPPORT_TYPES = ['없음','방치','방과후활동비','치료지원 언어영역','치료지원 감통영역','발달재활서비스','센터비용'];
+    const SUPPORT_AMOUNT = { '방과후활동비':120000, '방치':240000, '치료지원 언어영역':120000, '치료지원 감통영역':120000 };
+    const PAY_METHODS = ['신용카드','바우처카드','계좌이체','현금'];
+    const DAYS = ['월','화','수','목','금','토'];
+    const WEEKDAY_SLOTS = ['','9:00~9:40','9:50~10:30','10:40~11:20','11:30~12:10','1:30~2:10','2:20~3:00','3:10~3:50','4:00~4:40','4:50~5:30','5:40~6:20','6:30~7:10','7:20~8:20'];
+    const SAT_SLOTS_CF  = ['','8:10~8:50','9:00~9:40','9:50~10:30','10:40~11:30','11:30~12:10','12:20~1:00','1:10~1:50','2:00~2:40','2:50~3:30','3:40~4:20'];
+
+    function getSlotsForCard(card) {
+      const hasSat = Array.from(card.querySelectorAll('input[type=checkbox]:checked')).some(cb=>cb.value==='토');
+      return hasSat ? SAT_SLOTS_CF : WEEKDAY_SLOTS;
+    }
+
+    function updateTimeSlots(cb) {
+      const card = cb.closest('.therapy-card');
+      const sel = card.querySelector('.sel-time');
+      if (!sel) return;
+      const current = sel.value;
+      const slots = getSlotsForCard(card);
+      sel.innerHTML = slots.map(t=>`<option value="${t}"${t===current?' selected':''}>${t||'시간 선택'}</option>`).join('');
+    }
+
+    function makeOptions(arr, selected) {
+      return arr.map(v => `<option value="${v}"${v===selected?' selected':''}>${v}</option>`).join('');
+    }
+
+    function addCard(d) {
+      d = d || {};
+      const div = document.createElement('div');
+      div.className = 'therapy-card';
+
+      const dayChecks = DAYS.map(day => {
+        const checked = (d.cycle||'').includes(day) ? 'checked' : '';
+        return `<label><input type="checkbox" value="${day}" ${checked} onchange="autoCountCard(this);calc();updateTimeSlots(this)"> ${day}</label>`;
+      }).join('');
+
+      const baseOptions = [3,4,5,6,7,8].map(n =>
+        `<option value="${n}"${parseInt(d.baseCount||4)===n?' selected':''}>${n}회</option>`
+      ).join('');
+      const extraOptions = [-3,-2,-1,0,1,2,3,4].map(n =>
+        `<option value="${n}"${parseInt(d.extraCount||0)===n?' selected':''}>${n>0?'+'+n:n}회</option>`
+      ).join('');
+
+      // 발달재활 계좌입금 드롭다운 초기 선택값
+      const feeVal = parseInt(d.fee) || 0;
+      const feeOpts = [20000,40000,60000,80000].map(v =>
+        `<option value="${v}"${feeVal===v?' selected':''}>${(v/10000)}만원 (${v.toLocaleString()}원)</option>`
+      ).join('');
+
+      div.innerHTML = `
+        <button class="btn-remove-card" onclick="this.parentElement.remove();calc()">✕</button>
+
+        <div class="card-row">
+          <div class="field" style="min-width:110px;">
+            <label>치료 종류</label>
+            <select class="sel-type" onchange="calc()">${makeOptions([''].concat(SERVICE_TYPES), d.type||'')}</select>
+          </div>
+          <div class="field" style="min-width:100px;">
+            <label>담당 치료사</label>
+            <input class="inp-therapist" type="text" placeholder="치료사 이름" value="${d.therapist||''}">
+          </div>
+          <div class="field" style="min-width:100px;">
+            <label>수업 시간대</label>
+            <select class="sel-time" onchange="calc()">
+              ${((d.cycle||'').includes('토') ? SAT_SLOTS_CF : WEEKDAY_SLOTS).map(t=>`<option value="${t}"${t===(d.timeSlot||'')?' selected':''}>${t||'시간 선택'}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field" style="min-width:150px;">
+            <label class="fee-label">치료 단가 (원)</label>
+            <!-- 발달재활서비스: 2/4/6/8만원 드롭다운 -->
+            <select class="fee-select" style="display:none;" onchange="calc()">${feeOpts}</select>
+            <!-- 기타 지원종류: 치료사 단가 직접 입력 -->
+            <input class="fee-input" type="number" placeholder="예: 62000" value="${d.support!=='발달재활서비스'&&feeVal?feeVal:''}" oninput="calc()">
+          </div>
+          <div class="field" style="min-width:120px;">
+            <label>지원 종류</label>
+            <select class="sel-support" onchange="updateFeeField(this)">${makeOptions(SUPPORT_TYPES, d.support||'없음')}</select>
+          </div>
+          <div class="field" style="min-width:90px;">
+            <label>결제 방법</label>
+            <select class="sel-method" onchange="calc()">${makeOptions(PAY_METHODS, d.method||'신용카드')}</select>
+          </div>
+        </div>
+
+        <div class="card-row">
+          <div class="field">
+            <label>치료 주기</label>
+            <div class="day-checks">${dayChecks}</div>
+          </div>
+          <div class="field" style="min-width:70px;">
+            <label>기본 회수</label>
+            <select class="sel-base" onchange="calc()">${baseOptions}</select>
+          </div>
+          <div class="field" style="min-width:80px;">
+            <label>회수 조정</label>
+            <select class="sel-extra" onchange="calc()">${extraOptions}</select>
+          </div>
+          <div class="field" style="min-width:80px;">
+            <label>무료 회수</label>
+            <select class="sel-free" onchange="calc()">
+              ${[0,1,2,3,4].map(n=>`<option value="${n}"${parseInt(d.freeCount||0)===n?' selected':''}>${n}회</option>`).join('')}
+            </select>
+          </div>
+          <div class="extra-fee-wrap" style="display:none;">
+            <div class="field" style="min-width:90px;">
+              <label>추가 단가 (원)</label>
+              <input class="inp-extrafee" type="number" placeholder="예: 10000" value="${d.extraFee||''}" oninput="calc()">
+            </div>
+          </div>
+        </div>
+
+        <div class="card-row" style="margin-top:-4px;">
+          <div class="field" style="flex:1;">
+            <label style="color:#e65100;">📝 무료 수업 만료일 메모</label>
+            <input class="inp-freememo" type="text" placeholder="예: 2026-08-31까지 무료 (이벤트)" value="${d.freeMemo||''}" style="border-color:#ffcc80;">
+          </div>
+        </div>
+
+        <div class="calc-result" style="display:none;">
+          <span class="calc-detail"></span>
+          <span class="calc-amount"></span>
+        </div>
+      `;
+      document.getElementById('therapyCards').appendChild(div);
+      // 지원종류에 따라 fee 필드 초기화 (내부에서 calc() 호출)
+      updateFeeField(div.querySelector('.sel-support'));
+    }
+
+    function getCards() {
+      return Array.from(document.querySelectorAll('.therapy-card')).map(div => {
+        const checkedDays = Array.from(div.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+        const feeSelect = div.querySelector('.fee-select');
+        const feeInput  = div.querySelector('.fee-input');
+        const isFeeDropdown = feeSelect && feeSelect.style.display !== 'none';
+        return {
+          type:       div.querySelector('.sel-type').value,
+          therapist:  div.querySelector('.inp-therapist').value,
+          timeSlot:   div.querySelector('.sel-time').value,
+          fee:        isFeeDropdown ? parseInt(feeSelect.value)||0 : parseInt(feeInput.value)||0,
+          support:    div.querySelector('.sel-support').value,
+          method:     div.querySelector('.sel-method').value,
+          cycle:      checkedDays.join(', '),
+          baseCount:  parseInt(div.querySelector('.sel-base').value)||4,
+          extraFee:   parseInt(div.querySelector('.inp-extrafee').value)||0,
+          extraCount: parseInt(div.querySelector('.sel-extra').value)||0,
+          freeCount:  parseInt(div.querySelector('.sel-free').value)||0,
+          freeMemo:   div.querySelector('.inp-freememo').value,
+          _div: div,
+        };
+      });
+    }
+
+    function updateFeeField(sel) {
+      const card = sel.closest('.therapy-card');
+      const support = sel.value;
+      const feeLabel    = card.querySelector('.fee-label');
+      const feeSelect   = card.querySelector('.fee-select');
+      const feeInput    = card.querySelector('.fee-input');
+      const extraWrap   = card.querySelector('.extra-fee-wrap');
+
+      if (support === '발달재활서비스') {
+        feeLabel.textContent = '계좌입금(본인부담금)';
+        feeSelect.style.display = '';
+        feeInput.style.display  = 'none';
+        if (extraWrap) extraWrap.style.display = 'flex'; // 추가단가 표시
+      } else {
+        const labelMap = {
+          '방치':             '치료사 단가 (단가×회수−24만원)',
+          '방과후활동비':      '치료사 단가 (단가×회수−12만원)',
+          '치료지원 언어영역': '치료사 단가 (단가×회수−12만원)',
+          '치료지원 감통영역': '치료사 단가 (단가×회수−12만원)',
+          '센터비용':          '치료사 단가 (단가×회수)',
+        };
+        feeLabel.textContent = labelMap[support] || '치료사 단가 (원)';
+        feeSelect.style.display = 'none';
+        feeInput.style.display  = '';
+        if (extraWrap) extraWrap.style.display = 'none'; // 추가단가 숨김
+      }
+      calc();
+    }
+
+    function calc() {
+      const cards = getCards();
+      let grandPayable = 0;
+      let hasData = false;
+      let summaryHTML = '';
+
+      cards.forEach(r => {
+        const resultBox = r._div.querySelector('.calc-result');
+        if (!r.fee || !r.cycle) { resultBox.style.display = 'none'; return; }
+        hasData = true;
+
+        const totalCount = r.baseCount + r.extraCount;
+        const billableCount = Math.max(0, totalCount - r.freeCount);
+        const freeNote = r.freeCount > 0 ? ` (무료 ${r.freeCount}회 제외)` : '';
+        let payable, detail;
+
+        if (r.support === '발달재활서비스') {
+          const extraTotal = r.extraFee * r.extraCount;
+          payable = r.fee + extraTotal;
+          detail = `본인부담 ${r.fee.toLocaleString()}원`;
+          if (extraTotal) detail += ` + 추가 ${extraTotal.toLocaleString()}원`;
+        } else if (r.support === '방치') {
+          payable = r.fee * billableCount - 240000;
+          detail = `${r.fee.toLocaleString()} × ${billableCount}회${freeNote} − 240,000원 = ${payable.toLocaleString()}원`;
+        } else if (['방과후활동비','치료지원 언어영역','치료지원 감통영역'].includes(r.support)) {
+          payable = r.fee * billableCount - 120000;
+          detail = `${r.fee.toLocaleString()} × ${billableCount}회${freeNote} − 120,000원 = ${payable.toLocaleString()}원`;
+        } else if (r.support === '센터비용') {
+          payable = r.fee * billableCount;
+          detail = `${r.fee.toLocaleString()} × ${billableCount}회${freeNote} = ${payable.toLocaleString()}원`;
+        } else {
+          payable = r.fee * billableCount;
+          detail = `${r.fee.toLocaleString()} × ${billableCount}회${freeNote} = ${payable.toLocaleString()}원`;
+        }
+
+        grandPayable += payable;
+        resultBox.style.display = 'flex';
+        r._div.querySelector('.calc-detail').textContent = detail;
+        r._div.querySelector('.calc-amount').textContent = payable.toLocaleString() + '원';
+
+        const label = [r.type, r.therapist].filter(Boolean).join('/') || '치료';
+        summaryHTML += `<div class="total-row"><span style="color:#555;">${label}${r.cycle?' ('+r.cycle+')':''}</span><span><strong>${payable.toLocaleString()}원</strong> <span style="font-size:12px;color:#888;">${r.method}</span></span></div>`;
+      });
+
+      if (hasData) {
+        summaryHTML += `<div class="total-final"><span>월 총 결제 금액</span><span>${grandPayable.toLocaleString()}원</span></div>`;
+        document.getElementById('totalRows').innerHTML = summaryHTML;
+        document.getElementById('totalBox').style.display = '';
+      } else {
+        document.getElementById('totalBox').style.display = 'none';
+      }
+    }
+
+    function countDayInMonth(year, month, dayName) {
+      const dayMap = { '월':1,'화':2,'수':3,'목':4,'금':5,'토':6,'일':0 };
+      const target = dayMap[dayName];
+      const date = new Date(year, month - 1, 1);
+      let count = 0;
+      while (date.getMonth() === month - 1) {
+        if (date.getDay() === target) count++;
+        date.setDate(date.getDate() + 1);
+      }
+      return count;
+    }
+
+    function autoCountCard(checkbox) {
+      const monthVal = document.getElementById('basMonth').value;
+      if (!monthVal) return;
+      const [year, month] = monthVal.split('-').map(Number);
+      const card = checkbox.closest('.therapy-card');
+      const checkedDays = Array.from(card.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+      if (checkedDays.length === 0) return;
+      const total = checkedDays.reduce((sum, day) => sum + countDayInMonth(year, month, day), 0);
+      const sel = card.querySelectorAll('select')[4];
+      const options = Array.from(sel.options).map(o => parseInt(o.value));
+      const closest = options.reduce((a, b) => Math.abs(b - total) < Math.abs(a - total) ? b : a);
+      sel.value = closest;
+    }
+
+    function autoCountAll() {
+      const monthVal = document.getElementById('basMonth').value;
+      if (!monthVal) { alert('기준 월을 먼저 선택해주세요.'); return; }
+      const [year, month] = monthVal.split('-').map(Number);
+      document.querySelectorAll('.therapy-card').forEach(card => {
+        const checkedDays = Array.from(card.querySelectorAll('input[type="checkbox"]:checked')).map(c => c.value);
+        if (checkedDays.length === 0) return;
+        const total = checkedDays.reduce((sum, day) => sum + countDayInMonth(year, month, day), 0);
+        const sel = card.querySelectorAll('select')[4];
+        const options = Array.from(sel.options).map(o => parseInt(o.value));
+        const closest = options.reduce((a, b) => Math.abs(b - total) < Math.abs(a - total) ? b : a);
+        sel.value = closest;
+      });
+      calc();
+    }
+
+    const now = new Date();
+    document.getElementById('basMonth').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+    if (editId) {
+      document.getElementById('pageTitle').textContent = '아동 정보 수정';
+      const child = JSON.parse(localStorage.getItem('children') || '[]').find(c => c.id === editId);
+      if (child) {
+        document.getElementById('name').value = child.name || '';
+        const b = child.birth || '';
+        document.getElementById('birth').value = b.length === 8
+          ? `${b.slice(0,4)}-${b.slice(4,6)}-${b.slice(6,8)}`
+          : b;
+        document.getElementById('gender').value = child.gender || '';
+        document.getElementById('guardian').value = child.guardian || '';
+        document.getElementById('phone').value = child.phone || '';
+        document.getElementById('managerId').value = child.managerId || '';
+        document.querySelectorAll('input[name="disability"]').forEach(r => r.checked = r.value === (child.disability || ''));
+        document.getElementById('memo').value = child.memo || '';
+        document.getElementById('paymentMemo').value = child.paymentMemo || '';
+        document.querySelectorAll('input[name="payType"]').forEach(r => r.checked = r.value === (child.payType || '월납'));
+        document.getElementById('therapistNote').value = child.therapistNote || '';
+        document.querySelectorAll('input[name="noteStatus"]').forEach(r => r.checked = r.value === (child.noteStatus || '미전달'));
+        document.querySelectorAll('input[name="status"]').forEach(r => {
+          r.checked = r.value === (child.status || '치료중');
+        });
+        (child.therapies || []).forEach(t => addCard(t));
+      }
+    } else {
+      // 신규 아동: 관리자번호 자동 생성 (형식: YYYY01자라는NNN)
+      const year = new Date().getFullYear();
+      const prefix = `${year}01자라는`;
+      const allChildren = JSON.parse(localStorage.getItem('children') || '[]');
+      // 같은 연도의 기존 번호에서 최대 순번 추출 (하이픈·공백 변형 모두 인식)
+      const yearPat = new RegExp(`^${year}01[-\\s]*자라는[-\\s]*(\\d+)$`);
+      const nums = allChildren
+        .map(c => (c.managerId || '').trim())
+        .map(id => { const m = id.match(yearPat); return m ? parseInt(m[1], 10) : 0; })
+        .filter(n => n > 0);
+      const nextNum = (nums.length ? Math.max(...nums) : 0) + 1;
+      document.getElementById('managerId').value = prefix + String(nextNum).padStart(3, '0');
+      addCard();
+    }
+
+    function save() {
+      const name = document.getElementById('name').value.trim();
+      if (!name) { alert('아동 이름을 입력해주세요.'); return; }
+
+      const therapies = getCards().map(r => ({
+        type: r.type, therapist: r.therapist, fee: r.fee,
+        cycle: r.cycle, support: r.support, baseCount: r.baseCount,
+        extraFee: r.extraFee, extraCount: r.extraCount,
+        freeCount: r.freeCount, freeMemo: r.freeMemo,
+        timeSlot: r.timeSlot, method: r.method,
+      }));
+
+      const child = {
+        id: editId || Date.now().toString(),
+        name,
+        birth: document.getElementById('birth').value.replace(/-/g,''),
+        gender: document.getElementById('gender').value,
+        guardian: document.getElementById('guardian').value,
+        phone: document.getElementById('phone').value,
+        managerId: document.getElementById('managerId').value,
+        disability: document.querySelector('input[name="disability"]:checked')?.value || '',
+        memo: document.getElementById('memo').value,
+        payType: document.querySelector('input[name="payType"]:checked')?.value || '월납',
+        paymentMemo: document.getElementById('paymentMemo').value,
+        therapistNote: document.getElementById('therapistNote').value,
+        noteStatus: document.querySelector('input[name="noteStatus"]:checked')?.value || '미전달',
+        status: document.querySelector('input[name="status"]:checked')?.value || '치료중',
+        serviceType: therapies.map(t => t.type).filter(Boolean).join(', '),
+        therapist: therapies.map(t => t.therapist).filter(Boolean).join(', '),
+        therapies,
+      };
+
+      let list = JSON.parse(localStorage.getItem('children') || '[]');
+
+      // 본인부담금 변경 감지 (발달재활서비스)
+      if (editId) {
+        const oldChild = list.find(c => c.id === editId);
+        if (oldChild) {
+          const alerts = JSON.parse(localStorage.getItem('feeChangeAlerts') || '[]');
+          therapies.forEach(newT => {
+            if (newT.support !== '발달재활서비스') return;
+            const oldT = (oldChild.therapies || []).find(t =>
+              t.support === '발달재활서비스' && t.therapist === newT.therapist
+            );
+            if (oldT && oldT.fee && newT.fee && Number(oldT.fee) !== Number(newT.fee)) {
+              alerts.push({
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+                childId: child.id,
+                childName: child.name,
+                therapist: newT.therapist || '',
+                oldFee: oldT.fee,
+                newFee: newT.fee,
+                changeDate: new Date().toISOString().split('T')[0],
+                done: false,
+                note: '',
+              });
+            }
+          });
+          localStorage.setItem('feeChangeAlerts', JSON.stringify(alerts));
+        }
+        list = list.map(c => c.id === editId ? child : c);
+      } else {
+        list.push(child);
+      }
+
+      localStorage.setItem('children', JSON.stringify(list));
+      alert('저장되었습니다.');
+      location.href = 'children.html';
+    }
+
+    function logout() { localStorage.removeItem('currentUser'); location.href = 'index.html'; }
+  </script>
+</body>
+</html>

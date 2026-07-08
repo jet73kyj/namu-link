@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>발달재활 서비스 기록지</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; background:#f5f7fa; margin:0; }
+  header { background:#2e7d32; color:white; padding:12px 24px; display:flex; align-items:center; gap:12px; }
+  nav { background:#1b5e20; padding:8px 20px; display:flex; gap:8px; }
+  nav a { color:white; text-decoration:none; padding:8px 16px; border-radius:6px; font-size:14px; }
+  nav a:hover, nav a.active { background:rgba(255,255,255,0.15); }
+  .container { max-width:1000px; margin:16px auto; padding:0 16px; }
+  .page-title { font-size:18px; font-weight:bold; color:#2e7d32; margin:10px 0; }
+  .form-actions { display:flex; gap:8px; margin:12px 0; }
+  .form-actions button { padding:8px 18px; border:none; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; }
+  .btn-save { background:#2e7d32; color:white; }
+  .btn-print { background:#1565c0; color:white; }
+  .btn-back { background:#eee; color:#555; }
+  .sheet { background:white; padding:26px 32px; border:1px solid #ddd; box-shadow:0 1px 4px rgba(0,0,0,0.05); margin-bottom:22px; page-break-after:always; }
+  .sheet h2.title { text-align:center; font-size:16px; margin:0 0 12px; letter-spacing:2px; }
+  .info-tbl { border-collapse:collapse; width:100%; font-size:12px; margin-bottom:10px; }
+  .info-tbl td { border:1px solid #333; padding:5px 8px; }
+  .info-tbl td.lbl { background:#f5f5f5; font-weight:bold; text-align:center; width:15%; }
+  .cal-tbl { border-collapse:collapse; width:100%; font-size:12px; margin:10px 0; table-layout:fixed; }
+  .cal-tbl th, .cal-tbl td { border:1px solid #333; padding:4px 6px; height:56px; vertical-align:top; text-align:right; width:14.28%; overflow:hidden; word-break:keep-all; }
+  .cal-tbl th { background:#e8f5e9; text-align:center; height:22px; }
+  .cal-tbl td .evt { display:block; font-size:10px; color:#1b5e20; text-align:left; margin-top:2px; overflow:hidden; }
+  .sec-title { background:#f0f4c3; padding:5px 8px; font-weight:bold; font-size:13px; border:1px solid #333; border-bottom:none; }
+  .status-tbl { border-collapse:collapse; width:100%; font-size:11px; }
+  .status-tbl th, .status-tbl td { border:1px solid #333; padding:5px; vertical-align:top; }
+  .status-tbl th { background:#f5f5f5; font-weight:bold; text-align:center; }
+  input[type=text], input[type=date], input[type=number], textarea, select {
+    border:1px solid #ccc; padding:3px 6px; font-size:12px; font-family:inherit; box-sizing:border-box; width:100%;
+  }
+  textarea { resize:vertical; min-height:60px; }
+  @media print {
+    @page { size: A4 portrait; margin: 4mm 6mm; }
+    html, body { height:100%; }
+    header, nav, .form-actions, .page-title, .no-print { display:none !important; }
+    body { background:white; margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .container { max-width:none; margin:0; padding:0; height:100%; }
+    .sheet {
+      border:none; box-shadow:none; padding:0; margin:0;
+      page-break-after:always; page-break-inside:avoid;
+      display:flex; flex-direction:column; height:100vh; box-sizing:border-box;
+    }
+    .sheet:last-child { page-break-after:auto; }
+    .sheet h2.title { font-size:13px; margin:0 0 4px; flex-shrink:0; }
+    .sheet, .info-tbl, .status-tbl { font-size:10px !important; }
+    .info-tbl { flex-shrink:0; }
+    .info-tbl td { padding:3px 5px; }
+    .cal-tbl { flex:1; font-size:10px; }
+    .cal-tbl th { height:14px; padding:2px; font-size:10px; }
+    .cal-tbl td { height:auto; padding:3px 5px; font-size:10px; vertical-align:top; }
+    .cal-tbl td .evt { font-size:9px; }
+    .sec-title { padding:2px 6px; font-size:10px; flex-shrink:0; }
+    .info-tbl input, .info-tbl textarea, .cal-tbl input, .status-tbl input, .status-tbl textarea {
+      border:none; padding:1px 3px; font-size:10px; background:transparent;
+    }
+    .status-tbl { flex:1; }
+    .status-tbl th, .status-tbl td { padding:4px; font-size:10px; vertical-align:top; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <span style="font-size:22px;">🌿</span>
+  <h1 style="margin:0;font-size:20px;">나무링크 · 발달재활 서비스 기록지</h1>
+</header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="intake.html">신규아동</a>
+  <a href="records.html" class="active">치료 기록</a>
+  <a href="calendar.html">아동 스케줄</a>
+  <a href="payments.html">납부 관리</a>
+  <a href="therapists.html">치료사 관리</a>
+  <a href="#" onclick="logout()">로그아웃</a>
+</nav>
+
+<div class="container">
+  <div class="page-title" id="pageTitle">발달재활 서비스 기록지</div>
+
+  <div class="form-actions">
+    <button class="btn-save" onclick="saveRecord()">💾 저장</button>
+    <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
+    <button onclick="_shareRecordHelp()" style="background:#fee500;color:#3c1e1e;">💬 학부모 전달 안내</button>
+    <button class="btn-back" onclick="history.back()">◀ 돌아가기</button>
+  </div>
+
+  <!-- ==================== 1. 서비스 일정표, 제공기록지 ==================== -->
+  <div class="sheet" id="sheet1">
+    <h2 class="title" id="sheet1Title">서비스 일정표, 제공기록지 (X월)</h2>
+    <table class="info-tbl">
+      <tr>
+        <td class="lbl">제공기관</td>
+        <td><input type="text" id="s1_org" value="자라는나무"></td>
+        <td class="lbl">제공영역</td>
+        <td><input type="text" id="s1_area" value="감각발달재활"></td>
+      </tr>
+      <tr>
+        <td class="lbl">이용자성명</td>
+        <td><input type="text" id="s1_childName"></td>
+        <td class="lbl">이용자생년월일</td>
+        <td><input type="text" id="s1_childBirth"></td>
+      </tr>
+      <tr>
+        <td class="lbl">관리자 서명</td>
+        <td><input type="text" id="s1_adminSig"></td>
+        <td class="lbl">보호자 서명</td>
+        <td><input type="text" id="s1_guardianSig"></td>
+      </tr>
+    </table>
+
+    <table class="info-tbl">
+      <tr>
+        <td class="lbl">사회복지서비스<br>관리번호</td>
+        <td colspan="3"><input type="text" id="s1_mgmtNo"></td>
+      </tr>
+      <tr>
+        <td class="lbl">성명</td><td><input type="text" id="s1_childName2"></td>
+        <td class="lbl">직성일자</td><td><input type="text" id="s1_writeDate"></td>
+      </tr>
+      <tr>
+        <td class="lbl">사회복지서비스<br>제공자</td>
+        <td colspan="3"><input type="text" id="s1_provider" value="자라는나무"></td>
+      </tr>
+    </table>
+
+    <!-- 월별 달력 -->
+    <table class="cal-tbl" id="calTbl">
+      <thead><tr><th>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <!-- 서비스제공현황 -->
+    <div class="sec-title">서비스제공현황</div>
+    <table class="info-tbl" style="margin-top:0;">
+      <tr>
+        <td class="lbl">서비스제공자명</td><td><input type="text" id="s1_svcProviderName" value="자라는나무"></td>
+        <td class="lbl">전화</td><td><input type="text" id="s1_svcTel" value="042-488-6011"></td>
+      </tr>
+      <tr>
+        <td class="lbl">담당</td><td><input type="text" id="s1_svcCharge"></td>
+        <td class="lbl">서비스 종류</td><td><input type="text" id="s1_svcType" value="감각발달재활"></td>
+      </tr>
+      <tr>
+        <td class="lbl">주기</td><td><input type="text" id="s1_svcCycle" value="매주 목"></td>
+        <td class="lbl">제공일</td><td><input type="text" id="s1_svcDays"></td>
+      </tr>
+    </table>
+
+    <!-- 서비스 비용 -->
+    <div class="sec-title">서비스 비용</div>
+    <table class="info-tbl" style="margin-top:0;">
+      <tr>
+        <th style="background:#f5f5f5;">서비스 종류</th>
+        <th style="background:#f5f5f5;">서비스 단가</th>
+        <th style="background:#f5f5f5;">횟수</th>
+        <th style="background:#f5f5f5;">총서비스가격</th>
+        <th style="background:#f5f5f5;">본인부담금</th>
+      </tr>
+      <tr>
+        <td><input type="text" id="s1_costType" value="감각발달재활"></td>
+        <td><input type="text" id="s1_costUnit" value="65,000원"></td>
+        <td><input type="text" id="s1_costCount" value="4"></td>
+        <td><input type="text" id="s1_costTotal" value="260,000"></td>
+        <td><input type="text" id="s1_costSelf"></td>
+      </tr>
+    </table>
+
+    <!-- 내용/월일 -->
+    <div class="sec-title">내용/월일</div>
+    <table class="info-tbl" style="margin-top:0;">
+      <tr>
+        <td colspan="6" class="lbl">1. 발달재활서비스</td>
+      </tr>
+      <tr>
+        <td rowspan="3" style="text-align:center;font-weight:bold;background:#fafafa;width:15%;">감각발달재활<br>제공시간</td>
+        <td class="lbl" style="width:12%;">시작시간</td>
+        <td style="width:18.25%;"><input type="text" id="s1_startTime_1"></td>
+        <td style="width:18.25%;"><input type="text" id="s1_startTime_2"></td>
+        <td style="width:18.25%;"><input type="text" id="s1_startTime_3"></td>
+        <td style="width:18.25%;"><input type="text" id="s1_startTime_4"></td>
+      </tr>
+      <tr>
+        <td class="lbl">종료시간</td>
+        <td><input type="text" id="s1_endTime_1"></td>
+        <td><input type="text" id="s1_endTime_2"></td>
+        <td><input type="text" id="s1_endTime_3"></td>
+        <td><input type="text" id="s1_endTime_4"></td>
+      </tr>
+      <tr>
+        <td class="lbl">담당재활사</td>
+        <td><input type="text" id="s1_therapistName_1"></td>
+        <td><input type="text" id="s1_therapistName_2"></td>
+        <td><input type="text" id="s1_therapistName_3"></td>
+        <td><input type="text" id="s1_therapistName_4"></td>
+      </tr>
+      <tr>
+        <td colspan="2" class="lbl">2. 총 제공시간 (바우처)</td>
+        <td><input type="text" id="s1_totalTime_1" value="50분"></td>
+        <td><input type="text" id="s1_totalTime_2" value="50분"></td>
+        <td><input type="text" id="s1_totalTime_3" value="50분"></td>
+        <td><input type="text" id="s1_totalTime_4" value="50분"></td>
+      </tr>
+      <tr>
+        <td colspan="2" class="lbl">3. 총 이용금액 (   /   원)</td>
+        <td><input type="text" id="s1_totalCost_1" value="65,000원"></td>
+        <td><input type="text" id="s1_totalCost_2" value="65,000원"></td>
+        <td><input type="text" id="s1_totalCost_3" value="65,000원"></td>
+        <td><input type="text" id="s1_totalCost_4" value="65,000원"></td>
+      </tr>
+      <tr>
+        <td colspan="2" class="lbl">4. 이용자(확인/서명)</td>
+        <td><input type="text" id="s1_userSign_1"></td>
+        <td><input type="text" id="s1_userSign_2"></td>
+        <td><input type="text" id="s1_userSign_3"></td>
+        <td><input type="text" id="s1_userSign_4"></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ==================== 2. 상태 및 결과기록 ==================== -->
+  <div class="sheet" id="sheet2">
+    <h2 class="title">* 상태 및 결과기록(별지 사용 가능) / <span id="sheet2Title"></span></h2>
+    <table class="status-tbl" id="statusTbl">
+      <thead>
+        <tr>
+          <th style="width:15%;">서비스 제공일자<br>승인일자<br>승인번호</th>
+          <th style="width:22%;">이용자의 상태<br>[위생, 기분, 건강 등]</th>
+          <th style="width:63%;">서비스 결과<br>[치료목표 및 보호자 상당]</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+if (!localStorage.getItem('currentUser')) location.href = 'index.html';
+document.getElementById('userLabel')?.appendChild?.(document.createTextNode(''));
+
+const params = new URLSearchParams(location.search);
+const childId = params.get('childId')||'';
+const category = params.get('category')||'발달';
+const year = parseInt(params.get('year'))||new Date().getFullYear();
+const month = parseInt(params.get('month'))||(new Date().getMonth()+1);
+
+document.getElementById('pageTitle').textContent = `발달재활 서비스 기록지 — ${year}년 ${month}월`;
+document.getElementById('sheet1Title').textContent = `서비스 일정표, 제공기록지 (${month}월)`;
+
+function logout() { localStorage.removeItem('currentUser'); location.href='index.html'; }
+function getChildren(){ return JSON.parse(localStorage.getItem('children')||'[]'); }
+function getRecords(){ return JSON.parse(localStorage.getItem('records')||'[]'); }
+function saveRecords(d){ localStorage.setItem('records', JSON.stringify(d)); }
+function _shareRecordHelp(){
+  alert('학부모님께 결과기록지 전달 방법:\n\n' +
+    '1) 🖨️ 인쇄 / PDF 저장 버튼 클릭\n' +
+    '2) 인쇄 대화상자에서 "대상"을 "PDF로 저장"으로 선택 → 저장\n' +
+    '3) 저장된 PDF 파일을 카카오톡·문자·이메일로 학부모님께 전송\n\n' +
+    '💬 카카오톡채널: http://pf.kakao.com/_AJtsG\n' +
+    '📞 문의: 042-488-6011');
+}
+
+function fmtBirth(b){
+  if (!b) return '';
+  const s = String(b).replace(/\D/g,'');
+  if (s.length>=8) return `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}`;
+  if (s.length===6) return `20${s.slice(0,2)}.${s.slice(2,4)}.${s.slice(4,6)}`;
+  return b;
+}
+
+function getPayments() { return JSON.parse(localStorage.getItem('payments') || '[]'); }
+
+// 아동 정보로 기본값 채움
+let child = getChildren().find(c => c.id === childId);
+// 첫 번째 매칭 child에 managerId가 없으면 같은 이름+생년의 다른 sibling entry에서 찾기
+if (child && !child.managerId) {
+  const nm = (child.name||'').trim();
+  const bt = (child.birth||'').replace(/\D/g,'').slice(-6);
+  const withMid = getChildren().find(c =>
+    (c.name||'').trim() === nm &&
+    (c.birth||'').replace(/\D/g,'').slice(-6) === bt &&
+    !!c.managerId
+  );
+  if (withMid) child = { ...child, managerId: withMid.managerId };
+}
+if (child) {
+  document.getElementById('s1_childName').value = child.name || '';
+  document.getElementById('s1_childName2').value = child.name || '';
+  document.getElementById('s1_childBirth').value = fmtBirth(child.birth||'');
+  // 사회복지서비스 관리번호 = 아동 관리자번호 자동 입력
+  if (child.managerId) document.getElementById('s1_mgmtNo').value = child.managerId;
+  // 본인부담금 = 발본(발달재활) 해당 월 payment.amount → therapy.fee → child.feeType 순으로 fallback
+  const _FT_AMT = {가형:20000,나형:40000,다형:0,라형:60000,마형:80000};
+  const _mk = `${year}-${String(month).padStart(2,'0')}`;
+  const _basePay = getPayments().find(p =>
+    p.support === '발달재활서비스' &&
+    p.monthKey === _mk &&
+    (p.childId === child.id || (child.name && (p.childName||'').trim() === (child.name||'').trim()))
+  );
+  const _baseTherapyForCost = (child.therapies||[]).find(t => t.support === '발달재활서비스');
+  let _selfCost = 0;
+  if (_basePay && (parseInt(_basePay.amount)||0) > 0) _selfCost = parseInt(_basePay.amount);
+  else if (_baseTherapyForCost && (parseInt(_baseTherapyForCost.fee)||0) > 0) _selfCost = parseInt(_baseTherapyForCost.fee);
+  else if (child.feeType && _FT_AMT[child.feeType] !== undefined) _selfCost = _FT_AMT[child.feeType];
+  if (_selfCost > 0) document.getElementById('s1_costSelf').value = _selfCost.toLocaleString() + '원';
+  // 직성일자 = 전월 마지막주 (주기 요일) 자동 계산
+  // 주기가 "매주 목" 이면 전월의 마지막 목요일 날짜 사용
+  const _therapyForCycle = (child.therapies||[]).find(t => t.support === '발달재활서비스');
+  if (_therapyForCycle && _therapyForCycle.cycle) {
+    const _dayMap = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
+    const _cycleDays = (_therapyForCycle.cycle||'').split(',').map(s=>s.trim()).filter(Boolean);
+    // 여러 요일이면 첫 번째 요일 사용 (일반적으로 1개)
+    const targetDow = _dayMap[_cycleDays[0]];
+    if (targetDow !== undefined) {
+      // 전월 계산 (1월이면 전년 12월)
+      let prevY = year, prevM = month - 1;
+      if (prevM < 1) { prevM = 12; prevY--; }
+      const lastDay = new Date(prevY, prevM, 0).getDate();
+      let lastMatchDay = 0;
+      for (let d = lastDay; d >= 1; d--) {
+        if (new Date(prevY, prevM-1, d).getDay() === targetDow) { lastMatchDay = d; break; }
+      }
+      if (lastMatchDay) {
+        document.getElementById('s1_writeDate').value = `${prevY}.${prevM}.${lastMatchDay}`;
+      }
+    }
+  }
+  const therapy = (child.therapies||[]).find(t => t.support === '발달재활서비스');
+  if (therapy) {
+    // 인수인계 반영: 해당 월이 인수일 이후면 후임 치료사
+    const mk = `${year}-${String(month).padStart(2,'0')}`;
+    let therapistName = therapy.therapist || '';
+    if (therapy.handoff?.date && therapy.handoff?.therapist) {
+      const hoMk = String(therapy.handoff.date).substring(0,7);
+      if (mk >= hoMk) therapistName = therapy.handoff.therapist;
+    }
+    document.getElementById('s1_svcCharge').value = therapistName;
+    // 담당재활사 4개 컬럼 모두 자동 채움
+    for (let i=1;i<=4;i++) { const el=document.getElementById('s1_therapistName_'+i); if (el) el.value = therapistName; }
+    // 시작·종료 시간 공란 유지 (사용자 요청)
+    if (therapy.cycle) {
+      const cycleStr = `매주 ${therapy.cycle.replace(/,/g,'·')}`;
+      const timeStr = (therapy.timeSlot||'').trim();
+      document.getElementById('s1_svcCycle').value = timeStr ? `${cycleStr} ${timeStr} /10분 상담` : `${cycleStr} /10분 상담`;
+    }
+  }
+}
+
+// 공휴일 데이터 (연도별 - 지속 추가 가능)
+const HOLIDAYS = {
+  2026: {
+    '1-1': '신정', '2-16': '설날 연휴', '2-17': '설날', '2-18': '설날 연휴',
+    '3-1': '삼일절', '5-5': '어린이날', '5-24': '부처님오신날', '6-6': '현충일',
+    '7-17': '제헌절', '8-15': '광복절', '9-24': '추석 연휴', '9-25': '추석', '9-26': '추석 연휴',
+    '10-3': '개천절', '10-9': '한글날', '12-25': '크리스마스'
+  },
+  2027: {
+    '1-1': '신정', '2-6': '설날 연휴', '2-7': '설날', '2-8': '설날 연휴',
+    '3-1': '삼일절', '5-5': '어린이날', '5-13': '부처님오신날', '6-6': '현충일',
+    '7-17': '제헌절', '8-15': '광복절', '9-14': '추석 연휴', '9-15': '추석', '9-16': '추석 연휴',
+    '10-3': '개천절', '10-9': '한글날', '12-25': '크리스마스'
+  }
+};
+const _holidayFor = (y, m, d) => (HOLIDAYS[y] || {})[`${m}-${d}`] || '';
+
+// 주기 기반 자동 스케줄: 해당 요일 · 공휴일 제외
+function _getScheduleDows() {
+  const t = (child?.therapies||[]).find(x=>x.support==='발달재활서비스');
+  if (!t?.cycle) return [];
+  const _dayMap = {일:0,월:1,화:2,수:3,목:4,금:5,토:6};
+  return t.cycle.split(',').map(s=>s.trim()).filter(Boolean).map(d=>_dayMap[d]).filter(v=>v!==undefined);
+}
+function _getServiceType() {
+  return document.getElementById('s1_svcType')?.value || document.getElementById('s1_area')?.value || '감각발달재활';
+}
+function _getTimeSlotForEvt() {
+  const t = (child?.therapies||[]).find(x=>x.support==='발달재활서비스');
+  const ts = (t?.timeSlot||'').trim();
+  return ts ? `${ts} /10분 상담` : '';
+}
+
+// 발본 발달재활 규칙: 월 4회 고정. 5주차 발생 시 첫주부터 4주까지만 스케줄로 잡음.
+// 공휴일에 스케줄이 걸리면 그 날은 제외하되 최대 4회 유지.
+function _getScheduledDaysCapped() {
+  const scheduleDows = _getScheduleDows();
+  if (!scheduleDows.length) return new Set();
+  const lastDay = new Date(year, month, 0).getDate();
+  const all = [];
+  for (let d = 1; d <= lastDay; d++) {
+    const dow = new Date(year, month-1, d).getDay();
+    if (!scheduleDows.includes(dow)) continue;
+    if (_holidayFor(year, month, d)) continue; // 공휴일 자동 제외
+    all.push(d);
+  }
+  return new Set(all.slice(0, 4)); // 최대 4회 (첫주부터 4번째까지)
+}
+
+// 달력 생성 (해당 월) — 공휴일 표기 + 주기 기반 서비스 자동 표기 (월 4회)
+function buildCalendar() {
+  const first = new Date(year, month-1, 1);
+  const lastDay = new Date(year, month, 0).getDate();
+  const startDow = first.getDay();
+  const tbody = document.querySelector('#calTbl tbody');
+  tbody.innerHTML = '';
+  const scheduledSet = _getScheduledDaysCapped();
+  const svcType = _getServiceType();
+  const timeStr = _getTimeSlotForEvt();
+  let day = 1;
+  let rowCount = 0;
+  while (day <= lastDay) {
+    const tr = document.createElement('tr');
+    for (let i=0; i<7; i++) {
+      const td = document.createElement('td');
+      if ((rowCount === 0 && i < startDow) || day > lastDay) {
+        // empty
+      } else {
+        const dow = new Date(year, month-1, day).getDay();
+        const isSun = dow === 0;
+        const isSat = dow === 6;
+        const holiday = _holidayFor(year, month, day);
+        const dayColor = holiday || isSun ? '#c62828' : isSat ? '#1565c0' : '#333';
+        const holidayHtml = holiday
+          ? `<div style="font-size:9px;color:#c62828;font-weight:bold;text-align:left;line-height:1.1;margin-bottom:1px;">🎌 ${holiday}</div>`
+          : '';
+        // 스케줄 4회 캡: scheduledSet에 포함된 날짜만 자동 표기
+        let evtDefault = '';
+        const isScheduled = scheduledSet.has(day);
+        if (isScheduled) {
+          evtDefault = `<div class="evt-svc" style="color:#1b5e20;font-weight:bold;">${svcType}</div>${timeStr?`<div class="evt-time">${timeStr}</div>`:''}`;
+        }
+        const scheduleBtn = isScheduled
+          ? `<button onclick="_openAbsenceModal(${day});event.stopPropagation();" style="position:absolute;top:2px;left:2px;background:#fff3e0;color:#e65100;border:1px solid #ffb74d;border-radius:3px;font-size:8px;padding:0 3px;cursor:pointer;font-weight:bold;line-height:1.3;">결석/보강</button>`
+          : '';
+        td.style.position = 'relative';
+        td.innerHTML = `<span class="no-print">${scheduleBtn}</span><div style="color:${dayColor};font-weight:${holiday?'bold':'normal'};">${day}</div>${holidayHtml}<div class="evt" contenteditable="true" data-day="${day}">${evtDefault}</div>`;
+        if (holiday) td.style.background = '#fff3e0';
+        day++;
+      }
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+    rowCount++;
+  }
+}
+buildCalendar();
+
+// 결석/보강 팝업 — 특정 날짜 셀에 결석 처리 및 보강 일정 기입
+function _openAbsenceModal(day) {
+  document.getElementById('_absModal')?.remove();
+  // 기존 저장된 결석/보강 정보 로드
+  const key = `absence_${childId}_${year}_${month}_${day}`;
+  const saved = JSON.parse(localStorage.getItem(key)||'null') || {};
+  const modal = document.createElement('div');
+  modal.id = '_absModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:6000;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:white;border-radius:12px;padding:24px;width:360px;max-width:96vw;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="margin:0;font-size:15px;color:#e65100;">📌 ${year}년 ${month}월 ${day}일 결석 · 보강</h3>
+        <button onclick="document.getElementById('_absModal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#aaa;">✕</button>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:bold;color:#c62828;cursor:pointer;">
+          <input type="checkbox" id="_absCheck" ${saved.absent?'checked':''} style="transform:scale(1.3);accent-color:#c62828;">
+          이 날 결석 처리
+        </label>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;color:#555;font-weight:bold;display:block;margin-bottom:4px;">결석 사유 (선택)</label>
+        <input type="text" id="_absReason" value="${(saved.reason||'').replace(/"/g,'&quot;')}" placeholder="예: 감기 · 개인사유" style="width:100%;padding:7px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px;box-sizing:border-box;">
+      </div>
+      <div style="margin-bottom:14px;padding:10px 12px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;">
+        <label style="font-size:12px;color:#1b5e20;font-weight:bold;display:block;margin-bottom:5px;">📅 보강 일정</label>
+        <input type="date" id="_absMakeupDate" value="${saved.makeupDate||''}" style="width:100%;padding:6px 8px;border:1px solid #a5d6a7;border-radius:5px;font-size:12px;box-sizing:border-box;margin-bottom:6px;">
+        <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">보강 시간 (선택)</label>
+        <input type="text" id="_absMakeupTime" value="${(saved.makeupTime||'').replace(/"/g,'&quot;')}" placeholder="예: 4:00~4:40" style="width:100%;padding:6px 8px;border:1px solid #a5d6a7;border-radius:5px;font-size:12px;box-sizing:border-box;margin-bottom:6px;">
+        <label style="font-size:11px;color:#555;display:block;margin-bottom:3px;">보강 메모 (선택)</label>
+        <input type="text" id="_absMakeupMemo" value="${(saved.makeupMemo||'').replace(/"/g,'&quot;')}" placeholder="예: 담당 치료사 변경 등" style="width:100%;padding:6px 8px;border:1px solid #a5d6a7;border-radius:5px;font-size:12px;box-sizing:border-box;">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="_saveAbsence(${day})" style="flex:2;background:#e65100;color:white;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:bold;cursor:pointer;">저장</button>
+        <button onclick="_clearAbsence(${day})" style="flex:1;background:#eee;color:#555;border:none;border-radius:6px;padding:10px;font-size:12px;cursor:pointer;">🗑️ 초기화</button>
+        <button onclick="document.getElementById('_absModal').remove()" style="flex:1;background:#eee;color:#555;border:none;border-radius:6px;padding:10px;font-size:12px;cursor:pointer;">취소</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+function _saveAbsence(day) {
+  const key = `absence_${childId}_${year}_${month}_${day}`;
+  const data = {
+    absent: document.getElementById('_absCheck')?.checked || false,
+    reason: (document.getElementById('_absReason')?.value||'').trim(),
+    makeupDate: document.getElementById('_absMakeupDate')?.value || '',
+    makeupTime: (document.getElementById('_absMakeupTime')?.value||'').trim(),
+    makeupMemo: (document.getElementById('_absMakeupMemo')?.value||'').trim(),
+  };
+  localStorage.setItem(key, JSON.stringify(data));
+  document.getElementById('_absModal')?.remove();
+  _applyAbsenceToCell(day);
+}
+function _clearAbsence(day) {
+  const key = `absence_${childId}_${year}_${month}_${day}`;
+  localStorage.removeItem(key);
+  document.getElementById('_absModal')?.remove();
+  _applyAbsenceToCell(day);
+  // 원래 자동 스케줄로 복원
+  buildCalendar();
+  loadRecord();
+}
+
+function _applyAbsenceToCell(day) {
+  const key = `absence_${childId}_${year}_${month}_${day}`;
+  const data = JSON.parse(localStorage.getItem(key)||'null');
+  const evtEl = document.querySelector(`.evt[data-day="${day}"]`);
+  if (!evtEl) return;
+  if (!data || (!data.absent && !data.makeupDate)) return;
+  const svcType = _getServiceType();
+  const timeStr = _getTimeSlotForEvt();
+  let html = '';
+  if (data.absent) {
+    // 이중 취소선: line-through + overline 조합
+    html += `<div style="color:#c62828;font-weight:bold;text-decoration:line-through overline;text-decoration-color:#c62828;text-decoration-thickness:1.5px;">${svcType}</div>`;
+    if (timeStr) html += `<div style="color:#c62828;font-size:10px;text-decoration:line-through overline;text-decoration-thickness:1.2px;">${timeStr}</div>`;
+    if (data.reason) html += `<div style="color:#c62828;font-size:9px;">❌ ${data.reason}</div>`;
+    else html += `<div style="color:#c62828;font-size:9px;">❌ 결석</div>`;
+  }
+  if (data.makeupDate) {
+    const md = data.makeupDate.replace(/-/g,'.').replace(/^(\d{4})\.(\d{2})\.(\d{2})/,'$2.$3');
+    html += `<div style="color:#1565c0;font-size:9px;font-weight:bold;">↻ 보강 ${md}</div>`;
+    if (data.makeupMemo) html += `<div style="color:#1565c0;font-size:9px;">${data.makeupMemo}</div>`;
+  }
+  evtEl.innerHTML = html;
+}
+
+// 보강 일자 셀에 서비스 종류·시간 자동 표기 (다른 날짜의 결석에서 이월된 보강)
+function _applyMakeupsToCalendar() {
+  // 이 월의 모든 저장된 결석 정보를 순회하며, makeupDate 가 이 월인 경우 해당 셀에 보강 정보 추가
+  const svcType = _getServiceType();
+  const timeStr = _getTimeSlotForEvt();
+  for (let src=1; src<=31; src++) {
+    const key = `absence_${childId}_${year}_${month}_${src}`;
+    const data = JSON.parse(localStorage.getItem(key)||'null');
+    if (!data || !data.makeupDate) continue;
+    // makeupDate 파싱 (YYYY-MM-DD)
+    const parts = data.makeupDate.split('-');
+    if (parts.length !== 3) continue;
+    const my = parseInt(parts[0]);
+    const mm = parseInt(parts[1]);
+    const md = parseInt(parts[2]);
+    // 같은 연·월에 해당하는 보강 일자만 이 달력에 표기
+    if (my !== year || mm !== month) continue;
+    const targetEvt = document.querySelector(`.evt[data-day="${md}"]`);
+    if (!targetEvt) continue;
+    const usedTime = (data.makeupTime||'').trim() || timeStr;
+    const makeupBlock = `
+      <div style="color:#1565c0;font-weight:bold;">${svcType} <span style="font-size:9px;background:#e3f2fd;padding:1px 4px;border-radius:3px;">보강</span></div>
+      ${usedTime ? `<div style="color:#1565c0;">${usedTime}</div>` : ''}
+      <div style="color:#1565c0;font-size:9px;">↖ ${src}일 결석 대체</div>
+    `;
+    // 이미 자동 스케줄이 있는 날일 수도 있음 — 뒤에 이어 붙임
+    targetEvt.innerHTML += makeupBlock;
+  }
+}
+
+// 페이지 로드 시 저장된 결석/보강 정보 셀에 반영
+(function applyAllAbsences(){
+  for (let d=1; d<=31; d++) _applyAbsenceToCell(d);
+  _applyMakeupsToCalendar();
+})();
+
+// 제공일 자동 계산: 실제 수업이 진행된 날짜 (주기 요일 - 결석·공휴일 + 보강 일자)
+// 발본 4회 캡: scheduledSet(첫주부터 최대 4회) 기준으로 계산
+function _updateSvcDays() {
+  const lastDay = new Date(year, month, 0).getDate();
+  const scheduledSet = _getScheduledDaysCapped(); // 이미 4회 캡 적용됨
+  const provDays = [];
+  // 1) 스케줄 4회 · 결석 아님 인 정규 수업일
+  scheduledSet.forEach(d => {
+    const key = `absence_${childId}_${year}_${month}_${d}`;
+    const abs = JSON.parse(localStorage.getItem(key)||'null');
+    if (abs?.absent) return; // 결석 처리한 날짜 제외
+    provDays.push(d);
+  });
+  // 2) 같은 달로 이월된 보강 일자 추가 (결석 대체분)
+  for (let src=1; src<=lastDay; src++) {
+    const key = `absence_${childId}_${year}_${month}_${src}`;
+    const abs = JSON.parse(localStorage.getItem(key)||'null');
+    if (!abs?.makeupDate) continue;
+    const parts = abs.makeupDate.split('-');
+    if (parts.length !== 3) continue;
+    if (parseInt(parts[0]) !== year || parseInt(parts[1]) !== month) continue;
+    const md = parseInt(parts[2]);
+    if (!provDays.includes(md)) provDays.push(md);
+  }
+  provDays.sort((a,b)=>a-b);
+  const el = document.getElementById('s1_svcDays');
+  if (el) el.value = provDays.join(', ');
+}
+_updateSvcDays();
+
+// 저장/초기화 후에도 재계산
+const _origSaveAbsence = _saveAbsence;
+_saveAbsence = function(day){ _origSaveAbsence(day); _updateSvcDays(); };
+const _origClearAbsence = _clearAbsence;
+_clearAbsence = function(day){ _origClearAbsence(day); _updateSvcDays(); };
+
+// 상태 및 결과기록 표 (기본 4행)
+function buildStatusRows(existing) {
+  const tbody = document.querySelector('#statusTbl tbody');
+  tbody.innerHTML = '';
+  const rows = existing && existing.length ? existing : [{},{},{},{}];
+  rows.forEach((r,idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div style="font-size:10px;color:#666;">서비스 제공일자</div>
+        <input type="text" class="st_provDate" value="${r.provDate||''}">
+        <div style="font-size:10px;color:#666;margin-top:4px;">승인일자</div>
+        <input type="text" class="st_apprDate" value="${r.apprDate||''}">
+        <div style="font-size:10px;color:#666;margin-top:4px;">승인번호</div>
+        <input type="text" class="st_apprNo" value="${r.apprNo||''}">
+      </td>
+      <td>
+        <div style="font-size:10px;margin-bottom:3px;">- 계절에 맞는 옷 (
+          <span class="opt" data-field="cloth" data-val="양호" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">양호</span> /
+          <span class="opt" data-field="cloth" data-val="미흡" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">미흡</span> )</div>
+        <div style="font-size:10px;margin-bottom:3px;">- 아동 양말착용 (
+          <span class="opt" data-field="sock" data-val="여" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">여</span> /
+          <span class="opt" data-field="sock" data-val="부" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">부</span> )</div>
+        <div style="font-size:10px;margin-bottom:3px;">- 계절에 맞는 의복 (
+          <span class="opt" data-field="wear" data-val="여" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">여</span> /
+          <span class="opt" data-field="wear" data-val="부" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">부</span> )</div>
+        <div style="font-size:10px;margin-bottom:3px;">- 아동표정<br>(
+          <span class="opt" data-field="face" data-val="밝음" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">밝음</span>,
+          <span class="opt" data-field="face" data-val="보통" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">보통</span>,
+          <span class="opt" data-field="face" data-val="우울" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">우울</span>,
+          <span class="opt" data-field="face" data-val="화남" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">화남</span>,
+          <span class="opt" data-field="face" data-val="짜증" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">짜증</span> )</div>
+        <div style="font-size:10px;margin-top:4px;">- 건강 (
+          <span class="opt" data-field="health" data-val="양호" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">양호</span>/
+          <span class="opt" data-field="health" data-val="컨디션난조" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">컨디션난조</span>/
+          <span class="opt" data-field="health" data-val="아픔" onclick="_toggleOpt(this)" style="cursor:pointer;padding:1px 4px;border-radius:3px;">아픔</span> )</div>
+      </td>
+      <td>
+        <div style="font-size:10px;color:#666;">치료목표 및 보호자 상당</div>
+        <textarea class="st_result" style="min-height:100px;">${r.result||''}</textarea>
+        <div style="font-size:10px;color:#666;margin-top:6px;">특이사항 :</div>
+        <textarea class="st_note" style="min-height:40px;">${r.note||''}</textarea>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+// 바우처 데이터에서 현재 아동·월에 매칭되는 항목 찾아 상태·결과기록 자동 채움
+function _prefillStatusFromVoucher() {
+  try {
+    const voucher = JSON.parse(localStorage.getItem('voucher_data')||'[]');
+    if (!voucher.length || !child) return [];
+    const targetName = (child.name||'').trim();
+    const targetBirth = (child.birth||'').replace(/\D/g,'').slice(-6);
+    const targetMk = `${year}-${String(month).padStart(2,'0')}`;
+    const _normDate = d => {
+      const digits = String(d||'').replace(/\D/g,'');
+      if (digits.length === 8) return `${digits.slice(0,4)}.${digits.slice(4,6)}.${digits.slice(6,8)}`;
+      if (digits.length === 6) return `20${digits.slice(0,2)}.${digits.slice(2,4)}.${digits.slice(4,6)}`;
+      return d||'';
+    };
+    const _normMk = d => {
+      const digits = String(d||'').replace(/\D/g,'');
+      if (digits.length >= 6) return `${digits.slice(0,4)}-${digits.slice(4,6)}`;
+      return '';
+    };
+    const matches = voucher.filter(v => {
+      const nm = (v.childName||'').trim();
+      const bt = (v.birth||'').replace(/\D/g,'').slice(-6);
+      if (nm !== targetName) return false;
+      if (targetBirth && bt && bt !== targetBirth) return false;
+      return _normMk(v.provDate) === targetMk;
+    }).sort((a,b) => (a.provDate||'').localeCompare(b.provDate||''));
+    return matches.map(v => ({
+      provDate: _normDate(v.provDate),
+      apprDate: _normDate(v.apprDate || v.provDate),
+      apprNo: v.apprNo || '',
+      therapist: v.therapist || '',
+    }));
+  } catch(e) { return []; }
+}
+const _prefilledRows = _prefillStatusFromVoucher();
+// 서비스 제공일자는 공란 유지 (사용자 요청)
+_prefilledRows.forEach(r => { if (r) r.provDate = ''; });
+buildStatusRows(_prefilledRows);
+// 바우처에 담당치료사 정보가 있으면 각 세션의 담당재활사 자동 채움 (1~4행)
+if (_prefilledRows.length) {
+  _prefilledRows.slice(0,4).forEach((r, idx) => {
+    if (r.therapist) {
+      const el = document.getElementById('s1_therapistName_'+(idx+1));
+      if (el) el.value = r.therapist;
+    }
+  });
+}
+
+// 상태 옵션 토글 (양호/미흡 등) — 클릭 시 빨간색으로 강조. 다중 선택 가능 (표정).
+// 이/부, 양호/미흡, 양호/컨디션난조/아픔 등 상호배타 그룹은 다른 옵션 자동 해제
+const _EXCLUSIVE_FIELDS = new Set(['cloth','sock','wear','health']);
+function _toggleOpt(el) {
+  const field = el.getAttribute('data-field');
+  const wasSelected = el.classList.contains('selected');
+  const tr = el.closest('tr');
+  if (_EXCLUSIVE_FIELDS.has(field)) {
+    // 같은 행 · 같은 field 의 다른 옵션 모두 해제
+    tr.querySelectorAll(`.opt[data-field="${field}"]`).forEach(o => {
+      o.classList.remove('selected');
+      o.style.color = '';
+      o.style.background = '';
+      o.style.fontWeight = '';
+    });
+  }
+  if (!wasSelected) {
+    el.classList.add('selected');
+    el.style.color = '#c62828';
+    el.style.background = '#ffebee';
+    el.style.fontWeight = 'bold';
+  } else {
+    el.classList.remove('selected');
+    el.style.color = '';
+    el.style.background = '';
+    el.style.fontWeight = '';
+  }
+}
+
+// 저장·불러오기
+const recordKey = `record_develop_${childId}_${year}_${String(month).padStart(2,'0')}`;
+function loadRecord() {
+  const saved = JSON.parse(localStorage.getItem(recordKey)||'null');
+  if (!saved) return;
+  // sheet1 fields
+  Object.keys(saved.sheet1||{}).forEach(k => { const el=document.getElementById(k); if (el) el.value = saved.sheet1[k]; });
+  // calendar events
+  document.querySelectorAll('#calTbl .evt').forEach(el => {
+    const d = el.getAttribute('data-day');
+    if (saved.calendar && saved.calendar[d]) el.innerHTML = saved.calendar[d];
+  });
+  // status rows
+  if (saved.status) {
+    buildStatusRows(saved.status);
+    // 저장된 옵션 선택 상태 복원 (row 순서대로 매핑)
+    document.querySelectorAll('#statusTbl tbody tr').forEach((tr, idx) => {
+      const r = saved.status[idx];
+      if (!r) return;
+      ['cloth','sock','wear','face','health'].forEach(field => {
+        const vals = String(r[field]||'').split(',').map(s=>s.trim()).filter(Boolean);
+        vals.forEach(v => {
+          const el = tr.querySelector(`.opt[data-field="${field}"][data-val="${v}"]`);
+          if (el) {
+            el.classList.add('selected');
+            el.style.color = '#c62828';
+            el.style.background = '#ffebee';
+            el.style.fontWeight = 'bold';
+          }
+        });
+      });
+    });
+  }
+}
+loadRecord();
+
+function saveRecord() {
+  const sheet1 = {};
+  ['s1_org','s1_area','s1_childName','s1_childBirth','s1_adminSig','s1_guardianSig','s1_mgmtNo','s1_childName2','s1_writeDate','s1_provider',
+   's1_svcProviderName','s1_svcTel','s1_svcCharge','s1_svcType','s1_svcCycle','s1_svcDays',
+   's1_costType','s1_costUnit','s1_costCount','s1_costTotal','s1_costSelf',
+   's1_startTime_1','s1_startTime_2','s1_startTime_3','s1_startTime_4',
+   's1_endTime_1','s1_endTime_2','s1_endTime_3','s1_endTime_4',
+   's1_therapistName_1','s1_therapistName_2','s1_therapistName_3','s1_therapistName_4',
+   's1_totalTime_1','s1_totalTime_2','s1_totalTime_3','s1_totalTime_4',
+   's1_totalCost_1','s1_totalCost_2','s1_totalCost_3','s1_totalCost_4',
+   's1_userSign_1','s1_userSign_2','s1_userSign_3','s1_userSign_4'
+  ].forEach(id => { const el=document.getElementById(id); if (el) sheet1[id] = el.value; });
+  const calendar = {};
+  document.querySelectorAll('#calTbl .evt').forEach(el => {
+    const d = el.getAttribute('data-day');
+    calendar[d] = el.innerHTML;
+  });
+  const status = [];
+  document.querySelectorAll('#statusTbl tbody tr').forEach(tr => {
+    const _getSelected = (field) => {
+      const arr = [];
+      tr.querySelectorAll(`.opt[data-field="${field}"].selected`).forEach(el => arr.push(el.getAttribute('data-val')));
+      return arr.join(',');
+    };
+    status.push({
+      provDate: tr.querySelector('.st_provDate')?.value||'',
+      apprDate: tr.querySelector('.st_apprDate')?.value||'',
+      apprNo: tr.querySelector('.st_apprNo')?.value||'',
+      cloth: _getSelected('cloth'),
+      sock: _getSelected('sock'),
+      wear: _getSelected('wear'),
+      face: _getSelected('face'),
+      health: _getSelected('health'),
+      result: tr.querySelector('.st_result')?.value||'',
+      note: tr.querySelector('.st_note')?.value||'',
+    });
+  });
+  localStorage.setItem(recordKey, JSON.stringify({ sheet1, calendar, status, year, month, childId, category, savedAt:new Date().toISOString() }));
+  alert('✅ 저장되었습니다.');
+}
+</script>
+</body>
+</html>

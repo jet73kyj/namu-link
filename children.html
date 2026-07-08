@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>아동 관리 - 나무링크</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .child-card { background:#fff; border:1px solid #e0e0e0; border-radius:10px; margin-bottom:14px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+    .child-header { display:flex; align-items:center; gap:12px; padding:12px 16px; background:#f5f9f0; border-bottom:1px solid #e0e0e0; }
+    .child-name { font-size:15px; font-weight:bold; color:#2e7d32; }
+    .child-birth { font-size:12px; color:#777; }
+    .child-age  { font-size:11px; color:#aaa; }
+    .status-dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:4px; }
+    .status-label { font-size:12px; color:#555; }
+    .therapy-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .therapy-table th { background:#f9fbe7; color:#558b2f; font-size:11px; font-weight:bold; padding:7px 10px; text-align:center; border-bottom:1px solid #e8f5e9; }
+    .therapy-table td { padding:8px 10px; border-bottom:1px solid #f0f0f0; vertical-align:middle; text-align:center; }
+    .therapy-table tr:last-child td { border-bottom:none; }
+    .support-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:bold; }
+    .badge-bandal  { background:#e3f2fd; color:#1565c0; }
+    .badge-center  { background:#fff9c4; color:#f57f17; }
+    .badge-banchi  { background:#f3e5f5; color:#6a1b9a; }
+    .fee-type-badge { display:inline-block; padding:2px 7px; border-radius:8px; font-size:11px; font-weight:bold; background:#e8f5e9; color:#2e7d32; }
+    .monthly-fee-grid { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
+    .mf-cell { font-size:10px; background:#f5f5f5; border-radius:3px; padding:2px 5px; color:#555; }
+    .mf-cell.paid { background:#e8f5e9; color:#2e7d32; }
+    .no-therapy { text-align:center; color:#bbb; font-size:13px; padding:14px; }
+    .search-wrap { display:flex; gap:8px; margin-bottom:16px; align-items:center; }
+    .search-wrap input { flex:1; padding:9px 12px; border:1px solid #ddd; border-radius:6px; font-size:14px; }
+    .filter-btn { padding:7px 14px; border:1px solid #c8e6c9; border-radius:6px; font-size:12px; background:#f5f9f0; color:#2e7d32; cursor:pointer; font-weight:bold; }
+    .filter-btn.active { background:#2e7d32; color:white; border-color:#2e7d32; }
+    .section-label { font-size:10px; color:#aaa; display:block; margin-bottom:1px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌿 나무링크</h1>
+    <span id="userLabel" style="font-size:14px;"></span>
+  </header>
+  <nav>
+    <a href="children.html" class="active">아동 관리</a>
+    <a href="intake.html">신규아동</a>
+    <a href="records.html">치료 기록</a>
+    <a href="calendar.html">아동 스케줄</a>
+    <a href="payments.html">납부 관리</a>
+    <a href="therapists.html">치료사 관리</a>
+    <a href="#" onclick="logout()">로그아웃</a>
+  </nav>
+
+  <div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div class="page-title">아동 관리</div>
+      <span style="font-size:12px; color:#aaa;">납부현황 기준 자동 표기 (수정은 납부 관리에서)</span>
+    </div>
+
+    <div class="card" style="padding:14px 16px;">
+      <div class="search-wrap">
+        <input type="text" id="searchInput" placeholder="아동 이름 검색..." oninput="renderList()">
+        <button class="filter-btn active" id="f_all"    onclick="setFilter('all')">전체</button>
+        <button class="filter-btn"        id="f_active" onclick="setFilter('active')">치료중</button>
+        <button class="filter-btn"        id="f_end"    onclick="setFilter('end')">종결/대기</button>
+      </div>
+      <div id="childList"></div>
+    </div>
+  </div>
+
+  <script>
+    if (!localStorage.getItem('currentUser')) location.href = 'index.html';
+    document.getElementById('userLabel').textContent = localStorage.getItem('currentUser') + '님';
+
+    let currentFilter = 'all';
+
+    const BANCHI_SUPPORTS = ['방치','방과후활동비','치료지원 언어영역','치료지원 작업치료','방과후 치료지원 언어영역','방과후 치료지원 작업치료'];
+    const CENTER_SUPPORT  = '센터비용';
+    const BANDAL_SUPPORT  = '발달재활서비스';
+
+    const STATUS_COLOR = { '상담중':'#1565c0','평가중':'#e65100','치료중':'#2e7d32','종결':'#757575','대기중':'#e65100' };
+    const FEE_TYPE_LABEL = { '가형':'가형 20,000원','나형':'나형 40,000원','다형':'다형 0원','라형':'라형 60,000원','마형':'마형 80,000원' };
+
+    function getChildren() { return JSON.parse(localStorage.getItem('children')||'[]'); }
+    function getPayments() { return JSON.parse(localStorage.getItem('payments')||'[]'); }
+
+    function calcAge(birth) {
+      if (!birth) return '';
+      let by, bm, bd;
+      if (birth.length===8) { by=parseInt(birth.slice(0,4)); bm=parseInt(birth.slice(4,6)); bd=parseInt(birth.slice(6,8)); }
+      else if (birth.length===6) {
+        const yy=parseInt(birth.slice(0,2));
+        by = yy<=new Date().getFullYear()%100 ? 2000+yy : 1900+yy;
+        bm=parseInt(birth.slice(2,4)); bd=parseInt(birth.slice(4,6));
+      } else return '';
+      const now=new Date();
+      let years=now.getFullYear()-by, months=now.getMonth()+1-bm;
+      if (now.getDate()<bd) months--;
+      if (months<0){years--;months+=12;}
+      if (years<0) return '';
+      return years===0 ? `${months}개월` : (months>0?`${years}년 ${months}개월`:`${years}년`);
+    }
+
+    function fmtBirth(b) {
+      if (!b) return '-';
+      return b.length===8 ? `${b.slice(2,4)}.${b.slice(4,6)}.${b.slice(6,8)}` :
+             b.length===6 ? `${b.slice(0,2)}.${b.slice(2,4)}.${b.slice(4,6)}` : b;
+    }
+
+    function abbrevSupport(s) {
+      if (!s) return '-';
+      if (s === '발달재활서비스') return '발달재활서비스';
+      if (s === '센터비용') return '센터비용';
+      if (s === '방과후 치료지원 작업치료') return '방치작';
+      if (s === '방과후 치료지원 언어영역') return '방치언';
+      if (s === '치료지원 작업치료') return '치작';
+      if (s === '치료지원 언어영역') return '치언';
+      if (s === '방과후활동비') return '방';
+      if (s === '방치') return '방치';
+      // 부분 매칭 fallback
+      if (s.includes('방과후') && s.includes('작업')) return '방치작';
+      if (s.includes('방과후') && s.includes('언어')) return '방치언';
+      if (s.includes('작업')) return '치작';
+      if (s.includes('언어')) return '치언';
+      if (s.includes('방과후활동')) return '방';
+      return s;
+    }
+
+    function supportBadge(s) {
+      if (s===BANDAL_SUPPORT) return `<span class="support-badge badge-bandal">발달재활서비스</span>`;
+      if (s===CENTER_SUPPORT)  return `<span class="support-badge badge-center">센터비용</span>`;
+      if (BANCHI_SUPPORTS.includes(s)) return `<span class="support-badge badge-banchi">${abbrevSupport(s)}</span>`;
+      return `<span class="support-badge" style="background:#f5f5f5;color:#777;">${abbrevSupport(s)}</span>`;
+    }
+
+    function fmtCycle(cycle) {
+      if (!cycle) return '-';
+      return cycle.split(',').map(d=>d.trim()).filter(Boolean).join('·') + '요일';
+    }
+
+    function setFilter(f) {
+      currentFilter = f;
+      ['all','active','end'].forEach(k=>{
+        document.getElementById('f_'+k).classList.toggle('active', k===f);
+      });
+      renderList();
+    }
+
+    function renderList() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const year  = new Date().getFullYear();
+      const payments = getPayments();
+
+      let list = getChildren().filter(c=>c.name.toLowerCase().includes(query));
+      if (currentFilter==='active') list = list.filter(c=>c.status!=='종결'&&c.status!=='대기중');
+      if (currentFilter==='end')    list = list.filter(c=>c.status==='종결'||c.status==='대기중');
+
+      const container = document.getElementById('childList');
+      if (!list.length) { container.innerHTML='<div class="no-therapy">해당하는 아동이 없습니다.</div>'; return; }
+
+      container.innerHTML = list.map(c=>{
+        const st    = c.status||'치료중';
+        const color = STATUS_COLOR[st]||'#2e7d32';
+        const therapies = c.therapies||[];
+
+        // 지원유형별 rows
+        const rows = therapies.map(t=>{
+          const isBandal  = t.support===BANDAL_SUPPORT;
+          const isCenter  = t.support===CENTER_SUPPORT;
+          const isBanchi  = BANCHI_SUPPORTS.includes(t.support);
+
+          let extraCols = '';
+
+          if (isBandal) {
+            const ftLabel = c.feeType ? `<span class="fee-type-badge">${FEE_TYPE_LABEL[c.feeType]||c.feeType}</span>` : '<span style="color:#bbb;font-size:11px;">-</span>';
+            extraCols = `<td style="text-align:left;">${ftLabel}</td>`;
+          } else {
+            extraCols = `<td style="color:#ddd;font-size:11px;">-</td>`;
+          }
+
+          return `<tr>
+            <td>${supportBadge(t.support)}</td>
+            <td>${t.therapist||c.therapist||'-'}</td>
+            <td>${fmtCycle(t.cycle)}</td>
+            <td>${t.timeSlot||'-'}</td>
+            ${extraCols}
+          </tr>`;
+        }).join('');
+
+        const tableBody = therapies.length
+          ? rows
+          : `<tr><td colspan="6" class="no-therapy">납부현황에 등록된 수업 정보가 없습니다.</td></tr>`;
+
+        return `
+        <div class="child-card">
+          <div class="child-header">
+            <div>
+              <span class="child-name">${c.name}</span>
+              <span class="child-birth" style="margin-left:8px;">${fmtBirth(c.birth)}</span>
+              <span class="child-age" style="margin-left:6px;">(${calcAge(c.birth)})</span>
+            </div>
+            <div>
+              <span class="status-dot" style="background:${color};"></span>
+              <span class="status-label">${st}</span>
+            </div>
+            ${c.managerId ? `<div style="font-size:11px;color:#999;">관리자번호: ${c.managerId}</div>` : ''}
+            <div style="margin-left:auto;display:flex;gap:6px;">
+              <button onclick="_issueAssessmentLink('${c.id}')" style="padding:5px 10px;background:#fee500;color:#3c1e1e;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📩 초기상담지 링크</button>
+              <button onclick="_viewAssessments('${c.id}')" style="padding:5px 10px;background:#e3f2fd;color:#1565c0;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📋 상담지 조회</button>
+            </div>
+          </div>
+          <table class="therapy-table">
+            <thead>
+              <tr>
+                <th>지원유형</th>
+                <th>담당치료사</th>
+                <th>수업요일</th>
+                <th>수업시간</th>
+                <th>본인부담금 유형</th>
+              </tr>
+            </thead>
+            <tbody>${tableBody}</tbody>
+          </table>
+        </div>`;
+      }).join('');
+    }
+
+    function logout() { localStorage.removeItem('currentUser'); location.href = 'index.html'; }
+
+    // ==================== 초기상담지 토큰 발급/조회 ====================
+    function _calcMonths(birth) {
+      const d = String(birth||'').replace(/\D/g,'');
+      let y,m,day;
+      if (d.length === 8) { y=+d.slice(0,4); m=+d.slice(4,6); day=+d.slice(6,8); }
+      else if (d.length === 6) { y=2000+ +d.slice(0,2); m=+d.slice(2,4); day=+d.slice(4,6); }
+      else return null;
+      const now = new Date(), bd = new Date(y,m-1,day);
+      if (isNaN(bd)) return null;
+      let mo = (now.getFullYear()-bd.getFullYear())*12 + (now.getMonth()-bd.getMonth());
+      if (now.getDate() < bd.getDate()) mo--;
+      return mo;
+    }
+    function _monthsToAg(mo) {
+      if (mo==null) return null;
+      if (mo>=19 && mo<=24) return '19_24';
+      if (mo>=25 && mo<=36) return '25_36';
+      if (mo>=37 && mo<=48) return '37_48';
+      if (mo>=49 && mo<=60) return '49_60';
+      return null;
+    }
+    function _genToken() {
+      const arr = new Uint8Array(24);
+      (window.crypto||window.msCrypto).getRandomValues(arr);
+      return Array.from(arr,b=>b.toString(16).padStart(2,'0')).join('');
+    }
+    function _issueAssessmentLink(childId) {
+      const child = (JSON.parse(localStorage.getItem('children')||'[]')).find(c=>c.id===childId);
+      if (!child) return alert('아동 정보를 찾을 수 없습니다.');
+      const months = _calcMonths(child.birth);
+      const ag = _monthsToAg(months);
+      if (!ag) {
+        if (!confirm(`아동 개월수: ${months==null?'계산불가':months+'개월'}\n초기상담지 지원 범위(19~60개월) 밖입니다.\n\n그래도 링크를 발급할까요? (연령대 미지정)`)) return;
+      }
+      const tokens = JSON.parse(localStorage.getItem('assessment_tokens')||'[]');
+      const now = new Date();
+      const exp = new Date(now.getTime() + 30*24*60*60*1000);
+      const rec = {
+        id: 'tk_'+Date.now(),
+        child_id: childId,
+        token: _genToken(),
+        age_group: ag || '',
+        issued_at: now.toISOString(),
+        expires_at: exp.toISOString(),
+        is_used: false,
+      };
+      tokens.unshift(rec);
+      localStorage.setItem('assessment_tokens', JSON.stringify(tokens));
+      const url = `${location.origin}${location.pathname.replace(/[^\/]+$/,'')}assessment.html?token=${rec.token}`;
+      const msg = `📩 초기상담지 링크 발급 완료\n\n아동: ${child.name} (${months||'?'}개월, ${ag||'범위밖'})\n만료: ${exp.toLocaleDateString('ko-KR')}\n\n[학부모께 아래 링크 전달]\n${url}\n\n"확인" 클릭 시 링크가 클립보드에 복사됩니다.`;
+      if (confirm(msg)) {
+        try { navigator.clipboard.writeText(url); alert('✅ 링크가 클립보드에 복사되었습니다.\n카카오톡·문자로 학부모께 전달해주세요.'); }
+        catch(e) { prompt('아래 링크를 복사해서 전달해주세요:', url); }
+      }
+    }
+    function _viewAssessments(childId) {
+      const list = (JSON.parse(localStorage.getItem('initial_assessments')||'[]')).filter(x=>x.child_id===childId);
+      const tokens = (JSON.parse(localStorage.getItem('assessment_tokens')||'[]')).filter(x=>x.child_id===childId);
+      const child = (JSON.parse(localStorage.getItem('children')||'[]')).find(c=>c.id===childId);
+      document.getElementById('_assessModal')?.remove();
+      const modal = document.createElement('div');
+      modal.id = '_assessModal';
+      modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      const AG_LABEL = {'19_24':'19~24개월','25_36':'25~36개월','37_48':'37~48개월','49_60':'49~60개월'};
+      let body = '';
+      // 발급된 토큰 목록
+      body += '<h4 style="margin:0 0 8px;color:#2e7d32;">🔗 발급된 링크</h4>';
+      if (!tokens.length) body += '<div style="color:#aaa;font-size:13px;margin-bottom:14px;">발급된 링크가 없습니다.</div>';
+      else {
+        body += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">';
+        body += '<tr style="background:#f5f9f0;"><th style="padding:6px;border:1px solid #ddd;">발급일</th><th style="padding:6px;border:1px solid #ddd;">연령대</th><th style="padding:6px;border:1px solid #ddd;">상태</th><th style="padding:6px;border:1px solid #ddd;">링크</th></tr>';
+        tokens.forEach(t => {
+          const status = t.is_used ? '<span style="color:#2e7d32;">✅ 제출완료</span>' : (new Date(t.expires_at)<new Date() ? '<span style="color:#c62828;">만료</span>' : '<span style="color:#f57c00;">대기중</span>');
+          const url = `${location.origin}${location.pathname.replace(/[^\/]+$/,'')}assessment.html?token=${t.token}`;
+          body += `<tr>
+            <td style="padding:6px;border:1px solid #ddd;">${new Date(t.issued_at).toLocaleDateString('ko-KR')}</td>
+            <td style="padding:6px;border:1px solid #ddd;text-align:center;">${AG_LABEL[t.age_group]||'-'}</td>
+            <td style="padding:6px;border:1px solid #ddd;text-align:center;">${status}</td>
+            <td style="padding:6px;border:1px solid #ddd;"><button onclick="navigator.clipboard.writeText('${url}').then(()=>alert('링크 복사됨'))" style="padding:3px 8px;font-size:11px;background:#fee500;border:none;border-radius:4px;cursor:pointer;">복사</button></td>
+          </tr>`;
+        });
+        body += '</table>';
+      }
+      // 제출된 응답
+      body += '<h4 style="margin:0 0 8px;color:#2e7d32;">📋 제출된 초기상담지</h4>';
+      if (!list.length) body += '<div style="color:#aaa;font-size:13px;">제출된 상담지가 없습니다.</div>';
+      else list.forEach(r => {
+        const domains = {social_emotional:'사회·정서', language:'언어', cognitive:'인지', motor:'운동'};
+        let domainHtml = '';
+        Object.keys(domains).forEach(dk => {
+          const resp = r['responses_'+dk] || {};
+          const keys = Object.keys(resp);
+          if (!keys.length) return;
+          domainHtml += `<div style="margin-top:8px;"><b style="color:#558b2f;">${domains[dk]}</b><ul style="margin:4px 0 0 20px;padding:0;font-size:12px;">`;
+          keys.forEach(k => { domainHtml += `<li>${k}: <b>${r['responses_'+dk][k]}</b></li>`; });
+          domainHtml += '</ul></div>';
+        });
+        body += `<div style="border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:10px;background:#fafafa;">
+          <div style="font-size:11px;color:#888;margin-bottom:6px;">제출: ${new Date(r.submitted_at).toLocaleString('ko-KR')} · ${AG_LABEL[r.age_group]||r.age_group}</div>
+          <div style="font-size:13px;"><b>상담자:</b> ${r.counselor_name||'-'} | <b>연락처:</b> ${r.contact||'-'}</div>
+          <div style="font-size:13px;margin-top:4px;"><b>주 호소:</b> ${r.main_concern||'-'}</div>
+          ${domainHtml}
+          ${r.regression_note?`<div style="margin-top:6px;font-size:12px;"><b>퇴행:</b> ${r.regression_note}</div>`:''}
+          ${r.prior_evaluation?`<div style="font-size:12px;"><b>이전 평가:</b> ${r.prior_evaluation}</div>`:''}
+          ${r.daycare_status?`<div style="font-size:12px;"><b>어린이집:</b> ${r.daycare_status}</div>`:''}
+          ${r.family_history?`<div style="font-size:12px;"><b>가족력:</b> ${r.family_history}</div>`:''}
+          ${r.summary_memo?`<div style="font-size:12px;"><b>종합 메모:</b> ${r.summary_memo}</div>`:''}
+        </div>`;
+      });
+      modal.innerHTML = `
+        <div style="background:white;border-radius:10px;width:720px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+          <div style="padding:14px 20px;background:#2e7d32;color:white;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;font-size:15px;">📋 ${child?.name||''} 초기상담지</h3>
+            <button onclick="document.getElementById('_assessModal').remove()" style="background:transparent;color:white;border:none;font-size:20px;cursor:pointer;">✕</button>
+          </div>
+          <div style="padding:18px 20px;">${body}</div>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+
+    renderList();
+  </script>
+</body>
+</html>

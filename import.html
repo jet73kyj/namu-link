@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>아동 일괄 등록 - 나무링크</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- SheetJS CDN -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <style>
+    .step-bar { display:flex; align-items:center; gap:0; margin-bottom:28px; }
+    .step { display:flex; align-items:center; gap:8px; }
+    .step-num { width:32px; height:32px; border-radius:50%; background:#ccc; color:white; font-weight:bold; font-size:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .step.active .step-num { background:#2e7d32; }
+    .step.done .step-num { background:#66bb6a; }
+    .step-label { font-size:13px; color:#aaa; font-weight:bold; }
+    .step.active .step-label { color:#2e7d32; }
+    .step.done .step-label { color:#66bb6a; }
+    .step-line { flex:1; height:2px; background:#e0e0e0; min-width:20px; margin:0 6px; }
+    .step-line.done { background:#66bb6a; }
+
+    .drop-zone { border:3px dashed #a5d6a7; border-radius:14px; padding:48px 24px; text-align:center; background:#f1f8e9; cursor:pointer; transition:all 0.2s; }
+    .drop-zone:hover, .drop-zone.drag-over { border-color:#2e7d32; background:#e8f5e9; }
+    .drop-zone .icon { font-size:48px; margin-bottom:12px; }
+    .drop-zone p { color:#555; margin:6px 0; font-size:14px; }
+
+    .preview-wrap { overflow-x:auto; max-height:420px; overflow-y:auto; border:1px solid #ddd; border-radius:8px; }
+    table.preview { border-collapse:collapse; font-size:12px; min-width:900px; }
+    table.preview th { background:#2e7d32; color:white; padding:7px 10px; white-space:nowrap; position:sticky; top:0; z-index:1; }
+    table.preview td { border:1px solid #e0e0e0; padding:6px 10px; white-space:nowrap; vertical-align:top; }
+    table.preview tbody tr:hover { background:#f1f8e9; }
+    .row-ok td:first-child { border-left:4px solid #2e7d32; }
+    .row-warn { background:#fffde7; }
+    .row-warn td:first-child { border-left:4px solid #f9a825; }
+    .row-err { background:#fff5f5; }
+    .row-err td:first-child { border-left:4px solid #e53935; }
+    .err-msg { color:#e53935; font-size:11px; }
+
+    .result-card { border-radius:10px; padding:18px 22px; margin-bottom:12px; }
+    .result-ok  { background:#e8f5e9; border:2px solid #2e7d32; }
+    .result-err { background:#fff5f5; border:2px solid #e53935; }
+    .result-num { font-size:28px; font-weight:bold; }
+
+    .template-section { background:#f9fbe7; border:2px solid #c5e1a5; border-radius:12px; padding:20px 24px; margin-bottom:24px; }
+    .template-section h3 { color:#2e7d32; margin:0 0 10px; font-size:16px; }
+    .col-table { border-collapse:collapse; font-size:12px; width:100%; }
+    .col-table th { background:#558b2f; color:white; padding:6px 10px; text-align:left; }
+    .col-table td { border:1px solid #dcedc8; padding:5px 10px; }
+    .col-table tr:nth-child(even) td { background:#f9fbe7; }
+    .required { color:#e53935; font-weight:bold; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌿 나무링크</h1>
+    <span id="userLabel" style="font-size:14px;"></span>
+  </header>
+  <nav>
+    <a href="children.html">아동 관리</a>
+    <a href="intake.html">신규아동</a>
+    <a href="records.html">치료 기록</a>
+    <a href="calendar.html">아동 스케줄</a>
+    <a href="payments.html">납부 관리</a>
+    <a href="therapists.html">치료사 관리</a>
+    <a href="#" onclick="logout()">로그아웃</a>
+  </nav>
+
+  <div class="container">
+    <div class="page-title">아동 일괄 등록 (엑셀 업로드)</div>
+
+    <!-- 진행 단계 -->
+    <div class="step-bar">
+      <div class="step active" id="step1"><div class="step-num">1</div><div class="step-label">서식 다운로드</div></div>
+      <div class="step-line" id="line1"></div>
+      <div class="step" id="step2"><div class="step-num">2</div><div class="step-label">파일 업로드</div></div>
+      <div class="step-line" id="line2"></div>
+      <div class="step" id="step3"><div class="step-num">3</div><div class="step-label">미리보기 확인</div></div>
+      <div class="step-line" id="line3"></div>
+      <div class="step" id="step4"><div class="step-num">4</div><div class="step-label">가져오기 완료</div></div>
+    </div>
+
+    <!-- STEP 1: 서식 다운로드 -->
+    <div id="viewStep1">
+      <div class="template-section">
+        <h3>📋 엑셀 서식 안내</h3>
+        <p style="font-size:13px;color:#555;margin-bottom:12px;">
+          아래 버튼으로 나무링크 전용 엑셀 서식을 다운로드하세요. 서식을 열어 아동 정보를 입력 후 저장하여 업로드하면 됩니다.
+        </p>
+        <button class="btn btn-primary" onclick="downloadTemplate()">⬇ 엑셀 서식 다운로드</button>
+      </div>
+
+      <div class="card" style="padding:20px;">
+        <h3 style="color:#2e7d32;margin-top:0;">열(컬럼) 설명</h3>
+        <table class="col-table">
+          <thead><tr><th>열</th><th>항목</th><th>필수</th><th>입력 예시 / 허용값</th></tr></thead>
+          <tbody>
+            <tr><td>A</td><td>이름</td><td class="required">★ 필수</td><td>홍길동</td></tr>
+            <tr><td>B</td><td>생년월일</td><td></td><td>20100315 (YYYYMMDD, 8자리)</td></tr>
+            <tr><td>C</td><td>성별</td><td></td><td>남 / 여</td></tr>
+            <tr><td>D</td><td>보호자명</td><td></td><td>홍아무개</td></tr>
+            <tr><td>E</td><td>연락처</td><td></td><td>010-1234-5678</td></tr>
+            <tr><td>F</td><td>관리자번호</td><td></td><td>2024001</td></tr>
+            <tr><td>G</td><td>장애유형</td><td></td><td>장애등록 시에만 "장애등록" 기재, 비장애등록은 공란</td></tr>
+            <tr><td>H</td><td>상태</td><td></td><td>상담중 / 평가중 / 치료중 / 종결 (기본: 치료중)</td></tr>
+            <tr><td>I</td><td>메모</td><td></td><td>자유 입력</td></tr>
+            <tr><td colspan="4" style="background:#f1f8e9;font-weight:bold;color:#2e7d32;">── 치료 정보 1번 (J~T열, 11개) ──</td></tr>
+            <tr><td>J</td><td>치료종류1</td><td></td><td>언어치료 / 감각통합 / 음악치료 / 심리운동 / 전산화인지 / 학습인지</td></tr>
+            <tr><td>K</td><td>담당치료사1</td><td></td><td>정다혜</td></tr>
+            <tr><td>L</td><td>지원종류1</td><td></td><td>발달재활서비스 / 방과후활동비 / 치료지원 언어영역 / 치료지원 감통영역 / 센터비용 / 없음</td></tr>
+            <tr><td>M</td><td>계좌입금(발달재활:본인부담금)1<br><span style="color:#e65100;font-size:11px;">※ 발달재활: 본인부담금 (20000/40000/60000/80000)<br>※ 그 외: 치료단가</span></td><td></td><td>62000 또는 40000</td></tr>
+            <tr><td>N</td><td>치료주기1</td><td></td><td>월,수 (요일 쉼표 구분)</td></tr>
+            <tr><td>O</td><td>치료시간1</td><td></td><td>9:00~9:40</td></tr>
+            <tr><td>P</td><td>기본회수1</td><td></td><td>4 (숫자, 보통 4 입력 후 자동계산 활용)</td></tr>
+            <tr><td>Q</td><td>추가회수1</td><td></td><td>1 (없으면 0)</td></tr>
+            <tr><td>R</td><td>추가단가1</td><td></td><td>30000 (없으면 0)</td></tr>
+            <tr><td>S</td><td>결제방법1</td><td></td><td>신용카드 / 바우처카드 / 계좌이체 / 현금</td></tr>
+            <tr><td>T</td><td>결제메모1<br><span style="color:#555;font-size:11px;">신용카드: 결제일 카드사 승인번호<br>계좌입금: 입금일 계좌 아동명</span></td><td></td><td>2025-06-04 BC카드 12345678<br>또는 2025-06-02 국민은행 홍길동</td></tr>
+            <tr><td colspan="4" style="background:#e3f2fd;font-weight:bold;color:#0d47a1;">── 치료 정보 2번 (U~AE열) — 없으면 비워두세요 ──</td></tr>
+            <tr><td>U~AE</td><td>치료정보2</td><td></td><td>위와 동일 순서 반복 (11개 열)</td></tr>
+            <tr><td colspan="4" style="background:#f3e5f5;font-weight:bold;color:#4a148c;">── 치료 정보 3번 (AF~AP열) ──</td></tr>
+            <tr><td>AF~AP</td><td>치료정보3</td><td></td><td>위와 동일 순서 반복 (11개 열)</td></tr>
+            <tr><td colspan="4" style="background:#fff3e0;font-weight:bold;color:#e65100;">── 치료 정보 4번 (AQ~BA열) ──</td></tr>
+            <tr><td>AQ~BA</td><td>치료정보4</td><td></td><td>위와 동일 순서 반복 (11개 열)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:20px;text-align:right;">
+        <button class="btn btn-primary" onclick="goStep(2)">다음: 파일 업로드 →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: 파일 업로드 -->
+    <div id="viewStep2" style="display:none;">
+      <div class="card" style="padding:24px;">
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <div class="icon">📂</div>
+          <p><strong>클릭하거나 파일을 여기로 드래그하세요</strong></p>
+          <p style="font-size:12px;color:#999;">.xlsx 파일만 지원합니다</p>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleFile(this.files[0])">
+        <div id="fileInfo" style="margin-top:12px;font-size:13px;color:#555;"></div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between;">
+        <button class="btn btn-secondary" onclick="goStep(1)">← 이전</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: 미리보기 -->
+    <div id="viewStep3" style="display:none;">
+      <div id="previewSummary" style="margin-bottom:14px;"></div>
+      <div class="preview-wrap">
+        <table class="preview" id="previewTable"></table>
+      </div>
+      <div style="margin-top:16px;background:#fff8e1;border:1px solid #f9a825;border-radius:8px;padding:12px 16px;margin-bottom:10px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;">
+          <input type="checkbox" id="updateExisting" style="width:18px;height:18px;cursor:pointer;" onchange="showPreview()">
+          <span>
+            <b>기존 아동 정보 덮어쓰기</b>
+            <span style="display:block;font-size:12px;color:#777;margin-top:2px;">체크 시 — 이름+생년월일이 같은 아동의 치료시간·치료주기·지원종류 등을 엑셀 내용으로 업데이트합니다</span>
+          </span>
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="goStep(2)">← 다시 업로드</button>
+        <button class="btn btn-primary" id="importBtn" onclick="doImport()">✅ 가져오기 실행</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: 완료 -->
+    <div id="viewStep4" style="display:none;">
+      <div class="card" style="padding:32px;text-align:center;">
+        <div style="font-size:56px;margin-bottom:12px;">✅</div>
+        <div id="resultMsg" style="font-size:18px;font-weight:bold;color:#2e7d32;margin-bottom:20px;"></div>
+        <div id="resultDetail" style="font-size:14px;color:#555;margin-bottom:24px;"></div>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <a href="children.html"><button class="btn btn-primary">아동 목록 보기</button></a>
+          <button class="btn btn-secondary" onclick="goStep(1)">추가 업로드</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 스케줄 데이터 정규화 (기존 아동) -->
+    <div class="card" style="margin-top:20px;border:2px solid #6a1b9a;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <span style="font-size:22px;">🔧</span>
+        <div>
+          <div style="font-weight:bold;font-size:16px;color:#6a1b9a;">기존 아동 스케줄 데이터 정규화</div>
+          <div style="font-size:12px;color:#777;">아동 목록은 있지만 스케줄에 표시 안 될 때 — 치료주기·시간 형식을 자동 수정합니다</div>
+        </div>
+      </div>
+      <div style="background:#f3e5f5;border-radius:8px;padding:10px 14px;font-size:12px;color:#6a1b9a;margin-bottom:12px;">
+        수정 대상 예시: <b>화요일→화</b> / <b>09:00~09:40→9:00~9:40</b> / <b>9:00-9:40→9:00~9:40</b>
+      </div>
+      <button class="btn btn-primary" style="background:#6a1b9a;" onclick="fixScheduleData()">🔧 스케줄 데이터 자동 수정 실행</button>
+      <div id="fixResult" style="margin-top:12px;font-size:13px;"></div>
+    </div>
+
+    <!-- 관리자번호 일괄 업데이트 (별도 기능) -->
+    <div class="card" style="margin-top:32px;border:2px solid #1565c0;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <span style="font-size:22px;">🔢</span>
+        <div>
+          <div style="font-weight:bold;font-size:16px;color:#1565c0;">기존 아동 관리자번호 일괄 업데이트</div>
+          <div style="font-size:12px;color:#777;">기존에 등록된 아동의 관리자번호만 엑셀로 업데이트합니다 (이름+생년월일로 매칭)</div>
+        </div>
+      </div>
+      <div style="background:#e3f2fd;border-radius:8px;padding:12px 16px;font-size:13px;color:#1565c0;margin-bottom:16px;">
+        📋 <b>엑셀 형식:</b> 기존 아동등록 엑셀 서식 그대로 사용 — A열(이름), B열(생년월일), F열(관리자번호)만 채워도 됩니다.
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <input type="file" id="managerIdFile" accept=".xlsx,.xls" style="display:none;" onchange="doManagerIdUpdate(this)">
+        <button class="btn btn-primary" style="background:#1565c0;" onclick="document.getElementById('managerIdFile').click()">
+          📂 엑셀 파일 선택 후 업데이트
+        </button>
+      </div>
+      <div id="managerIdResult" style="margin-top:14px;font-size:13px;"></div>
+    </div>
+  </div>
+
+  <script>
+    if (!localStorage.getItem('currentUser')) location.href = 'index.html';
+    document.getElementById('userLabel').textContent = localStorage.getItem('currentUser') + '님';
+
+    let parsedRows = [];
+
+    // ── 단계 이동 ──
+    function goStep(n) {
+      [1,2,3,4].forEach(i=>{
+        document.getElementById(`viewStep${i}`).style.display = i===n?'':'none';
+        const s = document.getElementById(`step${i}`);
+        s.classList.toggle('active', i===n);
+        s.classList.toggle('done', i<n);
+        if (i<4) document.getElementById(`line${i}`).classList.toggle('done', i<n);
+      });
+    }
+
+    // ── 엑셀 서식 다운로드 ──
+    // 치료정보 열 순서 (11개): 치료종류 담당치료사 지원종류 계좌입금/본인부담금 치료주기 치료시간 기본회수 추가회수 추가단가 결제방법 결제메모
+    const THERAPY_COLS = [
+      '치료종류','담당치료사','지원종류','계좌입금(발달재활:본인부담금)',
+      '치료주기','치료시간','기본회수','추가회수','추가단가','결제방법','결제메모'
+    ];
+    const THERAPY_BLOCK = THERAPY_COLS.length; // 11
+
+    function downloadTemplate() {
+      const headers = [
+        '이름','생년월일(YYYYMMDD)','성별','보호자명','연락처','관리자번호',
+        '장애등록여부(장애등록/비장애등록)','상태(상담중/평가중/치료중/종결)','메모',
+        ...THERAPY_COLS.map(c=>c+'1'),
+        ...THERAPY_COLS.map(c=>c+'2'),
+        ...THERAPY_COLS.map(c=>c+'3'),
+        ...THERAPY_COLS.map(c=>c+'4'),
+        ...THERAPY_COLS.map(c=>c+'5'),
+        ...THERAPY_COLS.map(c=>c+'6'),
+      ];
+
+      const example = [
+        '홍길동','20100315','남','홍부모','010-1234-5678','2024001','장애등록','치료중','특이사항 없음', // 비장애등록이면 G열 공란
+        '언어치료','정다혜','치료지원 언어영역','62000','월,수','9:00~9:40','4','0','0','신용카드','2025-06-04 BC카드 12345678',
+        '감각통합','이채린','발달재활서비스','40000','화','10:40~11:20','4','0','0','계좌이체','2025-06-02 국민은행 홍길동',
+        '','','','','','','','','','','',
+        '','','','','','','','','','','',
+        '','','','','','','','','','','',
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+      ws['!cols'] = headers.map(h => ({ wch: Math.max(h.replace(/[^\x00-\x7F]/g,'xx').length, 14) }));
+      XLSX.utils.book_append_sheet(wb, ws, '아동등록');
+      XLSX.writeFile(wb, '나무링크_아동등록_서식.xlsx');
+    }
+
+    // ── 드래그앤드롭 ──
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', e=>{ e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', ()=>dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e=>{ e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+
+    // ── 파일 파싱 ──
+    function handleFile(file) {
+      if (!file) return;
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['xlsx','xls','csv'].includes(ext)) { alert('.xlsx 파일을 선택해주세요.'); return; }
+      document.getElementById('fileInfo').textContent = `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb = XLSX.read(e.target.result, {type:'array'});
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+          parseRows(raw);
+        } catch(err) {
+          alert('파일을 읽는 중 오류가 발생했습니다: '+err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    const VALID_STATUS  = ['상담중','평가중','치료중','종결'];
+    const VALID_SUPPORT = ['발달재활서비스','방과후활동비','방치','치료지원 언어영역','치료지원 감통영역','센터비용','없음',''];
+
+    // 새 열 순서 (0-based, 치료블록 기준 offset):
+    // 0:치료종류 1:담당치료사 2:지원종류 3:계좌입금/본인부담금 4:치료주기
+    // 5:치료시간 6:기본회수 7:추가회수 8:추가단가 9:결제방법 10:결제메모
+
+    const VALID_SLOTS = ['9:00~9:40','9:50~10:30','10:40~11:20','11:30~12:10','1:30~2:10','2:20~3:00','3:10~3:50','4:00~4:40','4:50~5:30','5:40~6:20','6:30~7:10','7:20~8:20'];
+
+    // 치료주기 정규화: "화요일" → "화", "월,수" → "월, 수"
+    function normalizeCycle(val) {
+      const longToShort = { '월요일':'월','화요일':'화','수요일':'수','목요일':'목','금요일':'금','토요일':'토','일요일':'일' };
+      let s = String(val||'').trim();
+      Object.entries(longToShort).forEach(([l,sh])=>{ s=s.replace(new RegExp(l,'g'), sh); });
+      const days = s.split(/[\s,\/·]+/).map(d=>d.trim()).filter(d=>'월화수목금토일'.includes(d) && d.length===1);
+      return days.join(', ');
+    }
+
+    // 치료시간 정규화: "09:00~09:40" → "9:00~9:40", "-" → "~"
+    function normalizeTimeSlot(val) {
+      if (!val) return '';
+      let s = String(val).trim()
+        .replace(/[–—-]/g, '~')          // 대시 → 물결
+        .replace(/\s*~\s*/g, '~');        // 공백 제거
+      // 시간 앞 0 제거: 09:00 → 9:00
+      s = s.replace(/\b0(\d):/g, '$1:');
+      if (VALID_SLOTS.includes(s)) return s;
+      // 시작 시간으로 유사 슬롯 매칭
+      const start = s.split('~')[0].trim();
+      return VALID_SLOTS.find(sl=>sl.startsWith(start)) || s;
+    }
+
+    function parseRows(raw) {
+      if (raw.length < 2) { alert('데이터가 없습니다. 2행부터 입력해주세요.'); return; }
+      const dataRows = raw.slice(1).filter(r => r.some(c=>String(c).trim()));
+
+      parsedRows = dataRows.map((row, idx) => {
+        const errors = [];   // 차단 오류: 이름 없음 등 → 가져오기 불가
+        const warnings = []; // 경고: 지원종류 오류 등 → 경고 표시 후 가져오기 가능
+
+        const name = String(row[0]||'').trim();
+        if (!name) errors.push('이름 필수');
+
+        const status = String(row[7]||'치료중').trim() || '치료중';
+        if (!VALID_STATUS.includes(status)) errors.push(`상태값 오류(${status})`);
+
+        const therapies = [];
+        for (let t=0; t<6; t++) {
+          const base = 9 + t * THERAPY_BLOCK;
+          const type = String(row[base]||'').trim();
+          if (!type) continue;
+          const sup = String(row[base+2]||'없음').trim();
+          // 지원종류 오류는 경고(warning)로 처리 → 가져오기는 가능
+          if (sup && !VALID_SUPPORT.includes(sup)) {
+            warnings.push(`치료${t+1} 지원종류 확인필요(${sup})`);
+          }
+          therapies.push({
+            type,
+            therapist:    String(row[base+1]||'').trim(),
+            support:      VALID_SUPPORT.includes(sup) ? sup : sup, // 그대로 저장
+            fee:          parseInt(row[base+3])||0,
+            cycle:        normalizeCycle(row[base+4]),
+            timeSlot:     normalizeTimeSlot(row[base+5]),
+            baseCount:    parseInt(row[base+6])||4,
+            extraCount:   parseInt(row[base+7])||0,
+            extraFee:     parseInt(row[base+8])||0,
+            method:       String(row[base+9]||'').trim(),
+            paymentMemo:  String(row[base+10]||'').trim(),
+          });
+        }
+
+        return {
+          _rowNum: idx+2,
+          _errors: errors,
+          _warnings: warnings,
+          name,
+          birth:     String(row[1]||'').replace(/\D/g,''),
+          gender:    String(row[2]||'').trim(),
+          guardian:  String(row[3]||'').trim(),
+          phone:     String(row[4]||'').trim(),
+          managerId: String(row[5]||'').trim(),
+          disability: String(row[6]||'').trim() ? '장애등록' : '비장애등록',
+          status,
+          memo:      String(row[8]||'').trim(),
+          therapies,
+          serviceType: therapies.map(t=>t.type).filter(Boolean).join(', '),
+          therapist:   therapies.map(t=>t.therapist).filter(Boolean).join(', '),
+        };
+      });
+
+      showPreview();
+      goStep(3);
+    }
+
+    // ── 미리보기 ──
+    function showPreview() {
+      const children = JSON.parse(localStorage.getItem('children') || '[]');
+      const updateMode = document.getElementById('updateExisting') && document.getElementById('updateExisting').checked;
+
+      const okCount   = parsedRows.filter(r=>r._errors.length===0 && r._warnings.length===0).length;
+      const warnCount = parsedRows.filter(r=>r._errors.length===0 && r._warnings.length>0).length;
+      const errCount  = parsedRows.filter(r=>r._errors.length>0).length;
+      const importable = okCount + warnCount;
+
+      // 업데이트 모드일 때 기존/신규 구분 카운트
+      const dupCount  = updateMode ? parsedRows.filter(r=>r._errors.length===0 && children.some(c=>c.name===r.name&&c.birth===r.birth)).length : 0;
+      const newCount  = updateMode ? (importable - dupCount) : 0;
+
+      document.getElementById('previewSummary').innerHTML = `
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+          ${updateMode
+            ? `<div style="background:#e3f2fd;border:2px solid #1565c0;border-radius:8px;padding:10px 18px;text-align:center;">
+                <div style="font-size:22px;font-weight:bold;color:#1565c0;">${dupCount}</div>
+                <div style="font-size:12px;color:#555;">기존 아동 업데이트</div>
+               </div>
+               <div style="background:#e8f5e9;border:2px solid #2e7d32;border-radius:8px;padding:10px 18px;text-align:center;">
+                <div style="font-size:22px;font-weight:bold;color:#2e7d32;">${newCount}</div>
+                <div style="font-size:12px;color:#555;">신규 등록</div>
+               </div>`
+            : `<div style="background:#e8f5e9;border:2px solid #2e7d32;border-radius:8px;padding:10px 18px;text-align:center;">
+                <div style="font-size:22px;font-weight:bold;color:#2e7d32;">${okCount}</div>
+                <div style="font-size:12px;color:#555;">정상</div>
+               </div>`
+          }
+          ${warnCount>0?`<div style="background:#fff8e1;border:2px solid #f9a825;border-radius:8px;padding:10px 18px;text-align:center;">
+            <div style="font-size:22px;font-weight:bold;color:#f57f17;">${warnCount}</div>
+            <div style="font-size:12px;color:#555;">경고 (가져오기 가능)</div>
+          </div>`:''}
+          ${errCount>0?`<div style="background:#fff5f5;border:2px solid #e53935;border-radius:8px;padding:10px 18px;text-align:center;">
+            <div style="font-size:22px;font-weight:bold;color:#e53935;">${errCount}</div>
+            <div style="font-size:12px;color:#555;">오류 (건너뜀)</div>
+          </div>`:''}
+        </div>
+        <div style="font-size:12px;color:#777;margin-bottom:8px;line-height:1.8;">
+          🟢 녹색 = 정상 &nbsp;|&nbsp; 🟡 노란색 = 경고(지원종류 등) - 가져오기 가능 &nbsp;|&nbsp; 🔴 빨간색 = 오류(이름 없음 등) - 엑셀 수정 후 재업로드<br>
+          ${updateMode?`<b style="color:#1565c0;">🔄 업데이트 모드:</b> 기존 아동의 치료정보(치료종류·시간·주기·지원종류·단가·결제방법)를 엑셀 내용으로 교체합니다.`:''}
+          ${errCount>0?`<b>⚠️ 오류 행 수정 방법:</b> 엑셀에서 빨간 행을 수정 후 "다시 업로드" 버튼을 눌러주세요.`:''}
+        </div>`;
+
+      // 치료 블록 전체(1~6) 표시용 헤더 생성
+      let thCols = '<th>행</th><th>이름</th><th>생년월일</th><th>장애</th>';
+      for (let t=1; t<=6; t++) {
+        thCols += `<th>치료${t}</th><th>치료사${t}</th><th>지원${t}</th>`;
+      }
+      thCols += '<th>메모</th><th>결과</th>';
+
+      let html = `<thead><tr>${thCols}</tr></thead><tbody>`;
+
+      html += parsedRows.map(r=>{
+        const cls = r._errors.length ? 'row-err' : r._warnings.length ? 'row-warn' : 'row-ok';
+        let tds = `<td style="color:#aaa;">${r._rowNum}</td>
+          <td style="font-weight:bold;">${r.name||'<span style="color:red">없음</span>'}</td>
+          <td>${r.birth||'-'}</td>
+          <td>${r.disability||'-'}</td>`;
+        for (let t=0; t<6; t++) {
+          const th = r.therapies[t]||{};
+          const supStyle = th.support && !VALID_SUPPORT.includes(th.support) ? 'color:#e65100;font-weight:bold;' : '';
+          tds += `<td>${th.type||'-'}</td>
+            <td>${th.therapist||'-'}</td>
+            <td style="${supStyle}">${th.support||'-'}</td>`;
+        }
+        const statusCell = r._errors.length
+          ? `<span class="err-msg">🔴 ${r._errors.join(', ')}</span>`
+          : r._warnings.length
+            ? `<span style="color:#f57f17;">🟡 ${r._warnings.join(', ')}</span>`
+            : '<span style="color:#2e7d32;">✅ 정상</span>';
+        tds += `<td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;">${r.memo||'-'}</td>
+          <td>${statusCell}</td>`;
+        return `<tr class="${cls}">${tds}</tr>`;
+      }).join('');
+
+      html += '</tbody>';
+      document.getElementById('previewTable').innerHTML = html;
+
+      if (importable === 0) {
+        document.getElementById('importBtn').disabled = true;
+        document.getElementById('importBtn').textContent = '등록 가능한 행이 없습니다';
+      } else {
+        document.getElementById('importBtn').disabled = false;
+        document.getElementById('importBtn').textContent = `✅ ${importable}명 가져오기 실행${warnCount>0?' (경고 포함)':''}`;
+      }
+    }
+
+    // ── 실제 가져오기 ──
+    function doImport() {
+      const valid = parsedRows.filter(r=>r._errors.length===0);
+      if (!valid.length) { alert('등록 가능한 행이 없습니다.'); return; }
+
+      const updateMode = document.getElementById('updateExisting').checked;
+      const children = JSON.parse(localStorage.getItem('children') || '[]');
+      let added = 0, updated = 0, skipped = 0, withWarn = 0;
+
+      valid.forEach(r=>{
+        const {_rowNum, _errors, _warnings, ...child} = r;
+        const dupIdx = children.findIndex(c => c.name===child.name && c.birth===child.birth);
+
+        if (dupIdx !== -1) {
+          if (updateMode) {
+            // 기존 아동 치료정보만 덮어쓰기 (id·관리자번호·메모 등 기본정보 유지)
+            const existing = children[dupIdx];
+            children[dupIdx] = {
+              ...existing,                      // 기존 정보 유지 (id, managerId 등)
+              therapies:   child.therapies,     // 치료정보 전체 교체
+              serviceType: child.serviceType,
+              therapist:   child.therapist,
+              status:      child.status || existing.status,
+              memo:        child.memo || existing.memo,
+            };
+            updated++;
+            if (_warnings.length) withWarn++;
+          } else {
+            skipped++;
+          }
+        } else {
+          child.id = Date.now().toString() + Math.random().toString(36).substr(2,6);
+          children.push(child);
+          added++;
+          if (_warnings.length) withWarn++;
+        }
+      });
+
+      localStorage.setItem('children', JSON.stringify(children));
+
+      document.getElementById('resultMsg').textContent =
+        updateMode ? `${updated}명 업데이트 + ${added}명 신규 등록 완료!` : `${added}명 등록 완료!`;
+      document.getElementById('resultDetail').innerHTML =
+        `${updated>0?`<div style="color:#1565c0;margin-bottom:8px;">🔄 ${updated}명 기존 아동 치료정보 업데이트됨</div>`:''}
+        ${withWarn>0?`<div style="color:#f57f17;margin-bottom:8px;">🟡 ${withWarn}명은 지원종류 경고 — 아동 정보에서 확인·수정해주세요.</div>`:''}
+        ${skipped>0?`<div style="color:#888;margin-bottom:8px;">⏭ ${skipped}명은 기존 아동으로 건너뜀 (업데이트 체크 시 덮어쓰기 가능)</div>`:''}
+        <div>아동 목록에서 확인하세요.</div>`;
+      goStep(4);
+    }
+
+    function fixScheduleData() {
+      const children = JSON.parse(localStorage.getItem('children') || '[]');
+      let fixedChildren = 0, fixedTherapies = 0;
+
+      children.forEach(child => {
+        let childFixed = false;
+        (child.therapies || []).forEach(t => {
+          const newCycle    = normalizeCycle(t.cycle);
+          const newTimeSlot = normalizeTimeSlot(t.timeSlot);
+          if (newCycle !== (t.cycle||'') || newTimeSlot !== (t.timeSlot||'')) {
+            t.cycle    = newCycle;
+            t.timeSlot = newTimeSlot;
+            fixedTherapies++;
+            childFixed = true;
+          }
+        });
+        if (childFixed) fixedChildren++;
+      });
+
+      localStorage.setItem('children', JSON.stringify(children));
+
+      document.getElementById('fixResult').innerHTML = fixedChildren > 0
+        ? `<div style="color:#6a1b9a;font-weight:bold;">✅ ${fixedChildren}명 아동의 치료 데이터 ${fixedTherapies}건 수정 완료</div>
+           <div style="color:#555;font-size:12px;margin-top:4px;">이제 아동 스케줄 페이지를 새로고침하면 스케줄에 표시됩니다.</div>`
+        : `<div style="color:#2e7d32;">✅ 수정이 필요한 데이터가 없습니다. (이미 정상 형식)</div>`;
+    }
+
+    function doManagerIdUpdate(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const wb = XLSX.read(e.target.result, {type:'array'});
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+          const dataRows = raw.slice(1).filter(r => r.some(c=>String(c).trim()));
+
+          const children = JSON.parse(localStorage.getItem('children') || '[]');
+          let updated = 0, notFound = 0, skipped = 0;
+          const notFoundNames = [];
+
+          dataRows.forEach(row => {
+            const name = String(row[0]||'').trim();
+            const birth = String(row[1]||'').replace(/\D/g,'');
+            const managerId = String(row[5]||'').trim();
+            if (!name) return;
+            if (!managerId) { skipped++; return; }
+
+            const idx = children.findIndex(c => c.name===name && c.birth===birth);
+            if (idx === -1) {
+              notFound++;
+              notFoundNames.push(name + (birth ? `(${birth})` : ''));
+            } else {
+              children[idx].managerId = managerId;
+              updated++;
+            }
+          });
+
+          localStorage.setItem('children', JSON.stringify(children));
+          input.value = '';
+
+          let html = `<div style="color:#1565c0;font-weight:bold;margin-bottom:6px;">✅ ${updated}명 관리자번호 업데이트 완료</div>`;
+          if (skipped) html += `<div style="color:#888;">• 관리자번호 없는 행 ${skipped}건 건너뜀</div>`;
+          if (notFound) html += `<div style="color:#e53935;margin-top:4px;">• 아동 목록에서 찾을 수 없음 ${notFound}명: ${notFoundNames.join(', ')}</div><div style="font-size:11px;color:#999;margin-top:2px;">(이름 또는 생년월일이 등록된 아동과 다른 경우)</div>`;
+          document.getElementById('managerIdResult').innerHTML = html;
+        } catch(err) {
+          alert('파일 읽기 오류: ' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function logout() { localStorage.removeItem('currentUser'); location.href='index.html'; }
+  </script>
+</body>
+</html>

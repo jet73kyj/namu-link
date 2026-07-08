@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>치료지원 기록지</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { font-family:'Malgun Gothic','맑은 고딕',sans-serif; background:#f5f7fa; margin:0; }
+  header { background:#2e7d32; color:white; padding:12px 24px; display:flex; align-items:center; gap:12px; }
+  nav { background:#1b5e20; padding:8px 20px; display:flex; gap:8px; }
+  nav a { color:white; text-decoration:none; padding:8px 16px; border-radius:6px; font-size:14px; }
+  nav a:hover, nav a.active { background:rgba(255,255,255,0.15); }
+  .container { max-width:1000px; margin:16px auto; padding:0 16px; }
+  .page-title { font-size:18px; font-weight:bold; color:#2e7d32; margin:10px 0; }
+  .form-actions { display:flex; gap:8px; margin:12px 0; }
+  .form-actions button { padding:8px 18px; border:none; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; }
+  .btn-save { background:#2e7d32; color:white; }
+  .btn-print { background:#1565c0; color:white; }
+  .btn-back { background:#eee; color:#555; }
+  .sheet { background:white; padding:26px 32px; border:1px solid #ddd; box-shadow:0 1px 4px rgba(0,0,0,0.05); margin-bottom:22px; page-break-after:always; }
+  .sheet h2.title { text-align:center; font-size:18px; margin:0 0 14px; letter-spacing:2px; font-weight:bold; }
+  .sheet h2.title-blue { background:#1976d2; color:white; padding:8px 12px; text-align:center; font-size:16px; margin:0 0 14px; letter-spacing:2px; font-weight:bold; border-radius:2px; }
+  .info-tbl { border-collapse:collapse; width:100%; font-size:12px; margin-bottom:10px; }
+  .info-tbl td { border:1px solid #333; padding:5px 8px; }
+  .info-tbl td.lbl { background:#f5f5f5; font-weight:bold; text-align:center; width:15%; }
+  .cal-tbl { border-collapse:collapse; width:100%; font-size:12px; margin:10px 0; table-layout:fixed; }
+  .cal-tbl th, .cal-tbl td { border:1px solid #333; padding:4px 6px; height:60px; vertical-align:top; text-align:right; width:14.28%; overflow:hidden; word-break:keep-all; position:relative; }
+  .cal-tbl th { background:#e8f5e9; text-align:center; height:22px; }
+  .cal-tbl td .evt { display:block; font-size:10px; color:#1b5e20; text-align:left; margin-top:2px; overflow:hidden; }
+  .rec-tbl { border-collapse:collapse; width:100%; font-size:12px; }
+  .rec-tbl th, .rec-tbl td { border:1px solid #333; padding:6px 8px; vertical-align:top; }
+  .rec-tbl th { background:#f5f5f5; text-align:center; font-weight:bold; }
+  .rec-tbl td.lbl { background:#f5f5f5; font-weight:bold; text-align:center; width:10%; }
+  input[type=text], input[type=date], input[type=number], textarea, select {
+    border:1px solid #ccc; padding:3px 6px; font-size:12px; font-family:inherit; box-sizing:border-box; width:100%;
+  }
+  textarea { resize:vertical; min-height:40px; }
+  @media print {
+    @page { size:A4 portrait; margin:0; }
+    html, body { height:100%; width:100%; }
+    header, nav, .form-actions, .page-title, .no-print { display:none !important; }
+    body { background:white; margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .container {
+      max-width:none; margin:0; padding:4mm 5mm;
+      width:210mm; height:297mm; box-sizing:border-box;
+      display:flex; flex-direction:column;
+    }
+    /* 두 sheet 를 A4 한 장에 세로 flex 로 균등 배치 — 상하좌우 여백 최소화 */
+    .sheet {
+      border:none; box-shadow:none; padding:0; margin:0;
+      page-break-after:auto; page-break-inside:avoid;
+      display:flex; flex-direction:column;
+    }
+    #sheet1 { flex:0 0 auto; margin-bottom:2mm; }
+    #sheet2 { flex:1 1 auto; display:flex; flex-direction:column; }
+    #sheet2 .rec-tbl { flex:1 1 auto; height:100%; }
+    #sheet2 .rec-tbl textarea { height:100% !important; min-height:70px !important; }
+    .sheet h2.title { font-size:11px; margin:0 0 2px; letter-spacing:1px; }
+    .sheet h2.title-blue { font-size:11px; margin:0 0 2px; padding:2px 6px; letter-spacing:1px; }
+    .sheet, .info-tbl, .cal-tbl, .rec-tbl { font-size:8px !important; }
+    .info-tbl { flex-shrink:0; }
+    .info-tbl td { padding:1px 3px; }
+    .cal-tbl { margin:1px 0; flex:1 1 auto; }
+    .cal-tbl th { height:10px; padding:1px; font-size:8px; }
+    .cal-tbl td { height:auto; padding:1px 2px; vertical-align:top; font-size:8px; }
+    .cal-tbl td .evt { font-size:7px; line-height:1.1; }
+    .cal-tbl td .evt div { line-height:1.1; }
+    .rec-tbl { flex:1 1 auto; }
+    .rec-tbl th, .rec-tbl td { padding:2px 3px; font-size:8px; vertical-align:top; }
+    .rec-tbl textarea { min-height:16px !important; padding:1px 3px !important; font-size:8px !important; height:100%; }
+    .info-tbl input, .cal-tbl input, .rec-tbl input, .rec-tbl textarea {
+      border:none; padding:1px 2px; font-size:8px; background:transparent; line-height:1.2;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <span style="font-size:22px;">🌿</span>
+  <h1 style="margin:0;font-size:20px;">나무링크 · 치료지원 기록지</h1>
+</header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="intake.html">신규아동</a>
+  <a href="records.html" class="active">치료 기록</a>
+  <a href="calendar.html">아동 스케줄</a>
+  <a href="payments.html">납부 관리</a>
+  <a href="therapists.html">치료사 관리</a>
+  <a href="#" onclick="logout()">로그아웃</a>
+</nav>
+
+<div class="container">
+  <div class="page-title" id="pageTitle">치료지원 기록지</div>
+
+  <div class="form-actions">
+    <button class="btn-save" onclick="saveRecord()">💾 저장</button>
+    <button class="btn-print" onclick="window.print()">🖨️ 인쇄</button>
+    <button class="btn-back" onclick="history.back()">◀ 돌아가기</button>
+  </div>
+
+  <!-- ==================== 1. 특수교육대상자 치료지원 시간표 ==================== -->
+  <div class="sheet" id="sheet1">
+    <h2 class="title" id="sheet1Title">특수교육대상자 치료지원 시간표 (X월)</h2>
+    <table class="info-tbl">
+      <tr>
+        <td class="lbl">이름</td>
+        <td><input type="text" id="s1_name"></td>
+        <td class="lbl">생년월일</td>
+        <td><input type="text" id="s1_birth"></td>
+      </tr>
+      <tr>
+        <td class="lbl">지원영역</td>
+        <td><input type="text" id="s1_area"></td>
+        <td class="lbl">소속</td>
+        <td><input type="text" id="s1_school"></td>
+      </tr>
+    </table>
+
+    <!-- 월별 달력 -->
+    <table class="cal-tbl" id="calTbl">
+      <thead><tr><th>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div style="margin-top:14px;">
+      <div style="font-size:13px;font-weight:bold;margin-bottom:6px;">☐ 치료사 정보</div>
+      <table class="info-tbl">
+        <tr>
+          <td class="lbl" style="width:12%;">이름</td>
+          <td style="width:30%;"><input type="text" id="s1_thName"></td>
+          <td class="lbl" style="width:12%;">치료기관</td>
+          <td><input type="text" id="s1_thOrg" value="자라는 나무"></td>
+        </tr>
+        <tr>
+          <td class="lbl">면허 번호</td>
+          <td colspan="3"><input type="text" id="s1_thLic"></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==================== 2. 치료지원 누가기록서 (작업/언어 자동 분기) ==================== -->
+  <div class="sheet" id="sheet2">
+    <h2 class="title-blue" id="sheet2Title">치료지원 [ ]월 치료지원 누가기록서</h2>
+    <table class="rec-tbl">
+      <tr>
+        <td rowspan="2" class="lbl">학생<br>정보</td>
+        <td class="lbl">이름(성별)</td><td><input type="text" id="s2_name"></td>
+        <td class="lbl">생년월일</td><td><input type="text" id="s2_birth"></td>
+      </tr>
+      <tr>
+        <td class="lbl">장애유형</td><td><input type="text" id="s2_disability"></td>
+        <td class="lbl">소속</td><td><input type="text" id="s2_school" placeholder="학교 / 학년"></td>
+      </tr>
+      <tr id="curLevelRow1">
+        <td class="lbl">현재<br>수행<br>수준</td>
+        <td class="lbl" id="curLevelLbl1">소근육 및<br>일상생활동작</td>
+        <td colspan="3"><textarea id="s2_curLevel1"></textarea></td>
+      </tr>
+      <tr>
+        <td rowspan="7" class="lbl">치료<br>지원<br>내용</td>
+        <td class="lbl">장기목표</td>
+        <td colspan="3"><textarea id="s2_longGoal"></textarea></td>
+      </tr>
+      <tr>
+        <td class="lbl">단기목표</td>
+        <td colspan="3"><textarea id="s2_shortGoal"></textarea></td>
+      </tr>
+      <tr>
+        <th style="width:8%;">회기</th>
+        <th style="width:42%;">치료 내용</th>
+        <th colspan="2">학생 반응 및 평가내용</th>
+      </tr>
+      <tr>
+        <td class="lbl" id="s2_sess1_lbl">1회<br><span style="font-size:10px;color:#1565c0;" id="s2_sess1_date"></span></td>
+        <td><textarea id="s2_sess1_content"></textarea></td>
+        <td colspan="2"><textarea id="s2_sess1_eval"></textarea></td>
+      </tr>
+      <tr>
+        <td class="lbl" id="s2_sess2_lbl">2회<br><span style="font-size:10px;color:#1565c0;" id="s2_sess2_date"></span></td>
+        <td><textarea id="s2_sess2_content"></textarea></td>
+        <td colspan="2"><textarea id="s2_sess2_eval"></textarea></td>
+      </tr>
+      <tr>
+        <td class="lbl" id="s2_sess3_lbl">3회<br><span style="font-size:10px;color:#1565c0;" id="s2_sess3_date"></span></td>
+        <td><textarea id="s2_sess3_content"></textarea></td>
+        <td colspan="2"><textarea id="s2_sess3_eval"></textarea></td>
+      </tr>
+      <tr>
+        <td class="lbl">치료결과</td>
+        <td colspan="3"><textarea id="s2_result"></textarea></td>
+      </tr>
+      <tr>
+        <td class="lbl">지속<br>여부</td>
+        <td colspan="4" style="text-align:center;">
+          <label style="margin-right:20px;"><input type="radio" name="s2_continue" value="지속"> 지속</label>
+          <label><input type="radio" name="s2_continue" value="중단"> 중단</label>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="5" class="confirm-cell" style="padding:4px 8px;">
+          상기 내용이 이상 없음을 확인합니다.
+          <div id="s2_confirmDate" style="text-align:center;margin-top:3px;">20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일</div>
+          <div style="text-align:right;margin-top:2px;">담당치료사&nbsp;<input type="text" id="s2_thSign" style="width:120px;display:inline-block;">&nbsp;(인)</div>
+          <div style="text-align:right;margin-top:2px;font-weight:bold;position:relative;display:inline-block;float:right;">
+            자 라 는 나 무
+            <img src="img/seal.png" onerror="this.style.display='none'" alt="직인" style="display:inline-block;width:32px;height:32px;vertical-align:middle;margin-left:6px;">
+          </div>
+          <div style="clear:both;"></div>
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<script>
+if (!localStorage.getItem('currentUser')) location.href = 'index.html';
+document.getElementById('userLabel')?.appendChild?.(document.createTextNode(''));
+
+const params = new URLSearchParams(location.search);
+const childId = params.get('childId')||'';
+const category = params.get('category')||'치료';
+const year = parseInt(params.get('year'))||new Date().getFullYear();
+const month = parseInt(params.get('month'))||(new Date().getMonth()+1);
+
+function logout() { localStorage.removeItem('currentUser'); location.href='index.html'; }
+function getChildren(){ return JSON.parse(localStorage.getItem('children')||'[]'); }
+
+function fmtBirth(b){
+  if (!b) return '';
+  const s = String(b).replace(/\D/g,'');
+  if (s.length>=8) return `${s.slice(0,4)}. ${s.slice(4,6)}. ${s.slice(6,8)}.`;
+  if (s.length===6) return `20${s.slice(0,2)}. ${s.slice(2,4)}. ${s.slice(4,6)}.`;
+  return b;
+}
+
+// 아동 정보 로드
+const child = getChildren().find(c => c.id === childId);
+// 아동 name+birth 로 sibling entry 통합 (동일 아동 여러 엔트리 대비)
+const _allChildren = getChildren();
+const _siblings = child
+  ? _allChildren.filter(c =>
+      (c.name||'').trim() === (child.name||'').trim() &&
+      (c.birth||'').replace(/\D/g,'').slice(-6) === (child.birth||'').replace(/\D/g,'').slice(-6)
+    )
+  : [];
+// 모든 sibling entry 의 therapies 를 한 배열로 통합
+const _allTherapies = _siblings.flatMap(c => (c.therapies||[]));
+const BANCHI_SUPPORTS = ['방치','치료지원 언어영역','치료지원 작업치료','방과후 치료지원 언어영역','방과후 치료지원 작업치료'];
+// 치료 카테고리 therapy 후보들
+const _banchiTherapies = _allTherapies.filter(t => BANCHI_SUPPORTS.includes(t.support));
+// 지원영역 판별: 모든 후보 therapy 를 순회하며 각 필드에서 키워드 검색
+let isOccupational = false;
+let isLanguage = false;
+let therapy = null;
+for (const t of _banchiTherapies) {
+  const support = t.support || '';
+  const _fields = [support, t.type||'', t.area||'', t.subProgram||'', t.program||''].join(' ').toLowerCase();
+  if (/작업치료|작업|감통|감각통합/.test(_fields)) { isOccupational = true; therapy = t; break; }
+  if (/언어영역|언어치료|언어/.test(_fields))    { isLanguage = true;    therapy = t; break; }
+}
+// 후보 없어도 세부 필드 미지정된 '방치'만 있으면 첫 번째 사용
+if (!therapy && _banchiTherapies.length) therapy = _banchiTherapies[0];
+const supportType = therapy?.support || '';
+const therapyLabel = isOccupational ? '작업치료' : (isLanguage ? '언어치료' : '치료지원');
+console.log('[record-form] supportType=', supportType, 'label=', therapyLabel, 'therapy=', therapy);
+
+document.getElementById('pageTitle').textContent = `${therapyLabel} 기록지 — ${year}년 ${month}월`;
+document.getElementById('sheet1Title').textContent = `특수교육대상자 치료지원 시간표 (${month}월)`;
+document.getElementById('sheet2Title').textContent = `${therapyLabel} [ ${month} ]월 치료지원 누가기록서`;
+
+// 지원영역에 따라 현재 수행 수준 라벨 표기 (해당 영역만)
+if (isOccupational) {
+  document.getElementById('curLevelLbl1').innerHTML = '소근육 및<br>일상생활동작';
+} else if (isLanguage) {
+  document.getElementById('curLevelLbl1').innerHTML = '인지 및<br>언어/학습';
+} else {
+  document.getElementById('curLevelLbl1').innerHTML = '수행 수준';
+}
+
+if (child) {
+  const name = child.name || '';
+  document.getElementById('s1_name').value = name;
+  document.getElementById('s1_birth').value = fmtBirth(child.birth||'');
+  document.getElementById('s1_area').value = therapyLabel;
+  document.getElementById('s1_school').value = child.school || '';
+  document.getElementById('s2_name').value = name;
+  document.getElementById('s2_birth').value = fmtBirth(child.birth||'');
+  document.getElementById('s2_disability').value = child.disability || '';
+  document.getElementById('s2_school').value = child.school || '';
+
+  // 담당 치료사 (인수인계 반영)
+  if (therapy) {
+    let thName = therapy.therapist || '';
+    if (therapy.handoff?.date && therapy.handoff?.therapist) {
+      const mk = `${year}-${String(month).padStart(2,'0')}`;
+      const hoMk = String(therapy.handoff.date).substring(0,7);
+      if (mk >= hoMk) thName = therapy.handoff.therapist;
+    }
+    document.getElementById('s1_thName').value = thName;
+    // 담당치료사 서명란도 자동 반영
+    document.getElementById('s2_thSign').value = thName;
+    // 치료사관리에서 자격·면허 조회 → 면허번호 자동 채움 (3개 슬롯 모두 이어붙임)
+    if (thName) {
+      const therapistsList = JSON.parse(localStorage.getItem('therapists')||'[]');
+      const thInfo = therapistsList.find(x => (x.name||'').trim() === thName.trim());
+      if (thInfo) {
+        const licStr = (thInfo.licenses||[])
+          .filter(l => l.name || l.no)
+          .map(l => l.name && l.no ? `${l.name} ${l.no}` : (l.name || l.no))
+          .join(' / ');
+        if (licStr) document.getElementById('s1_thLic').value = licStr;
+      }
+    }
+  }
+}
+
+// 공휴일
+const HOLIDAYS = {
+  2026: { '1-1':'신정','2-16':'설날 연휴','2-17':'설날','2-18':'설날 연휴','3-1':'삼일절','5-5':'어린이날','5-24':'부처님오신날','6-6':'현충일','7-17':'제헌절','8-15':'광복절','9-24':'추석 연휴','9-25':'추석','9-26':'추석 연휴','10-3':'개천절','10-9':'한글날','12-25':'크리스마스' },
+  2027: { '1-1':'신정','2-6':'설날 연휴','2-7':'설날','2-8':'설날 연휴','3-1':'삼일절','5-5':'어린이날','5-13':'부처님오신날','6-6':'현충일','7-17':'제헌절','8-15':'광복절','9-14':'추석 연휴','9-15':'추석','9-16':'추석 연휴','10-3':'개천절','10-9':'한글날','12-25':'크리스마스' }
+};
+const _holidayFor = (y, m, d) => (HOLIDAYS[y] || {})[`${m}-${d}`] || '';
+
+const _dayMap = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
+function _getScheduleDows() {
+  if (!therapy?.cycle) return [];
+  return therapy.cycle.split(',').map(s=>s.trim()).filter(Boolean).map(d=>_dayMap[d]).filter(v=>v!==undefined);
+}
+// 시작시간 + 50분 = 종료시간 자동 계산 (방/치 timeSlot 의 시작시간 사용)
+function _getTimeSlotEvt() {
+  const ts = (therapy?.timeSlot||'').trim();
+  if (!ts) return '';
+  const parts = ts.split(/[~-]/).map(s=>s.trim());
+  const startStr = parts[0];
+  if (!startStr) return ts;
+  const m = startStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return ts;
+  let hh = parseInt(m[1]), mm = parseInt(m[2]) + 50;
+  if (mm >= 60) { hh += Math.floor(mm/60); mm = mm % 60; }
+  if (hh > 12 && hh < 24) hh -= 12; // 12시간 형식 유지
+  const endStr = `${hh}:${String(mm).padStart(2,'0')}`;
+  return `${startStr}-${endStr}`;
+}
+// 월 3회 캡 스케줄 (방/치 규칙: 1주·2주·3주만 진행)
+function _getScheduledDaysCapped() {
+  const scheduleDows = _getScheduleDows();
+  if (!scheduleDows.length) return [];
+  const lastDay = new Date(year, month, 0).getDate();
+  const all = [];
+  for (let d = 1; d <= lastDay; d++) {
+    const dow = new Date(year, month-1, d).getDay();
+    if (!scheduleDows.includes(dow)) continue;
+    if (_holidayFor(year, month, d)) continue;
+    all.push(d);
+  }
+  return all.slice(0, 3);
+}
+
+function buildCalendar() {
+  const first = new Date(year, month-1, 1);
+  const lastDay = new Date(year, month, 0).getDate();
+  const startDow = first.getDay();
+  const tbody = document.querySelector('#calTbl tbody');
+  tbody.innerHTML = '';
+  const scheduled = new Set(_getScheduledDaysCapped());
+  const timeStr = _getTimeSlotEvt();
+  let day = 1;
+  let rowCount = 0;
+  while (day <= lastDay) {
+    const tr = document.createElement('tr');
+    for (let i=0; i<7; i++) {
+      const td = document.createElement('td');
+      if ((rowCount === 0 && i < startDow) || day > lastDay) {
+        // empty
+      } else {
+        const dow = new Date(year, month-1, day).getDay();
+        const holiday = _holidayFor(year, month, day);
+        const isSun = dow === 0;
+        const isSat = dow === 6;
+        const dayColor = holiday || isSun ? '#c62828' : isSat ? '#1565c0' : '#333';
+        const holidayHtml = holiday
+          ? `<div style="font-size:9px;color:#c62828;font-weight:bold;text-align:left;line-height:1.1;margin-bottom:1px;">🎌 ${holiday}</div>`
+          : '';
+        let evtDefault = '';
+        if (scheduled.has(day)) {
+          evtDefault = `<div style="color:#1b5e20;font-weight:bold;">${therapyLabel}</div>${timeStr?`<div>${timeStr.replace(/~/g,'-')}</div>`:''}`;
+        }
+        td.innerHTML = `<div style="color:${dayColor};font-weight:${holiday?'bold':'normal'};">${day}</div>${holidayHtml}<div class="evt" contenteditable="true" data-day="${day}">${evtDefault}</div>`;
+        if (holiday) td.style.background = '#fff3e0';
+        day++;
+      }
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+    rowCount++;
+  }
+}
+buildCalendar();
+
+// 회기별 날짜·시간 자동 채움 (1~3회에 스케줄 3개 매핑, 각 회기마다 시간 표기)
+// 확인 서명 일자는 3회차 일자로 자동 채움
+(function fillSessionDates(){
+  const days = _getScheduledDaysCapped();
+  const timeStr = _getTimeSlotEvt(); // 시작~종료 (예: 4:00-4:50)
+  days.forEach((d, idx) => {
+    const el = document.getElementById(`s2_sess${idx+1}_date`);
+    if (!el) return;
+    let html = `${month}월 ${d}일`;
+    if (timeStr) html += `<br>${timeStr}`;
+    el.innerHTML = html;
+  });
+  // 확인 서명일자: 3회차 (index 2) 일자 사용
+  const confirmEl = document.getElementById('s2_confirmDate');
+  if (confirmEl && days.length >= 3) {
+    const d = days[2];
+    confirmEl.innerHTML = `${year}년&nbsp;&nbsp;${month}월&nbsp;&nbsp;${d}일`;
+  }
+})();
+
+// 저장·불러오기
+const recordKey = `record_form_${childId}_${year}_${String(month).padStart(2,'0')}_${category}`;
+function loadRecord() {
+  const saved = JSON.parse(localStorage.getItem(recordKey)||'null');
+  if (!saved) return;
+  Object.keys(saved.sheet1||{}).forEach(k => { const el=document.getElementById(k); if (el) el.value = saved.sheet1[k]; });
+  Object.keys(saved.sheet2||{}).forEach(k => { const el=document.getElementById(k); if (el) el.value = saved.sheet2[k]; });
+  document.querySelectorAll('#calTbl .evt').forEach(el => {
+    const d = el.getAttribute('data-day');
+    if (saved.calendar && saved.calendar[d]) el.innerHTML = saved.calendar[d];
+  });
+  if (saved.s2_continue) {
+    const r = document.querySelector(`input[name="s2_continue"][value="${saved.s2_continue}"]`);
+    if (r) r.checked = true;
+  }
+}
+loadRecord();
+
+// 자동 복사: 빈 필드에 대해 이전 월 record 에서 데이터 이월
+// - 현재 수행 수준: 최대 12개월 (지속 이월)
+// - 장기목표: 최대 12개월 (1년)
+// - 단기목표: 최대 6개월
+function _autoFillFromPrev(fieldId, maxMonthsBack) {
+  const el = document.getElementById(fieldId);
+  if (!el || el.value.trim()) return; // 이미 값 있으면 건너뜀
+  for (let back = 1; back <= maxMonthsBack; back++) {
+    let y = year, m = month - back;
+    while (m < 1) { m += 12; y--; }
+    const prevKey = `record_form_${childId}_${y}_${String(m).padStart(2,'0')}_${category}`;
+    const saved = JSON.parse(localStorage.getItem(prevKey)||'null');
+    const v = saved?.sheet2?.[fieldId];
+    if (v && v.trim()) {
+      el.value = v;
+      // 시각적 표시: 자동 복사된 값임을 파란색 배경으로 알림
+      el.style.background = '#f0f9ff';
+      el.title = `${y}년 ${m}월 기록에서 자동 복사됨 (수정 가능)`;
+      return;
+    }
+  }
+}
+_autoFillFromPrev('s2_curLevel1', 12); // 수행 수준: 최대 1년
+_autoFillFromPrev('s2_longGoal',  12); // 장기목표: 1년
+_autoFillFromPrev('s2_shortGoal', 6);  // 단기목표: 6개월
+
+function saveRecord() {
+  const collect = ids => { const o={}; ids.forEach(id=>{ const el=document.getElementById(id); if(el) o[id]=el.value; }); return o; };
+  const sheet1 = collect(['s1_name','s1_birth','s1_area','s1_school','s1_thName','s1_thGender','s1_thOrg','s1_thLic']);
+  const sheet2 = collect([
+    's2_name','s2_birth','s2_disability','s2_school',
+    's2_curLevel1','s2_curLevel2','s2_longGoal','s2_shortGoal',
+    's2_sess1_content','s2_sess1_eval','s2_sess2_content','s2_sess2_eval',
+    's2_sess3_content','s2_sess3_eval',
+    's2_result','s2_thSign','s2_orgSign'
+  ]);
+  const calendar = {};
+  document.querySelectorAll('#calTbl .evt').forEach(el => {
+    calendar[el.getAttribute('data-day')] = el.innerHTML;
+  });
+  const s2_continue = document.querySelector('input[name="s2_continue"]:checked')?.value || '';
+  localStorage.setItem(recordKey, JSON.stringify({ sheet1, sheet2, calendar, s2_continue, year, month, childId, category, supportType, savedAt:new Date().toISOString() }));
+  alert('✅ 저장되었습니다.');
+}
+</script>
+</body>
+</html>

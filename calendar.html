@@ -1,0 +1,2529 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>아동 스케줄 - 나무링크</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ── 뷰 전환 탭 ── */
+    .view-tabs { display:flex; gap:6px; margin-bottom:14px; }
+    .view-tab { padding:7px 18px; border-radius:6px; border:2px solid #2e7d32; background:white; color:#2e7d32; font-weight:bold; font-size:13px; cursor:pointer; }
+    .view-tab.active { background:#2e7d32; color:white; }
+
+    /* ── 요일 탭 (일별 보기) ── */
+    .day-tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+    .day-tab { padding:7px 14px; border-radius:20px; border:2px solid #2e7d32; background:white; color:#2e7d32; font-weight:bold; font-size:13px; cursor:pointer; line-height:1.4; text-align:center; }
+    .day-tab.active { background:#2e7d32; color:white; }
+    .day-tab .therapist-names { font-size:10px; font-weight:normal; opacity:0.8; display:block; }
+    .day-tab.active .therapist-names { opacity:0.9; }
+
+    /* ── 치료사 선택 (주간 보기) ── */
+    .therapist-select-wrap { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+    .therapist-select-wrap label { font-weight:bold; color:#2e7d32; font-size:14px; white-space:nowrap; }
+    .therapist-select-wrap select { padding:8px 12px; border:2px solid #2e7d32; border-radius:8px; font-size:14px; color:#333; }
+
+    /* ── 공통 테이블 ── */
+    .schedule-wrap { overflow-x:auto; }
+    table.sched { border-collapse:collapse; font-size:12px; min-width:500px; width:100%; }
+    table.sched th, table.sched td { border:1px solid #ccc; padding:6px 8px; vertical-align:middle; text-align:center; }
+    table.sched thead th { background:#2e7d32; color:white; white-space:nowrap; font-size:12px; position:sticky; top:0; z-index:10; box-shadow:0 2px 4px rgba(0,0,0,0.15); }
+    .time-cell { background:#f1f8e9; font-weight:bold; color:#2e7d32; white-space:nowrap; width:90px; font-size:12px; }
+    .week-cell { background:#fafafa; color:#888; font-size:11px; width:55px; white-space:nowrap; }
+    .appt-cell { min-width:90px; font-size:11px; padding:4px 5px; }
+
+    /* ── 주간 보기 빈 슬롯 ── */
+    .slot-available {
+      background:#e8f5e9;
+      color:#2e7d32;
+      border:1px dashed #66bb6a;
+      border-radius:6px;
+      padding:6px 4px;
+      font-size:11px;
+      cursor:pointer;
+      display:block;
+      width:100%;
+      box-sizing:border-box;
+    }
+    .slot-available:hover { background:#c8e6c9; }
+
+    /* ── 칩 ── */
+    .chip { display:inline-block; padding:4px 7px; border-radius:5px; margin:2px; font-size:11px; font-weight:bold; cursor:pointer; white-space:nowrap; transition:opacity 0.15s; line-height:1.4; }
+    .chip:hover { opacity:0.8; }
+    .chip-absent { background:#e0e0e0 !important; color:#757575 !important; }
+    .chip-absent span { text-decoration:line-through; }
+    .chip-makeup { background:#ffe0b2 !important; color:#e65100 !important; border:2px dashed #e65100; }
+    .empty-cell { color:#ddd; font-size:13px; }
+
+    /* ── 탐색 / 범례 ── */
+    .cal-nav { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    .cal-nav button { background:#2e7d32; color:white; border:none; border-radius:6px; padding:6px 14px; font-size:16px; cursor:pointer; }
+    .cal-nav h2 { margin:0; font-size:20px; color:#2e7d32; min-width:130px; text-align:center; }
+    .legend { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; align-items:center; }
+    .legend-item { display:flex; align-items:center; gap:5px; font-size:12px; }
+    .legend-dot { width:14px; height:14px; border-radius:3px; flex-shrink:0; }
+
+    /* ── 경고 배너 ── */
+    #warnBanner { display:none; background:#fff3e0; border:2px solid #e65100; border-radius:8px; padding:12px 16px; margin-bottom:12px; font-size:13px; }
+
+    /* ── 모달 ── */
+    .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1000; align-items:center; justify-content:center; }
+    .modal-bg.open { display:flex; }
+    .modal { background:white; border-radius:12px; padding:24px; width:360px; max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+    .modal h3 { margin:0 0 14px; color:#2e7d32; font-size:16px; }
+    .modal .field { margin-bottom:12px; }
+    .modal .field label { display:block; font-size:13px; color:#555; margin-bottom:4px; font-weight:bold; }
+    .modal .field input, .modal .field select, .modal .field textarea { width:100%; padding:8px 10px; border:1px solid #ccc; border-radius:6px; font-size:13px; box-sizing:border-box; }
+    .modal .btn-row { display:flex; gap:8px; margin-top:14px; }
+    .modal .btn-row button { flex:1; }
+    .btn-absent { background:#757575; color:white; border:none; border-radius:6px; padding:9px; cursor:pointer; font-size:13px; }
+    .btn-makeup { background:#e65100; color:white; border:none; border-radius:6px; padding:9px; cursor:pointer; font-size:13px; }
+    .btn-restore { background:#2e7d32; color:white; border:none; border-radius:6px; padding:9px; cursor:pointer; font-size:13px; }
+
+    @media print {
+      header, nav, .view-tabs, .day-tabs, .therapist-select-wrap, .cal-nav button, .legend, .modal-bg, #warnBanner { display:none !important; }
+      .schedule-wrap { overflow:visible; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌿 나무링크</h1>
+    <span id="userLabel" style="font-size:14px;"></span>
+  </header>
+  <nav>
+    <a href="children.html">아동 관리</a>
+    <a href="intake.html">신규아동</a>
+    <a href="records.html">치료 기록</a>
+    <a href="calendar.html" class="active">아동 스케줄</a>
+    <a href="payments.html">납부 관리</a>
+    <a href="therapists.html">치료사 관리</a>
+    <a href="#" onclick="logout()">로그아웃</a>
+  </nav>
+
+  <div class="container">
+    <!-- 상단 탐색 -->
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+      <div class="cal-nav">
+        <button onclick="changeMonth(-1)">◀</button>
+        <h2 id="calTitle"></h2>
+        <button onclick="changeMonth(1)">▶</button>
+      </div>
+      <button class="btn btn-secondary" onclick="window.print()">🖨 인쇄</button>
+      <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="debugVacations()">🔍 휴가데이터확인</button>
+    </div>
+
+    <!-- 뷰 전환 -->
+    <div class="view-tabs">
+      <button class="view-tab active" id="tabDay" onclick="switchView('day')">📅 요일별 보기</button>
+      <button class="view-tab" id="tabWeek" onclick="switchView('week')">👤 치료사별 주간 보기</button>
+      <button class="view-tab" id="tabMakeup" onclick="switchView('makeup')">⚠️ 보강 필요 <span id="makeupBadge" style="display:none;background:#e65100;color:white;border-radius:10px;padding:1px 7px;font-size:12px;margin-left:4px;"></span></button>
+    </div>
+
+    <!-- 경고 배너 -->
+    <div id="warnBanner"></div>
+
+    <!-- ── 요일별 보기 ── -->
+    <div id="viewDay">
+      <div class="day-tabs" id="dayTabs"></div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+        <input type="text" id="dayChildSearch" placeholder="🔍 아동 이름 검색 (이 요일에서 찾기)" oninput="_dayChildHighlight()"
+          style="width:280px;padding:7px 12px;border:2px solid #c8e6c9;border-radius:8px;font-size:13px;">
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#c8e6c9;border:1px solid #2e7d32;"></div> 정상</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e0e0e0;border:1px solid #999;"></div> 결석</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffe0b2;border:2px dashed #e65100;"></div> 보강</div>
+        <div id="therapistLegend" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      </div>
+      <div class="card" style="padding:10px;">
+        <div class="schedule-wrap">
+          <table class="sched" id="schedTable"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 보강 필요 목록 ── -->
+    <div id="viewMakeup" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+        <div style="font-size:14px;color:#555;">이번 달 결석 및 보강 현황입니다. 보강 미지정 항목을 우선 처리하세요.</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="makeupSearch" placeholder="🔍 아동 이름 검색..." oninput="renderMakeup()"
+            style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;width:200px;">
+          <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" id="filterUnscheduled" onchange="renderMakeup()" checked>
+            미지정만 보기
+          </label>
+        </div>
+      </div>
+
+      <!-- 요약 카드 -->
+      <div id="makeupSummary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;"></div>
+
+      <!-- 치료사 휴가 → 보강 필요 섹션 -->
+      <div id="vacationMakeupSection" style="margin-bottom:16px;"></div>
+
+      <!-- 이벤트 수업(발추) 보강 필요 섹션 -->
+      <div id="eventMakeupSection" style="margin-bottom:16px;"></div>
+
+      <!-- 목록 테이블 -->
+      <div class="card" style="padding:10px;">
+        <div class="schedule-wrap">
+          <table class="sched" id="makeupTable">
+            <thead>
+              <tr>
+                <th style="width:36px;">#</th>
+                <th>아동</th>
+                <th>치료사</th>
+                <th>치료영역</th>
+                <th>지원</th>
+                <th>원래 수업일</th>
+                <th>회기</th>
+                <th>결석 사유</th>
+                <th>보강 상태</th>
+                <th>처리</th>
+              </tr>
+            </thead>
+            <tbody id="makeupTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 치료사별 주간 보기 ── -->
+    <div id="viewWeek" style="display:none;">
+      <div class="therapist-select-wrap" style="display:flex;flex-direction:column;gap:8px;align-items:flex-start;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <label style="font-weight:bold;">치료사 선택 (다중):</label>
+          <button onclick="_pickAllTherapists(true)" style="padding:4px 10px;font-size:12px;background:#e8f5e9;border:1px solid #66bb6a;border-radius:5px;cursor:pointer;color:#1b5e20;">전체 선택</button>
+          <button onclick="_pickAllTherapists(false)" style="padding:4px 10px;font-size:12px;background:#ffebee;border:1px solid #ef9a9a;border-radius:5px;cursor:pointer;color:#b71c1c;">전체 해제</button>
+          <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:10px;">
+            <input type="radio" name="weekViewMode" value="week" checked onchange="renderWeek()"> 주간(요일×시간)
+          </label>
+          <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="radio" name="weekViewMode" value="day" onchange="renderWeek()"> 일간(요일별)
+          </label>
+          <span id="weekDayPickWrap" style="display:none;align-items:center;gap:4px;font-size:13px;">
+            <label>요일:</label>
+            <select id="weekDayPick" onchange="renderWeek()">
+              <option value="월">월요일</option><option value="화" selected>화요일</option>
+              <option value="수">수요일</option><option value="목">목요일</option>
+              <option value="금">금요일</option><option value="토">토요일</option>
+            </select>
+          </span>
+        </div>
+        <div id="therapistPickList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#c8e6c9;border:1px solid #2e7d32;"></div> 수업 있음</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e8f5e9;border:1px dashed #66bb6a;"></div> 보강 가능 (빈 슬롯)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#e0e0e0;border:1px solid #999;"></div> 결석</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffe0b2;border:2px dashed #e65100;"></div> 보강</div>
+      </div>
+      <div class="card" style="padding:10px;">
+        <div id="weekMultiContainer"></div>
+        <div class="schedule-wrap" style="display:none;">
+          <table class="sched" id="weekTable"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 모달 -->
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <h3 id="modalTitle">일정 관리</h3>
+      <div id="modalInfo" style="font-size:13px;color:#555;margin-bottom:14px;padding:10px;background:#f5f5f5;border-radius:6px;"></div>
+
+      <div id="modalNormal">
+        <p style="font-size:13px;margin-bottom:12px;">이 수업을 어떻게 처리하시겠습니까?</p>
+        <div class="btn-row">
+          <button class="btn-absent" onclick="markAbsent()">결석 처리</button>
+          <button class="btn-makeup" onclick="showMakeupForm()">보강 추가</button>
+        </div>
+      </div>
+
+      <div id="modalAbsent" style="display:none;">
+        <div class="field">
+          <label>결석 사유</label>
+          <select id="absentReason">
+            <option>질병</option><option>개인사정</option><option>공휴일</option><option>기타</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>메모</label>
+          <textarea id="absentNote" rows="2" placeholder="추가 메모"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="showNormalModal()">뒤로</button>
+          <button class="btn-absent" onclick="saveAbsent()">결석 저장</button>
+        </div>
+      </div>
+
+      <div id="modalMakeup" style="display:none;">
+        <div id="makeupMethodWrap" style="display:none;margin-bottom:12px;padding:10px;background:#f5f9ff;border:1px solid #bbdefb;border-radius:6px;">
+          <div style="font-size:12px;font-weight:bold;color:#0d47a1;margin-bottom:6px;">📋 이벤트 보강 방식 선택 (발추 1회)</div>
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;margin-bottom:4px;cursor:pointer;">
+            <input type="radio" name="makeupMethod" value="session" checked onchange="_toggleMakeupMethod()"> 별도 1회 수업 (날짜·시간 지정)
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;">
+            <input type="radio" name="makeupMethod" value="split" onchange="_toggleMakeupMethod()"> 10분 × 4회 분할 (기존 4회 수업에 +10분)
+          </label>
+        </div>
+        <div class="field">
+          <label>보강 날짜</label>
+          <input type="date" id="makeupDate">
+        </div>
+        <div class="field">
+          <label>보강 시간대 (평일/토요일/직접입력)</label>
+          <select id="makeupTime" onchange="document.getElementById('makeupTimeEtcWrap').style.display=this.value==='기타'?'block':'none';">
+            <option value="">같은 시간대</option>
+            <optgroup label="평일">
+              <option>9:00~9:40</option><option>9:50~10:30</option><option>10:40~11:20</option>
+              <option>11:30~12:10</option><option>1:30~2:10</option><option>2:20~3:00</option>
+              <option>3:10~3:50</option><option>4:00~4:40</option><option>4:50~5:30</option>
+              <option>5:40~6:20</option><option>6:30~7:10</option><option>7:20~8:20</option>
+            </optgroup>
+            <optgroup label="토요일">
+              <option>8:10~8:50</option><option>9:00~9:40</option><option>9:50~10:30</option>
+              <option>10:40~11:30</option><option>11:30~12:10</option><option>12:20~1:00</option>
+              <option>1:10~1:50</option><option>2:00~2:40</option><option>2:50~3:30</option>
+              <option>3:40~4:20</option>
+            </optgroup>
+            <option value="기타">기타 (직접입력)</option>
+          </select>
+          <div id="makeupTimeEtcWrap" style="display:none;margin-top:6px;">
+            <input type="text" id="makeupTimeEtc" placeholder="예: 10:40~11:30" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:5px;box-sizing:border-box;">
+          </div>
+        </div>
+        <div class="field">
+          <label>결석 사유</label>
+          <select id="makeupReason">
+            <option>질병</option><option>개인사정</option><option>공휴일</option><option>기타</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>메모</label>
+          <textarea id="makeupNote" rows="2" placeholder="추가 메모"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="showNormalModal()">뒤로</button>
+          <button class="btn-makeup" onclick="saveMakeup()">보강 저장</button>
+        </div>
+        <div style="border-top:1px dashed #ddd;margin-top:12px;padding-top:10px;text-align:center;">
+          <button onclick="cancelSession()" style="padding:8px 18px;background:#c62828;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">❌ 수업 취소 (보강 없음)</button>
+          <div style="font-size:11px;color:#888;margin-top:4px;">보강 없이 수업을 취소하고 교육비 미부과 처리합니다.</div>
+        </div>
+      </div>
+
+      <div id="modalExisting" style="display:none;">
+        <div id="existingInfo" style="font-size:13px;margin-bottom:14px;"></div>
+        <div class="btn-row">
+          <button class="btn-restore" onclick="restoreSession()">정상 복원</button>
+          <button class="btn btn-secondary" onclick="closeModal()">닫기</button>
+        </div>
+      </div>
+
+      <div style="text-align:right;margin-top:10px;">
+        <button class="btn btn-secondary" style="padding:4px 12px;font-size:12px;" onclick="closeModal()">✕ 닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (!localStorage.getItem('currentUser')) location.href = 'index.html';
+    document.getElementById('userLabel').textContent = localStorage.getItem('currentUser') + '님';
+
+    const DAYS = ['월','화','수','목','금','토'];
+    const DAY_IDX = {'월':1,'화':2,'수':3,'목':4,'금':5,'토':6};
+    const VALID_SLOTS = ['9:00~9:40','9:50~10:30','10:40~11:20','11:30~12:10','1:30~2:10','2:20~3:00','3:10~3:50','4:00~4:40','4:50~5:30','5:40~6:20','6:30~7:10','7:20~8:20'];
+    const SAT_SLOTS   = ['8:10~8:50','9:00~9:40','9:50~10:30','10:40~11:30','11:30~12:10','12:20~1:00','1:10~1:50','2:00~2:40','2:50~3:30','3:40~4:20'];
+    const AM_SLOTS = new Set(['9:00~9:40','9:50~10:30','10:40~11:20','11:30~12:10',
+                              '8:10~8:50','10:40~11:30']);
+    function getSlotsForDay(day) { return day==='토' ? SAT_SLOTS : VALID_SLOTS; }
+    function isInactive(s) { return s === '종결' || s === '대기중'; }
+
+    // 인수일자 정규화 — 다양한 입력 형식을 YYYY-MM-DD로 통일
+    function normHandoffDate(d) {
+      if (!d) return '';
+      d = String(d).trim().replace(/[./]/g,'-');
+      const fixYear = y => {
+        let n = parseInt(y);
+        if (n < 100) n = n <= 70 ? 2000+n : 1900+n;
+        else if (n < 1000) n = 2000+(n%100); // 0026 등 잘못된 4자리 연도 보정
+        return String(n).padStart(4,'0');
+      };
+      if (/^\d{1,4}-\d{1,2}-\d{1,2}$/.test(d)) {
+        const [y,m,dd]=d.split('-');
+        return `${fixYear(y)}-${m.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+      }
+      if (/^\d{8}$/.test(d)) return `${fixYear(d.slice(0,4))}-${d.slice(4,6)}-${d.slice(6,8)}`;
+      if (/^\d{6}$/.test(d)) {
+        return `${fixYear(d.slice(0,2))}-${d.slice(2,4)}-${d.slice(4,6)}`;
+      }
+      return d;
+    }
+    // 유효하지 않은 legacy support 필터 (스케줄에 표시하지 않음)
+    const _INVALID_SUPPORTS = new Set(['센터']);
+    function isValidTherapy(t) { return t && !_INVALID_SUPPORTS.has(t.support); }
+    // 치료사 인수인계 처리 — 특정 날짜에 따라 후임 치료사 정보 반환
+    function effectiveTherapy(t, dStr) {
+      const hoDate = normHandoffDate(t?.handoff?.date);
+      if (t && t.handoff && hoDate && dStr >= hoDate) {
+        return Object.assign({}, t, {
+          therapist: t.handoff.therapist || t.therapist,
+          cycle:     t.handoff.cycle     || t.cycle,
+          timeSlot:  t.handoff.timeSlot  || t.timeSlot,
+          subProgram:t.handoff.program   || t.subProgram,
+          _isHandoff: true,
+        });
+      }
+      return t;
+    }
+
+    // 월 총 수업 횟수 계산
+    function calcTotalCount(therapy, dates) {
+      if (therapy.support === '센터비용') return dates.length;
+      if (therapy.support === '발달재활서비스') return 4; // 발달재활은 항상 4회
+      // 치언·치작·방치 등: 미설정/자동 → 실제 발생 횟수, 고정 숫자 → 해당 값
+      if (!therapy.banchiSessionPref || therapy.banchiSessionPref === 'natural') return dates.length;
+      const fixed = parseInt(therapy.banchiSessionPref);
+      if (!isNaN(fixed) && fixed > 0) return fixed;
+      return dates.length;
+    }
+
+    // 요일 전체명 → 단축명 정규화
+    const DAY_NORM = {'월요일':'월','화요일':'화','수요일':'수','목요일':'목','금요일':'금','토요일':'토','일요일':'일'};
+    function normDay(d) { return DAY_NORM[d.trim()] || d.trim(); }
+    function normCycle(cycle) { return (cycle||'').split(',').map(normDay).filter(Boolean); }
+    // therapy 치료사 fallback (t.therapist 없으면 c.therapist)
+    function tTherapist(t, c) { return t.therapist || (c && c.therapist) || ''; }
+    // timeSlot 정규화: '오전/오후 ' 접두어 제거
+    function normSlot(s) { return (s||'').replace(/^오전\s*/,'').replace(/^오후\s*/,''); }
+    function fmtTimeSlot(t) {
+      if (!t) return t;
+      return (AM_SLOTS.has(t) ? '오전 ' : '오후 ') + t;
+    }
+    const COLORS = [
+      {bg:'#c8e6c9',text:'#1b5e20'},{bg:'#bbdefb',text:'#0d47a1'},
+      {bg:'#f8bbd0',text:'#880e4f'},{bg:'#e1bee7',text:'#4a148c'},
+      {bg:'#b2dfdb',text:'#004d40'},{bg:'#fff9c4',text:'#f57f17'},
+      {bg:'#d7ccc8',text:'#3e2723'},{bg:'#b3e5fc',text:'#01579b'},
+      {bg:'#dcedc8',text:'#33691e'},{bg:'#ffccbc',text:'#bf360c'},
+    ];
+
+    let currentYear, currentMonth, currentDay = '월';
+    let currentView = 'day';
+    let therapistColorMap = {}, colorIdx = 0;
+    let currentSession = null;
+
+    // ── 유틸 ──
+    function getChildren() { return JSON.parse(localStorage.getItem('children') || '[]'); }
+    function getChanges() { return JSON.parse(localStorage.getItem('scheduleChanges') || '[]'); }
+    function saveChanges(d) { localStorage.setItem('scheduleChanges', JSON.stringify(d)); }
+    // 휴가 날짜 연도 오입력(0026, 202626 등) 자동 보정
+    (function fixVacationYears(){
+      const list = JSON.parse(localStorage.getItem('therapistVacations')||'[]');
+      let changed = false;
+      list.forEach(v => {
+        ['startDate','endDate'].forEach(k => {
+          if (!v[k]) return;
+          const parts = v[k].split('-');
+          const yStr = parts[0];
+          const y = parseInt(yStr);
+          if (y > 9999) {
+            // 202626 같은 잘못된 연도 → 앞 4자리만 취함
+            parts[0] = yStr.substring(0, 4);
+            v[k] = parts.join('-'); changed = true;
+          } else if (y < 1000) {
+            parts[0] = String(y + 2000);
+            v[k] = parts.join('-'); changed = true;
+          }
+        });
+      });
+      if (changed) localStorage.setItem('therapistVacations', JSON.stringify(list));
+    })();
+
+    // 24시간 형식 timeSlot → 12시간 형식 변환 (예: 16:00~16:40 → 4:00~4:40)
+    function convert24to12Slot(t) {
+      if (!t) return t;
+      // 이미 12시간 형식이면 그대로 반환 (시작 시간이 1~12)
+      const h1 = parseInt(t.split(':')[0]);
+      if (h1 <= 12) return t;
+      return t.replace(/^(\d+):(\d+)~(\d+):(\d+)$/, (_, a, b, c, d) => {
+        const ra = parseInt(a) > 12 ? (parseInt(a)-12)+':'+b : a+':'+b;
+        const rc = parseInt(c) > 12 ? (parseInt(c)-12)+':'+d : c+':'+d;
+        return ra+'~'+rc;
+      });
+    }
+
+    // 기존 24시간 형식 데이터를 12시간 형식으로 일괄 변환 (최초 1회)
+    function migrateTimeSlots() {
+      const children = getChildren();
+      let changed = false;
+      children.forEach(ch => {
+        (ch.therapies||[]).forEach(t => {
+          const normalized = convert24to12Slot(t.timeSlot);
+          if (normalized !== t.timeSlot) { t.timeSlot = normalized; changed = true; }
+        });
+      });
+      if (changed) localStorage.setItem('children', JSON.stringify(children));
+
+      // scheduleChanges의 timeSlot, makeupTimeSlot도 변환
+      const sc = getChanges();
+      let scChanged = false;
+      sc.forEach(ch => {
+        const n1 = convert24to12Slot(ch.timeSlot);
+        const n2 = convert24to12Slot(ch.makeupTimeSlot);
+        if (n1 !== ch.timeSlot) { ch.timeSlot = n1; scChanged = true; }
+        if (n2 !== ch.makeupTimeSlot) { ch.makeupTimeSlot = n2; scChanged = true; }
+      });
+      if (scChanged) saveChanges(sc);
+    }
+    migrateTimeSlots();
+
+    // ── 비표준 치료지원 therapy 항목 자동 정리 (1회성 마이그레이션) ──
+    (function cleanupGenericChiTherapies() {
+      const SPECIFIC = new Set([
+        '발달재활서비스','방치','방과후활동비',
+        '치료지원 언어영역','치료지원 작업치료',
+        '방과후 치료지원 언어영역','방과후 치료지원 작업치료','센터비용'
+      ]);
+      const children = JSON.parse(localStorage.getItem('children')||'[]');
+      let changed = false;
+      children.forEach(ch => {
+        const before = (ch.therapies||[]).length;
+        ch.therapies = (ch.therapies||[]).filter(t => {
+          // 치료지원 포함이지만 목록에 없는 항목(구식/오입력) 제거
+          if (t.support && t.support.includes('치료지원') && !SPECIFIC.has(t.support)) return false;
+          return true;
+        });
+        if (ch.therapies.length !== before) changed = true;
+      });
+      if (changed) localStorage.setItem('children', JSON.stringify(children));
+    })();
+
+    function supportSuffix(s) {
+      if (!s || s==='없음') return '';
+      if (s==='발달재활서비스') return '발';
+      if (s==='센터비용') return '센';
+      if (s==='방치') return '방치';
+      if (s==='방과후활동비') return '방';
+      if (s==='치료지원 언어영역') return '치언';
+      if (s==='치료지원 작업치료') return '치작';
+      if (s==='방과후 치료지원 언어영역') return '방치언';
+      if (s==='방과후 치료지원 작업치료') return '방치작';
+      if (s.includes('치료지원')) return '치';
+      return '';
+    }
+
+    const SUB_ABBR_CAL = {'전산화인지':'전산','감각통합':'감통'};
+    function birthCode(b) {
+      if (!b) return '';
+      const c = b.replace(/-/g,'');
+      return c.length>=8 ? c.substring(2,8) : c;
+    }
+    function chipLabel(child, therapy) {
+      const suf = supportSuffix(therapy.support);
+      const sub = therapy.subProgram ? '·'+(SUB_ABBR_CAL[therapy.subProgram]||therapy.subProgram) : '';
+      return `${child.name}${birthCode(child.birth)}${suf?'('+suf+sub+')':''}`;
+    }
+    function escJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function getColor(therapist) {
+      if (!therapistColorMap[therapist]) {
+        therapistColorMap[therapist] = COLORS[colorIdx % COLORS.length];
+        colorIdx++;
+      }
+      return therapistColorMap[therapist];
+    }
+
+    function getDatesForDay(year, month, dayName) {
+      const target = DAY_IDX[dayName];
+      const dates = [];
+      const last = new Date(year, month, 0).getDate();
+      for (let d=1; d<=last; d++)
+        if (new Date(year, month-1, d).getDay()===target) dates.push(d);
+      return dates;
+    }
+    function dateStr(y,m,d) { return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+
+    // ── 모든 치료사 목록 수집 ──
+    function getAllTherapists() {
+      const map = {};
+      getChildren().filter(c=>!isInactive(c.status)).forEach(c=>{
+        (c.therapies||[]).forEach(t=>{
+          const th = tTherapist(t, c);
+          if (th) {
+            if (!map[th]) map[th] = new Set();
+            normCycle(t.cycle).forEach(d=>map[th].add(d));
+          }
+          // 인수인계 후임 치료사도 포함
+          if (t.handoff && t.handoff.therapist) {
+            const hoTh = t.handoff.therapist;
+            if (!map[hoTh]) map[hoTh] = new Set();
+            normCycle(t.handoff.cycle || t.cycle).forEach(d=>map[hoTh].add(d));
+          }
+        });
+      });
+      return map; // {치료사명: Set(요일들)}
+    }
+
+    // ── 뷰 전환 ──
+    function switchView(v) {
+      currentView = v;
+      document.getElementById('viewDay').style.display = v==='day' ? '' : 'none';
+      document.getElementById('viewWeek').style.display = v==='week' ? '' : 'none';
+      document.getElementById('viewMakeup').style.display = v==='makeup' ? '' : 'none';
+      document.getElementById('tabDay').classList.toggle('active', v==='day');
+      document.getElementById('tabWeek').classList.toggle('active', v==='week');
+      document.getElementById('tabMakeup').classList.toggle('active', v==='makeup');
+      if (v==='week') populateTherapistSelect();
+      render();
+    }
+
+    function populateTherapistSelect() {
+      const wrap = document.getElementById('therapistPickList');
+      if (!wrap) return;
+      const prev = new Set([...wrap.querySelectorAll('input.tpick:checked')].map(c=>c.value));
+      const therapists = Object.keys(getAllTherapists()).sort();
+      wrap.innerHTML = therapists.map(t=>{
+        const checked = prev.has(t) ? 'checked' : '';
+        return `<label style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#f5f5f5;border:1px solid #ccc;border-radius:15px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" class="tpick" value="${t}" ${checked} onchange="renderWeek()" style="cursor:pointer;"> ${t}
+        </label>`;
+      }).join('') || '<span style="color:#aaa;font-size:13px;">등록된 치료사가 없습니다.</span>';
+    }
+    function _pickAllTherapists(on) {
+      document.querySelectorAll('#therapistPickList .tpick').forEach(cb=>{ cb.checked = on; });
+      renderWeek();
+    }
+    function _getSelectedTherapists() {
+      return [...document.querySelectorAll('#therapistPickList .tpick:checked')].map(c=>c.value);
+    }
+
+    function changeMonth(delta) {
+      currentMonth += delta;
+      if (currentMonth>12){currentMonth=1;currentYear++;}
+      if (currentMonth<1){currentMonth=12;currentYear--;}
+      render();
+    }
+    function setDay(d) { currentDay=d; render(); _dayChildHighlight(); }
+
+    function _dayChildHighlight() {
+      const q = (document.getElementById('dayChildSearch')?.value||'').trim();
+      const table = document.getElementById('schedTable');
+      if (!table) return;
+      const chips = table.querySelectorAll('.chip');
+      let matchCount = 0;
+      chips.forEach(chip=>{
+        chip.style.outline = '';
+        chip.style.boxShadow = '';
+        chip.style.opacity = '';
+        chip.style.transform = '';
+      });
+      if (!q) return;
+      chips.forEach(chip=>{
+        const txt = (chip.textContent||'');
+        if (txt.includes(q)) {
+          chip.style.outline = '3px solid #ff9800';
+          chip.style.boxShadow = '0 0 8px rgba(255,152,0,0.6)';
+          chip.style.transform = 'scale(1.05)';
+          matchCount++;
+        } else {
+          chip.style.opacity = '0.35';
+        }
+      });
+    }
+
+    function render() {
+      document.getElementById('calTitle').textContent = `${currentYear}년 ${currentMonth}월`;
+      renderWarnBanner();
+      if (currentView==='day') {
+        renderDay();
+        setTimeout(()=>{ try { _dayChildHighlight(); } catch(e){} }, 0);
+      }
+      else if (currentView==='week') renderWeek();
+      else renderMakeup();
+    }
+
+    // ── 요일별 해당 월 발생 횟수 계산 ──
+    function countDayOccurrences(year, month, dayName) {
+      const idx = DAY_IDX[dayName];
+      if (idx === undefined) return 4;
+      let count = 0;
+      const d = new Date(year, month-1, 1);
+      while (d.getMonth() === month-1) {
+        if (d.getDay() === idx) count++;
+        d.setDate(d.getDate()+1);
+      }
+      return count;
+    }
+
+    // ── 이벤트 수업(발추) 보강 필요 아동 렌더 ──
+    function renderEventMakeup() {
+      const section = document.getElementById('eventMakeupSection');
+      if (!section) return;
+      const children = getChildren().filter(c=>!isInactive(c.status));
+      const changes = getChanges();
+      const monthPfx = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+
+      const eventChildren = children.filter(c=>{
+        const therapy = (c.therapies||[]).find(t=>t.support==='발달재활서비스');
+        return therapy && (parseInt(therapy.extraCount)||0) >= 1;
+      });
+
+      const needMakeup = eventChildren.map(c=>{
+        const therapy = (c.therapies||[]).find(t=>t.support==='발달재활서비스');
+        const day = therapy ? therapy.cycle : '';
+        const naturalCount = day ? countDayOccurrences(currentYear, currentMonth, day) : 4;
+        const already = changes.find(ch=>ch.childId===c.id && ch.isExtra && ch.monthKey===monthPfx);
+        return { c, therapy, naturalCount, day, already };
+      }).filter(function(r){ return r.naturalCount <= 4; });
+
+      if (!needMakeup.length) { section.innerHTML = ''; return; }
+
+      const today = new Date().toISOString().split('T')[0];
+
+      section.innerHTML = `
+        <div style="background:#e8f4fd;border:2px solid #1565c0;border-radius:10px;padding:14px 16px;">
+          <div style="font-size:13px;font-weight:bold;color:#1565c0;margin-bottom:10px;">
+            ➕ 이벤트 수업(발추) 보강 필요 — ${currentYear}년 ${currentMonth}월 (4주 달)
+            <span style="font-size:11px;font-weight:normal;color:#555;margin-left:8px;">아래 아동은 이달 추가 1회 보강이 필요합니다.</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:#1a237e;color:#fff;">
+                <th style="padding:8px 10px;text-align:center;font-size:13px;">#</th>
+                <th style="padding:8px 10px;text-align:left;font-size:13px;">아동명</th>
+                <th style="padding:8px 10px;text-align:center;font-size:13px;">치료 요일</th>
+                <th style="padding:8px 10px;text-align:center;font-size:13px;">담당치료사</th>
+                <th style="padding:8px 10px;text-align:center;font-size:13px;">이달 수업 횟수</th>
+                <th style="padding:8px 10px;text-align:center;font-size:13px;background:#0d47a1;">📅 별도 1회 수업</th>
+                <th style="padding:8px 10px;text-align:center;font-size:13px;background:#1b5e20;">⏱ 10분×4회 분할</th>
+                <th style="padding:8px 10px;text-align:center;font-size:13px;">저장</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${needMakeup.map(function(r, i){
+                const c=r.c, therapy=r.therapy, naturalCount=r.naturalCount, day=r.day, already=r.already;
+                const method = already ? already.extraMakeupMethod : '';
+                const savedDate = already && already.makeupDate ? already.makeupDate : today;
+                const savedSlot = already && already.makeupTimeSlot ? already.makeupTimeSlot : '';
+                const rowBg = method==='split' ? '#e8f5e9' : method==='session' ? '#e3f2fd' : '#fffde7';
+
+                const isLocked = !!already;
+                const lockedBadge = isLocked ? `<div style="font-size:10px;color:#2e7d32;font-weight:bold;margin-top:3px;">✅ 스케줄에서 등록됨 (수정은 캘린더 칩에서)</div>` : '';
+                const disAttr = isLocked ? 'disabled' : '';
+                return `<tr style="background:${rowBg};border-bottom:1px solid #e0e0e0;${isLocked?'opacity:0.85;':''}" id="emrow_${c.id}">
+                  <td style="padding:7px 10px;text-align:center;color:#888;">${i+1}</td>
+                  <td style="padding:7px 10px;font-weight:bold;">${c.name}${lockedBadge}</td>
+                  <td style="padding:7px 10px;text-align:center;">${day||'-'}요일</td>
+                  <td style="padding:7px 10px;text-align:center;">${therapy ? (therapy.therapist||'-') : '-'}</td>
+                  <td style="padding:7px 10px;text-align:center;">${naturalCount}회 → <strong style="color:#e65100;">+1회</strong></td>
+                  <td style="padding:8px 10px;">
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                      <input type="radio" name="em_${c.id}" value="session" ${disAttr}
+                        ${method==='session'?'checked':''}
+                        onchange="onExtraMethodChange('${c.id}')"
+                        style="width:15px;height:15px;accent-color:#1565c0;cursor:${isLocked?'not-allowed':'pointer'};flex-shrink:0;">
+                      <input type="date" id="em_d_${c.id}" value="${savedDate}" ${disAttr}
+                        style="padding:4px 6px;border:1px solid #90caf9;border-radius:5px;font-size:12px;width:130px;">
+                      <input type="text" id="em_s_${c.id}" value="${savedSlot}" placeholder="시간대 예)14:20~15:00" ${disAttr}
+                        style="padding:4px 6px;border:1px solid #90caf9;border-radius:5px;font-size:11px;width:130px;">
+                    </div>
+                  </td>
+                  <td style="padding:8px 10px;text-align:center;">
+                    <label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:${isLocked?'not-allowed':'pointer'};">
+                      <input type="radio" name="em_${c.id}" value="split" ${disAttr}
+                        ${method==='split'?'checked':''}
+                        onchange="onExtraMethodChange('${c.id}')"
+                        style="width:15px;height:15px;accent-color:#2e7d32;cursor:${isLocked?'not-allowed':'pointer'};">
+                      <span style="font-size:12px;">선택</span>
+                    </label>
+                    <div style="font-size:10px;color:#666;margin-top:4px;">기존 4회 각 +10분</div>
+                  </td>
+                  <td style="padding:6px 8px;text-align:center;">
+                    ${isLocked
+                      ? `<button onclick="deleteExtraMakeup('${c.id}','${monthPfx}')" style="padding:5px 12px;background:#ffebee;color:#c62828;border:none;border-radius:6px;font-size:12px;cursor:pointer;display:block;width:100%;">해제</button>`
+                      : `<button onclick="saveExtraMakeup('${c.id}','${monthPfx}')" style="padding:5px 12px;background:#1565c0;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;display:block;width:100%;">저장</button>`
+                    }
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function saveExtraMakeup(childId, monthPfx) {
+      const radios = document.querySelectorAll('input[name="em_'+childId+'"]');
+      let method = '';
+      radios.forEach(function(r){ if(r.checked) method=r.value; });
+      if (!method) { alert('보강 방법을 선택해주세요.'); return; }
+
+      const makeupDate = method==='session' ? (document.getElementById('em_d_'+childId)||{value:''}).value : '';
+      const makeupTimeSlot = method==='session' ? ((document.getElementById('em_s_'+childId)||{value:''}).value||'').trim() : '';
+
+      const changes = getChanges().filter(function(ch){ return !(ch.childId===childId&&ch.isExtra&&ch.monthKey===monthPfx); });
+      changes.push({
+        id: Date.now().toString(36)+Math.random().toString(36).substr(2,4),
+        childId: childId,
+        isExtra: true,
+        monthKey: monthPfx,
+        extraMakeupMethod: method,
+        makeupDate: makeupDate,
+        makeupTimeSlot: makeupTimeSlot
+      });
+      saveChanges(changes);
+      renderEventMakeup();
+    }
+
+    function deleteExtraMakeup(childId, monthPfx) {
+      if (!confirm('이 보강 설정을 삭제하시겠습니까?')) return;
+      const changes = getChanges().filter(function(ch){ return !(ch.childId===childId&&ch.isExtra&&ch.monthKey===monthPfx); });
+      saveChanges(changes);
+      renderEventMakeup();
+    }
+
+    // ── 치료사 휴가 → 보강 필요 연동 ──
+    function renderVacationMakeup() {
+      const section = document.getElementById('vacationMakeupSection');
+      if (!section) return;
+
+      const vacations = JSON.parse(localStorage.getItem('therapistVacations')||'[]');
+      const children  = getChildren().filter(c => !isInactive(c.status));
+      const changes   = getChanges();
+      const DAY_MAP   = {0:'일',1:'월',2:'화',3:'수',4:'목',5:'금',6:'토'};
+
+      // 이번 달 휴가 기간 내 날짜들 수집 (날짜→치료사 목록)
+      const vacDayMap = {}; // 'YYYY-MM-DD' → [therapistName, ...]
+      const monthStr  = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+      vacations.forEach(v => {
+        const tName = (v.therapistName||'').trim();
+        if (!tName) return;
+        const s = new Date(v.startDate + 'T00:00:00');
+        const e = new Date(v.endDate   + 'T00:00:00');
+        for (let d = new Date(s); d <= e; d.setDate(d.getDate()+1)) {
+          const key = dateStr(d.getFullYear(), d.getMonth()+1, d.getDate());
+          if (!key.startsWith(monthStr)) continue;
+          if (!vacDayMap[key]) vacDayMap[key] = [];
+          if (!vacDayMap[key].includes(tName)) vacDayMap[key].push(tName);
+        }
+      });
+
+      if (!Object.keys(vacDayMap).length) {
+        // 저장된 휴가 전체 목록을 표시해 데이터가 있는지 확인
+        if (vacations.length === 0) {
+          section.innerHTML = `<div style="background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:10px 14px;font-size:12px;color:#888;">
+            🏖️ 저장된 휴가 데이터 없음 — 치료사 관리에서 휴가를 등록해주세요.
+          </div>`;
+        } else {
+          const allVacList = vacations.map(v=>`<li style="margin-bottom:3px;">${(v.therapistName||'').trim()} : ${v.startDate} ~ ${v.endDate}</li>`).join('');
+          section.innerHTML = `<div style="background:#fff8e1;border:1px solid #e65100;border-radius:8px;padding:10px 14px;font-size:12px;color:#555;">
+            🏖️ <strong>${currentMonth}월 해당 휴가 없음</strong> — 전체 저장 휴가 목록:<ul style="margin:6px 0 0 16px;padding:0;">${allVacList}</ul>
+            <span style="color:#e65100;font-size:11px;">위 일정이 ${currentMonth}월에 해당하지 않거나, 날짜 범위를 확인해주세요.</span>
+          </div>`;
+        }
+        return;
+      }
+
+      // 각 날짜에 해당하는 아동 수업 찾기
+      let affected = []; // {childName, childId, therapist, date, timeSlot, support, alreadyAdded}
+      Object.entries(vacDayMap).sort().forEach(([dateStr, therapists]) => {
+        const dow = new Date(dateStr + 'T00:00:00').getDay();
+        const dayName = DAY_MAP[dow];
+        therapists.forEach(therapistName => {
+          children.forEach(ch => {
+            (ch.therapies||[]).forEach(th => {
+              if (tTherapist(th,ch).trim() !== therapistName) return;
+              const cycleDays = normCycle(th.cycle);
+              if (!cycleDays.includes(dayName)) return;
+              // 이미 결석 등록되어 있는지 확인
+              const alreadyAdded = changes.some(c =>
+                c.childId === ch.id && c.originalDate === dateStr &&
+                (c.timeSlot === th.timeSlot || !c.timeSlot) && c.status === 'absent'
+              );
+              // 해당 날짜가 그 요일의 몇 번째 주차인지 계산
+              const d0 = new Date(dateStr + 'T00:00:00');
+              const yr0 = d0.getFullYear(), mo0 = d0.getMonth()+1, dt0 = d0.getDate();
+              let weekIdx0 = 0;
+              for (let dd=1; dd<=dt0; dd++) {
+                if (new Date(yr0, mo0-1, dd).getDay() === d0.getDay()) weekIdx0++;
+              }
+              const weekLabel = `${mo0}-${weekIdx0}`;
+              const suf0 = supportSuffix(th.support||'');
+              const displayName = `${weekLabel} ${ch.name}${birthCode(ch.birth)}${suf0?'('+suf0+')':''}`;
+              affected.push({
+                childId: ch.id, childName: ch.name, displayName,
+                therapist: therapistName,
+                date: dateStr, timeSlot: th.timeSlot||'', support: th.support||'',
+                cycle: th.cycle||'', dayName,
+                alreadyAdded
+              });
+            });
+          });
+        });
+      });
+
+      // 동일 아동(이름+생년)·날짜·치료사 중복 병합 (각 필드별 최적 정보 선택)
+      const _normB = b => { const d=(b||'').replace(/\D/g,''); return d.length>=8?d.slice(2,8):d; };
+      const _dedupMap = new Map();
+      affected.forEach(a => {
+        const childRec = children.find(c=>c.id===a.childId);
+        const birthKey = _normB(childRec?.birth||'');
+        const k = `${a.childName}|${birthKey}|${a.date}|${a.therapist}`;
+        const prev = _dedupMap.get(k);
+        if (!prev) { _dedupMap.set(k, a); return; }
+        // 병합: 시간대는 있는 쪽, displayName은 (센) 접미사 있는 쪽 우선, support는 센터비용 우선
+        const merged = Object.assign({}, prev);
+        if (!merged.timeSlot && a.timeSlot) merged.timeSlot = a.timeSlot;
+        if (a.support === '센터비용' && prev.support !== '센터비용') {
+          merged.support = a.support;
+          merged.displayName = a.displayName;
+        }
+        if (!merged.cycle && a.cycle) merged.cycle = a.cycle;
+        _dedupMap.set(k, merged);
+      });
+      affected = [..._dedupMap.values()];
+
+      // 검색어 필터
+      const _searchQ = (document.getElementById('makeupSearch')?.value||'').toLowerCase().trim();
+      if (_searchQ) {
+        affected = affected.filter(a => (a.displayName||a.childName||'').toLowerCase().includes(_searchQ));
+      }
+
+      if (!affected.length) { section.innerHTML = ''; return; }
+
+      const pendingCount = affected.filter(a => !a.alreadyAdded).length;
+
+      section.innerHTML = `
+        <div style="background:#fff3e0;border:2px solid #e65100;border-radius:10px;padding:14px 16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:13px;font-weight:bold;color:#e65100;">
+              🏖️ 치료사 휴가로 인한 보강 필요 — ${currentYear}년 ${currentMonth}월
+              <span style="font-size:11px;font-weight:normal;color:#777;margin-left:8px;">
+                총 ${affected.length}건 (미등록 ${pendingCount}건)
+              </span>
+            </div>
+            ${pendingCount > 0 ? `<button onclick="_addAllVacationAbsents()" style="padding:6px 14px;background:#e65100;color:white;border:none;border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer;">⚡ 전체 보강필요 등록</button>` : ''}
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead>
+              <tr style="background:#bf360c;color:white;">
+                <th style="padding:7px 10px;">#</th>
+                <th style="padding:7px 10px;text-align:left;">아동명</th>
+                <th style="padding:7px 10px;">담당 치료사</th>
+                <th style="padding:7px 10px;">치료요일</th>
+                <th style="padding:7px 10px;">수업일</th>
+                <th style="padding:7px 10px;">수업시간</th>
+                <th style="padding:7px 10px;">지원종류</th>
+                <th style="padding:7px 10px;">처리</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${affected.map((a, i) => `
+                <tr style="background:${a.alreadyAdded?'#e8f5e9':'#fff8f5'};border-bottom:1px solid #ffe0b2;">
+                  <td style="padding:6px 10px;text-align:center;color:#888;">${i+1}</td>
+                  <td style="padding:6px 10px;font-weight:bold;">${a.displayName||a.childName}</td>
+                  <td style="padding:6px 10px;text-align:center;color:#e65100;">${a.therapist}</td>
+                  <td style="padding:6px 10px;text-align:center;color:#1565c0;font-weight:bold;">${a.cycle ? a.cycle.split(',').map(s=>s.trim()).filter(Boolean).join('·')+'요일' : (a.dayName?a.dayName+'요일':'-')}</td>
+                  <td style="padding:6px 10px;text-align:center;">${a.date.substring(5)}</td>
+                  <td style="padding:6px 10px;text-align:center;color:#555;">${a.timeSlot||'-'}</td>
+                  <td style="padding:6px 10px;text-align:center;font-size:11px;color:#1565c0;">${a.support||'-'}</td>
+                  <td style="padding:6px 10px;text-align:center;">
+                    ${(()=>{
+                      const monthPfx = (a.date||'').substring(0,7);
+                      const chRec = changes.find(c=>c.childId===a.childId && c.originalDate===a.date);
+                      const isCancelled = chRec && chRec.status==='cancelled';
+                      const splitRec = changes.find(c=>c.childId===a.childId && c.therapist===a.therapist && c.isSplit && c.monthKey===monthPfx);
+                      const hasMkDate = chRec && chRec.makeupDate && chRec.makeupDate!=='split';
+                      const btnMk = hasMkDate
+                        ? `<button onclick="_vacClearMakeup('${a.childId}','${a.date}')" title="보강일 해제" style="padding:4px 8px;background:#bbdefb;color:#0d47a1;border:1px solid #1565c0;border-radius:4px;font-size:11px;cursor:pointer;font-weight:bold;">📅 보강 해제</button>`
+                        : `<button onclick="_vacOpenMakeup('${a.childId}','${escJs(a.childName)}','${escJs(a.therapist)}','${a.date}','${escJs(a.timeSlot)}','${escJs(a.support)}')" title="보강 일자·시간 선택" ${isCancelled||splitRec?'disabled':''} style="padding:4px 8px;background:${isCancelled||splitRec?'#ddd':'#1565c0'};color:${isCancelled||splitRec?'#999':'white'};border:none;border-radius:4px;font-size:11px;cursor:${isCancelled||splitRec?'not-allowed':'pointer'};font-weight:bold;">📅 보강</button>`;
+                      const btnSplit = splitRec
+                        ? `<button onclick="_vacRemoveSplit('${a.childId}','${escJs(a.therapist)}','${monthPfx}','${a.date}')" title="+10분 분할 보강 해제" style="padding:4px 8px;background:#c8e6c9;color:#1b5e20;border:1px solid #2e7d32;border-radius:4px;font-size:11px;cursor:pointer;font-weight:bold;">⏱ +10분 해제</button>`
+                        : `<button onclick="_vacAddSplit('${a.childId}','${escJs(a.childName)}','${escJs(a.therapist)}','${a.date}','${escJs(a.timeSlot)}','${escJs(a.support)}')" title="기존 수업 +10분씩 4회 보강" ${isCancelled||hasMkDate?'disabled':''} style="padding:4px 8px;background:${isCancelled||hasMkDate?'#ddd':'#2e7d32'};color:${isCancelled||hasMkDate?'#999':'white'};border:none;border-radius:4px;font-size:11px;cursor:${isCancelled||hasMkDate?'not-allowed':'pointer'};font-weight:bold;">⏱ +10분</button>`;
+                      const btnCancel = isCancelled
+                        ? `<button onclick="_vacUnCancel('${a.childId}','${a.date}')" title="취소 해제" style="padding:4px 8px;background:#ffcdd2;color:#b71c1c;border:1px solid #c62828;border-radius:4px;font-size:11px;cursor:pointer;font-weight:bold;">❌ 취소 해제</button>`
+                        : `<button onclick="_vacCancelSession('${a.childId}','${escJs(a.childName)}','${escJs(a.therapist)}','${a.date}','${escJs(a.timeSlot)}','${escJs(a.support)}')" title="보강 없이 수업 취소" ${splitRec||hasMkDate?'disabled':''} style="padding:4px 8px;background:${splitRec||hasMkDate?'#ddd':'#c62828'};color:${splitRec||hasMkDate?'#999':'white'};border:none;border-radius:4px;font-size:11px;cursor:${splitRec||hasMkDate?'not-allowed':'pointer'};font-weight:bold;">❌ 취소</button>`;
+                      return `<div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">${btnMk}${btnSplit}${btnCancel}</div>`;
+                    })()}
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+
+      // 전역 참조용으로 저장
+      window._vacAffected = affected;
+    }
+
+    // 보강 날짜·시간 직접 선택 모달
+    function _vacOpenMakeup(childId, childName, therapist, date, timeSlot, support) {
+      _vacEnsureAbsent(childId, childName, therapist, date, timeSlot, support);
+      document.getElementById('_vacMkBg')?.remove();
+      const bg = document.createElement('div');
+      bg.id = '_vacMkBg';
+      bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:5000;display:flex;align-items:center;justify-content:center;';
+      const today = new Date().toISOString().split('T')[0];
+      bg.innerHTML = `<div style="background:white;border-radius:12px;padding:22px 24px;width:360px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+        <h3 style="margin:0 0 12px;font-size:14px;color:#1565c0;">📅 보강 일정 지정 — ${escHtml(childName)}</h3>
+        <div style="font-size:12px;color:#555;margin-bottom:10px;">원래: ${date} ${timeSlot||''}</div>
+        <label style="font-size:11px;display:block;margin-bottom:3px;">보강 날짜</label>
+        <input type="date" id="_vacMkDate" value="${date}" style="width:100%;padding:6px;border:1px solid #90caf9;border-radius:5px;font-size:13px;box-sizing:border-box;margin-bottom:10px;">
+        <label style="font-size:11px;display:block;margin-bottom:3px;">보강 시간 (비우면 같은 시간)</label>
+        <input type="text" id="_vacMkSlot" value="${timeSlot||''}" placeholder="예: 4:00~4:40" style="width:100%;padding:6px;border:1px solid #90caf9;border-radius:5px;font-size:13px;box-sizing:border-box;margin-bottom:14px;">
+        <div style="display:flex;gap:6px;">
+          <button id="_vacMkSave" style="flex:1;padding:8px;background:#1565c0;color:white;border:none;border-radius:5px;font-weight:bold;cursor:pointer;">저장</button>
+          <button onclick="document.getElementById('_vacMkBg').remove()" style="flex:1;padding:8px;background:#eee;border:none;border-radius:5px;cursor:pointer;">취소</button>
+        </div>
+      </div>`;
+      document.body.appendChild(bg);
+      document.getElementById('_vacMkSave').onclick = () => {
+        const mkDate = document.getElementById('_vacMkDate').value;
+        const mkSlot = document.getElementById('_vacMkSlot').value.trim() || timeSlot;
+        if (!mkDate) { alert('보강 날짜를 선택하세요.'); return; }
+        const changes = getChanges();
+        const ch = changes.find(c=>c.childId===childId && c.originalDate===date && c.status==='absent');
+        if (ch) { ch.makeupDate = mkDate; ch.makeupTimeSlot = mkSlot; }
+        saveChanges(changes);
+        bg.remove();
+        renderMakeup();
+      };
+    }
+
+    // +10분 4회 분할 보강 등록
+    function _vacAddSplit(childId, childName, therapist, date, timeSlot, support) {
+      if (!confirm(`${childName}의 보강을 기존 4회 수업에 +10분씩 분할로 등록합니다.\n계속하시겠습니까?`)) return;
+      _vacEnsureAbsent(childId, childName, therapist, date, timeSlot, support);
+      const changes = getChanges();
+      const monthPfx = date.substring(0,7);
+      // 동일 월 분할보강 중복 방지
+      const exists = changes.find(c=>c.childId===childId && c.therapist===therapist && c.isSplit && c.monthKey===monthPfx);
+      if (exists) { alert('이미 동일 월에 +10분 분할 보강이 등록되어 있습니다.'); return; }
+      changes.push({
+        id: Date.now().toString() + Math.random().toString(36).slice(2,5),
+        childId, childName, therapist, timeSlot, support,
+        isSplit: true, splitMin: 10, monthKey: monthPfx,
+        originalDate: date, status: 'makeup_split',
+        reason: '치료사 휴가 (10분×4회 분할 보강)'
+      });
+      // 원본 absent의 makeupDate를 split으로 표시
+      const ch = changes.find(c=>c.childId===childId && c.originalDate===date && c.status==='absent');
+      if (ch) { ch.makeupDate = 'split'; ch.makeupTimeSlot = '+10분×4회'; }
+      saveChanges(changes);
+      renderMakeup();
+    }
+
+    // 수업 취소 (보강 없음·교육비 차감)
+    function _vacCancelSession(childId, childName, therapist, date, timeSlot, support) {
+      if (!confirm(`${childName}의 ${date} 수업을 보강 없이 취소하시겠습니까?\n센터 납부현황에서 회기·교육비가 자동 차감됩니다.`)) return;
+      const changes = getChanges();
+      let ch = changes.find(c=>c.childId===childId && c.originalDate===date);
+      if (!ch) {
+        ch = {
+          id: Date.now().toString() + Math.random().toString(36).slice(2,5),
+          childId, childName, therapist, timeSlot, support, originalDate: date
+        };
+        changes.push(ch);
+      }
+      ch.status = 'cancelled';
+      ch.makeupDate = '';
+      ch.makeupTimeSlot = '';
+      ch.reason = '치료사 휴가 (보강없음·미부과)';
+      ch.cancelled = true;
+      saveChanges(changes);
+      renderMakeup();
+    }
+
+    // 보강일 해제
+    function _vacClearMakeup(childId, date) {
+      if (!confirm('지정된 보강 일정을 해제하시겠습니까?')) return;
+      const changes = getChanges();
+      const ch = changes.find(c=>c.childId===childId && c.originalDate===date);
+      if (ch) { ch.makeupDate = ''; ch.makeupTimeSlot = ''; }
+      saveChanges(changes);
+      renderMakeup();
+    }
+    // +10분 분할 보강 해제
+    function _vacRemoveSplit(childId, therapist, monthPfx, date) {
+      if (!confirm('+10분 분할 보강을 해제하시겠습니까?')) return;
+      let changes = getChanges();
+      changes = changes.filter(c=>!(c.childId===childId && c.therapist===therapist && c.isSplit && c.monthKey===monthPfx));
+      const ch = changes.find(c=>c.childId===childId && c.originalDate===date);
+      if (ch && ch.makeupDate==='split') { ch.makeupDate = ''; ch.makeupTimeSlot = ''; }
+      saveChanges(changes);
+      renderMakeup();
+    }
+    // 취소 해제
+    function _vacUnCancel(childId, date) {
+      if (!confirm('수업 취소를 해제하시겠습니까?\n다시 보강 등록이 가능해집니다.')) return;
+      const changes = getChanges();
+      const ch = changes.find(c=>c.childId===childId && c.originalDate===date);
+      if (ch) {
+        ch.status = 'absent';
+        ch.cancelled = false;
+        ch.reason = '치료사 휴가';
+      }
+      saveChanges(changes);
+      renderMakeup();
+    }
+    // 결석 자동 등록 helper
+    function _vacEnsureAbsent(childId, childName, therapist, date, timeSlot, support) {
+      const changes = getChanges();
+      if (changes.some(c=>c.childId===childId && c.originalDate===date && (c.status==='absent'||c.status==='cancelled'||c.status==='makeup_split'))) return;
+      changes.push({
+        id: Date.now().toString() + Math.random().toString(36).slice(2,5),
+        childId, childName, therapist, timeSlot, support,
+        status: 'absent', originalDate: date,
+        makeupDate: null, makeupTimeSlot: '',
+        reason: '치료사 휴가'
+      });
+      saveChanges(changes);
+    }
+
+    function _addVacationAbsent(childId, childName, therapist, date, timeSlot, support) {
+      const changes = getChanges();
+      if (changes.some(c => c.childId===childId && c.originalDate===date && c.status==='absent')) {
+        alert('이미 등록된 결석 항목입니다.'); return;
+      }
+      changes.push({
+        id: Date.now().toString() + Math.random().toString(36).slice(2,5),
+        childId, childName, therapist, timeSlot, support,
+        status: 'absent',
+        originalDate: date,
+        makeupDate: null,
+        makeupTimeSlot: '',
+        reason: '치료사 휴가'
+      });
+      saveChanges(changes);
+      renderMakeup();
+    }
+
+    function _addAllVacationAbsents() {
+      const pending = (window._vacAffected||[]).filter(a => !a.alreadyAdded);
+      if (!pending.length) return;
+      if (!confirm(`${pending.length}건을 모두 보강 필요로 등록하시겠습니까?`)) return;
+      const changes = getChanges();
+      pending.forEach(a => {
+        if (changes.some(c => c.childId===a.childId && c.originalDate===a.date && c.status==='absent')) return;
+        changes.push({
+          id: Date.now().toString() + Math.random().toString(36).slice(2,5),
+          childId: a.childId, childName: a.childName, therapist: a.therapist,
+          timeSlot: a.timeSlot, support: a.support,
+          status: 'absent', originalDate: a.date,
+          makeupDate: null, makeupTimeSlot: '', reason: '치료사 휴가'
+        });
+      });
+      saveChanges(changes);
+      renderMakeup();
+    }
+
+    // ── 보강 필요 목록 ──
+    function renderMakeup() {
+      const children = getChildren();
+      const changes = getChanges();
+      const filterOnly = document.getElementById('filterUnscheduled').checked;
+      const monthPfx = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+      renderVacationMakeup();
+      renderEventMakeup();
+
+      // 이번 달 결석 전체
+      let rows = changes.filter(ch =>
+        ch.status === 'absent' && ch.originalDate && ch.originalDate.startsWith(monthPfx)
+      );
+      if (filterOnly) rows = rows.filter(ch => !ch.makeupDate);
+      const _searchQ = (document.getElementById('makeupSearch')?.value||'').toLowerCase().trim();
+      if (_searchQ) {
+        rows = rows.filter(ch => (ch.childName||'').toLowerCase().includes(_searchQ));
+      }
+
+      // 배지 업데이트
+      const unscheduledCount = changes.filter(ch =>
+        ch.status==='absent' && !ch.makeupDate &&
+        ch.originalDate && ch.originalDate.startsWith(monthPfx)
+      ).length;
+      const badge = document.getElementById('makeupBadge');
+      if (unscheduledCount > 0) {
+        badge.textContent = unscheduledCount;
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+
+      // 요약 카드
+      const totalAbsent = changes.filter(ch => ch.status==='absent' && ch.originalDate && ch.originalDate.startsWith(monthPfx)).length;
+      const scheduled = changes.filter(ch => ch.status==='absent' && ch.makeupDate && ch.originalDate && ch.originalDate.startsWith(monthPfx)).length;
+      document.getElementById('makeupSummary').innerHTML = `
+        <div style="background:#fff3e0;border:2px solid #e65100;border-radius:8px;padding:10px 16px;text-align:center;min-width:100px;">
+          <div style="font-size:22px;font-weight:bold;color:#e65100;">${unscheduledCount}</div>
+          <div style="font-size:12px;color:#777;">보강 미지정</div>
+        </div>
+        <div style="background:#e8f5e9;border:2px solid #2e7d32;border-radius:8px;padding:10px 16px;text-align:center;min-width:100px;">
+          <div style="font-size:22px;font-weight:bold;color:#2e7d32;">${scheduled}</div>
+          <div style="font-size:12px;color:#777;">보강 지정완료</div>
+        </div>
+        <div style="background:#f5f5f5;border:2px solid #bbb;border-radius:8px;padding:10px 16px;text-align:center;min-width:100px;">
+          <div style="font-size:22px;font-weight:bold;color:#555;">${totalAbsent}</div>
+          <div style="font-size:12px;color:#777;">이번달 결석 총계</div>
+        </div>`;
+
+      const tbody = document.getElementById('makeupTbody');
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="10" class="empty-state" style="padding:30px;">
+          ${filterOnly ? '보강 미지정 결석이 없습니다. ✅' : '이번 달 결석 기록이 없습니다.'}
+        </td></tr>`;
+        return;
+      }
+
+      // 날짜순 정렬
+      rows.sort((a,b) => a.originalDate.localeCompare(b.originalDate));
+
+      // 회기 번호 계산 (originalDate → 해당 요일 몇 번째인지)
+      function getSessionKey(dateStr, therapist, slot) {
+        const d = new Date(dateStr + 'T00:00:00');
+        const dow = d.getDay(); // 0=일
+        const dayName = Object.keys(DAY_IDX).find(k => DAY_IDX[k] === dow);
+        if (!dayName) return '-';
+        const year = d.getFullYear(), month = d.getMonth()+1, date = d.getDate();
+        const dates = getDatesForDay(year, month, dayName);
+        const idx = dates.indexOf(date);
+        return idx >= 0 ? `${month}-${idx+1}` : `${month}-?`;
+      }
+
+      // 지원 약자 표시 (칩 색상)
+      const supportStyle = {
+        '발달재활서비스': {bg:'#e8f5e9', color:'#1b5e20', label:'발'},
+        '방과후활동비':   {bg:'#e3f2fd', color:'#0d47a1', label:'방'},
+        '치료지원 언어영역': {bg:'#fce4ec', color:'#880e4f', label:'치'},
+        '치료지원 감통영역': {bg:'#f3e5f5', color:'#4a148c', label:'치'},
+        '센터비용':       {bg:'#fff9c4', color:'#f57f17', label:'센'},
+      };
+
+      tbody.innerHTML = rows.map((ch, i) => {
+        const child = children.find(c => c.id === ch.childId);
+        const bc = child ? birthCode(child.birth) : '';
+        const childLabel = `${ch.childName}${bc}`;
+
+        // 해당 치료에서 지원종류 찾기
+        let support = ch.support || '';
+        let therapyType = ch.type || '';
+        if (child && !support) {
+          const th = (child.therapies||[]).find(t =>
+            t.therapist === ch.therapist && t.timeSlot === ch.timeSlot
+          );
+          if (th) { support = th.support || ''; therapyType = th.type || therapyType; }
+        }
+        const ss = supportStyle[support] || {bg:'#f5f5f5', color:'#555', label: supportSuffix(support)||'-'};
+        const sessionKey = getSessionKey(ch.originalDate, ch.therapist, ch.timeSlot);
+
+        const statusHTML = ch.makeupDate
+          ? `<span style="background:#e8f5e9;color:#2e7d32;padding:3px 8px;border-radius:10px;font-size:12px;font-weight:bold;">
+              🔄 ${ch.makeupDate.substring(5)} ${ch.makeupTimeSlot||ch.timeSlot}
+             </span>`
+          : `<span style="background:#fff3e0;color:#e65100;padding:3px 8px;border-radius:10px;font-size:12px;font-weight:bold;">
+              ⚠️ 미지정
+             </span>`;
+
+        const actionBtn = ch.makeupDate
+          ? `<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;"
+               onclick="editMakeupFromList('${ch.id}')">수정</button>
+             <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;margin-left:4px;"
+               onclick="restoreFromList('${ch.id}')">복원</button>`
+          : `<button class="btn btn-primary" style="padding:4px 10px;font-size:12px;"
+               onclick="assignMakeupFromList('${ch.id}')">보강 지정</button>
+             <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;margin-left:4px;"
+               onclick="restoreFromList('${ch.id}')">삭제</button>`;
+
+        const rowBg = ch.makeupDate ? '' : 'background:#fffde7;';
+        return `<tr style="${rowBg}">
+          <td style="color:#aaa;font-size:12px;">${i+1}</td>
+          <td><strong>${escHtml(childLabel)}</strong></td>
+          <td>${escHtml(ch.therapist||'-')}</td>
+          <td style="font-size:12px;">${escHtml(therapyType||'-')}</td>
+          <td><span style="background:${ss.bg};color:${ss.color};padding:3px 8px;border-radius:10px;font-size:12px;font-weight:bold;">${ss.label}</span></td>
+          <td style="font-size:12px;">${ch.originalDate||'-'}<br><span style="color:#999;">${ch.timeSlot||''}</span></td>
+          <td><span style="background:#2e7d32;color:white;padding:3px 8px;border-radius:10px;font-size:12px;font-weight:bold;">${sessionKey}</span></td>
+          <td style="font-size:12px;color:#777;">${escHtml(ch.reason||'-')}</td>
+          <td>${statusHTML}</td>
+          <td>${actionBtn}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function assignMakeupFromList(changeId) {
+      const ch = getChanges().find(c => c.id === changeId);
+      if (!ch) return;
+      currentSession = {
+        childId: ch.childId, childName: ch.childName,
+        therapist: ch.therapist, type: ch.type,
+        slot: ch.timeSlot, date: ch.originalDate,
+        sessionKey: getSessionKeyDirect(ch.originalDate),
+        changeId: ch.id,
+      };
+      document.getElementById('modalInfo').innerHTML =
+        `<strong>${escHtml(ch.childName)}</strong> · ${escHtml(ch.therapist)}<br>
+        원래 수업: ${ch.originalDate} ${escHtml(ch.timeSlot||'')} (${ch.reason||'결석'})`;
+      document.getElementById('modalTitle').textContent = '보강 날짜 지정';
+      showMakeupForm();
+      document.getElementById('modalBg').classList.add('open');
+    }
+
+    function editMakeupFromList(changeId) {
+      const ch = getChanges().find(c => c.id === changeId);
+      if (!ch) return;
+      currentSession = { changeId };
+      document.getElementById('modalTitle').textContent = '보강 일정 수정';
+      document.getElementById('modalInfo').innerHTML =
+        `<strong>${escHtml(ch.childName)}</strong> · ${escHtml(ch.therapist)}<br>
+        보강 예정: ${ch.makeupDate} ${escHtml(ch.makeupTimeSlot||ch.timeSlot||'')}`;
+      showExisting(ch);
+      document.getElementById('modalBg').classList.add('open');
+    }
+
+    function restoreFromList(changeId) {
+      if (!confirm('이 결석 기록을 삭제하고 정상으로 되돌리겠습니까?')) return;
+      saveChanges(getChanges().filter(c => c.id !== changeId));
+      render();
+    }
+
+    function getSessionKeyDirect(dateStr) {
+      if (!dateStr) return '-';
+      const d = new Date(dateStr + 'T00:00:00');
+      const dow = d.getDay();
+      const dayName = Object.keys(DAY_IDX).find(k => DAY_IDX[k] === dow);
+      if (!dayName) return '-';
+      const dates = getDatesForDay(d.getFullYear(), d.getMonth()+1, dayName);
+      const idx = dates.indexOf(d.getDate());
+      return idx >= 0 ? `${d.getMonth()+1}-${idx+1}` : '-';
+    }
+
+    // ── 경고 배너 ──
+    function renderWarnBanner() {
+      const allChildren = getChildren();
+      const monthPfx = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+      const unscheduled = getChanges().filter(ch=>{
+        if (ch.status!=='absent' || ch.makeupDate) return false;
+        return ch.originalDate && ch.originalDate.startsWith(monthPfx);
+      });
+
+      // 탭 배지 항상 업데이트
+      const badge = document.getElementById('makeupBadge');
+      if (unscheduled.length) { badge.textContent=unscheduled.length; badge.style.display=''; }
+      else { badge.style.display='none'; }
+
+      // 이번 달 휴가 중인 치료사 목록
+      const vacations = JSON.parse(localStorage.getItem('therapistVacations')||'[]');
+      const vacTherapists = [];
+      vacations.forEach(v => {
+        const s = new Date(v.startDate + 'T00:00:00');
+        const e = new Date(v.endDate   + 'T00:00:00');
+        for (let d = new Date(s); d <= e; d.setDate(d.getDate()+1)) {
+          const key = dateStr(d.getFullYear(), d.getMonth()+1, d.getDate());
+          if (key.startsWith(monthPfx)) {
+            const name = (v.therapistName||'').trim();
+            if (name && !vacTherapists.includes(name)) vacTherapists.push(name);
+            break;
+          }
+        }
+      });
+
+      const banner = document.getElementById('warnBanner');
+      const parts = [];
+      if (unscheduled.length) {
+        const items = unscheduled.map(ch=>{
+          const child = allChildren.find(c=>c.id===ch.childId);
+          const bc = child ? birthCode(child.birth) : '';
+          return `<strong>${ch.childName}${bc}</strong>(${ch.originalDate.substring(5)} ${ch.reason||'결석'})`;
+        }).join(' · ');
+        parts.push(`⚠️ <strong>보강 미지정 ${unscheduled.length}건</strong> — ${items}`);
+      }
+      if (vacTherapists.length) {
+        parts.push(`🏖️ <strong>${currentMonth}월 휴가 치료사</strong>: ${vacTherapists.join(', ')} — 보강필요 탭에서 확인하세요.`);
+      }
+      if (parts.length) {
+        banner.innerHTML = parts.join('<br>') +
+          `<br><span style="color:#777;font-size:12px;">칩을 클릭하거나 치료사별 주간 보기에서 빈 슬롯을 눌러 보강을 지정하세요.</span>`;
+        banner.style.display='';
+      } else {
+        banner.style.display='none';
+      }
+    }
+
+    // ── 요일별 보기 ──
+    // 이번 달 치료사별 휴가 날짜 Set 반환
+    function getVacationMapForMonth(year, month) {
+      const vacations = JSON.parse(localStorage.getItem('therapistVacations')||'[]');
+      const monthStr  = `${year}-${String(month).padStart(2,'0')}`;
+      const map = {}; // therapistName → Set<dateStr>
+      vacations.forEach(v => {
+        const tName = (v.therapistName||'').trim();
+        if (!tName) return;
+        const s = new Date(v.startDate + 'T00:00:00');
+        const e = new Date(v.endDate   + 'T00:00:00');
+        for (let d = new Date(s); d <= e; d.setDate(d.getDate()+1)) {
+          const key = dateStr(d.getFullYear(), d.getMonth()+1, d.getDate());
+          if (!key.startsWith(monthStr)) continue;
+          if (!map[tName]) map[tName] = new Set();
+          map[tName].add(key);
+        }
+      });
+      return map;
+    }
+
+    function renderDay() {
+      therapistColorMap={}; colorIdx=0;
+      const children = getChildren().filter(c=>!isInactive(c.status));
+      const changes = getChanges();
+      const allTherapists = getAllTherapists();
+
+      // 요일 탭 (치료사 이름 포함)
+      document.getElementById('dayTabs').innerHTML = DAYS.map(d=>{
+        const ts = Object.entries(allTherapists)
+          .filter(([,days])=>days.has(d))
+          .map(([t])=>t).join('·');
+        return `<button class="day-tab${d===currentDay?' active':''}" onclick="setDay('${d}')">
+          ${d}요일
+          ${ts ? `<span class="therapist-names">${ts}</span>` : ''}
+        </button>`;
+      }).join('');
+
+      const dates = getDatesForDay(currentYear, currentMonth, currentDay);
+      const therapistMap = {};
+
+      children.forEach(c=>{
+        (c.therapies||[]).forEach(t=>{
+          const days=normCycle(t.cycle);
+          const th=tTherapist(t,c);
+          if (days.includes(currentDay) && th)
+            therapistMap[th] = therapistMap[th] || t.type||'';
+          // 인수인계: 후임 치료사도 컬럼에 포함
+          if (t.handoff && t.handoff.therapist) {
+            const hoDays = normCycle(t.handoff.cycle || t.cycle);
+            if (hoDays.includes(currentDay))
+              therapistMap[t.handoff.therapist] = therapistMap[t.handoff.therapist] || t.type||'';
+          }
+        });
+      });
+
+      changes.forEach(ch=>{
+        if ((ch.status==='makeup'||ch.status==='absent') && ch.makeupDate && ch.makeupDate!=='split') {
+          const md = new Date(ch.makeupDate+'T00:00:00');
+          const dow = md.getDay();
+          const dayName = Object.keys(DAY_IDX).find(k=>DAY_IDX[k]===dow);
+          if (dayName===currentDay && md.getFullYear()===currentYear && md.getMonth()+1===currentMonth) {
+            if (ch.therapist) therapistMap[ch.therapist] = therapistMap[ch.therapist] || '';
+          }
+        }
+        // 이벤트 별도 1회 수업 치료사도 컬럼에 포함
+        if (ch.isExtra && ch.extraMakeupMethod==='session' && ch.makeupDate) {
+          const md = new Date(ch.makeupDate+'T00:00:00');
+          const dow = md.getDay();
+          const dayName = Object.keys(DAY_IDX).find(k=>DAY_IDX[k]===dow);
+          if (dayName===currentDay && md.getFullYear()===currentYear && md.getMonth()+1===currentMonth) {
+            const child = children.find(c=>c.id===ch.childId);
+            if (child) {
+              const therapy = (child.therapies||[]).find(t=>t.support==='발달재활서비스');
+              if (therapy && therapy.therapist)
+                therapistMap[therapy.therapist] = therapistMap[therapy.therapist] || '';
+            }
+          }
+        }
+      });
+
+      document.getElementById('_lwjDbg')?.remove();
+      document.getElementById('_haDbg')?.remove();
+      const baseSlots = getSlotsForDay(currentDay);
+      const _slotStartMin = s => {
+        const m = (s||'').match(/(\d{1,2}):(\d{2})/);
+        if (!m) return 9999;
+        let h = parseInt(m[1]), mm = parseInt(m[2]);
+        if (h < 9) h += 12;
+        return h*60 + mm;
+      };
+      // 사용자 직접입력 시간을 가장 가까운 기준 슬롯으로 매핑
+      const snapToBase = ts => {
+        if (baseSlots.includes(ts)) return ts;
+        const tm = _slotStartMin(ts);
+        let best = baseSlots[0], bestDiff = Infinity;
+        for (const b of baseSlots) {
+          const d = Math.abs(_slotStartMin(b) - tm);
+          if (d < bestDiff) { bestDiff = d; best = b; }
+        }
+        return best;
+      };
+      const timeSlots = baseSlots;
+      const _oldDbg2 = document.getElementById('_ryuDebug');
+      if (_oldDbg2) _oldDbg2.remove();
+      const therapists = Object.keys(therapistMap);
+      const table = document.getElementById('schedTable');
+      const vacMap = getVacationMapForMonth(currentYear, currentMonth);
+
+      if (!therapists.length) {
+        table.innerHTML=`<tr><td style="padding:40px;color:#aaa;text-align:center;">
+          ${currentDay}요일에 등록된 일정이 없습니다.<br>
+          <small>아동 등록 → 치료 영역에서 수업 시간대와 요일을 입력해주세요.</small>
+        </td></tr>`;
+        document.getElementById('therapistLegend').innerHTML='';
+        return;
+      }
+
+      let html='<thead><tr>';
+      html+=`<th style="background:#558b2f;">시간대</th><th style="background:#558b2f;">주차</th>`;
+      therapists.forEach(t=>{
+        const c=getColor(t);
+        const workDays=allTherapists[t]?[...allTherapists[t]].join('·'):'';
+        html+=`<th style="background:${c.bg};color:${c.text};">${t}<br>
+          <small style="font-weight:normal;">${therapistMap[t]}</small><br>
+          <small style="font-weight:normal;font-size:10px;opacity:0.8;">${workDays}요일</small></th>`;
+      });
+      html+='</tr></thead><tbody>';
+
+      // 지원종류 특수성 점수 (높을수록 구체적 — 중복 시 높은 쪽을 우선)
+      const _supScore = s => {
+        if (s === '센터비용') return 20;
+        if (!s) return 0;
+        const specific = ['발달재활서비스','방치','방과후활동비',
+          '치료지원 언어영역','치료지원 작업치료',
+          '방과후 치료지원 언어영역','방과후 치료지원 작업치료'];
+        return specific.indexOf(s) >= 0 ? 10 : (s.includes('치료지원') ? 1 : 0);
+      };
+
+      timeSlots.forEach(slot=>{
+        dates.forEach((date,wi)=>{
+          const dStr=dateStr(currentYear,currentMonth,date);
+          html+='<tr>';
+          if (wi===0) html+=`<td class="time-cell" rowspan="${dates.length}">${fmtTimeSlot(slot)}</td>`;
+          html+=`<td class="week-cell">${currentMonth}-${wi+1}<br><span style="color:#bbb;font-size:10px;">${currentMonth}/${date}</span></td>`;
+
+          // 이 슬롯에서 이미 표시된 아동 추적 (cross-column dedup)
+          const _seenInSlot = new Map();
+          const _normBirth = b => { const d=(b||'').replace(/\D/g,''); return d.length>=8?d.slice(2,8):d; };
+
+          // 센터 아동의 이름→canonicalKey, 생년월일→canonicalKey 매핑 구축
+          const _cByName = {}, _cByBirth = {};
+          // 1차: 센터비용 아동 우선 등록
+          children.forEach(child=>{
+            (child.therapies||[]).forEach(t=>{
+              if (t.support==='센터비용' && normCycle(t.cycle).includes(currentDay)) {
+                const ck = 'ck:' + child.name + ':' + _normBirth(child.birth);
+                _cByName[child.name] = ck;
+                const b = _normBirth(child.birth);
+                if (b) _cByBirth[b] = ck;
+              }
+            });
+          });
+          // 2차: 비센터 아동 중 같은 이름이 같은 요일에 2개 이상 등록된 경우 canonical key 통합
+          // (동일 아동 중복 등록 감지)
+          const _dayNameMap = {}; // name → [child, ...]
+          children.forEach(child=>{
+            if (_cByName[child.name]) return; // 이미 센터비용으로 처리됨
+            (child.therapies||[]).forEach(t=>{
+              if (normCycle(t.cycle).includes(currentDay)) {
+                if (!_dayNameMap[child.name]) _dayNameMap[child.name] = [];
+                if (!_dayNameMap[child.name].find(x=>x.id===child.id))
+                  _dayNameMap[child.name].push(child);
+              }
+            });
+          });
+          Object.entries(_dayNameMap).forEach(([name, childs])=>{
+            if (childs.length >= 2) {
+              // 가장 높은 support score를 가진 child를 canonical 기준으로 사용
+              const best = childs.slice().sort((a,b2)=>{
+                const sa = Math.max(...(a.therapies||[{support:''}]).map(t=>_supScore(t.support)));
+                const sb = Math.max(...(b2.therapies||[{support:''}]).map(t=>_supScore(t.support)));
+                return sb - sa;
+              })[0];
+              const ck = 'ck:' + name + ':' + _normBirth(best.birth);
+              _cByName[name] = ck;
+              childs.forEach(ch=>{
+                const b = _normBirth(ch.birth);
+                if (b) _cByBirth[b] = ck;
+              });
+            }
+          });
+          // 이름이 일치하는 경우에만 canonical key 사용 (다른 이름의 동일 생년월일은 별도 아동으로 처리)
+          const _personKey = c => {
+            const b = _normBirth(c.birth);
+            if (_cByName[c.name]) return _cByName[c.name];
+            return c.name + '|' + b;
+          };
+
+          // 1단계: 전체 therapist 컬럼에서 아동별 가장 구체적인 therapy 선택
+          therapists.forEach(therapist=>{
+            children.forEach(child=>{
+              (child.therapies||[]).forEach(t0=>{
+                if (!isValidTherapy(t0)) return;
+                const t = effectiveTherapy(t0, dStr);
+                const days=normCycle(t.cycle);
+                const th=tTherapist(t,child);
+                if (th===therapist && snapToBase(normSlot(t.timeSlot))===slot && days.includes(currentDay)) {
+                  const key = _personKey(child);
+                  const prev = _seenInSlot.get(key);
+                  if (!prev || _supScore(t.support) > _supScore(prev.therapy.support)) {
+                    _seenInSlot.set(key, {therapist, therapy:t, child});
+                  }
+                }
+              });
+            });
+          });
+
+          // 센터 아동 후처리: 같은 슬롯·치료사에 센터 therapy가 있을 때만 교체
+          // (다른 슬롯에 있는 별도의 발달재활 entry는 그대로 유지)
+          _seenInSlot.forEach((entry, key)=>{
+            if (entry.therapy.support === '센터비용') return;
+            if (!_cByName[entry.child.name]) return;
+            // 동일 child에서 동일 therapist·slot의 센터비용 therapy 검색
+            let centerT = (entry.child.therapies||[]).find(t=>
+              t.support==='센터비용' &&
+              normCycle(t.cycle).includes(currentDay) &&
+              (t.therapist||entry.child.therapist) === entry.therapist &&
+              snapToBase(normSlot(t.timeSlot)) === slot
+            );
+            if (!centerT) {
+              for (const oc of children) {
+                if (oc.name === entry.child.name) {
+                  centerT = (oc.therapies||[]).find(t=>
+                    t.support==='센터비용' &&
+                    normCycle(t.cycle).includes(currentDay) &&
+                    (t.therapist||oc.therapist) === entry.therapist &&
+                    snapToBase(normSlot(t.timeSlot)) === slot
+                  );
+                  if (centerT) break;
+                }
+              }
+            }
+            if (centerT) entry.therapy = centerT;
+          });
+
+          therapists.forEach(therapist=>{
+            const regular=[];
+            // 이 therapist 컬럼에 표시할 아동만 (seenInSlot에서 이 therapist로 배정된 것)
+            _seenInSlot.forEach(({therapist:assignedT, therapy:t, child})=>{
+              if (assignedT===therapist) regular.push({child,therapy:t});
+            });
+
+            const makeupHere=changes.filter(ch=>{
+              const hasMakeup = (ch.status==='makeup' || ch.status==='absent') && ch.makeupDate && ch.makeupDate!=='split';
+              if (!hasMakeup) return false;
+              const md=new Date(ch.makeupDate+'T00:00:00');
+              if (md.getFullYear()!==currentYear || md.getMonth()+1!==currentMonth || md.getDate()!==date) return false;
+              if (ch.therapist!==therapist) return false;
+              const mkSlot = ch.makeupTimeSlot || ch.timeSlot || '';
+              return snapToBase(normSlot(mkSlot)) === slot;
+            });
+
+            let cellHTML='';
+            const c=getColor(therapist);
+            const sessionKey=`${currentMonth}-${wi+1}`;
+
+            regular.forEach(({child,therapy})=>{
+              const totalCount = calcTotalCount(therapy, dates);
+              const isEventChild = therapy.support==='발달재활서비스' && (parseInt(therapy.extraCount)||0)>=1;
+              // 고정 주차 (banchiWeeks)가 지정된 경우 해당 주차에만 표시
+              const fixedWeeks = (therapy.banchiWeeks||[]);
+              if (fixedWeeks.length > 0 && therapy.banchiSessionPref && therapy.banchiSessionPref !== 'natural') {
+                if (!fixedWeeks.includes(wi+1)) return;
+              }
+              if (wi >= totalCount && fixedWeeks.length === 0) {
+                if (!(isEventChild && wi===4 && dates.length>=5)) return;
+                // 5주차 이벤트 수업 아동 표시 (이)
+                const eventLbl = `${child.name}${birthCode(child.birth)}(이)`;
+                cellHTML+=`<div class="chip chip-normal"
+                  style="background:#e8eaf6;color:#283593;border:1px solid #7986cb;"
+                  onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(therapy.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                  <span style="font-size:10px;font-weight:bold;">${sessionKey}</span> ${escHtml(eventLbl)}
+                </div>`;
+                return;
+              }
+
+              const change=changes.find(ch=>
+                ch.childId===child.id&&ch.therapist===therapist&&
+                ch.timeSlot===slot&&ch.originalDate===dStr
+              );
+              const lbl=chipLabel(child,therapy);
+
+              if (change&&change.status==='absent') {
+                const hasMakeup=!!change.makeupDate;
+                cellHTML+=`<div class="chip chip-absent"
+                  onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(therapy.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                  <span style="font-size:10px;font-weight:bold;">${sessionKey}</span>
+                  <span>${escHtml(lbl)}</span><br>
+                  <span style="font-size:10px;">🤒 ${change.reason||'결석'}${hasMakeup?'':' ⚠️미지정'}</span>
+                </div>`;
+              } else if (change&&change.status==='makeup') {
+                const md=change.makeupDate?change.makeupDate.substring(5):'';
+                cellHTML+=`<div class="chip chip-absent"
+                  onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(therapy.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                  <span style="font-size:10px;font-weight:bold;">${sessionKey}</span>
+                  <span>${escHtml(lbl)}</span><br>
+                  <span style="font-size:10px;">🔄 보강: ${md}</span>
+                </div>`;
+              } else {
+                const hasNote = child.therapistNote && child.noteStatus !== '전달완료';
+                // 분할보강 체크
+                const monthPfx = dStr.substring(0,7);
+                const splitMk = changes.find(ch=>
+                  ch.childId===child.id && ch.therapist===therapist &&
+                  ch.isSplit && ch.monthKey===monthPfx
+                );
+                const splitBadge = splitMk
+                  ? `<span style="font-size:9px;background:#e3f2fd;color:#1565c0;border-radius:3px;padding:1px 3px;margin-left:3px;font-weight:bold;">+${splitMk.splitMin}분</span>`
+                  : '';
+                const needMakeupBadge = isEventChild && dates.length < 5 && wi === 0
+                  ? `<br><span style="font-size:9px;background:#1565c0;color:white;border-radius:3px;padding:1px 3px;margin-top:2px;display:inline-block;">📋 보강 필요</span>`
+                  : '';
+                const _custTime = normSlot(therapy.timeSlot||'');
+                const customTimeLine = (_custTime && !baseSlots.includes(_custTime))
+                  ? `<div style="font-size:10px;color:#444;font-weight:bold;margin-bottom:2px;">${escHtml(therapy.timeSlot)}</div>`
+                  : '';
+                const handoffMark = therapy._isHandoff
+                  ? `<span style="font-size:9px;background:#ff9800;color:white;border-radius:3px;padding:1px 3px;margin-left:3px;">인계</span>`
+                  : '';
+                cellHTML+=`<div class="chip chip-normal"
+                  style="background:${c.bg};color:${c.text};${hasNote?'border:2px solid #f9a825;':''}"
+                  onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(therapy.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                  ${customTimeLine}<span style="font-size:10px;font-weight:bold;">${sessionKey}</span> ${escHtml(lbl)}${handoffMark}${hasNote?' 📌':''}${splitBadge}${needMakeupBadge}
+                </div>`;
+              }
+            });
+
+            makeupHere.forEach(ch=>{
+              const origChild=children.find(c2=>c2.id===ch.childId);
+              const nameLbl = origChild ? `${origChild.name}${birthCode(origChild.birth)}` : ch.childName;
+              // 원래 수업 일자 기준으로 주차 계산
+              let origSessionKey = sessionKey;
+              let origDateLbl = '';
+              if (ch.originalDate) {
+                const od = new Date(ch.originalDate + 'T00:00:00');
+                const oM = od.getMonth() + 1, oD = od.getDate();
+                let oW = 0;
+                for (let dd=1; dd<=oD; dd++) {
+                  if (new Date(od.getFullYear(), od.getMonth(), dd).getDay() === od.getDay()) oW++;
+                }
+                origSessionKey = `${oM}-${oW}`;
+                origDateLbl = `(${oM}/${oD})`;
+              }
+              cellHTML+=`<div class="chip chip-makeup"
+                onclick="openMakeupModal('${ch.id}','${escJs(ch.childName)}','${escJs(therapist)}','${escJs(slot)}','${dStr}')">
+                <span style="font-size:10px;font-weight:bold;">보${origSessionKey}</span> ${escHtml(nameLbl)} ${origDateLbl}
+              </div>`;
+            });
+
+            // 이벤트 별도 1회 수업 자동 표기
+            changes.filter(ch=>{
+              if (!ch.isExtra || ch.extraMakeupMethod!=='session' || !ch.makeupDate) return false;
+              if (ch.makeupDate!==dStr) return false;
+              const child=children.find(c2=>c2.id===ch.childId);
+              if (!child) return false;
+              const therapy=(child.therapies||[]).find(t=>t.support==='발달재활서비스');
+              return therapy && therapy.therapist===therapist && ch.makeupTimeSlot===slot;
+            }).forEach(ch=>{
+              const child=children.find(c2=>c2.id===ch.childId);
+              if (!child) return;
+              const lbl=`${child.name}${birthCode(child.birth)}(이)`;
+              cellHTML+=`<div class="chip chip-normal"
+                style="background:#e8eaf6;color:#283593;border:2px solid #7986cb;font-weight:bold;">
+                ${escHtml(lbl)}
+              </div>`;
+            });
+
+            // 정기 차단 / 시간대 휴가 체크
+            const _parseHHMM = (s, forceAM=false) => {
+              const m = (s||'').match(/(\d{1,2}):(\d{2})/);
+              if (!m) return null;
+              let h = parseInt(m[1]); const mm = parseInt(m[2]);
+              if (!forceAM && h < 9) h += 12;
+              return h*60+mm;
+            };
+            const _parseRange = (s1, s2) => {
+              let v1 = _parseHHMM(s1), v2 = _parseHHMM(s2);
+              if (v1!=null && v2!=null && v2 < v1) v1 = _parseHHMM(s1, true);
+              return [v1, v2];
+            };
+            const _slotOverlaps = (slotStr, s1str, e1str) => {
+              const ssm = (slotStr||'').match(/(\d{1,2}:\d{2})[\s~\-]+(\d{1,2}:\d{2})/);
+              if (!ssm) return false;
+              const [a1,a2] = _parseRange(ssm[1], ssm[2]);
+              const [b1,b2] = _parseRange(s1str, e1str);
+              if (a1==null||a2==null||b1==null||b2==null) return false;
+              return a1 < b2 && a2 > b1;
+            };
+            const _allBlocks = JSON.parse(localStorage.getItem('therapistBlocks')||'[]');
+            const _allVacsTime = JSON.parse(localStorage.getItem('therapistVacations')||'[]');
+            let _blockHit = null;
+            for (const b of _allBlocks) {
+              if (b.therapistName===therapist && b.day===currentDay && _slotOverlaps(slot, b.startTime, b.endTime)) {
+                _blockHit = { label: b.label, kind:'정기차단' }; break;
+              }
+            }
+            if (!_blockHit) {
+              for (const v of _allVacsTime) {
+                if (v.therapistName!==therapist) continue;
+                if (!v.startTime || !v.endTime) continue;
+                if (dStr < v.startDate || dStr > v.endDate) continue;
+                if (_slotOverlaps(slot, v.startTime, v.endTime)) {
+                  _blockHit = { label: v.note||'휴가', kind:'시간대휴가' }; break;
+                }
+              }
+            }
+            if (_blockHit) {
+              html += `<td class="appt-cell" style="background:#e0e0e0;color:#555;font-size:11px;text-align:center;padding:8px;">
+                🚫 <span style="font-weight:bold;">${escHtml(_blockHit.label)}</span>
+                <div style="font-size:10px;color:#888;margin-top:3px;">(${_blockHit.kind})</div>
+              </td>`;
+              return;
+            }
+            const isOnVacation = vacMap[therapist.trim()] && vacMap[therapist.trim()].has(dStr);
+            if (isOnVacation) {
+              // 휴가 셀: 해당 슬롯 아동들을 보강필요 칩으로 표시
+              let vacCellHTML = `<div style="text-align:center;color:#888;font-size:10px;margin-bottom:3px;">🏖️ 휴가</div>`;
+              regular.forEach(({child,therapy:t2})=>{
+                const lbl2 = chipLabel(child,t2);
+                const existChange = changes.find(ch=>
+                  ch.childId===child.id && ch.therapist===therapist &&
+                  ch.timeSlot===slot && ch.originalDate===dStr
+                );
+                if (existChange && existChange.makeupDate) {
+                  vacCellHTML+=`<div class="chip chip-absent" style="font-size:11px;"
+                    onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(t2.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                    <span style="font-size:10px;font-weight:bold;">${sessionKey}</span> 🔄 ${escHtml(lbl2)}<br>
+                    <span style="font-size:10px;">보강: ${existChange.makeupDate.substring(5)}</span>
+                  </div>`;
+                } else {
+                  vacCellHTML+=`<div class="chip chip-absent" style="font-size:11px;border:2px solid #e65100;"
+                    onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(t2.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                    <span style="font-size:10px;font-weight:bold;">${sessionKey}</span> ⚠️ ${escHtml(lbl2)}
+                  </div>`;
+                  // 결석 자동 등록 (없으면)
+                  if (!existChange) {
+                    const allCh2 = getChanges();
+                    const alreadyExists = allCh2.some(ch=>
+                      ch.childId===child.id && ch.therapist===therapist &&
+                      ch.timeSlot===slot && ch.originalDate===dStr
+                    );
+                    if (!alreadyExists) {
+                      allCh2.push({
+                        id: Date.now().toString() + Math.random().toString(36).slice(2),
+                        childId: child.id, childName: child.name,
+                        therapist, timeSlot: slot, support: t2.support||'',
+                        status: 'absent', originalDate: dStr,
+                        makeupDate: '', reason: '휴가'
+                      });
+                      saveChanges(allCh2);
+                    }
+                  }
+                }
+              });
+              if (regular.length === 0) vacCellHTML += `<span style="color:#aaa;font-size:11px;">수업 없음</span>`;
+              html+=`<td class="appt-cell" style="background:#f0f0f0;">${vacCellHTML}</td>`;
+            } else {
+              const isEmpty = !cellHTML;
+              if (isEmpty) cellHTML=`<span class="empty-cell" style="color:#43a047;font-size:11px;font-weight:bold;">🟢 <span style="color:#b0bec5;font-weight:normal;">${escHtml(therapist)}</span> 빈 타임</span>`;
+              // 1~4주차에는 아동 수업이 있고 5주차만 비어있는 경우만 초록색
+              const hasChildInSlot = regular.length > 0;
+              const week5Bg = (isEmpty && wi===4 && dates.length>=5 && hasChildInSlot) ? 'background:#c8e6c9;' : '';
+              html+=`<td class="appt-cell" style="${week5Bg}">${cellHTML}</td>`;
+            }
+          });
+          html+='</tr>';
+        });
+      });
+
+      html+='</tbody>';
+      table.innerHTML=html;
+
+      document.getElementById('therapistLegend').innerHTML=
+        Object.entries(therapistColorMap).map(([name,c])=>
+          `<div class="legend-item"><div class="legend-dot" style="background:${c.bg};border:1px solid ${c.text};"></div><span>${name}</span></div>`
+        ).join('');
+    }
+
+    // ── 치료사별 주간 보기 ──
+    function renderWeek() {
+      const container = document.getElementById('weekMultiContainer');
+      const selected = _getSelectedTherapists();
+      const mode = document.querySelector('input[name="weekViewMode"]:checked')?.value || 'week';
+      const dayPickWrap = document.getElementById('weekDayPickWrap');
+      if (dayPickWrap) dayPickWrap.style.display = mode==='day' ? 'inline-flex' : 'none';
+      const dayFilter = mode==='day' ? (document.getElementById('weekDayPick')?.value||'화') : null;
+      if (container) {
+        if (!selected.length) {
+          container.innerHTML = `<div style="padding:40px;color:#aaa;text-align:center;">위에서 치료사를 1명 이상 선택하세요.</div>`;
+          return;
+        }
+        if (mode === 'day') {
+          // 일간 모드: 요일별 보기와 동일한 형식 (시간대 × 주차 × 치료사 컬럼)
+          container.innerHTML = `<div class="schedule-wrap"><table class="sched" id="weekDayMultiTbl"></table></div>`;
+          _renderDayMulti(dayFilter, selected, document.getElementById('weekDayMultiTbl'));
+          return;
+        }
+        container.innerHTML = selected.map((t, idx)=>{
+          const tColor = getColor(t);
+          return `<div style="margin-bottom:20px;">
+            <div style="background:${tColor.bg};color:${tColor.text};padding:10px 14px;font-weight:bold;font-size:15px;border-radius:8px 8px 0 0;border:1px solid #ccc;border-bottom:none;">
+              👤 ${t} 치료사
+            </div>
+            <div class="schedule-wrap" style="border:1px solid #ccc;border-radius:0 0 8px 8px;">
+              <table class="sched" id="weekTbl_${idx}"></table>
+            </div>
+          </div>`;
+        }).join('');
+        selected.forEach((t, idx) => {
+          const tbl = document.getElementById('weekTbl_'+idx);
+          _renderWeekForTherapist(t, mode, tbl, dayFilter);
+        });
+        return;
+      }
+      // 폴백
+      const therapist = selected[0];
+      const table = document.getElementById('weekTable');
+      if (!therapist) {
+        table.innerHTML=`<tr><td style="padding:40px;color:#aaa;text-align:center;">위에서 치료사를 선택하세요.</td></tr>`;
+        return;
+      }
+      _renderWeekForTherapist(therapist, mode, table);
+    }
+
+    // 일간 모드: 요일별 보기와 동일한 형식 (시간대 × 주차 × 치료사 컬럼)
+    function _renderDayMulti(day, selectedTherapists, table) {
+      if (!table) return;
+      const children = getChildren().filter(c=>!isInactive(c.status));
+      const changes = getChanges();
+      const dates = getDatesForDay(currentYear, currentMonth, day);
+      const baseSlots = getSlotsForDay(day);
+      const _smin = s => { const m=(s||'').match(/(\d{1,2}):(\d{2})/); if(!m) return 9999; let h=parseInt(m[1]),mm=parseInt(m[2]); if(h<9) h+=12; return h*60+mm; };
+      const snapToBase = ts => {
+        if (baseSlots.includes(ts)) return ts;
+        const tm=_smin(ts); let best=baseSlots[0], bd=Infinity;
+        for (const b of baseSlots) { const d=Math.abs(_smin(b)-tm); if (d<bd){bd=d;best=b;} }
+        return best;
+      };
+      const therapists = selectedTherapists;
+
+      // 헤더
+      let html = `<thead><tr>
+        <th style="background:#558b2f;color:white;">시간대</th>
+        <th style="background:#558b2f;color:white;">주차</th>
+        ${therapists.map(t=>{ const c=getColor(t); return `<th style="background:${c.bg};color:${c.text};min-width:160px;">${t}</th>`; }).join('')}
+      </tr></thead><tbody>`;
+
+      baseSlots.forEach(slot=>{
+        dates.forEach((date, wi)=>{
+          const dStr = dateStr(currentYear, currentMonth, date);
+          const sessionKey = `${currentMonth}-${wi+1}`;
+          html += '<tr>';
+          if (wi===0) html += `<td class="time-cell" rowspan="${dates.length}">${fmtTimeSlot(slot)}</td>`;
+          html += `<td class="week-cell">${sessionKey}<br><span style="color:#bbb;font-size:10px;">${currentMonth}/${date}</span></td>`;
+
+          therapists.forEach(therapist=>{
+            // 매칭 children
+            const matched = [];
+            children.forEach(child=>{
+              (child.therapies||[]).forEach(t0=>{
+                if (!isValidTherapy(t0)) return;
+                const t = effectiveTherapy(t0, dStr);
+                const days = normCycle(t.cycle);
+                const th = tTherapist(t, child);
+                if (th===therapist && snapToBase(normSlot(t.timeSlot))===slot && days.includes(day)) {
+                  matched.push({child, therapy:t});
+                }
+              });
+            });
+            // 주차 제한
+            const inRange = matched.filter(({therapy})=>{
+              const fixedWeeks = (therapy.banchiWeeks||[]);
+              if (fixedWeeks.length > 0 && therapy.banchiSessionPref && therapy.banchiSessionPref !== 'natural') {
+                return fixedWeeks.includes(wi+1);
+              }
+              const totalCount = calcTotalCount(therapy, dates);
+              return wi < totalCount;
+            });
+
+            let cellHTML = '';
+            inRange.forEach(({child, therapy})=>{
+              const lbl = chipLabel(child, therapy);
+              const cc = getColor(therapist);
+              cellHTML += `<div class="chip chip-normal" style="background:${cc.bg};color:${cc.text};margin:2px;"
+                onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(therapy.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                <span style="font-size:10px;">${sessionKey}</span> ${escHtml(lbl)}
+              </div>`;
+            });
+            // 보강 칩
+            changes.forEach(ch=>{
+              const hasMakeup = (ch.status==='makeup'||ch.status==='absent') && ch.makeupDate && ch.makeupDate!=='split';
+              if (!hasMakeup) return;
+              if (ch.therapist!==therapist) return;
+              const md = new Date(ch.makeupDate+'T00:00:00');
+              if (md.getFullYear()!==currentYear || md.getMonth()+1!==currentMonth || md.getDate()!==date) return;
+              const mkSlot = ch.makeupTimeSlot || ch.timeSlot || '';
+              if (snapToBase(normSlot(mkSlot))!==slot) return;
+              const oc = children.find(c=>c.id===ch.childId);
+              const nameLbl = oc ? `${oc.name}${birthCode(oc.birth)}` : ch.childName;
+              const oM = md.getMonth()+1, oD = md.getDate();
+              cellHTML += `<div class="chip chip-makeup" style="margin:2px;">
+                <span style="font-size:10px;font-weight:bold;">보 ${escHtml(nameLbl)}</span>
+              </div>`;
+            });
+
+            if (!cellHTML) cellHTML = `<span style="color:#43a047;font-size:11px;font-weight:bold;">🟢 <span style="color:#b0bec5;font-weight:normal;">${escHtml(therapist)}</span> 빈 타임</span>`;
+            html += `<td class="appt-cell">${cellHTML}</td>`;
+          });
+          html += '</tr>';
+        });
+      });
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    function _renderWeekForTherapist(therapist, mode, tableEl, dayFilter) {
+      const tableId = tableEl ? null : `weekTbl_${btoa(unescape(encodeURIComponent(therapist))).replace(/=/g,'')}`;
+      const table = tableEl || document.getElementById(tableId);
+      if (!table) return;
+      const DAYS_VIEW = dayFilter ? [dayFilter] : DAYS;
+
+      const children = getChildren().filter(c=>!isInactive(c.status));
+      const changes = getChanges();
+
+      // 요일별 시간대 사용 (토요일은 SAT_SLOTS)
+      // renderWeek는 여러 요일을 함께 표시하므로, 토요일이 포함된 경우 합집합 사용
+      const hasSat = DAYS.some(d => d==='토' && getDatesForDay(currentYear,currentMonth,'토').length>0 && getChildren().some(c=>!isInactive(c.status)&&(c.therapies||[]).some(t=>(t.cycle||'').includes('토'))));
+      const baseSlotsW = hasSat ? [...new Set([...VALID_SLOTS,...SAT_SLOTS])] : VALID_SLOTS;
+      const _slotStartMinW = s => {
+        const m = (s||'').match(/(\d{1,2}):(\d{2})/);
+        if (!m) return 9999;
+        let h = parseInt(m[1]), mm = parseInt(m[2]);
+        if (h < 9) h += 12;
+        return h*60 + mm;
+      };
+      const snapToBaseW = ts => {
+        if (baseSlotsW.includes(ts)) return ts;
+        const tm = _slotStartMinW(ts);
+        let best = baseSlotsW[0], bestDiff = Infinity;
+        for (const b of baseSlotsW) {
+          const d = Math.abs(_slotStartMinW(b) - tm);
+          if (d < bestDiff) { bestDiff = d; best = b; }
+        }
+        return best;
+      };
+      const timeSlots = baseSlotsW;
+      const _oldDbg = document.getElementById('_ryuDebug');
+      if (_oldDbg) _oldDbg.remove();
+
+      // 각 요일의 날짜 목록
+      const dayDates = {};
+      DAYS.forEach(d=>{ dayDates[d]=getDatesForDay(currentYear,currentMonth,d); });
+
+      // 헤더: 요일 컬럼
+      const c=getColor(therapist);
+      let html=`<thead><tr><th style="background:#558b2f;">시간대</th>`;
+      DAYS_VIEW.forEach(d=>{
+        const dates=dayDates[d];
+        html+=`<th style="background:${c.bg};color:${c.text};min-width:110px;">
+          ${d}요일<br>
+          <small style="font-weight:normal;font-size:10px;">${dates.map(dt=>`${currentMonth}/${dt}`).join(' / ')}</small>
+        </th>`;
+      });
+      html+='</tr></thead><tbody>';
+
+      timeSlots.forEach(slot=>{
+        html+=`<tr><td class="time-cell">${fmtTimeSlot(slot)}</td>`;
+
+        DAYS_VIEW.forEach(day=>{
+          const dates=dayDates[day];
+          let cellHTML='';
+
+          dates.forEach((date,wi)=>{
+            const dStr=dateStr(currentYear,currentMonth,date);
+            const sessionKey=`${currentMonth}-${wi+1}`;
+
+            // 정기 수업 (센터비용 및 동명 중복 아동 dedup)
+            const _wkNb = b => { const d=(b||'').replace(/\D/g,''); return d.length>=8?d.slice(2,8):d; };
+            const _wkByName = {}, _wkByBirth = {};
+            // 1차: 센터비용 우선
+            children.forEach(child=>{
+              (child.therapies||[]).forEach(t=>{
+                if (t.support==='센터비용' && normCycle(t.cycle).includes(day)) {
+                  const ck = 'ck:' + child.name + ':' + _wkNb(child.birth);
+                  _wkByName[child.name] = ck;
+                  const b = _wkNb(child.birth);
+                  if (b) _wkByBirth[b] = ck;
+                }
+              });
+            });
+            // 2차: 비센터 중 동일 이름 2개 이상인 경우 canonical key 통합
+            const _wkDayNameMap = {};
+            children.forEach(child=>{
+              if (_wkByName[child.name]) return;
+              (child.therapies||[]).forEach(t=>{
+                if (normCycle(t.cycle).includes(day)) {
+                  if (!_wkDayNameMap[child.name]) _wkDayNameMap[child.name] = [];
+                  if (!_wkDayNameMap[child.name].find(x=>x.id===child.id))
+                    _wkDayNameMap[child.name].push(child);
+                }
+              });
+            });
+            const _wkSc = s => s==='센터비용'?20:(s==='발달재활서비스'?10:(s?5:0));
+            Object.entries(_wkDayNameMap).forEach(([name, childs])=>{
+              if (childs.length >= 2) {
+                const best = childs.slice().sort((a,b2)=>{
+                  const sa = Math.max(...(a.therapies||[{support:''}]).map(t=>_wkSc(t.support)));
+                  const sb = Math.max(...(b2.therapies||[{support:''}]).map(t=>_wkSc(t.support)));
+                  return sb - sa;
+                })[0];
+                const ck = 'ck:' + name + ':' + _wkNb(best.birth);
+                _wkByName[name] = ck;
+                childs.forEach(ch=>{
+                  const b = _wkNb(ch.birth);
+                  if (b) _wkByBirth[b] = ck;
+                });
+              }
+            });
+            const _wkKey = c => {
+              const b = _wkNb(c.birth);
+              if (_wkByName[c.name]) return _wkByName[c.name];
+              return c.name + '|' + b;
+            };
+            const _wkSeen = new Map();
+            children.forEach(child=>{
+              (child.therapies||[]).forEach(t0=>{
+                if (!isValidTherapy(t0)) return;
+                const t = effectiveTherapy(t0, dStr);
+                const days2=normCycle(t.cycle);
+                const th=tTherapist(t,child);
+                if (th===therapist && snapToBaseW(normSlot(t.timeSlot))===slot && days2.includes(day)) {
+                  const key = _wkKey(child);
+                  const prev = _wkSeen.get(key);
+                  const score = t.support==='센터비용'?20:(t.support==='발달재활서비스'?10:0);
+                  const prevScore = prev ? (prev.therapy.support==='센터비용'?20:(prev.therapy.support==='발달재활서비스'?10:0)) : -1;
+                  if (!prev || score > prevScore) _wkSeen.set(key, {child, therapy:t});
+                }
+              });
+            });
+            // 센터 아동 후처리: 동일 슬롯·치료사에 센터 therapy가 있을 때만 교체
+            _wkSeen.forEach((entry)=>{
+              if (entry.therapy.support === '센터비용') return;
+              if (!_wkByName[entry.child.name]) return;
+              let centerT = (entry.child.therapies||[]).find(t=>
+                t.support==='센터비용' &&
+                normCycle(t.cycle).includes(day) &&
+                (t.therapist||entry.child.therapist) === therapist &&
+                snapToBaseW(normSlot(t.timeSlot)) === slot
+              );
+              if (!centerT) {
+                for (const oc of children) {
+                  if (oc.name === entry.child.name) {
+                    centerT = (oc.therapies||[]).find(t=>
+                      t.support==='센터비용' &&
+                      normCycle(t.cycle).includes(day) &&
+                      (t.therapist||oc.therapist) === therapist &&
+                      snapToBaseW(normSlot(t.timeSlot)) === slot
+                    );
+                    if (centerT) break;
+                  }
+                }
+              }
+              if (centerT) entry.therapy = centerT;
+            });
+            const regular = [..._wkSeen.values()];
+
+            // 이 날 보강 수업 (다른 날에서 온)
+            const makeupHere=changes.filter(ch=>{
+              const hasMakeup = (ch.status==='makeup' || ch.status==='absent') && ch.makeupDate && ch.makeupDate!=='split';
+              if (!hasMakeup) return false;
+              const md=new Date(ch.makeupDate+'T00:00:00');
+              if (md.getFullYear()!==currentYear || md.getMonth()+1!==currentMonth || md.getDate()!==date) return false;
+              if (ch.therapist!==therapist) return false;
+              const mkSlot = ch.makeupTimeSlot || ch.timeSlot || '';
+              return snapToBaseW(normSlot(mkSlot)) === slot;
+            });
+
+            // 총 회수 초과 주차 아동 제외 (이벤트 아동은 5주차 허용)
+            const regularInRange = regular.filter(({therapy})=>{
+              const fixedWeeks = (therapy.banchiWeeks||[]);
+              if (fixedWeeks.length > 0 && therapy.banchiSessionPref && therapy.banchiSessionPref !== 'natural') {
+                return fixedWeeks.includes(wi+1);
+              }
+              const totalCount = calcTotalCount(therapy, dates);
+              if (wi < totalCount) return true;
+              return therapy.support==='발달재활서비스' && therapy.banchiSessionPref!=='natural' && (parseInt(therapy.extraCount)||0)>=1 && wi===4 && dates.length>=5;
+            });
+
+            const hasAny = regularInRange.length>0 || makeupHere.length>0;
+
+            // 요일 구분선 (2주차부터)
+            if (wi>0) cellHTML+=`<hr style="border:none;border-top:1px dashed #eee;margin:4px 0;">`;
+
+            // 이벤트 별도 1회 수업 (hasAny와 무관하게 항상 체크)
+            const extraSessionHere = changes.filter(ch=>{
+              if (!ch.isExtra || ch.extraMakeupMethod!=='session' || !ch.makeupDate) return false;
+              if (ch.makeupDate!==dStr) return false;
+              const child=children.find(c2=>c2.id===ch.childId);
+              if (!child) return false;
+              const therapy=(child.therapies||[]).find(t=>t.support==='발달재활서비스');
+              return therapy && therapy.therapist===therapist && ch.makeupTimeSlot===slot;
+            });
+
+            if (!hasAny && !extraSessionHere.length) {
+              // 빈 슬롯 — 보강 가능
+              cellHTML+=`<button class="slot-available"
+                onclick="openMakeupSlot('${escJs(therapist)}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                ✅ ${sessionKey} ${currentMonth}/${date}<br>보강 가능
+              </button>`;
+            } else {
+              regularInRange.forEach(({child,therapy})=>{
+                const totalCount = calcTotalCount(therapy, dates);
+                const isEventWeek = wi>=totalCount;
+                const change=changes.find(ch=>
+                  ch.childId===child.id&&ch.therapist===therapist&&
+                  ch.timeSlot===slot&&ch.originalDate===dStr
+                );
+                const lbl = isEventWeek
+                  ? `${child.name}${birthCode(child.birth)}(이)`
+                  : chipLabel(child,therapy);
+                const cc=getColor(therapist);
+
+                if (isEventWeek) {
+                  cellHTML+=`<div class="chip chip-normal"
+                    style="background:#e8eaf6;color:#283593;border:1px solid #7986cb;"
+                    onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(therapy.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                    <span style="font-size:10px;">${sessionKey}</span> ${escHtml(lbl)}
+                  </div>`;
+                } else if (change&&change.status==='absent') {
+                  const hasMakeup=!!change.makeupDate;
+                  cellHTML+=`<div class="chip chip-absent"
+                    onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(therapy.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                    <span>${sessionKey}</span> <span>${escHtml(lbl)}</span><br>
+                    <span style="font-size:10px;">🤒${change.reason||'결석'}${hasMakeup?'':' ⚠️'}</span>
+                  </div>`;
+                } else if (change&&change.status==='makeup') {
+                  const md2=change.makeupDate?change.makeupDate.substring(5):'';
+                  cellHTML+=`<div class="chip chip-absent"
+                    onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(therapy.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                    <span>${sessionKey}</span> <span>${escHtml(lbl)}</span><br>
+                    <span style="font-size:10px;">🔄${md2}</span>
+                  </div>`;
+                } else {
+                  const isEventChildWk = therapy.support==='발달재활서비스' && (parseInt(therapy.extraCount)||0)>=1;
+                  const needMakeupBadgeWk = isEventChildWk && dates.length < 5 && wi === 0
+                    ? `<br><span style="font-size:9px;background:#1565c0;color:white;border-radius:3px;padding:1px 3px;margin-top:2px;display:inline-block;">📋 보강 필요</span>`
+                    : '';
+                  const _custTimeWk = normSlot(therapy.timeSlot||'');
+                  const customTimeLineWk = (_custTimeWk && !baseSlotsW.includes(_custTimeWk))
+                    ? `<div style="font-size:10px;color:#444;font-weight:bold;margin-bottom:2px;">${escHtml(therapy.timeSlot)}</div>`
+                    : '';
+                  cellHTML+=`<div class="chip chip-normal"
+                    style="background:${cc.bg};color:${cc.text};"
+                    onclick="openModal('${child.id}','${escJs(child.name)}','${escJs(therapist)}','${escJs(therapy.type||'')}','${escJs(slot)}','${dStr}','${sessionKey}')">
+                    ${customTimeLineWk}<span style="font-size:10px;">${sessionKey}</span> ${escHtml(lbl)}${needMakeupBadgeWk}
+                  </div>`;
+                }
+              });
+
+              makeupHere.forEach(ch=>{
+                const origChild=children.find(c2=>c2.id===ch.childId);
+                const mkLbl=origChild?`${origChild.name}${birthCode(origChild.birth)}(보강)`:`${ch.childName}(보강)`;
+                cellHTML+=`<div class="chip chip-makeup"
+                  onclick="openMakeupModal('${ch.id}','${escJs(ch.childName)}','${escJs(therapist)}','${escJs(slot)}','${dStr}')">
+                  🔄 ${escHtml(mkLbl)}
+                </div>`;
+              });
+
+              extraSessionHere.forEach(ch=>{
+                const child=children.find(c2=>c2.id===ch.childId);
+                if (!child) return;
+                const lbl=`${child.name}${birthCode(child.birth)}(이)`;
+                cellHTML+=`<div class="chip chip-normal"
+                  style="background:#e8eaf6;color:#283593;border:2px solid #7986cb;font-weight:bold;">
+                  ${escHtml(lbl)}
+                </div>`;
+              });
+            }
+          });
+
+          html+=`<td class="appt-cell" style="padding:4px;">${cellHTML}</td>`;
+        });
+        html+='</tr>';
+      });
+
+      html+='</tbody>';
+      table.innerHTML=html;
+    }
+
+    // 주간 보기 빈 슬롯 클릭 → 보강 지정 모달
+    function openMakeupSlot(therapist, slot, date, sessionKey) {
+      // 보강 미지정 결석 목록 중 이 치료사 것만 보여주기
+      const unscheduled = getChanges().filter(ch=>
+        ch.status==='absent' && !ch.makeupDate && ch.therapist===therapist
+      );
+      if (!unscheduled.length) {
+        alert(`${therapist} 치료사의 보강 미지정 결석이 없습니다.`);
+        return;
+      }
+      // 보강할 결석 선택 UI (여러 건 있을 경우)
+      const select = unscheduled.map((ch,i)=>
+        `${i+1}. ${ch.childName} (${ch.originalDate} ${ch.reason||'결석'})`
+      ).join('\n');
+      const idx = unscheduled.length===1 ? 0 :
+        parseInt(prompt(`보강할 결석을 번호로 선택하세요:\n${select}`))-1;
+      if (isNaN(idx)||idx<0||idx>=unscheduled.length) return;
+
+      const ch = unscheduled[idx];
+      const changes = getChanges();
+      const updated = changes.map(c2=>{
+        if (c2.id===ch.id) return {...c2, status:'makeup', makeupDate:date, makeupTimeSlot:slot};
+        return c2;
+      });
+      saveChanges(updated);
+      render();
+    }
+
+    // ── 모달 ──
+    function openModal(childId, childName, therapist, type, slot, date, sessionKey) {
+      currentSession={childId,childName,therapist,type,slot,date,sessionKey};
+      const existing=getChanges().find(ch=>
+        ch.childId===childId&&ch.therapist===therapist&&
+        ch.timeSlot===slot&&ch.originalDate===date
+      );
+      const childData = getChildren().find(c=>c.id===childId);
+      const note = childData&&childData.therapistNote ? childData.therapistNote : '';
+      const noteStatus = childData ? (childData.noteStatus||'미전달') : '';
+      const noteHTML = note
+        ? `<div style="margin-top:10px;padding:10px 12px;background:#fffde7;border:2px solid #f9a825;border-radius:8px;">
+            <div style="font-size:12px;font-weight:bold;color:#f57f17;margin-bottom:4px;">
+              📌 치료사 전달사항
+              <span style="font-size:11px;font-weight:normal;margin-left:6px;color:${noteStatus==='전달완료'?'#2e7d32':'#e65100'};">
+                ${noteStatus==='전달완료'?'✅ 전달완료':'⚠️ 미전달'}
+              </span>
+            </div>
+            <div style="font-size:13px;color:#555;white-space:pre-wrap;">${escHtml(note)}</div>
+            ${noteStatus!=='전달완료'
+              ? `<button class="btn btn-primary" style="margin-top:8px;padding:4px 12px;font-size:12px;"
+                  onclick="markNoteDelivered('${childId}')">✅ 전달완료 처리</button>`
+              : ''}
+          </div>` : '';
+
+      document.getElementById('modalInfo').innerHTML=
+        `<strong>${escHtml(childName)}</strong> · ${escHtml(therapist)}(${escHtml(type)})<br>
+        ${date} ${escHtml(slot)} <span style="color:#888;">${sessionKey}</span>
+        ${noteHTML}`;
+      showNormalModal();
+      if (existing) { showExisting(existing); currentSession.changeId=existing.id; }
+      document.getElementById('modalBg').classList.add('open');
+    }
+
+    function openMakeupModal(changeId, childName, therapist, slot, date) {
+      const ch=getChanges().find(c=>c.id===changeId);
+      if (!ch) return;
+      currentSession={changeId};
+      document.getElementById('modalTitle').textContent='보강 일정';
+      document.getElementById('modalInfo').innerHTML=
+        `🔄 <strong>${escHtml(childName)}</strong> 보강 수업<br>원래: ${ch.originalDate} → 보강: ${ch.makeupDate}`;
+      showExisting(ch);
+      document.getElementById('modalBg').classList.add('open');
+    }
+
+    function showNormalModal() {
+      document.getElementById('modalTitle').textContent='일정 관리';
+      ['modalNormal','modalAbsent','modalMakeup','modalExisting'].forEach((id,i)=>{
+        document.getElementById(id).style.display = i===0?'':'none';
+      });
+    }
+    function showExisting(ch) {
+      ['modalNormal','modalAbsent','modalMakeup'].forEach(id=>document.getElementById(id).style.display='none');
+      document.getElementById('modalExisting').style.display='';
+      const st=ch.status==='absent'
+        ?`🤒 결석 (${ch.reason||'-'})${ch.makeupDate?'':' — 보강 미지정'}`
+        :`🔄 보강 예정 (${ch.makeupDate} ${ch.makeupTimeSlot||ch.timeSlot})`;
+      document.getElementById('existingInfo').innerHTML=
+        `<strong>현재 상태:</strong> ${st}${ch.note?'<br>메모: '+escHtml(ch.note):''}`;
+      if (ch.id) currentSession.changeId=ch.id;
+    }
+    function markAbsent() {
+      document.getElementById('modalNormal').style.display='none';
+      document.getElementById('modalAbsent').style.display='';
+    }
+    function showMakeupForm() {
+      document.getElementById('modalNormal').style.display='none';
+      document.getElementById('modalMakeup').style.display='';
+      document.getElementById('makeupDate').value=new Date().toISOString().split('T')[0];
+      // 이벤트 아동(발달재활서비스 extraCount>=1) 자동 감지
+      const s = currentSession;
+      const child = getChildren().find(c=>c.id===s?.childId);
+      const therapy = (child?.therapies||[]).find(t=>t.support==='발달재활서비스');
+      const isEvent = therapy && (parseInt(therapy.extraCount)||0)>=1;
+      const wrap = document.getElementById('makeupMethodWrap');
+      if (wrap) {
+        wrap.style.display = isEvent ? '' : 'none';
+        // 기존 isExtra 레코드 있으면 선택값 복원
+        if (isEvent) {
+          const monthPfx = (s.date||'').substring(0,7);
+          const existing = getChanges().find(c=>c.childId===s.childId && c.isExtra && c.monthKey===monthPfx);
+          if (existing) {
+            const rb = document.querySelector(`input[name="makeupMethod"][value="${existing.extraMakeupMethod||'session'}"]`);
+            if (rb) rb.checked = true;
+            if (existing.makeupDate) document.getElementById('makeupDate').value = existing.makeupDate;
+            if (existing.makeupTimeSlot) {
+              const tSel = document.getElementById('makeupTime');
+              const opts = [...tSel.querySelectorAll('option')].map(o=>o.value);
+              if (opts.includes(existing.makeupTimeSlot)) tSel.value = existing.makeupTimeSlot;
+              else { tSel.value = '기타'; document.getElementById('makeupTimeEtcWrap').style.display='block'; document.getElementById('makeupTimeEtc').value = existing.makeupTimeSlot; }
+            }
+          }
+          _toggleMakeupMethod();
+        }
+      }
+    }
+    function saveAbsent() {
+      const s=currentSession;
+      const changes=getChanges().filter(ch=>
+        !(ch.childId===s.childId&&ch.therapist===s.therapist&&ch.timeSlot===s.slot&&ch.originalDate===s.date)
+      );
+      changes.push({
+        id:Date.now().toString(),
+        childId:s.childId,childName:s.childName,
+        therapist:s.therapist,type:s.type,
+        timeSlot:s.slot,originalDate:s.date,
+        status:'absent',
+        reason:document.getElementById('absentReason').value,
+        note:document.getElementById('absentNote').value,
+      });
+      saveChanges(changes); closeModal(); render();
+    }
+    function _toggleMakeupMethod() {
+      const m = document.querySelector('input[name="makeupMethod"]:checked')?.value || 'session';
+      const dateField = document.getElementById('makeupDate')?.closest('.field');
+      const timeField = document.getElementById('makeupTime')?.closest('.field');
+      if (dateField) dateField.style.display = m==='split' ? 'none' : '';
+      if (timeField) timeField.style.display = m==='split' ? 'none' : '';
+    }
+
+    function saveMakeup() {
+      const s=currentSession;
+      const isEventMode = document.getElementById('makeupMethodWrap')?.style.display !== 'none';
+      const method = isEventMode ? (document.querySelector('input[name="makeupMethod"]:checked')?.value || 'session') : 'session';
+      const changes=getChanges().filter(ch=>
+        !(ch.childId===s.childId&&ch.therapist===s.therapist&&ch.timeSlot===s.slot&&ch.originalDate===s.date)
+      );
+      if (isEventMode && method==='split') {
+        // 이벤트 분할 보강: monthKey 기반 isExtra 레코드
+        const monthPfx = (s.date||'').substring(0,7);
+        const cleaned = changes.filter(c=>!(c.childId===s.childId && c.isExtra && c.monthKey===monthPfx));
+        cleaned.push({
+          id: Date.now().toString(),
+          childId: s.childId,
+          isExtra: true,
+          monthKey: monthPfx,
+          extraMakeupMethod: 'split',
+          makeupDate: '',
+          makeupTimeSlot: ''
+        });
+        saveChanges(cleaned); closeModal(); render();
+        return;
+      }
+      const makeupDate=document.getElementById('makeupDate').value;
+      if (!makeupDate){alert('보강 날짜를 선택해주세요.');return;}
+      const mkTimeSlot=(()=>{ const v=document.getElementById('makeupTime').value; if(v==='기타') return (document.getElementById('makeupTimeEtc')?.value||'').trim()||s.slot; return v||s.slot; })();
+      if (isEventMode && method==='session') {
+        // 이벤트 별도 1회 수업: isExtra 레코드
+        const monthPfx = (s.date||'').substring(0,7);
+        const cleaned = changes.filter(c=>!(c.childId===s.childId && c.isExtra && c.monthKey===monthPfx));
+        cleaned.push({
+          id: Date.now().toString(),
+          childId: s.childId,
+          isExtra: true,
+          monthKey: monthPfx,
+          extraMakeupMethod: 'session',
+          makeupDate,
+          makeupTimeSlot: mkTimeSlot
+        });
+        saveChanges(cleaned); closeModal(); render();
+        return;
+      }
+      changes.push({
+        id:Date.now().toString(),
+        childId:s.childId,childName:s.childName,
+        therapist:s.therapist,type:s.type,
+        timeSlot:s.slot,originalDate:s.date,
+        status:'makeup',
+        reason:document.getElementById('makeupReason').value,
+        makeupDate,
+        makeupTimeSlot: mkTimeSlot,
+        note:document.getElementById('makeupNote').value,
+      });
+      saveChanges(changes); closeModal(); render();
+    }
+    function restoreSession() {
+      const changes=getChanges().filter(ch=>ch.id!==currentSession.changeId);
+      saveChanges(changes); closeModal(); render();
+    }
+    function cancelSession() {
+      if (!confirm('보강 없이 이 수업을 취소하시겠습니까?\n교육비는 부과되지 않습니다.')) return;
+      const changes = getChanges();
+      let ch = changes.find(c=>c.id===currentSession.changeId);
+      if (!ch) {
+        ch = {
+          id: Date.now().toString() + Math.random().toString(36).slice(2),
+          childId: currentSession.childId,
+          childName: currentSession.childName,
+          therapist: currentSession.therapist,
+          timeSlot: currentSession.slot,
+          originalDate: currentSession.date,
+          status: 'absent'
+        };
+        changes.push(ch);
+      }
+      ch.status = 'cancelled';
+      ch.makeupDate = '';
+      ch.makeupTimeSlot = '';
+      ch.reason = (document.getElementById('makeupReason')?.value || '취소') + ' (보강없음·미부과)';
+      ch.cancelled = true;
+      saveChanges(changes);
+      closeModal();
+      render();
+    }
+    function markNoteDelivered(childId) {
+      const children = getChildren();
+      const child = children.find(c=>c.id===childId);
+      if (!child) return;
+      child.noteStatus = '전달완료';
+      localStorage.setItem('children', JSON.stringify(children));
+      closeModal();
+      render();
+    }
+
+    function closeModal() {
+      document.getElementById('modalBg').classList.remove('open');
+      currentSession=null;
+    }
+    document.getElementById('modalBg').addEventListener('click',e=>{
+      if(e.target===document.getElementById('modalBg')) closeModal();
+    });
+
+    function logout(){localStorage.removeItem('currentUser');location.href='index.html';}
+    function debugVacations(){
+      const raw = localStorage.getItem('therapistVacations');
+      if (!raw || raw === '[]') { alert('❌ 저장된 휴가 데이터 없음\n\n치료사 관리 → 🏖️ 휴가 관리에서 등록해주세요.'); return; }
+      const list = JSON.parse(raw);
+      const msg = list.map((v,i)=>`${i+1}. [${v.therapistName}] ${v.startDate} ~ ${v.endDate} ${v.note?'('+v.note+')':''}`).join('\n');
+      alert(`✅ 저장된 휴가 ${list.length}건:\n\n${msg}`);
+    }
+
+    const now=new Date();
+    // 2026년 6월 이전이면 2026년 6월로 고정
+    const minYear=2026, minMonth=6;
+    currentYear=now.getFullYear();
+    currentMonth=now.getMonth()+1;
+    if (currentYear<minYear||(currentYear===minYear&&currentMonth<minMonth)){
+      currentYear=minYear; currentMonth=minMonth;
+    }
+    const todayDow=now.getDay();
+    currentDay=todayDow>=1&&todayDow<=6?DAYS[todayDow-1]:'월';
+    render();
+  </script>
+</body>
+</html>
