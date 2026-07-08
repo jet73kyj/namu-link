@@ -54,6 +54,8 @@
       <div class="page-title">아동 관리</div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span style="font-size:12px; color:#aaa;">납부현황 기준 자동 표기</span>
+        <input type="file" id="_csvFile" accept=".csv,.txt" style="display:none;" onchange="_handleCsvUpload(this.files[0])">
+        <button onclick="document.getElementById('_csvFile').click()" style="padding:8px 14px;background:#e65100;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">📥 데이터 일괄 업로드</button>
         <button onclick="openIntakeForm()" style="padding:8px 14px;background:#2e7d32;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">+ 신규 상담 등록</button>
       </div>
     </div>
@@ -806,6 +808,120 @@ ${r.summary_memo?`<div class="section"><h2>■ 종합 메모 · 추천 방향</h
 </body></html>`;
       const w = window.open('');
       w.document.open(); w.document.write(html); w.document.close();
+    }
+
+    // ===== CSV 일괄 업로드 =====
+    // 헤더: 이름, 생년월일, 성별, 보호자명, 연락처, 관리자번호 (한글 유연 매칭)
+    function _parseCsv(text) {
+      // BOM 제거
+      text = text.replace(/^﻿/, '');
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (!lines.length) return { headers:[], rows:[] };
+      const parseLine = (line) => {
+        const out = [];
+        let cur = '', inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (inQ) {
+            if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+            else if (c === '"') { inQ = false; }
+            else { cur += c; }
+          } else {
+            if (c === '"') inQ = true;
+            else if (c === ',') { out.push(cur); cur = ''; }
+            else cur += c;
+          }
+        }
+        out.push(cur);
+        return out.map(s => s.trim());
+      };
+      const headers = parseLine(lines[0]);
+      const rows = lines.slice(1).map(parseLine);
+      return { headers, rows };
+    }
+
+    function _findHeaderIdx(headers, keywords) {
+      for (let i = 0; i < headers.length; i++) {
+        const h = headers[i].replace(/\s/g,'');
+        for (const kw of keywords) if (h.includes(kw)) return i;
+      }
+      return -1;
+    }
+
+    function _handleCsvUpload(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const { headers, rows } = _parseCsv(reader.result);
+          const idxName = _findHeaderIdx(headers, ['이름','성명','아동명']);
+          const idxBirth = _findHeaderIdx(headers, ['생년월일','생년']);
+          const idxGender = _findHeaderIdx(headers, ['성별']);
+          const idxGuardian = _findHeaderIdx(headers, ['보호자명','보호자','부모명']);
+          const idxPhone = _findHeaderIdx(headers, ['연락처','전화','휴대폰','모연락처']);
+          const idxMid = _findHeaderIdx(headers, ['관리자번호','관리번호']);
+          if (idxName < 0 || idxBirth < 0) {
+            alert('CSV 헤더에 "이름" 과 "생년월일" 컬럼이 필요합니다.\n\n인식된 헤더:\n' + headers.join(', '));
+            return;
+          }
+
+          const children = JSON.parse(localStorage.getItem('children')||'[]');
+          const keyOf = (name, birth) => `${(name||'').trim()}|${String(birth||'').replace(/\D/g,'')}`;
+          const byKey = new Map();
+          children.forEach((c,i) => byKey.set(keyOf(c.name, c.birth), i));
+
+          let updated = 0, added = 0, skipped = 0;
+          const skippedReasons = [];
+          rows.forEach((r, rIdx) => {
+            const name = r[idxName] || '';
+            const birth = String(r[idxBirth]||'').replace(/\D/g,'');
+            if (!name.trim() || !birth) { skipped++; skippedReasons.push(`행${rIdx+2}: 이름/생년월일 누락`); return; }
+            const gender = idxGender>=0 ? (r[idxGender]||'') : '';
+            const guardian = idxGuardian>=0 ? (r[idxGuardian]||'') : '';
+            const phone = idxPhone>=0 ? (r[idxPhone]||'') : '';
+            const managerId = idxMid>=0 ? (r[idxMid]||'') : '';
+
+            const k = keyOf(name, birth);
+            if (byKey.has(k)) {
+              const existing = children[byKey.get(k)];
+              // 업데이트: 값이 있는 컬럼만 덮어쓰기 (빈 값으로 기존 값 지우지 않음)
+              if (managerId) existing.managerId = managerId;
+              if (gender)    existing.gender    = gender;
+              if (guardian)  existing.guardian  = guardian;
+              if (phone)     existing.phone     = phone;
+              existing.updatedAt = new Date().toISOString();
+              updated++;
+            } else {
+              // 신규 추가
+              const y = /^(\d{4})01자라는/.test(managerId) ? managerId.slice(0,4) : new Date().getFullYear();
+              children.push({
+                id: 'ch_csv_'+(managerId||`${name}_${birth}`)+'_'+Date.now(),
+                managerId,
+                name: name.trim(),
+                birth,
+                gender,
+                guardian,
+                phone,
+                phase: 'active',
+                status: '치료중',
+                therapies: [],
+                createdAt: `${y}-01-01T00:00:00.000Z`,
+                source: 'CSV bulk upload',
+                seededAt: new Date().toISOString(),
+              });
+              added++;
+            }
+          });
+          localStorage.setItem('children', JSON.stringify(children));
+          const msg = `✅ CSV 일괄 업로드 완료\n\n• 업데이트: ${updated}명 (이름·생년월일 일치)\n• 신규 추가: ${added}명\n• 스킵: ${skipped}건\n\n총 처리: ${rows.length}행`;
+          alert(msg + (skippedReasons.length ? '\n\n스킵 사유(최대 5건):\n' + skippedReasons.slice(0,5).join('\n') : ''));
+          document.getElementById('_csvFile').value = '';
+          renderList();
+        } catch (err) {
+          alert('❌ CSV 파싱 실패: ' + err.message);
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
     }
 
     renderList();
