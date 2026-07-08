@@ -178,13 +178,14 @@ function render(){
   const area = document.getElementById('listArea');
   if (!data.length) { area.innerHTML = '<div class="empty">등록된 신규 상담이 없습니다.<br>우측 상단 <b>+ 신규 상담 등록</b> 버튼을 눌러 추가하세요.</div>'; return; }
   let html = `<table class="intake-tbl"><thead><tr>
-    <th style="width:80px;">문의일</th><th style="width:80px;">상담예정</th><th style="width:70px;">상태</th><th>이름</th><th>생년월일</th>
+    <th style="width:130px;">관리자번호</th><th style="width:80px;">문의일</th><th style="width:80px;">상담예정</th><th style="width:70px;">상태</th><th>이름</th><th>생년월일</th>
     <th>보호자</th><th>연락처</th><th>희망영역</th><th>지원사업</th><th>유입</th><th style="width:200px;">관리</th>
   </tr></thead><tbody>`;
   data.forEach(x => {
     const st = x.status || '대기중';
     const canConfirm = st !== '등록확정';
     html += `<tr>
+      <td class="center" style="font-size:11px;font-family:monospace;color:#2e7d32;font-weight:bold;">${escapeHtml(x.managerId||'-')}</td>
       <td class="center" style="font-size:12px;">${x.inquiryDate||'-'}</td>
       <td class="center" style="font-size:12px;">${x.schedDate||'-'}</td>
       <td class="center"><span class="status-pill st-${st}">${st}</span></td>
@@ -242,6 +243,26 @@ function openForm(id){
 }
 function closeForm(){ document.getElementById('mBg').classList.remove('show'); }
 
+// ===== 관리자번호 자동 생성 (YYYY01자라는NNN) =====
+// 규칙: 등록 연도 기준 순번 001부터, 연도 바뀌면 리셋.
+// 신규 저장 시에만 부여, 편집 시에는 기존 번호 유지, 이관 시 동일 번호 유지.
+function _parseManagerSeq(mid, year) {
+  const prefix = `${year}01자라는`;
+  if (!mid || !String(mid).startsWith(prefix)) return 0;
+  const n = parseInt(String(mid).slice(prefix.length), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+function _generateManagerId(inquiryDate) {
+  const year = (inquiryDate || new Date().toISOString().slice(0,10)).slice(0,4);
+  const intake = JSON.parse(localStorage.getItem('intake_list')||'[]');
+  const children = JSON.parse(localStorage.getItem('children')||'[]');
+  let max = 0;
+  intake.forEach(x   => { max = Math.max(max, _parseManagerSeq(x.managerId, year)); });
+  children.forEach(c => { max = Math.max(max, _parseManagerSeq(c.managerId, year)); });
+  const next = String(max + 1).padStart(3, '0');
+  return `${year}01자라는${next}`;
+}
+
 function save(){
   const name = document.getElementById('fName').value.trim();
   const phone = document.getElementById('fPhone').value.trim();
@@ -253,14 +274,17 @@ function save(){
   const source = (srcSel === '기타') ? (srcEtc || '기타') : srcSel;
   const arr = loadAll();
   const existing = arr.find(x=>x.id===id);
+  const inquiryDate = document.getElementById('fInquiryDate').value || (existing?.inquiryDate) || new Date().toISOString().slice(0,10);
+  const managerId = existing?.managerId || _generateManagerId(inquiryDate);
   const rec = {
     id,
+    managerId,
     name, phone,
     birth: document.getElementById('fBirth').value.trim(),
     guardian: document.getElementById('fGuardian').value.trim(),
     area: document.getElementById('fArea').value.trim(),
     pref: document.getElementById('fPref').value.trim(),
-    inquiryDate: document.getElementById('fInquiryDate').value || (existing?.inquiryDate) || new Date().toISOString().slice(0,10),
+    inquiryDate,
     schedDate: document.getElementById('fSchedDate').value,
     program: document.getElementById('fProgram').value,
     status: document.getElementById('fStatus').value,
@@ -289,10 +313,10 @@ function delItem(){
 function exportCSV(){
   const rows = loadAll();
   if (!rows.length) { alert('내보낼 데이터가 없습니다.'); return; }
-  const headers = ['문의일','상담예정','상태','이름','생년월일','보호자','연락처','희망영역','희망시간','지원사업','유입경로','메모'];
+  const headers = ['관리자번호','문의일','상담예정','상태','이름','생년월일','보호자','연락처','희망영역','희망시간','지원사업','유입경로','메모'];
   const lines = [headers.join(',')];
   rows.forEach(x => {
-    const line = [x.inquiryDate,x.schedDate,x.status,x.name,x.birth,x.guardian,x.phone,x.area,x.pref,x.program,x.source,x.note]
+    const line = [x.managerId,x.inquiryDate,x.schedDate,x.status,x.name,x.birth,x.guardian,x.phone,x.area,x.pref,x.program,x.source,x.note]
       .map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',');
     lines.push(line);
   });
@@ -369,8 +393,11 @@ function confirmRegister(intakeId){
 
   // children 배열 로드
   const children = JSON.parse(localStorage.getItem('children')||'[]');
+  // 관리자번호가 없으면 이관 시점에 생성 (구 데이터 호환)
+  const managerId = rec.managerId || _generateManagerId(rec.inquiryDate);
   const newChild = {
     id: 'ch_'+Date.now(),
+    managerId,                 // 신규아동 번호 그대로 유지
     name: rec.name,
     birth: rec.birth || '',
     phone: rec.phone || '',
@@ -380,6 +407,7 @@ function confirmRegister(intakeId){
     intakeArea: rec.area || '',
     intakePref: rec.pref || '',
     intakeSource: rec.source || '',
+    intakeProgram: rec.program || '',
     intakeNote: rec.note || '',
     createdAt: new Date().toISOString(),
     therapies: [],
