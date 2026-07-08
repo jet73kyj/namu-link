@@ -447,7 +447,7 @@
               ${c.managerId ? `<div style="font-size:11px;color:#999;">관리자번호: ${c.managerId}</div>` : ''}
               <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
                 <button onclick="openIntakeForm('${c.id}')" style="padding:5px 10px;background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">✏️ 편집</button>
-                <button onclick="_issueAssessmentLink('${c.id}')" style="padding:5px 10px;background:#fee500;color:#3c1e1e;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📩 초기상담지</button>
+                ${isDone ? `<button onclick="_issueAssessmentLink('${c.id}')" style="padding:5px 10px;background:#fee500;color:#3c1e1e;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📩 초기상담지 링크</button>` : ''}
                 ${doneBtn}
                 <button onclick="confirmRegister('${c.id}')" style="padding:5px 10px;background:#2e7d32;color:white;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">✅ 등록확정</button>
               </div>
@@ -510,7 +510,6 @@
             </div>
             ${c.managerId ? `<div style="font-size:11px;color:#999;">관리자번호: ${c.managerId}</div>` : ''}
             <div style="margin-left:auto;display:flex;gap:6px;">
-              <button onclick="_issueAssessmentLink('${c.id}')" style="padding:5px 10px;background:#fee500;color:#3c1e1e;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📩 초기상담지 링크</button>
               <button onclick="_viewAssessments('${c.id}')" style="padding:5px 10px;background:#e3f2fd;color:#1565c0;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📋 상담지 조회</button>
             </div>
           </div>
