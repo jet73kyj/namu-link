@@ -85,6 +85,7 @@
       .schedule-wrap { overflow:visible; }
     }
   </style>
+  <script src="js/supabase-client.js"></script>
 </head>
 <body>
   <header>
@@ -2524,5 +2525,10 @@
     currentDay=todayDow>=1&&todayDow<=6?DAYS[todayDow-1]:'월';
     render();
   </script>
+  <script>
+    window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+    window._supaLiveOnLoad = () => { try { render(); } catch(e) {} };
+  </script>
+  <script src="js/supabase-live.js"></script>
 </body>
 </html>

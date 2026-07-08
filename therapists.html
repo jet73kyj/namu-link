@@ -49,6 +49,7 @@
     .check-group label { display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer; padding:4px 10px; border:1px solid #ccc; border-radius:6px; }
     .check-group input:checked + span { color:#2e7d32; font-weight:bold; }
   </style>
+  <script src="js/supabase-client.js"></script>
 </head>
 <body>
   <header>
@@ -1686,5 +1687,10 @@
       checkPaydayAlert(getStaff(), now.getDate());
     }
   </script>
+  <script>
+    window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+    window._supaLiveOnLoad = () => { try { renderCards(); } catch(e) {} };
+  </script>
+  <script src="js/supabase-live.js"></script>
 </body>
 </html>

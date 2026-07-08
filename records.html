@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>치료 기록 - 나무링크</title>
   <link rel="stylesheet" href="css/style.css"><script>if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";</script>
+  <script src="js/supabase-client.js"></script>
 </head>
 <body>
   <header>
@@ -418,5 +419,10 @@
     _bootstrap();
     document.addEventListener('DOMContentLoaded', _bootstrap);
   </script>
+  <script>
+    window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+    window._supaLiveOnLoad = () => { try { _bootstrap(); } catch(e) {} };
+  </script>
+  <script src="js/supabase-live.js"></script>
 </body>
 </html>

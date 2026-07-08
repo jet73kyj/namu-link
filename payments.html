@@ -53,6 +53,7 @@
     .copy-btn { background:#fee500; color:#333; border:none; border-radius:8px; padding:10px 18px; font-size:13px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:6px; }
     .copy-btn:hover { background:#fdd835; }
   </style>
+  <script src="js/supabase-client.js"></script>
 </head>
 <body>
   <header>
@@ -10629,5 +10630,10 @@
       try { localStorage.setItem('lastScrollY_'+currentTab, String(window.scrollY)); } catch(e){}
     }, { passive: true });
   </script>
+  <script>
+    window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+    window._supaLiveOnLoad = () => { try { renderAll(); } catch(e) {} };
+  </script>
+  <script src="js/supabase-live.js"></script>
 </body>
 </html>

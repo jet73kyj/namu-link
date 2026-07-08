@@ -62,6 +62,7 @@
   .fld textarea { min-height:70px; resize:vertical; }
   .modal-foot { padding:12px 20px; text-align:right; border-top:1px solid #eee; }
 </style>
+<script src="js/supabase-client.js"></script>
 </head>
 <body>
 <header>
@@ -545,5 +546,12 @@ renderDocs();
 renderMemos();
 renderServices();
 </script>
+<script>
+  window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+  window._supaLiveOnLoad = () => {
+    try { renderHeader(); renderBasic(); renderTimeline(); renderDocs(); renderMemos(); renderServices(); } catch(e) {}
+  };
+</script>
+<script src="js/supabase-live.js"></script>
 </body>
 </html>
