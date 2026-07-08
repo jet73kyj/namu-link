@@ -86,6 +86,7 @@
           <div><label style="font-size:12px;font-weight:bold;">희망 요일·시간</label><input type="text" id="itPref" placeholder="예: 화요일 4시대" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
           <div><label style="font-size:12px;font-weight:bold;">문의 첫 날짜</label><input type="date" id="itInquiryDate" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
           <div><label style="font-size:12px;font-weight:bold;">상담 예정일</label><input type="date" id="itSchedDate" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">상담 예정 시간</label><input type="time" id="itSchedTime" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
           <div><label style="font-size:12px;font-weight:bold;">지원사업 유형</label>
             <select id="itProgram" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;">
               <option value="">선택</option><option>발달재활서비스</option><option>방과후활동비지원</option><option>치료지원</option><option>개인결제</option>
@@ -271,6 +272,7 @@
       document.getElementById('itPref').value = rec?.intakePref || '';
       document.getElementById('itInquiryDate').value = rec?.inquiryDate || today;
       document.getElementById('itSchedDate').value = rec?.schedDate || '';
+      document.getElementById('itSchedTime').value = rec?.schedTime || '';
       document.getElementById('itProgram').value = rec?.intakeProgram || '';
       document.getElementById('itStatus').value = rec?.status || '대기중';
       document.getElementById('itNote').value = rec?.intakeNote || '';
@@ -317,6 +319,7 @@
       rec.intakePref = document.getElementById('itPref').value.trim();
       rec.inquiryDate = inquiryDate;
       rec.schedDate = document.getElementById('itSchedDate').value;
+      rec.schedTime = document.getElementById('itSchedTime').value;
       rec.intakeProgram = document.getElementById('itProgram').value;
       rec.status = document.getElementById('itStatus').value;
       rec.intakeSource = source;
@@ -392,7 +395,7 @@
               ${c.intakeProgram?`<span style="margin-right:12px;"><b>지원사업:</b> ${c.intakeProgram}</span>`:''}
               ${c.intakeSource?`<span style="margin-right:12px;"><b>유입:</b> ${c.intakeSource}</span>`:''}
               ${c.inquiryDate?`<span style="margin-right:12px;"><b>문의일:</b> ${c.inquiryDate}</span>`:''}
-              ${c.schedDate?`<span><b>상담예정:</b> ${c.schedDate}</span>`:''}
+              ${c.schedDate?`<span><b>상담예정:</b> ${c.schedDate}${c.schedTime?' '+c.schedTime:''}</span>`:''}
               ${c.intakeNote?`<div style="margin-top:6px;color:#666;">📝 ${c.intakeNote}</div>`:''}
             </div>
           </div>`;
