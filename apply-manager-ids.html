@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>관리자번호 일괄 적용</title>
+<style>
+  body { font-family: -apple-system, "Malgun Gothic", sans-serif; max-width: 900px; margin: 30px auto; padding: 20px; }
+  h1 { color: #2c3e50; }
+  button { padding: 10px 20px; font-size: 15px; background: #3498db; color: white; border: 0; border-radius: 6px; cursor: pointer; margin-right: 10px; }
+  button:hover { background: #2980b9; }
+  button.danger { background: #e74c3c; }
+  pre { background: #f4f4f4; padding: 12px; border-radius: 6px; max-height: 400px; overflow: auto; font-size: 12px; }
+  .ok { color: #27ae60; font-weight: bold; }
+  .warn { color: #e67e22; font-weight: bold; }
+  .err { color: #c0392b; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+  th { background: #f8f9fa; }
+</style>
+</head>
+<body>
+<h1>📋 관리자번호 일괄 적용</h1>
+<p>localStorage의 <code>children</code> 데이터에 관리자번호 95명을 이름+생년월일 매칭으로 적용합니다.</p>
+<div>
+  <button onclick="preview()">🔍 미리보기 (변경 안 함)</button>
+  <button onclick="apply()" class="danger">✅ 실제 적용</button>
+  <button onclick="location.href='children.html'">아동 목록으로</button>
+</div>
+<div id="result"></div>
+
+<script>
+// 형식: [이름, 생년6자리YYMMDD, 관리자번호]
+const LIST = [
+  ["배재인","071222","201801자라는048"],
+  ["서승현","151206","202101자라는010"],
+  ["최윤건","180219","202101자라는012"],
+  ["최윤강","180219","202101자라는013"],
+  ["신유진","110115","202101자라는026"],
+  ["방예나","190522","202201자라는009"],
+  ["최예준","200429","202201자라는035"],
+  ["이수아","200618","202301자라는006"],
+  ["최유주","201015","202301자라는008"],
+  ["박서아","200501","202301자라는010"],
+  ["박채아","200501","202301자라는011"],
+  ["한빛","200423","202301자라는017"],
+  ["유시연","210429","202301자라는026"],
+  ["허윤","170720","202301자라는027"],
+  ["이승유","171016","202001자라는057"],
+  ["이시호","200508","202301자라는041"],
+  ["엄도윤","190713","202301자라는044"],
+  ["곽로운","210716","202301자라는047"],
+  ["곽로하","210716","202301자라는048"],
+  ["김수빈","190619","202301자라는049"],
+  ["성다겸","190524","202301자라는050"],
+  ["최진우","180327","202401자라는002"],
+  ["김예빈","220428","202401자라는004"],
+  ["유시온","180512","202401자라는008"],
+  ["이도윤","201111","202401자라는014"],
+  ["신라엘","190521","202401자라는015"],
+  ["이서준","210517","202401자라는021"],
+  ["마준희","210813","202401자라는025"],
+  ["김지오","210809","202401자라는031"],
+  ["임도윤","210702","202401자라는034"],
+  ["임은우","221103","202401자라는035"],
+  ["유승민","130511","202401자라는036"],
+  ["윤태하","210923","202401자라는001"],
+  ["이유주","140123","202501자라는003"],
+  ["이하윤","210802","202501자라는005"],
+  ["이지연","160328","202501자라는007"],
+  ["서태준","220415","202501자라는009"],
+  ["이하랑","211113","202501자라는016"],
+  ["하늘아름","230612","202501자라는017"],
+  ["신승윤","170726","202501자라는018"],
+  ["임은휴","230808","202501자라는019"],
+  ["강은우","230812","202501자라는023"],
+  ["김하리","190717","202501자라는025"],
+  ["원수빈","210902","202501자라는026"],
+  ["장선우","190510","202501자라는027"],
+  ["최시우","220915","202501자라는028"],
+  ["송희연","190218","202501자라는029"],
+  ["이우주","220407","202501자라는030"],
+  ["강다현","171124","202501자라는031"],
+  ["강나안","190928","202101자라는050"],
+  ["이지호","230903","202601자라는001"],
+  ["이지민","230903","202601자라는002"],
+  ["김지우","220628","202601자라는003"],
+  ["조아윤","220829","202601자라는004"],
+  ["김건우","200527","202601자라는007"],
+  ["임수호","211023","202601자라는008"],
+  ["유지안","180122","202601자라는010"],
+  ["이윤솔","221012","202601자라는012"],
+  ["남지우","211007","202601자라는013"],
+  ["이찬희","220705","202601자라는015"],
+  ["이도원","221109","202601자라는017"],
+  ["류환희","160601","202601자라는018"],
+  ["김은우","221028","202601자라는020"],
+  ["조해나","230926","202601자라는021"],
+  ["송지안","230524","202601자라는022"],
+  ["강지안","230916","202601자라는023"],
+  ["임재우","200908","202601자라는025"],
+  ["이예빛","220112","202601자라는026"],
+  ["이태은","220112","202601자라는026"],
+  ["여민준","180111","202601자라는030"],
+  ["김백찬","240510","202601자라는031"],
+  ["박도하","231230","202601자라는032"],
+  ["곽민석","200531","202601자라는033"],
+  ["이재율","230501","202601자라는034"],
+  ["에케데이빗재민","220923","202601자라는035"],
+  ["이세연","170903","202601자라는036"],
+  ["지승환","140719","202601자라는037"],
+  ["송유담","200311","202601자라는038"],
+  ["유지원","190614","202601자라는039"],
+  ["황이현","231213","202601자라는006"],
+  ["이하윤","210802","202601자라는040"],
+  ["김연우","180227","202601자라는041"],
+  ["노영재","160204","202601자라는042"],
+  ["강보미","190110","202601자라는043"],
+  ["김찬승","180911","202601자라는044"],
+  ["정성윤","140313","202601자라는045"],
+  ["김시윤","110217","202601자라는046"],
+  ["김수아","190506","202601자라는047"],
+  ["설연호","240925","202601자라는048"],
+  ["윤정한","100929","202601자라는049"],
+  ["정윤영","190730","202601자라는050"],
+  ["황현","140722","202601자라는051"],
+  ["배소영","120725","202601자라는052"],
+  ["진이한","190323","202601자라는053"],
+  ["최효준","230422","202601자라는054"],
+  ["강하음","210304","202601자라는055"],
+  ["김동건","170823","202601자라는056"],
+  ["박건후","220123","202601자라는057"]
+];
+
+function normBirth(b){ return (b||'').replace(/\D/g,'').slice(-6); }
+function normName(n){ return (n||'').trim(); }
+
+function match(children){
+  const matched = []; const unmatched = []; const collisions = [];
+  // 중복 이름 체크용
+  const byName = {};
+  children.forEach(c => { const k=normName(c.name); (byName[k]=byName[k]||[]).push(c); });
+
+  for (const [nm, by, mid] of LIST){
+    const targetName = normName(nm);
+    const targetBirth = normBirth(by);
+    const cands = byName[targetName] || [];
+    // 1순위: 이름+생년 일치
+    let hit = cands.find(c => normBirth(c.birth) === targetBirth);
+    // 2순위: 이름만 일치 (생년 비어있거나 다르면)
+    if (!hit && cands.length === 1) hit = cands[0];
+    if (!hit && cands.length > 1) {
+      collisions.push({name:nm, birth:by, mid, count:cands.length});
+      continue;
+    }
+    if (hit) matched.push({child:hit, mid, name:nm, birth:by});
+    else unmatched.push({name:nm, birth:by, mid});
+  }
+  return {matched, unmatched, collisions};
+}
+
+function render(r, applied){
+  const html = [];
+  html.push(`<h3>${applied?'<span class="ok">✅ 적용 완료</span>':'미리보기'}</h3>`);
+  html.push(`<p><span class="ok">매칭: ${r.matched.length}</span> · <span class="warn">미매칭: ${r.unmatched.length}</span> · <span class="err">충돌(동명이인): ${r.collisions.length}</span></p>`);
+
+  if (r.matched.length){
+    html.push(`<h4>✅ 매칭된 아동 (${r.matched.length})</h4><table><tr><th>이름</th><th>생년</th><th>관리자번호</th><th>기존번호</th></tr>`);
+    r.matched.forEach(m => {
+      html.push(`<tr><td>${m.name}</td><td>${m.birth}</td><td><b>${m.mid}</b></td><td>${m.child.managerId||'-'}</td></tr>`);
+    });
+    html.push(`</table>`);
+  }
+  if (r.unmatched.length){
+    html.push(`<h4 class="warn">⚠ 미매칭 — children에 없는 이름 (${r.unmatched.length})</h4><table><tr><th>이름</th><th>생년</th><th>번호</th></tr>`);
+    r.unmatched.forEach(u => html.push(`<tr><td>${u.name}</td><td>${u.birth}</td><td>${u.mid}</td></tr>`));
+    html.push(`</table>`);
+  }
+  if (r.collisions.length){
+    html.push(`<h4 class="err">⚠ 동명이인 충돌 (${r.collisions.length}) — 생년 불일치로 자동 매칭 불가</h4><table><tr><th>이름</th><th>생년</th><th>번호</th><th>중복수</th></tr>`);
+    r.collisions.forEach(c => html.push(`<tr><td>${c.name}</td><td>${c.birth}</td><td>${c.mid}</td><td>${c.count}</td></tr>`));
+    html.push(`</table>`);
+  }
+  document.getElementById('result').innerHTML = html.join('');
+}
+
+function preview(){
+  const children = JSON.parse(localStorage.getItem('children') || '[]');
+  render(match(children), false);
+}
+function apply(){
+  if (!confirm('localStorage의 children 데이터에 관리자번호를 적용합니다. 진행할까요?')) return;
+  const children = JSON.parse(localStorage.getItem('children') || '[]');
+  const r = match(children);
+  r.matched.forEach(m => { m.child.managerId = m.mid; });
+  localStorage.setItem('children', JSON.stringify(children));
+  render(r, true);
+}
+</script>
+</body>
+</html>

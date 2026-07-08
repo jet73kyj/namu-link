@@ -3,33 +3,66 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>나무링크 - 발달재활 기록 관리</title>
+  <title>나무링크 - 자라는나무 아동발달센터</title>
   <link rel="stylesheet" href="css/style.css">
   <style>
     body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .login-box { background: white; border-radius: 12px; padding: 40px; width: 360px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); text-align: center; }
-    .login-box h1 { color: #2e7d32; font-size: 24px; margin-bottom: 8px; }
-    .login-box p { color: #888; font-size: 14px; margin-bottom: 28px; }
-    .login-box .form-group { text-align: left; margin-bottom: 14px; }
-    .login-box input { width: 100%; }
-    .login-box .btn { width: 100%; padding: 12px; font-size: 16px; margin-top: 8px; }
+    .login-box { background: white; border-radius: 12px; padding: 34px 40px; width: 380px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); text-align: center; }
+    .login-box h1 { color: #2e7d32; font-size: 24px; margin-bottom: 6px; }
+    .login-box .sub { color: #888; font-size: 13px; margin-bottom: 20px; }
+    .role-tabs { display:flex; gap:4px; border-bottom:2px solid #e0e0e0; margin-bottom:18px; }
+    .role-tab { flex:1; padding:10px 8px; font-size:14px; font-weight:bold; color:#888; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; user-select:none; }
+    .role-tab.active { color:#2e7d32; border-bottom-color:#2e7d32; }
+    .login-box .form-group { text-align: left; margin-bottom: 12px; }
+    .login-box label { display:block; font-size:12px; color:#555; margin-bottom:4px; font-weight:bold; }
+    .login-box input { width: 100%; padding:9px 11px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box; }
+    .login-box .btn { width: 100%; padding: 12px; font-size: 16px; margin-top: 8px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; }
+    .btn-staff { background:#2e7d32; color:white; }
+    .btn-guardian { background:#1565c0; color:white; }
     .error-msg { color: #c62828; font-size: 13px; margin-top: 8px; display: none; }
+    .form-block { display:none; }
+    .form-block.active { display:block; }
+    .hint { font-size:11px; color:#888; margin-top:6px; }
   </style>
 </head>
 <body>
   <div class="login-box">
     <h1>🌿 나무링크</h1>
-    <p>발달재활 기록 관리 시스템</p>
-    <div class="form-group">
-      <label>이름</label>
-      <input type="text" id="loginName" placeholder="치료사 이름 입력">
+    <p class="sub">자라는나무 아동발달센터</p>
+
+    <div class="role-tabs">
+      <div class="role-tab active" data-role="staff"    onclick="switchRole('staff')">👩‍⚕️ 직원 로그인</div>
+      <div class="role-tab"        data-role="guardian" onclick="switchRole('guardian')">👨‍👩‍👧 학부모 로그인</div>
     </div>
-    <div class="form-group">
-      <label>비밀번호</label>
-      <input type="password" id="loginPw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')login()">
+
+    <!-- 직원 로그인 -->
+    <div id="form-staff" class="form-block active">
+      <div class="form-group">
+        <label>이름</label>
+        <input type="text" id="sName" placeholder="치료사·행정 이름 입력">
+      </div>
+      <div class="form-group">
+        <label>비밀번호</label>
+        <input type="password" id="sPw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')loginStaff()">
+      </div>
+      <p class="error-msg" id="sErr">이름 또는 비밀번호가 올바르지 않습니다.</p>
+      <button class="btn btn-staff" onclick="loginStaff()">직원 로그인</button>
     </div>
-    <p class="error-msg" id="errorMsg">이름 또는 비밀번호가 올바르지 않습니다.</p>
-    <button class="btn btn-primary" onclick="login()">로그인</button>
+
+    <!-- 학부모 로그인 -->
+    <div id="form-guardian" class="form-block">
+      <div class="form-group">
+        <label>아동 이름</label>
+        <input type="text" id="gName" placeholder="예: 홍길동">
+      </div>
+      <div class="form-group">
+        <label>아동 생년월일</label>
+        <input type="text" id="gBirth" placeholder="예: 2022-03-15 또는 20220315" onkeydown="if(event.key==='Enter')loginGuardian()">
+        <p class="hint">YYYY-MM-DD · YYYYMMDD · YY.MM.DD 형식 지원</p>
+      </div>
+      <p class="error-msg" id="gErr">일치하는 아동 정보를 찾을 수 없습니다.<br>담당자에게 문의해 주세요.</p>
+      <button class="btn btn-guardian" onclick="loginGuardian()">학부모 로그인</button>
+    </div>
   </div>
 
   <script>
@@ -38,18 +71,59 @@
       '이채린': '1234',
     };
 
-    function login() {
-      const name = document.getElementById('loginName').value.trim();
-      const pw = document.getElementById('loginPw').value;
+    function switchRole(role) {
+      document.querySelectorAll('.role-tab').forEach(t => t.classList.toggle('active', t.dataset.role===role));
+      document.querySelectorAll('.form-block').forEach(f => f.classList.remove('active'));
+      document.getElementById('form-'+role).classList.add('active');
+      document.getElementById('sErr').style.display = 'none';
+      document.getElementById('gErr').style.display = 'none';
+    }
+
+    function loginStaff() {
+      const name = document.getElementById('sName').value.trim();
+      const pw = document.getElementById('sPw').value;
       if (USERS[name] && USERS[name] === pw) {
         localStorage.setItem('currentUser', name);
+        localStorage.setItem('currentUserRole', 'staff');
+        localStorage.removeItem('guardianChildId');
         location.href = 'children.html';
       } else {
-        document.getElementById('errorMsg').style.display = 'block';
+        document.getElementById('sErr').style.display = 'block';
       }
     }
 
-    if (localStorage.getItem('currentUser')) location.href = 'children.html';
+    // 생년월일 정규화 → YYYYMMDD
+    function normBirth(s) {
+      const d = String(s||'').replace(/\D/g,'');
+      if (d.length === 8) return d;
+      if (d.length === 6) return '20' + d;
+      return null;
+    }
+
+    function loginGuardian() {
+      const name = document.getElementById('gName').value.trim();
+      const birth = normBirth(document.getElementById('gBirth').value);
+      if (!name || !birth) { document.getElementById('gErr').style.display = 'block'; return; }
+
+      const children = JSON.parse(localStorage.getItem('children')||'[]');
+      const match = children.find(c => {
+        const cb = normBirth(c.birth);
+        return (c.name||'').trim() === name && cb === birth;
+      });
+      if (!match) { document.getElementById('gErr').style.display = 'block'; return; }
+
+      localStorage.setItem('currentUser', name + ' 보호자');
+      localStorage.setItem('currentUserRole', 'guardian');
+      localStorage.setItem('guardianChildId', match.id);
+      location.href = 'guardian-home.html';
+    }
+
+    // 이미 로그인 상태면 자동 이동
+    const role = localStorage.getItem('currentUserRole');
+    if (localStorage.getItem('currentUser')) {
+      if (role === 'guardian') location.href = 'guardian-home.html';
+      else location.href = 'children.html';
+    }
   </script>
 </body>
 </html>

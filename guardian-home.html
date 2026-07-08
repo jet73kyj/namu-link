@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>학부모 홈 - 나무링크</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .wrap { max-width:920px; margin:0 auto; padding:20px; }
+  .hero { background:linear-gradient(135deg,#e3f2fd,#e8f5e9); border-radius:14px; padding:24px; margin-bottom:16px; }
+  .hero h1 { margin:0; color:#1565c0; font-size:22px; }
+  .hero .sub { color:#555; font-size:13px; margin-top:6px; }
+  .tabs { display:flex; gap:4px; border-bottom:2px solid #e0e0e0; margin-bottom:16px; overflow-x:auto; }
+  .tab { padding:11px 16px; cursor:pointer; font-size:14px; font-weight:bold; color:#666; border-bottom:3px solid transparent; margin-bottom:-2px; white-space:nowrap; }
+  .tab.active { color:#1565c0; border-bottom-color:#1565c0; background:#f5f9ff; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  .card { background:white; border-radius:10px; padding:18px 22px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .card h3 { margin:0 0 12px; color:#1565c0; font-size:15px; border-left:4px solid #64b5f6; padding-left:8px; }
+  .info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
+  .info-item label { display:block; font-size:11px; color:#888; margin-bottom:2px; }
+  .info-item .v { font-size:14px; color:#333; font-weight:600; }
+  table.tbl { width:100%; border-collapse:collapse; font-size:13px; }
+  table.tbl th { background:#f5f9ff; color:#1565c0; font-size:12px; padding:8px; border-bottom:1px solid #e0e0e0; text-align:left; }
+  table.tbl td { padding:8px; border-bottom:1px solid #f0f0f0; }
+  .btn { padding:8px 14px; border:none; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; }
+  .btn-primary { background:#1565c0; color:white; }
+  .btn-sub { background:#f5f5f5; color:#333; border:1px solid #ddd; }
+  .btn-danger { background:#c62828; color:white; }
+  .btn-small { padding:5px 10px; font-size:12px; }
+  .empty { color:#aaa; text-align:center; padding:30px; font-size:13px; }
+  .fld { margin-bottom:12px; }
+  .fld label { display:block; font-size:12px; color:#555; margin-bottom:4px; font-weight:bold; }
+  .fld input, .fld textarea { width:100%; padding:9px 11px; border:1px solid #ccc; border-radius:6px; font-size:13px; box-sizing:border-box; font-family:inherit; }
+  .fld textarea { min-height:80px; resize:vertical; }
+  .memo-row { display:flex; gap:10px; padding:10px 0; border-bottom:1px solid #f0f0f0; }
+  .memo-row:last-child { border-bottom:none; }
+  .memo-date { font-size:11px; color:#888; min-width:80px; }
+  .memo-content { flex:1; font-size:13px; }
+  .memo-reflect { font-size:11px; color:#2e7d32; }
+  .logout-btn { background:transparent; color:white; border:1px solid rgba(255,255,255,0.4); padding:5px 12px; border-radius:5px; font-size:12px; cursor:pointer; }
+</style>
+</head>
+<body>
+<header style="display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <h1>🌿 나무링크</h1>
+    <span style="font-size:13px;opacity:0.85;">자라는나무 아동발달센터 · 학부모 페이지</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span id="userLabel" style="font-size:13px;"></span>
+    <button class="logout-btn" onclick="logout()">로그아웃</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="hero"></div>
+  <div class="tabs">
+    <div class="tab active" data-panel="info">👶 아동 정보</div>
+    <div class="tab" data-panel="schedule">📅 치료 일정</div>
+    <div class="tab" data-panel="memo">💬 욕구 메모</div>
+    <div class="tab" data-panel="assess">📝 초기상담지</div>
+  </div>
+  <div id="panel-info"     class="panel active"></div>
+  <div id="panel-schedule" class="panel"></div>
+  <div id="panel-memo"     class="panel"></div>
+  <div id="panel-assess"   class="panel"></div>
+</div>
+
+<script>
+function logout(){
+  ['currentUser','currentUserRole','guardianChildId'].forEach(k=>localStorage.removeItem(k));
+  location.href='index.html';
+}
+
+// 접근 제어 — 학부모만
+const role = localStorage.getItem('currentUserRole');
+const childId = localStorage.getItem('guardianChildId');
+if (role !== 'guardian' || !childId) {
+  location.href = 'index.html';
+}
+document.getElementById('userLabel').textContent = localStorage.getItem('currentUser')||'';
+
+function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+function loadArr(k){ try{return JSON.parse(localStorage.getItem(k)||'[]');}catch(e){return[];} }
+function saveArr(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+function fmtDate(iso){ return iso ? new Date(iso).toLocaleDateString('ko-KR') : '-'; }
+function fmtBirth(b){
+  const d = String(b||'').replace(/\D/g,'');
+  if (d.length===8) return `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
+  if (d.length===6) return `20${d.slice(0,2)}.${d.slice(2,4)}.${d.slice(4,6)}`;
+  return b||'-';
+}
+function calcMonths(b){
+  const d = String(b||'').replace(/\D/g,'');
+  let y,m,day;
+  if(d.length===8){y=+d.slice(0,4);m=+d.slice(4,6);day=+d.slice(6,8);}
+  else if(d.length===6){y=2000+ +d.slice(0,2);m=+d.slice(2,4);day=+d.slice(4,6);}
+  else return null;
+  const now=new Date(), bd=new Date(y,m-1,day);
+  if(isNaN(bd)) return null;
+  let mo=(now.getFullYear()-bd.getFullYear())*12+(now.getMonth()-bd.getMonth());
+  if(now.getDate()<bd.getDate()) mo--;
+  return mo;
+}
+
+const children = loadArr('children');
+const child = children.find(c => c.id === childId);
+if (!child) { document.body.innerHTML='<div style="padding:60px;text-align:center;">아동 정보를 찾을 수 없습니다. <a href="index.html">로그인 다시하기</a></div>'; }
+
+// 사이블링 통합
+const siblings = children.filter(c => c.name === child.name && c.birth === child.birth);
+const allTherapies = siblings.flatMap(c => c.therapies || []);
+
+function renderHero() {
+  const mo = calcMonths(child.birth);
+  document.getElementById('hero').innerHTML = `
+    <div class="hero">
+      <h1>👶 ${escapeHtml(child.name)} 아동</h1>
+      <div class="sub">${fmtBirth(child.birth)}${mo?` · ${mo}개월`:''}</div>
+      <div style="margin-top:10px;font-size:13px;color:#333;">
+        환영합니다. 아래 탭에서 치료 일정을 확인하거나, 요청 사항을 남겨 주세요.
+      </div>
+    </div>`;
+}
+
+// ===== 1. 아동 정보 =====
+function renderInfo() {
+  const mo = calcMonths(child.birth);
+  document.getElementById('panel-info').innerHTML = `
+    <div class="card">
+      <h3>기본 정보</h3>
+      <div class="info-grid">
+        <div class="info-item"><label>이름</label><div class="v">${escapeHtml(child.name)}</div></div>
+        <div class="info-item"><label>생년월일</label><div class="v">${fmtBirth(child.birth)}</div></div>
+        <div class="info-item"><label>개월수</label><div class="v">${mo!=null?mo+'개월':'-'}</div></div>
+        <div class="info-item"><label>진단명</label><div class="v">${escapeHtml(child.diagnosis)||'-'}</div></div>
+        <div class="info-item"><label>등록일</label><div class="v">${fmtDate(child.createdAt)}</div></div>
+        <div class="info-item"><label>보호자</label><div class="v">${escapeHtml(child.guardian)||'-'}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📞 문의</h3>
+      <p style="margin:0;font-size:13px;color:#555;">
+        📞 전화: 042-488-6011<br>
+        💬 카카오톡채널: <a href="http://pf.kakao.com/_AJtsG" target="_blank">http://pf.kakao.com/_AJtsG</a>
+      </p>
+    </div>`;
+}
+
+// ===== 2. 치료 일정 =====
+function renderSchedule() {
+  const active = allTherapies.filter(t => {
+    const now = new Date().toISOString().slice(0,7);
+    if (t.serviceStartDate && t.serviceStartDate.slice(0,7) > now) return false;
+    if (t.centerEndDate && t.centerEndDate.slice(0,7) < now) return false;
+    if (t.banchiEndDate && t.banchiEndDate.slice(0,7) < now) return false;
+    return true;
+  });
+  document.getElementById('panel-schedule').innerHTML = `
+    <div class="card">
+      <h3>현재 진행중 서비스 (${active.length})</h3>
+      ${active.length ? `<table class="tbl">
+        <thead><tr><th>지원유형</th><th>담당치료사</th><th>수업요일</th><th>수업시간</th></tr></thead>
+        <tbody>${active.map(t=>`
+          <tr>
+            <td>${escapeHtml(t.support||'-')}</td>
+            <td>${escapeHtml(t.therapist||'-')}</td>
+            <td>${escapeHtml(t.dayOfWeek||'-')}</td>
+            <td>${escapeHtml(t.timeSlot||'-')}</td>
+          </tr>`).join('')}</tbody></table>` : '<div class="empty">현재 진행중인 서비스가 없습니다.</div>'}
+    </div>
+    <div class="card">
+      <h3>전체 이력</h3>
+      ${allTherapies.length ? `<table class="tbl">
+        <thead><tr><th>지원유형</th><th>담당치료사</th><th>개시일</th><th>종결일</th></tr></thead>
+        <tbody>${allTherapies.map(t=>`
+          <tr>
+            <td>${escapeHtml(t.support||'-')}</td>
+            <td>${escapeHtml(t.therapist||'-')}</td>
+            <td>${escapeHtml(t.serviceStartDate||'-')}</td>
+            <td>${escapeHtml(t.centerEndDate || t.banchiEndDate || '-')}</td>
+          </tr>`).join('')}</tbody></table>` : '<div class="empty">등록된 이력이 없습니다.</div>'}
+    </div>`;
+}
+
+// ===== 3. 학부모 욕구 메모 =====
+function memoKey() { return `child_parent_memos_${childId}`; }
+function renderMemos() {
+  const arr = loadArr(memoKey()).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('panel-memo').innerHTML = `
+    <div class="card">
+      <h3>💬 새 요청 사항 입력</h3>
+      <div class="fld"><label>날짜</label><input type="date" id="mDate" value="${today}"></div>
+      <div class="fld"><label>내용 *</label><textarea id="mContent" placeholder="예: 자기표현이 부족해 걱정입니다. 이 부분을 특히 신경 써주시면 감사하겠습니다."></textarea></div>
+      <div style="text-align:right;">
+        <button class="btn btn-primary" onclick="addMemo()">등록하기</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>지난 요청 내역 (${arr.length})</h3>
+      ${arr.length ? arr.map((m,i)=>`
+        <div class="memo-row">
+          <div class="memo-date">${m.date||'-'}</div>
+          <div class="memo-content">
+            ${escapeHtml(m.content)}
+            ${m.reflected?'<div class="memo-reflect" style="margin-top:4px;">✅ 치료에 반영됨</div>':'<div style="font-size:11px;color:#e65100;margin-top:4px;">📌 반영 대기중</div>'}
+          </div>
+        </div>`).join('') : '<div class="empty">등록된 요청이 없습니다.</div>'}
+    </div>`;
+}
+window.addMemo = function() {
+  const date = document.getElementById('mDate').value;
+  const content = document.getElementById('mContent').value.trim();
+  if (!date || !content) return alert('날짜와 내용을 모두 입력해 주세요.');
+  const arr = loadArr(memoKey());
+  arr.push({ date, content, reflected:false, createdBy:'guardian', createdAt: new Date().toISOString() });
+  saveArr(memoKey(), arr);
+  alert('✅ 요청 사항이 등록되었습니다.\n담당 치료사가 확인 후 반영합니다.');
+  renderMemos();
+};
+
+// ===== 4. 초기상담지 =====
+function renderAssessment() {
+  const asses = loadArr('initial_assessments').filter(x=>x.child_id===childId);
+  const tokens = loadArr('assessment_tokens').filter(x=>x.child_id===childId && !x.is_used && new Date(x.expires_at)>new Date());
+  const domains = {social_emotional:'사회·정서', language:'언어', cognitive:'인지', motor:'운동'};
+
+  let html = '';
+  if (tokens.length) {
+    html += `<div class="card" style="background:#fff9c4;">
+      <h3 style="color:#e65100;">📩 작성 대기중인 초기상담지</h3>
+      <p style="font-size:13px;">아래 버튼을 눌러 초기상담지를 작성해 주세요.</p>
+      ${tokens.map(t=>{
+        const url = `https://jet73kyj.github.io/namu-link/assessment.html?token=${t.token}`;
+        return `<div style="margin-top:8px;"><a href="${url}"><button class="btn btn-primary">✏️ ${t.age_group||'초기상담지'} 작성하기</button></a></div>`;
+      }).join('')}
+    </div>`;
+  }
+  html += `<div class="card">
+    <h3>제출된 초기상담지 (${asses.length})</h3>
+    ${asses.length ? asses.map(a=>{
+      let dHtml = '';
+      Object.keys(domains).forEach(dk=>{
+        const resp = a['responses_'+dk]||{};
+        const keys = Object.keys(resp);
+        if (!keys.length) return;
+        dHtml += `<div style="margin-top:8px;"><b style="color:#558b2f;">${domains[dk]}</b><ul style="margin:4px 0 0 20px;font-size:12px;">`;
+        keys.forEach(k => dHtml += `<li>${escapeHtml(k)}: <b>${escapeHtml(resp[k])}</b></li>`);
+        dHtml += '</ul></div>';
+      });
+      return `<div style="border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:10px;background:#fafafa;">
+        <div style="font-size:11px;color:#888;">${fmtDate(a.submitted_at)} · ${escapeHtml(a.age_group||'')}</div>
+        <div style="font-size:13px;margin-top:4px;"><b>주 호소:</b> ${escapeHtml(a.main_concern)||'-'}</div>
+        ${dHtml}
+      </div>`;
+    }).join('') : '<div class="empty">아직 제출된 초기상담지가 없습니다.</div>'}
+  </div>`;
+  document.getElementById('panel-assess').innerHTML = html;
+}
+
+// 탭
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.panel).classList.add('active');
+  });
+});
+
+renderHero();
+renderInfo();
+renderSchedule();
+renderMemos();
+renderAssessment();
+</script>
+</body>
+</html>
