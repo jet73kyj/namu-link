@@ -265,9 +265,10 @@ function _shareRecordHelp(){
 function fmtBirth(b){
   if (!b) return '';
   const s = String(b).replace(/\D/g,'');
-  if (s.length>=8) return `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}`;
-  if (s.length===6) return `20${s.slice(0,2)}.${s.slice(2,4)}.${s.slice(4,6)}`;
-  return b;
+  let d = s;
+  if (s.length === 6) d = (parseInt(s.slice(0,2),10) <= 30 ? '20' : '19') + s;
+  if (d.length !== 8) return b;
+  return `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
 }
 
 function getPayments() { return JSON.parse(localStorage.getItem('payments') || '[]'); }

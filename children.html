@@ -137,27 +137,29 @@
     function getChildren() { return JSON.parse(localStorage.getItem('children')||'[]'); }
     function getPayments() { return JSON.parse(localStorage.getItem('payments')||'[]'); }
 
+    // 6자리 → 8자리 정규화 (00~30 → 20XX, 31~99 → 19XX)
+    function normBirth8(birth) {
+      const d = String(birth||'').replace(/\D/g,'');
+      if (d.length === 8) return d;
+      if (d.length === 6) return (parseInt(d.slice(0,2),10) <= 30 ? '20' : '19') + d;
+      return '';
+    }
     function calcAge(birth) {
-      if (!birth) return '';
-      let by, bm, bd;
-      if (birth.length===8) { by=parseInt(birth.slice(0,4)); bm=parseInt(birth.slice(4,6)); bd=parseInt(birth.slice(6,8)); }
-      else if (birth.length===6) {
-        const yy=parseInt(birth.slice(0,2));
-        by = yy<=new Date().getFullYear()%100 ? 2000+yy : 1900+yy;
-        bm=parseInt(birth.slice(2,4)); bd=parseInt(birth.slice(4,6));
-      } else return '';
-      const now=new Date();
-      let years=now.getFullYear()-by, months=now.getMonth()+1-bm;
+      const d = normBirth8(birth);
+      if (d.length !== 8) return '';
+      const by = parseInt(d.slice(0,4)), bm = parseInt(d.slice(4,6)), bd = parseInt(d.slice(6,8));
+      const now = new Date();
+      let years = now.getFullYear()-by, months = now.getMonth()+1-bm;
       if (now.getDate()<bd) months--;
       if (months<0){years--;months+=12;}
       if (years<0) return '';
       return years===0 ? `${months}개월` : (months>0?`${years}년 ${months}개월`:`${years}년`);
     }
-
+    // 화면 표시는 항상 YY.MM.DD 6자리
     function fmtBirth(b) {
-      if (!b) return '-';
-      return b.length===8 ? `${b.slice(2,4)}.${b.slice(4,6)}.${b.slice(6,8)}` :
-             b.length===6 ? `${b.slice(0,2)}.${b.slice(2,4)}.${b.slice(4,6)}` : b;
+      const d = normBirth8(b);
+      if (d.length !== 8) return b || '-';
+      return `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
     }
 
     function abbrevSupport(s) {

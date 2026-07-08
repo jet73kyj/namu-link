@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>생년월일 정규화 도구 - 나무링크</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .wrap { max-width:1000px; margin:0 auto; padding:20px; }
+  .card { background:white; border-radius:10px; padding:18px 22px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .card h3 { margin:0 0 10px; color:#2e7d32; font-size:15px; border-left:4px solid #66bb6a; padding-left:6px; }
+  .btn { padding:10px 18px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:14px; }
+  .btn-primary { background:#2e7d32; color:white; }
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
+  .stat { background:#f5f9f0; border-radius:8px; padding:12px 16px; text-align:center; }
+  .stat .big { font-size:26px; font-weight:bold; color:#2e7d32; }
+  .stat .lbl { font-size:12px; color:#666; margin-top:2px; }
+  .stat.warn { background:#fff3e0; } .stat.warn .big { color:#e65100; }
+  .stat.err  { background:#ffebee; } .stat.err  .big { color:#c62828; }
+  table.pv { width:100%; border-collapse:collapse; font-size:12px; }
+  table.pv th { background:#f5f9f0; color:#2e7d32; padding:7px 8px; border-bottom:2px solid #2e7d32; text-align:left; }
+  table.pv td { padding:6px 8px; border-bottom:1px solid #eee; }
+  .info-box { background:#e3f2fd; padding:12px 16px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#0d47a1; }
+</style>
+</head>
+<body>
+<header><h1>🌿 생년월일 정규화 도구</h1></header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="records.html">치료 기록</a>
+</nav>
+<div class="wrap">
+  <div class="info-box">
+    <b>📋 규칙</b><br>
+    • 저장 형식: <b>YYYYMMDD 8자리</b>로 통일<br>
+    • 6자리 → 8자리 변환: <b>YY 00~30 → 20XX</b>, <b>YY 31~99 → 19XX</b><br>
+    • 예: <code>071222</code> → <code>20071222</code>, <code>891222</code> → <code>19891222</code>
+  </div>
+
+  <div class="card">
+    <h3>📊 현재 생년월일 형식 현황</h3>
+    <div id="statArea"></div>
+  </div>
+
+  <div class="card">
+    <h3>🔍 정규화 대상 (6자리 → 8자리)</h3>
+    <div id="targetArea"></div>
+    <div style="margin-top:14px;text-align:right;">
+      <button class="btn btn-primary" onclick="doNormalize()">✅ 8자리로 통일 실행</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>⚠️ 형식 이상 (수동 확인 필요)</h3>
+    <div id="badArea"></div>
+  </div>
+</div>
+
+<script>
+function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+function classify(rawBirth) {
+  if (!rawBirth) return { type:'empty', digits:'' };
+  const d = String(rawBirth).replace(/\D/g,'');
+  if (d.length === 8) return { type:'ok8', digits:d };
+  if (d.length === 6) return { type:'six', digits:d };
+  return { type:'bad', digits:d };
+}
+
+function normalize6to8(d6) {
+  const yy = parseInt(d6.slice(0,2), 10);
+  const century = (yy <= 30) ? '20' : '19';
+  return century + d6;
+}
+
+function analyze() {
+  const arr = JSON.parse(localStorage.getItem('children')||'[]');
+  const stats = { total: arr.length, ok8:0, six:0, empty:0, bad:0 };
+  const targets = [];    // 정규화 대상 (6자리)
+  const bad = [];        // 이상 데이터
+  arr.forEach((c, i) => {
+    const r = classify(c.birth);
+    stats[r.type]++;
+    if (r.type === 'six')  targets.push({ i, name: c.name, from: c.birth, to: normalize6to8(r.digits), managerId: c.managerId });
+    if (r.type === 'bad')  bad.push({ i, name: c.name, birth: c.birth, digits: r.digits, managerId: c.managerId });
+  });
+  return { arr, stats, targets, bad };
+}
+
+function renderStats(stats) {
+  document.getElementById('statArea').innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="big">${stats.total}</div><div class="lbl">전체 아동</div></div>
+      <div class="stat"><div class="big">${stats.ok8}</div><div class="lbl">✅ 8자리 (정상)</div></div>
+      <div class="stat warn"><div class="big">${stats.six}</div><div class="lbl">🔧 6자리 (변환 필요)</div></div>
+      <div class="stat err"><div class="big">${stats.empty}</div><div class="lbl">⚪ 미입력</div></div>
+      <div class="stat err"><div class="big">${stats.bad}</div><div class="lbl">❌ 형식 이상</div></div>
+    </div>`;
+}
+function renderTargets(targets) {
+  if (!targets.length) { document.getElementById('targetArea').innerHTML = '<div style="color:#aaa;padding:20px;text-align:center;">6자리 대상 없음 — 모두 8자리로 저장되어 있습니다.</div>'; return; }
+  let html = '<table class="pv"><thead><tr><th>이름</th><th>관리자번호</th><th>기존 (6자리)</th><th>변환 후 (8자리)</th></tr></thead><tbody>';
+  targets.forEach(t => { html += `<tr>
+    <td><b>${escapeHtml(t.name)}</b></td>
+    <td style="font-family:monospace;">${escapeHtml(t.managerId||'-')}</td>
+    <td>${escapeHtml(t.from)}</td>
+    <td style="color:#2e7d32;font-weight:bold;">${escapeHtml(t.to)}</td>
+  </tr>`; });
+  html += '</tbody></table>';
+  document.getElementById('targetArea').innerHTML = html;
+}
+function renderBad(bad) {
+  if (!bad.length) { document.getElementById('badArea').innerHTML = '<div style="color:#aaa;padding:20px;text-align:center;">이상 데이터 없음.</div>'; return; }
+  let html = '<table class="pv"><thead><tr><th>이름</th><th>관리자번호</th><th>현재 값</th><th>숫자만</th></tr></thead><tbody>';
+  bad.forEach(b => { html += `<tr>
+    <td><b>${escapeHtml(b.name)}</b></td>
+    <td style="font-family:monospace;">${escapeHtml(b.managerId||'-')}</td>
+    <td>${escapeHtml(b.birth)}</td>
+    <td>${escapeHtml(b.digits)}</td>
+  </tr>`; });
+  html += '</tbody></table>';
+  document.getElementById('badArea').innerHTML = html;
+}
+
+function render() {
+  const { stats, targets, bad } = analyze();
+  renderStats(stats);
+  renderTargets(targets);
+  renderBad(bad);
+}
+
+function doNormalize() {
+  const { arr, targets } = analyze();
+  if (!targets.length) { alert('변환할 6자리 데이터가 없습니다.'); return; }
+  if (!confirm(`${targets.length}건을 8자리로 변환합니다.\n계속하시겠습니까?`)) return;
+  targets.forEach(t => { arr[t.i].birth = t.to; arr[t.i].updatedAt = new Date().toISOString(); });
+  localStorage.setItem('children', JSON.stringify(arr));
+  alert(`✅ ${targets.length}건 변환 완료.\n\n(00~30 → 20XX, 31~99 → 19XX)`);
+  render();
+}
+
+render();
+</script>
+</body>
+</html>

@@ -85,18 +85,21 @@ function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','
 function loadArr(k){ try{return JSON.parse(localStorage.getItem(k)||'[]');}catch(e){return[];} }
 function saveArr(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
 function fmtDate(iso){ return iso ? new Date(iso).toLocaleDateString('ko-KR') : '-'; }
-function fmtBirth(b){
+function normBirth8(b){
   const d = String(b||'').replace(/\D/g,'');
-  if (d.length===8) return `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
-  if (d.length===6) return `20${d.slice(0,2)}.${d.slice(2,4)}.${d.slice(4,6)}`;
-  return b||'-';
+  if (d.length===8) return d;
+  if (d.length===6) return (parseInt(d.slice(0,2),10) <= 30 ? '20' : '19') + d;
+  return '';
+}
+function fmtBirth(b){
+  const d = normBirth8(b);
+  if (d.length !== 8) return b || '-';
+  return `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
 }
 function calcMonths(b){
-  const d = String(b||'').replace(/\D/g,'');
-  let y,m,day;
-  if(d.length===8){y=+d.slice(0,4);m=+d.slice(4,6);day=+d.slice(6,8);}
-  else if(d.length===6){y=2000+ +d.slice(0,2);m=+d.slice(2,4);day=+d.slice(4,6);}
-  else return null;
+  const d = normBirth8(b);
+  if (d.length !== 8) return null;
+  const y=+d.slice(0,4), m=+d.slice(4,6), day=+d.slice(6,8);
   const now=new Date(), bd=new Date(y,m-1,day);
   if(isNaN(bd)) return null;
   let mo=(now.getFullYear()-bd.getFullYear())*12+(now.getMonth()-bd.getMonth());

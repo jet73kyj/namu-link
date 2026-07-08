@@ -5358,7 +5358,12 @@
         });
         unpaidRows = [...seen2.values()];
       }
-      const fmtBirth = b => { if (!b) return '-'; return b.length===8 ? `${b.slice(2,4)}.${b.slice(4,6)}.${b.slice(6,8)}` : b; };
+      const fmtBirth = b => {
+        if (!b) return '-';
+        const s = String(b).replace(/\D/g,'');
+        const d = s.length===6 ? (parseInt(s.slice(0,2),10)<=30?'20':'19')+s : s;
+        return d.length===8 ? `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : b;
+      };
       const fmtSlot  = s => s ? s.replace('-','~') : '-';
       const fmtCycle = c => (c||'').split(',').map(s=>s.trim()).filter(Boolean).join('·') || '-';
       const FEE_TYPE = { '가형':'가형','나형':'나형','다형':'다형','라형':'라형','마형':'마형' };
