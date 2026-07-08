@@ -292,7 +292,7 @@ function issueLink(intakeId){
   };
   tokens.unshift(token);
   localStorage.setItem('assessment_tokens', JSON.stringify(tokens));
-  const url = `${location.origin}${location.pathname.replace(/[^\/]+$/,'')}assessment.html?token=${token.token}`;
+  const url = `https://jet73kyj.github.io/namu-link/assessment.html?token=${token.token}`;
   const msg = `📩 초기상담지 링크 발급 완료\n\n아동: ${rec.name} (${months||'?'}개월, ${ag||'범위밖'})\n만료: ${exp.toLocaleDateString('ko-KR')}\n\n[학부모께 아래 링크 전달]\n${url}\n\n"확인" 클릭 시 클립보드에 복사됩니다.`;
   if (confirm(msg)) {
     try { navigator.clipboard.writeText(url); alert('✅ 링크가 클립보드에 복사되었습니다.\n카카오톡·문자로 학부모께 전달해주세요.'); }

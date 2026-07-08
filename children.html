@@ -272,7 +272,7 @@
       };
       tokens.unshift(rec);
       localStorage.setItem('assessment_tokens', JSON.stringify(tokens));
-      const url = `${location.origin}${location.pathname.replace(/[^\/]+$/,'')}assessment.html?token=${rec.token}`;
+      const url = `https://jet73kyj.github.io/namu-link/assessment.html?token=${rec.token}`;
       const msg = `📩 초기상담지 링크 발급 완료\n\n아동: ${child.name} (${months||'?'}개월, ${ag||'범위밖'})\n만료: ${exp.toLocaleDateString('ko-KR')}\n\n[학부모께 아래 링크 전달]\n${url}\n\n"확인" 클릭 시 링크가 클립보드에 복사됩니다.`;
       if (confirm(msg)) {
         try { navigator.clipboard.writeText(url); alert('✅ 링크가 클립보드에 복사되었습니다.\n카카오톡·문자로 학부모께 전달해주세요.'); }
@@ -297,7 +297,7 @@
         body += '<tr style="background:#f5f9f0;"><th style="padding:6px;border:1px solid #ddd;">발급일</th><th style="padding:6px;border:1px solid #ddd;">연령대</th><th style="padding:6px;border:1px solid #ddd;">상태</th><th style="padding:6px;border:1px solid #ddd;">링크</th></tr>';
         tokens.forEach(t => {
           const status = t.is_used ? '<span style="color:#2e7d32;">✅ 제출완료</span>' : (new Date(t.expires_at)<new Date() ? '<span style="color:#c62828;">만료</span>' : '<span style="color:#f57c00;">대기중</span>');
-          const url = `${location.origin}${location.pathname.replace(/[^\/]+$/,'')}assessment.html?token=${t.token}`;
+          const url = `https://jet73kyj.github.io/namu-link/assessment.html?token=${t.token}`;
           body += `<tr>
             <td style="padding:6px;border:1px solid #ddd;">${new Date(t.issued_at).toLocaleDateString('ko-KR')}</td>
             <td style="padding:6px;border:1px solid #ddd;text-align:center;">${AG_LABEL[t.age_group]||'-'}</td>
