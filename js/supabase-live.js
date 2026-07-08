@@ -36,19 +36,49 @@
 
   // 1) 초기 pull
   setStatus('☁️ 로드 중...', '#1565c0');
+  // 테이블 없음 오류는 실패로 간주하지 않음 (스키마 재실행 안 된 경우 대비)
+  const isMissingTable = (msg) => /does not exist|relation .* does not exist|schema cache|not found|PGRST205/i.test(String(msg||''));
   const loadErrs = [];
+  const skipped = [];
   for (const k of KEYS) {
     try { await Supa.pullKey(k); }
-    catch (e) { loadErrs.push(`${k}: ${e.message}`); console.error('pullKey failed', k, e); }
+    catch (e) {
+      if (isMissingTable(e.message)) {
+        skipped.push(k);
+        console.warn(`[supabase-live] ${k} 테이블 없음 - 스킵 (schema.sql 미실행)`);
+      } else {
+        loadErrs.push(`${k}: ${e.message}`);
+        console.error('[supabase-live] pullKey failed', k, e);
+      }
+    }
   }
   // child_extras 도 함께
-  try { await Supa.pullChildExtras(); } catch(e) { console.warn('pullChildExtras failed', e); }
+  try { await Supa.pullChildExtras(); } catch(e) {
+    if (isMissingTable(e.message)) { skipped.push('child_extras'); console.warn('[supabase-live] child_extras 테이블 없음 - 스킵'); }
+    else console.warn('[supabase-live] pullChildExtras failed', e);
+  }
+
+  window._supaLoadErrs = loadErrs;
+  window._supaSkipped = skipped;
 
   if (loadErrs.length) {
-    setStatus(`⚠️ 부분 실패 (${loadErrs.length})`, '#e65100', loadErrs.join('\n'));
+    const detail = loadErrs.join('\n') + (skipped.length ? '\n\n[스킵된 테이블 (미생성)]\n' + skipped.join(', ') : '');
+    setStatus(`⚠️ 부분 실패 (${loadErrs.length})`, '#e65100', detail);
+  } else if (skipped.length) {
+    setStatus(`⚠️ 미생성 ${skipped.length}개`, '#f57c00', `Supabase 에 아직 없는 테이블:\n${skipped.join(', ')}\n\nsupabase/schema.sql 을 SQL Editor 에서 실행하세요.`);
   } else {
     setStatus('☁️ 동기화됨', '#2e7d32', `Supabase 최신 상태 (${new Date().toLocaleTimeString('ko-KR')})`);
   }
+  // 뱃지 클릭 시 상세 오류 alert 로 표시
+  badge.addEventListener('click', (ev) => {
+    if (ev.detail === 2) return; // 더블클릭은 별도 핸들러
+    if (loadErrs.length || skipped.length) {
+      alert(
+        (loadErrs.length ? `❌ 실패 (${loadErrs.length}):\n${loadErrs.join('\n')}\n\n` : '') +
+        (skipped.length ? `⚠️ 미생성 테이블 (${skipped.length}):\n${skipped.join(', ')}\n\n→ Supabase SQL Editor 에서 schema.sql 재실행 필요` : '')
+      );
+    }
+  });
 
   // 초기 로드 완료 콜백
   if (typeof onLoad === 'function') {
