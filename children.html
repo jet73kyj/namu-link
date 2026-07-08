@@ -30,6 +30,8 @@
     .search-wrap input { flex:1; padding:9px 12px; border:1px solid #ddd; border-radius:6px; font-size:14px; }
     .filter-btn { padding:7px 14px; border:1px solid #c8e6c9; border-radius:6px; font-size:12px; background:#f5f9f0; color:#2e7d32; cursor:pointer; font-weight:bold; }
     .filter-btn.active { background:#2e7d32; color:white; border-color:#2e7d32; }
+    .filter-btn .cnt { display:inline-block; margin-left:4px; padding:1px 7px; border-radius:10px; background:rgba(255,255,255,0.5); color:#2e7d32; font-size:11px; font-weight:bold; }
+    .filter-btn.active .cnt { background:rgba(255,255,255,0.25); color:white; }
     .section-label { font-size:10px; color:#aaa; display:block; margin-bottom:1px; }
   </style>
 </head>
@@ -59,10 +61,11 @@
     <div class="card" style="padding:14px 16px;">
       <div class="search-wrap">
         <input type="text" id="searchInput" placeholder="아동 이름 검색..." oninput="renderList()">
-        <button class="filter-btn active" id="f_all"    onclick="setFilter('all')">전체</button>
-        <button class="filter-btn"        id="f_intake" onclick="setFilter('intake')">대기중</button>
-        <button class="filter-btn"        id="f_active" onclick="setFilter('active')">치료중</button>
-        <button class="filter-btn"        id="f_end"    onclick="setFilter('end')">종결/대기</button>
+        <button class="filter-btn active" id="f_all"      onclick="setFilter('all')">전체 <span class="cnt" id="cnt_all">0</span></button>
+        <button class="filter-btn"        id="f_waiting"  onclick="setFilter('waiting')">대기중 <span class="cnt" id="cnt_waiting">0</span></button>
+        <button class="filter-btn"        id="f_done"     onclick="setFilter('done')">상담완료 <span class="cnt" id="cnt_done">0</span></button>
+        <button class="filter-btn"        id="f_active"   onclick="setFilter('active')">치료중 <span class="cnt" id="cnt_active">0</span></button>
+        <button class="filter-btn"        id="f_end"      onclick="setFilter('end')">종결 <span class="cnt" id="cnt_end">0</span></button>
       </div>
       <div id="childList"></div>
     </div>
@@ -188,10 +191,27 @@
 
     function setFilter(f) {
       currentFilter = f;
-      ['all','intake','active','end'].forEach(k=>{
+      ['all','waiting','done','active','end'].forEach(k=>{
         document.getElementById('f_'+k).classList.toggle('active', k===f);
       });
       renderList();
+    }
+
+    // 카테고리 판별
+    function _catOf(c) {
+      const phase = _getPhase(c);
+      const st = c.status || (phase==='intake' ? '대기중' : '치료중');
+      if (phase === 'intake') {
+        if (st === '상담완료') return 'done';
+        return 'waiting';       // 대기중·보류 포함
+      }
+      if (st === '종결') return 'end';
+      if (st === '대기중')return 'end';   // 레거시 대기중은 종결/대기 카테고리
+      return 'active';           // 치료중 · 그 외
+    }
+    function _sortWeight(c) {
+      const cat = _catOf(c);
+      return { waiting:0, done:1, active:2, end:3 }[cat] ?? 4;
     }
 
     // ===== intake_list → children 일회성 마이그레이션 =====
@@ -349,7 +369,24 @@
       localStorage.setItem('children', JSON.stringify(arr));
       // 상담지 토큰·응답의 child_id 를 그대로 유지 (동일 child.id 사용중이므로 변경 불필요)
       alert(`✅ "${rec.name}" 아동이 치료중으로 전환되었습니다.`);
-      renderList();
+      setFilter('active');   // 치료중 탭으로 이동
+    }
+    function markConsultDone(childId){
+      const arr = getChildren();
+      const rec = arr.find(c=>c.id===childId);
+      if (!rec) return;
+      rec.status = '상담완료';
+      rec.consultDoneAt = new Date().toISOString();
+      localStorage.setItem('children', JSON.stringify(arr));
+      setFilter('done');     // 상담완료 탭으로 이동
+    }
+    function markConsultBackToWaiting(childId){
+      const arr = getChildren();
+      const rec = arr.find(c=>c.id===childId);
+      if (!rec) return;
+      rec.status = '대기중';
+      localStorage.setItem('children', JSON.stringify(arr));
+      setFilter('waiting');  // 대기중 탭으로 이동
     }
 
     function renderList() {
@@ -357,10 +394,28 @@
       const year  = new Date().getFullYear();
       const payments = getPayments();
 
-      let list = getChildren().filter(c=>(c.name||'').toLowerCase().includes(query));
-      if (currentFilter==='intake') list = list.filter(c => _getPhase(c)==='intake');
-      if (currentFilter==='active') list = list.filter(c => _getPhase(c)==='active' && c.status!=='종결' && c.status!=='대기중');
-      if (currentFilter==='end')    list = list.filter(c => _getPhase(c)==='active' && (c.status==='종결' || c.status==='대기중'));
+      const all = getChildren();
+      // 탭별 건수 (검색어 무관)
+      const counts = { all: all.length, waiting:0, done:0, active:0, end:0 };
+      all.forEach(c => { counts[_catOf(c)] = (counts[_catOf(c)]||0) + 1; });
+      Object.keys(counts).forEach(k => {
+        const el = document.getElementById('cnt_'+k);
+        if (el) el.textContent = counts[k];
+      });
+
+      let list = all.filter(c=>(c.name||'').toLowerCase().includes(query));
+      if (currentFilter !== 'all') list = list.filter(c => _catOf(c) === currentFilter);
+      // 정렬: 대기중 → 상담완료 → 치료중 → 종결 순
+      list.sort((a,b) => {
+        const w = _sortWeight(a) - _sortWeight(b);
+        if (w !== 0) return w;
+        // 같은 카테고리 안: 대기중은 상담예정일 오름차순, 나머지는 이름 오름차순
+        const cat = _catOf(a);
+        if (cat === 'waiting' || cat === 'done') {
+          return (a.schedDate||'9999') > (b.schedDate||'9999') ? 1 : -1;
+        }
+        return (a.name||'').localeCompare(b.name||'');
+      });
 
       const container = document.getElementById('childList');
       if (!list.length) { container.innerHTML='<div class="no-therapy">해당하는 아동이 없습니다.</div>'; return; }
@@ -369,26 +424,35 @@
         // 신규 상담(intake) 카드는 별도 형식으로 렌더
         if (_getPhase(c) === 'intake') {
           const st = c.status || '대기중';
+          const isDone = st === '상담완료';
+          const barColor = isDone ? '#1565c0' : '#fb8c00';
+          const nameColor = isDone ? '#1565c0' : '#e65100';
+          const bgColor = isDone ? '#e3f2fd' : '#fff8e1';
+          const icon = isDone ? '📘' : '🆕';
+          const doneBtn = isDone
+            ? `<button onclick="markConsultBackToWaiting('${c.id}')" style="padding:5px 10px;background:#f5f5f5;color:#666;border:1px solid #ddd;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">↩ 대기로</button>`
+            : `<button onclick="markConsultDone('${c.id}')" style="padding:5px 10px;background:#1565c0;color:white;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">✔ 상담완료</button>`;
           return `
-          <div class="child-card" style="border-left:4px solid #fb8c00;">
+          <div class="child-card" style="border-left:4px solid ${barColor};">
             <div class="child-header">
               <div>
-                <span class="child-name" style="color:#e65100;">🆕 ${c.name}</span>
+                <span class="child-name" style="color:${nameColor};">${icon} ${c.name}</span>
                 <span class="child-birth" style="margin-left:8px;">${fmtBirth(c.birth)}</span>
                 <span class="child-age" style="margin-left:6px;">(${calcAge(c.birth)})</span>
               </div>
               <div>
-                <span class="status-dot" style="background:#e65100;"></span>
+                <span class="status-dot" style="background:${nameColor};"></span>
                 <span class="status-label">${st}</span>
               </div>
               ${c.managerId ? `<div style="font-size:11px;color:#999;">관리자번호: ${c.managerId}</div>` : ''}
-              <div style="margin-left:auto;display:flex;gap:6px;">
+              <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
                 <button onclick="openIntakeForm('${c.id}')" style="padding:5px 10px;background:#f5f5f5;color:#333;border:1px solid #ddd;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">✏️ 편집</button>
                 <button onclick="_issueAssessmentLink('${c.id}')" style="padding:5px 10px;background:#fee500;color:#3c1e1e;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📩 초기상담지</button>
+                ${doneBtn}
                 <button onclick="confirmRegister('${c.id}')" style="padding:5px 10px;background:#2e7d32;color:white;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">✅ 등록확정</button>
               </div>
             </div>
-            <div style="padding:10px 16px;font-size:12px;color:#555;background:#fff8e1;">
+            <div style="padding:10px 16px;font-size:12px;color:#555;background:${bgColor};">
               <span style="margin-right:12px;"><b>보호자:</b> ${c.guardian||'-'} · ${c.phone||'-'}</span>
               <span style="margin-right:12px;"><b>희망영역:</b> ${c.intakeArea||'-'}</span>
               <span style="margin-right:12px;"><b>희망시간:</b> ${c.intakePref||'-'}</span>
