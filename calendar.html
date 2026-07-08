@@ -53,6 +53,7 @@
     .chip-absent { background:#e0e0e0 !important; color:#757575 !important; }
     .chip-absent span { text-decoration:line-through; }
     .chip-makeup { background:#ffe0b2 !important; color:#e65100 !important; border:2px dashed #e65100; }
+    .chip-eval   { background:#ffe0b2 !important; color:#e65100 !important; border:2px solid #e65100; font-weight:bold; }
     .empty-cell { color:#ddd; font-size:13px; }
 
     /* ── 탐색 / 범례 ── */
@@ -118,6 +119,7 @@
       <button class="view-tab active" id="tabDay" onclick="switchView('day')">📅 요일별 보기</button>
       <button class="view-tab" id="tabWeek" onclick="switchView('week')">👤 치료사별 주간 보기</button>
       <button class="view-tab" id="tabMakeup" onclick="switchView('makeup')">⚠️ 보강 필요 <span id="makeupBadge" style="display:none;background:#e65100;color:white;border-radius:10px;padding:1px 7px;font-size:12px;margin-left:4px;"></span></button>
+      <button class="view-tab" id="tabEval" onclick="switchView('eval')">🧡 평가 일정 <span id="evalBadge" style="display:none;background:#e65100;color:white;border-radius:10px;padding:1px 7px;font-size:12px;margin-left:4px;"></span></button>
     </div>
 
     <!-- 경고 배너 -->
@@ -189,6 +191,9 @@
         </div>
       </div>
     </div>
+
+    <!-- ── 평가 일정 보기 ── -->
+    <div id="viewEval" style="display:none;"></div>
 
     <!-- ── 치료사별 주간 보기 ── -->
     <div id="viewWeek" style="display:none;">
@@ -576,9 +581,11 @@
       document.getElementById('viewDay').style.display = v==='day' ? '' : 'none';
       document.getElementById('viewWeek').style.display = v==='week' ? '' : 'none';
       document.getElementById('viewMakeup').style.display = v==='makeup' ? '' : 'none';
+      const ve = document.getElementById('viewEval'); if (ve) ve.style.display = v==='eval' ? '' : 'none';
       document.getElementById('tabDay').classList.toggle('active', v==='day');
       document.getElementById('tabWeek').classList.toggle('active', v==='week');
       document.getElementById('tabMakeup').classList.toggle('active', v==='makeup');
+      const te = document.getElementById('tabEval'); if (te) te.classList.toggle('active', v==='eval');
       if (v==='week') populateTherapistSelect();
       render();
     }
@@ -640,12 +647,72 @@
     function render() {
       document.getElementById('calTitle').textContent = `${currentYear}년 ${currentMonth}월`;
       renderWarnBanner();
+      _refreshEvalBadge();
       if (currentView==='day') {
         renderDay();
         setTimeout(()=>{ try { _dayChildHighlight(); } catch(e){} }, 0);
       }
       else if (currentView==='week') renderWeek();
+      else if (currentView==='eval') renderEval();
       else renderMakeup();
+    }
+
+    // ===== 평가 일정 뷰 =====
+    function _getEvents() { try { return JSON.parse(localStorage.getItem('assessment_events')||'[]'); } catch(e){ return []; } }
+    function _refreshEvalBadge() {
+      const badge = document.getElementById('evalBadge'); if (!badge) return;
+      const today = new Date().toISOString().slice(0,10);
+      const upcoming = _getEvents().filter(e => e.date && e.date >= today).length;
+      if (upcoming > 0) { badge.style.display = 'inline-block'; badge.textContent = upcoming; }
+      else badge.style.display = 'none';
+    }
+    function renderEval() {
+      const wrap = document.getElementById('viewEval'); if (!wrap) return;
+      const today = new Date().toISOString().slice(0,10);
+      const currentUser = (localStorage.getItem('currentUser')||'').trim();
+      const events = _getEvents().sort((a,b)=>(a.date+a.time||'').localeCompare((b.date||'')+(b.time||'')));
+      const myOnly = document.getElementById('_evalMyOnly')?.checked;
+      const list = events.filter(e => {
+        if (myOnly && currentUser && e.therapist !== currentUser) return false;
+        return true;
+      });
+      const upcoming = list.filter(e => e.date >= today);
+      const past = list.filter(e => e.date < today);
+      const renderRow = e => {
+        const isPast = e.date < today;
+        return `<tr style="${isPast?'opacity:0.55':''}">
+          <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-family:monospace;font-weight:bold;color:#e65100;">${e.date||'-'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;">${e.time||'-'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;"><b>${e.childName||'-'}</b>${e.managerId?`<div style="font-size:11px;color:#999;">${e.managerId}</div>`:''}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;">${e.therapist||'<span style="color:#c00;">미배정</span>'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#555;">${(e.note||'').replace(/[<>]/g,'')}</td>
+        </tr>`;
+      };
+      wrap.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <h3 style="margin:0;color:#e65100;">🧡 평가 일정 (${list.length})</h3>
+          <label style="font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="_evalMyOnly" ${myOnly?'checked':''} onchange="renderEval()"> 내 담당만 보기 ${currentUser?`(${currentUser})`:''}
+          </label>
+        </div>
+        <div style="background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);padding:16px 20px;margin-bottom:14px;">
+          <div style="font-size:13px;font-weight:bold;color:#2e7d32;margin-bottom:8px;">📅 예정 (${upcoming.length})</div>
+          ${upcoming.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="background:#fff3e0;">
+              <th style="padding:8px 10px;text-align:left;color:#e65100;width:110px;">평가일</th>
+              <th style="padding:8px 10px;text-align:left;color:#e65100;width:80px;">시간</th>
+              <th style="padding:8px 10px;text-align:left;color:#e65100;">아동</th>
+              <th style="padding:8px 10px;text-align:left;color:#e65100;">담당치료사</th>
+              <th style="padding:8px 10px;text-align:left;color:#e65100;">메모</th>
+            </tr></thead>
+            <tbody>${upcoming.map(renderRow).join('')}</tbody></table>` : '<div style="text-align:center;color:#aaa;padding:30px;">예정된 평가 일정이 없습니다.</div>'}
+        </div>
+        ${past.length ? `<div style="background:white;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);padding:16px 20px;">
+          <div style="font-size:13px;font-weight:bold;color:#666;margin-bottom:8px;">📚 지난 평가 (${past.length})</div>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <tbody>${past.map(renderRow).join('')}</tbody>
+          </table>
+        </div>` : ''}`;
     }
 
     // ── 요일별 해당 월 발생 횟수 계산 ──
@@ -2526,7 +2593,7 @@
     render();
   </script>
   <script>
-    window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+    window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data','assessment_events'];
     window._supaLiveOnLoad = () => { try { render(); } catch(e) {} };
   </script>
   <script src="js/supabase-live.js"></script>

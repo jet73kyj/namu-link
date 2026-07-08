@@ -94,6 +94,19 @@
           <div><label style="font-size:12px;font-weight:bold;">문의 첫 날짜</label><input type="date" id="itInquiryDate" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
           <div><label style="font-size:12px;font-weight:bold;">상담 예정일</label><input type="date" id="itSchedDate" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
           <div><label style="font-size:12px;font-weight:bold;">상담 예정 시간</label><input type="time" id="itSchedTime" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div style="grid-column:1/3;padding-top:8px;border-top:1px dashed #ddd;margin-top:6px;">
+            <label style="font-size:13px;font-weight:bold;color:#e65100;">🧡 평가 일정 (선택 · 입력 시 캘린더에 자동 등록)</label>
+          </div>
+          <div><label style="font-size:12px;font-weight:bold;">평가 예정일</label><input type="date" id="itEvalDate" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">평가 시간</label><input type="time" id="itEvalTime" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;"></div>
+          <div><label style="font-size:12px;font-weight:bold;">담당 치료사</label>
+            <select id="itEvalTherapist" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;">
+              <option value="">선택</option>
+            </select>
+          </div>
+          <div><label style="font-size:12px;font-weight:bold;">평가 메모 (아동 특징)</label>
+            <input type="text" id="itEvalNote" placeholder="예: 언어 지연, 낯가림 심함" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;">
+          </div>
           <div><label style="font-size:12px;font-weight:bold;">지원사업 유형</label>
             <select id="itProgram" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ccc;border-radius:5px;">
               <option value="">선택</option><option>발달재활서비스</option><option>방과후활동비지원</option><option>치료지원</option><option>개인결제</option>
@@ -299,6 +312,20 @@
       document.getElementById('itInquiryDate').value = rec?.inquiryDate || today;
       document.getElementById('itSchedDate').value = rec?.schedDate || '';
       document.getElementById('itSchedTime').value = rec?.schedTime || '';
+      // 평가 일정 필드
+      document.getElementById('itEvalDate').value = rec?.evalDate || '';
+      document.getElementById('itEvalTime').value = rec?.evalTime || '';
+      document.getElementById('itEvalNote').value = rec?.evalNote || '';
+      // 치료사 옵션 채움
+      const tSel = document.getElementById('itEvalTherapist');
+      tSel.innerHTML = '<option value="">선택</option>';
+      const therapists = JSON.parse(localStorage.getItem('therapists')||'[]');
+      therapists.forEach(t => {
+        const n = (t.name||'').trim(); if (!n) return;
+        const opt = document.createElement('option'); opt.value = n; opt.textContent = n;
+        if (rec?.evalTherapist === n) opt.selected = true;
+        tSel.appendChild(opt);
+      });
       document.getElementById('itProgram').value = rec?.intakeProgram || '';
       document.getElementById('itStatus').value = rec?.status || '대기중';
       document.getElementById('itNote').value = rec?.intakeNote || '';
@@ -346,6 +373,11 @@
       rec.inquiryDate = inquiryDate;
       rec.schedDate = document.getElementById('itSchedDate').value;
       rec.schedTime = document.getElementById('itSchedTime').value;
+      rec.evalDate = document.getElementById('itEvalDate').value;
+      rec.evalTime = document.getElementById('itEvalTime').value;
+      rec.evalTherapist = document.getElementById('itEvalTherapist').value;
+      rec.evalNote = document.getElementById('itEvalNote').value.trim();
+      _syncAssessmentEvent(rec);
       rec.intakeProgram = document.getElementById('itProgram').value;
       rec.status = document.getElementById('itStatus').value;
       rec.intakeSource = source;
@@ -355,12 +387,43 @@
       closeIntakeForm();
       renderList();
     }
+    // ===== 평가 일정 → assessment_events 자동 동기화 =====
+    function _syncAssessmentEvent(rec) {
+      const arr = JSON.parse(localStorage.getItem('assessment_events')||'[]');
+      const evId = 'ev_' + rec.id;
+      const idx = arr.findIndex(e => e.id === evId);
+      // 평가 정보가 하나라도 있으면 등록/업데이트, 모두 비었으면 제거
+      const hasAny = rec.evalDate || rec.evalTime || rec.evalTherapist;
+      if (!hasAny) {
+        if (idx >= 0) { arr.splice(idx, 1); localStorage.setItem('assessment_events', JSON.stringify(arr)); }
+        return;
+      }
+      const event = {
+        id: evId,
+        kind: 'assessment',
+        childId: rec.id,
+        childName: rec.name,
+        childBirth: rec.birth,
+        date: rec.evalDate || '',
+        time: rec.evalTime || '',
+        therapist: rec.evalTherapist || '',
+        note: rec.evalNote || '',
+        managerId: rec.managerId || '',
+        updatedAt: new Date().toISOString(),
+      };
+      if (idx >= 0) arr[idx] = event; else arr.push(event);
+      localStorage.setItem('assessment_events', JSON.stringify(arr));
+    }
+
     function deleteIntake(){
       const editId = document.getElementById('itId').value;
       if (!editId) return;
       if (!confirm('이 상담 기록을 삭제하시겠습니까?')) return;
       const arr = getChildren().filter(c=>c.id!==editId);
       localStorage.setItem('children', JSON.stringify(arr));
+      // 연동된 평가 일정도 함께 삭제
+      const events = JSON.parse(localStorage.getItem('assessment_events')||'[]').filter(e=>e.id!=='ev_'+editId);
+      localStorage.setItem('assessment_events', JSON.stringify(events));
       closeIntakeForm();
       renderList();
     }
@@ -932,7 +995,7 @@ ${r.summary_memo?`<div class="section"><h2>■ 종합 메모 · 추천 방향</h
   </script>
   <script>
     // Supabase 실시간 동기화 활성화
-    window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+    window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data','assessment_events'];
     window._supaLiveOnLoad = () => { try { renderList(); } catch(e) {} };
   </script>
   <script src="js/supabase-live.js"></script>

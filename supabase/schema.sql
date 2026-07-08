@@ -74,6 +74,15 @@ create table initial_assessments (
   updated_at timestamptz default now()
 );
 
+-- 평가 일정 (신규 상담에서 등록 → 캘린더 노출)
+create table assessment_events (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+create index assessment_events_date_idx on assessment_events ((data ->> 'date'));
+create index assessment_events_therapist_idx on assessment_events ((data ->> 'therapist'));
+
 create table child_extras (
   id text primary key,   -- 형식: {child_id}::{kind}
   data jsonb not null default '{}'::jsonb,
