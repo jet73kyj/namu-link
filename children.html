@@ -413,6 +413,10 @@
       };
       if (idx >= 0) arr[idx] = event; else arr.push(event);
       localStorage.setItem('assessment_events', JSON.stringify(arr));
+      // 캘린더에서 즉시 볼 수 있도록 debounce 우회하고 바로 push
+      if (window.Supa && typeof window.Supa.pushKey === 'function') {
+        window.Supa.pushKey('assessment_events').catch(err => console.warn('assessment_events immediate push failed', err));
+      }
     }
 
     function deleteIntake(){
