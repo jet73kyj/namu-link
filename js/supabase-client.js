@@ -17,16 +17,29 @@
     });
   }
 
+  // 스키마 무관 최소 매핑: id(선택) + data(전체 원본) 만 전송.
+  // idKey=false 인 테이블은 id 를 서버에서 자동 채번 (voucher_data).
   const KEY_TABLE = {
-    'children':             { table: 'children',            pickCols: (r) => ({ id: r.id, name: r.name, birth: r.birth, manager_id: r.managerId||null, phase: r.phase||'active', status: r.status||'치료중' }) },
-    'therapists':           { table: 'therapists',          pickCols: (r) => ({ id: r.id, name: r.name }) },
-    'payments':             { table: 'payments',            pickCols: (r) => ({ id: r.id, child_id: r.childId||r.child_id||null, child_name: r.childName||r.child_name||null, year: r.year||null, month: r.month||null, paid: !!r.paid }) },
-    'records':              { table: 'records',             pickCols: (r) => ({ id: r.id || `rec_${r.childId||r.child_id||''}_${r.year||''}_${r.month||''}_${r.category||''}`, child_id: r.childId||r.child_id||null, year: r.year||null, month: r.month||null, category: r.category||null }) },
-    'voucher_data':         { table: 'voucher_data',        pickCols: (r) => ({ child_name: r.childName||null, birth: r.birth||null, appr_date: r.apprDate||null }), idKey: false },
-    'intake_list':          { table: 'intake_list',         pickCols: (r) => ({ id: r.id, name: r.name }) },
-    'assessment_tokens':    { table: 'assessment_tokens',   pickCols: (r) => ({ id: r.id, token: r.token, child_id: r.child_id||null, age_group: r.age_group||null, is_used: !!r.is_used, expires_at: r.expires_at||null }) },
-    'initial_assessments':  { table: 'initial_assessments', pickCols: (r) => ({ id: r.id, child_id: r.child_id||null, token_id: r.token_id||null, age_group: r.age_group||null, submitted_at: r.submitted_at||null }) },
+    'children':             { table: 'children',             idKey: 'id' },
+    'therapists':           { table: 'therapists',           idKey: 'id' },
+    'payments':             { table: 'payments',             idKey: 'id' },
+    'records':              { table: 'records',              idKey: 'id',
+                              genId: (r) => r.id || `rec_${r.childId||r.child_id||''}_${r.year||''}_${r.month||''}_${r.category||''}` },
+    'voucher_data':         { table: 'voucher_data',         idKey: false },   // bigserial 자동 채번
+    'intake_list':          { table: 'intake_list',          idKey: 'id' },
+    'assessment_tokens':    { table: 'assessment_tokens',    idKey: 'id' },
+    'initial_assessments':  { table: 'initial_assessments',  idKey: 'id' },
   };
+
+  // 각 레코드 → { id, data, updated_at } 형태로 변환
+  function toRow(cfg, r) {
+    const row = { data: r, updated_at: new Date().toISOString() };
+    if (cfg.idKey !== false) {
+      const id = cfg.genId ? cfg.genId(r) : r[cfg.idKey];
+      if (id != null) row.id = String(id);
+    }
+    return row;
+  }
 
   async function getClient() {
     const sb = await loadSdk();
@@ -40,13 +53,18 @@
     const client = await getClient();
     const raw = JSON.parse(localStorage.getItem(key) || '[]');
     if (!Array.isArray(raw) || !raw.length) return { table: cfg.table, count: 0 };
-    const rows = raw.map(r => ({ ...cfg.pickCols(r), data: r, updated_at: new Date().toISOString() }));
-    // 배치 upsert (500건씩)
+    const rows = raw.map(r => toRow(cfg, r));
+    // 배치 upsert (500건씩) — id 없는 테이블(voucher_data)은 그냥 insert
     let count = 0;
     for (let i = 0; i < rows.length; i += 500) {
       const chunk = rows.slice(i, i+500);
-      const { error } = await client.from(cfg.table).upsert(chunk, { onConflict: cfg.idKey === false ? undefined : 'id' });
-      if (error) throw new Error(`${cfg.table}: ${error.message}`);
+      let res;
+      if (cfg.idKey === false) {
+        res = await client.from(cfg.table).insert(chunk);
+      } else {
+        res = await client.from(cfg.table).upsert(chunk, { onConflict: 'id' });
+      }
+      if (res.error) throw new Error(`${cfg.table}: ${res.error.message}`);
       count += chunk.length;
     }
     return { table: cfg.table, count };
@@ -73,6 +91,7 @@
   }
 
   // 아동별 확장 데이터 (child_docs_*, child_timeline_*, child_parent_memos_*) 처리
+  // 새 스키마: id = "{childId}::{kind}", data = { child_id, kind, value }
   async function pushChildExtras() {
     const client = await getClient();
     const rows = [];
@@ -85,22 +104,40 @@
       const childId = k.replace(/^child_(docs|timeline|parent_memos)_/, '');
       let value;
       try { value = JSON.parse(localStorage.getItem(k)||'[]'); } catch(e) { return; }
-      rows.push({ child_id: childId, kind, data: value, updated_at: new Date().toISOString() });
+      rows.push({
+        id: `${childId}::${kind}`,
+        data: { child_id: childId, kind, value },
+        updated_at: new Date().toISOString(),
+      });
     });
     if (!rows.length) return { table: 'child_extras', count: 0 };
-    const { error } = await client.from('child_extras').upsert(rows, { onConflict: 'child_id,kind' });
-    if (error) throw new Error('child_extras: ' + error.message);
-    return { table: 'child_extras', count: rows.length };
+    let count = 0;
+    for (let i = 0; i < rows.length; i += 500) {
+      const chunk = rows.slice(i, i+500);
+      const { error } = await client.from('child_extras').upsert(chunk, { onConflict: 'id' });
+      if (error) throw new Error('child_extras: ' + error.message);
+      count += chunk.length;
+    }
+    return { table: 'child_extras', count };
   }
 
   async function pullChildExtras() {
     const client = await getClient();
-    const { data, error } = await client.from('child_extras').select('child_id, kind, data');
-    if (error) throw new Error('child_extras: ' + error.message);
+    let all = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await client.from('child_extras').select('data').range(from, from+999);
+      if (error) throw new Error('child_extras: ' + error.message);
+      if (!data || !data.length) break;
+      all = all.concat(data.map(r => r.data));
+      if (data.length < 1000) break;
+      from += 1000;
+    }
     let count = 0;
-    (data||[]).forEach(row => {
-      const key = `child_${row.kind}_${row.child_id}`;
-      localStorage.setItem(key, JSON.stringify(row.data));
+    all.forEach(d => {
+      if (!d || !d.child_id || !d.kind) return;
+      const key = `child_${d.kind}_${d.child_id}`;
+      localStorage.setItem(key, JSON.stringify(d.value));
       count++;
     });
     return { table: 'child_extras', count };
