@@ -227,10 +227,25 @@
       return `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
     }
 
+    // 유니코드 불가시 문자 정규화 (NBSP·ZWSP·BOM·다양한 공백류를 일반 공백으로)
+    //  =NBSP, ​~D=ZWSP/ZWJ,  /29=LSEP/PSEP,  =NNBSP,
+    //  =MMSP, 　=ideographic space, ﻿=BOM
+    function _cleanUnicode(s) {
+      return String(s||'')
+        .replace(/[   -‍    　﻿]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
     // 지원유형 정규화 - 저장 시점 통일용 (payments·therapies 모두)
     // 표시상 같은 카테고리인데 문자열이 미묘하게 다른 케이스를 하나로 통일
     function normSupport(s) {
-      const v = String(s||'').trim();
+      // 유니코드 공백·제로폭·불가시 문자 제거 (NBSP·ZWSP·BOM 등)
+      // 그 뒤에도 여러 공백은 하나로 축약
+      const v = _cleanUnicode(s);
+      /* legacy inline norm - replaced by _cleanUnicode above */ if (false) String('')
+        .replace(/[   -‍﻿　]/g,' ')
+        .replace(/\s+/g,' ')
+        .trim();
       if (!v) return '';
       // 방과후활동/방과후활동비/방과후 활동비 → 방과후활동비
       if (v === '방' || v === '방과후활동' || v === '방과후 활동비' || v === '방과후활동비지원') return '방과후활동비';
@@ -346,7 +361,7 @@
     // therapies 스마트 dedup 마이그레이션 (v1) - 저장 원본 정리
     // 같은 (support+therapist) 는 정보 많은 쪽으로 병합
     try {
-      if (!localStorage.getItem('_therapies_dedup_v1')) {
+      if (!localStorage.getItem('_therapies_dedup_v2')) {
         const cs = JSON.parse(localStorage.getItem('children')||'[]');
         let changed = 0;
         cs.forEach(c => {
@@ -360,7 +375,7 @@
           console.log(`[therapies dedup v1] ${changed}명의 중복 수업 정리`);
           if (window.Supa && window.Supa.pushKey) window.Supa.pushKey('children').catch(()=>{});
         }
-        localStorage.setItem('_therapies_dedup_v1','1');
+        localStorage.setItem('_therapies_dedup_v2','1');
       }
     } catch(e) { console.warn('therapies dedup migration failed', e); }
 
@@ -398,7 +413,7 @@
       const map = new Map();
       list.forEach(t => {
         const support = normSupport(t.support);
-        const therapist = String(t.therapist||'').trim();
+        const therapist = _cleanUnicode(t.therapist);   // 유니코드 공백·불가시 문자 제거
         if (!support && !therapist) { map.set(`_empty_${Math.random()}`, t); return; }
         const key = `${support}|${therapist}`;
         if (!map.has(key)) { map.set(key, { ...t, support }); return; }
