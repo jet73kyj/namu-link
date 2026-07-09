@@ -690,12 +690,41 @@ function _prefillStatusFromVoucher() {
       seen.add(key);
       deduped.push(v);
     });
-    return deduped.map(v => ({
-      provDate: _normDate(v.provDate),
-      apprDate: _normDate(v.apprDate || v.provDate),
-      apprNo: v.apprNo || '',
-      therapist: v.therapist || '',
-    }));
+    // 주차별 배치 (1~7일=1주차, 8~14=2주차, 15~21=3주차, 22일~=4주차)
+    // 결제가 없는 주차는 빈 행으로 유지, 승인번호 없으면 "예외지급" 표기
+    const byWeek = [null, null, null, null];
+    const overflow = [];
+    deduped.forEach(v => {
+      const digits = String(v.provDate||'').replace(/\D/g,'');
+      const day = digits.length >= 8 ? parseInt(digits.slice(6,8)) : (digits.length >= 6 ? parseInt(digits.slice(4,6)) : 0);
+      let week = day > 0 ? Math.min(3, Math.max(0, Math.ceil(day/7) - 1)) : -1;
+      if (week === -1) { overflow.push(v); return; }
+      if (!byWeek[week]) byWeek[week] = v;
+      else {
+        // 같은 주에 이미 있으면 뒤 슬롯 중 빈 곳 찾기
+        let placed = false;
+        for (let i = week+1; i < 4; i++) {
+          if (!byWeek[i]) { byWeek[i] = v; placed = true; break; }
+        }
+        if (!placed) overflow.push(v);
+      }
+    });
+    // overflow: 빈 슬롯 찾아 앞부터 채움
+    overflow.forEach(v => {
+      const i = byWeek.findIndex(x => !x);
+      if (i >= 0) byWeek[i] = v;
+    });
+    return byWeek.map(v => {
+      if (!v) return {};
+      const hasNo = !!(v.apprNo && String(v.apprNo).trim());
+      return {
+        provDate: _normDate(v.provDate),
+        // 예외지급인 경우 승인일자 공란
+        apprDate: hasNo ? _normDate(v.apprDate || v.provDate) : '',
+        apprNo: hasNo ? v.apprNo : '예외지급',
+        therapist: v.therapist || '',
+      };
+    });
   } catch(e) { return []; }
 }
 const _prefilledRaw = _prefillStatusFromVoucher();
