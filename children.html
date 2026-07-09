@@ -1035,27 +1035,32 @@
           return [origRow, successorRow];
         }).join('');
 
-        // 추론된 지원유형 행 추가
-        // - 최근 3개월 내 결제 있으면: '납부기록 감지 · 수업정보 미입력' (진행중이나 등록 누락)
-        // - 최근 3개월 내 결제 없으면: '종결' 배지 (과거 서비스, 다른 지원유형으로 전환된 이력)
-        const _nowYm = new Date().toISOString().slice(0,7);
+        // 추론된 지원유형 행 판정 (완납 이력 기반)
+        // 규칙:
+        //  1) 완납 0건 → 실제 진행된 적 없음 → 종결 (미납만 자동 생성된 잔재)
+        //  2) 완납 있지만 최근 3개월 내 완납 없음 → 과거 서비스 → 종결
+        //  3) 최근 3개월 내 완납 있음 → 진행중이나 수업정보 미등록 → 노란 감지
         const _ymAgo = (m) => { const d = new Date(); d.setMonth(d.getMonth() - m); return d.toISOString().slice(0,7); };
         const _recentCutoff = _ymAgo(3);
         const inferredRows = inferredSupports.map(sup => {
-          // 이 support 의 payments 중 가장 최근 monthKey
           const supPayments = paymentsForChild.filter(p => normSupportForMatch(p.support) === sup);
-          const latestMk = supPayments.map(p => (p.monthKey||'').slice(0,7)).sort().reverse()[0] || '';
-          const isEnded = latestMk && latestMk < _recentCutoff;
+          const paidPayments = supPayments.filter(p => p.basePaid || p.extraPaid);
+          const paidMonths = paidPayments.map(p => (p.monthKey||'').slice(0,7)).filter(Boolean).sort();
+          const latestPaidMk = paidMonths[paidMonths.length - 1] || '';
+          const isEnded = paidPayments.length === 0 || (latestPaidMk && latestPaidMk < _recentCutoff);
           if (isEnded) {
-            return `<tr title="${latestMk} 마지막 결제 · 이후 다른 지원유형으로 전환된 이력" style="background:#f5f5f5;opacity:0.6;">
-              <td>${supportBadge(sup)} <span style="display:inline-block;background:#757575;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="${latestMk} 이후 결제 없음">종결</span></td>
+            const endReason = paidPayments.length === 0
+              ? '완납 이력 없음 (미납 자동 생성만 있음)'
+              : `${latestPaidMk} 마지막 완납 이후 종결`;
+            return `<tr title="${endReason}" style="background:#f5f5f5;opacity:0.6;">
+              <td>${supportBadge(sup)} <span style="display:inline-block;background:#757575;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="${endReason}">종결</span></td>
               <td style="color:#999;font-size:11px;">-</td>
               <td style="color:#999;font-size:11px;">-</td>
               <td style="color:#999;font-size:11px;">-</td>
-              <td style="color:#999;font-size:11px;">${latestMk} 종결</td>
+              <td style="color:#999;font-size:11px;">${paidPayments.length === 0 ? '미시작·종결' : latestPaidMk + ' 종결'}</td>
             </tr>`;
           }
-          return `<tr title="납부이력에서 감지 - 수업 상세정보 미입력" style="background:#fff8e1;">
+          return `<tr title="최근 완납 ${latestPaidMk} · 수업 상세정보 미입력" style="background:#fff8e1;">
             <td>${supportBadge(sup)} <span style="font-size:10px;color:#e65100;font-weight:bold;">📌 납부기록 감지</span></td>
             <td style="color:#e65100;">?</td>
             <td style="color:#e65100;">?</td>
