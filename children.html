@@ -1003,8 +1003,18 @@
             extraCols = `<td style="color:#ddd;font-size:11px;">-</td>`;
           }
 
-          return `<tr>
-            <td>${supportBadge(t.support)}</td>
+          // therapy 종결 여부: centerEndDate/banchiEndDate/extraEndDate 중 하나가 오늘 이전이면 종결
+          const _today = new Date().toISOString().slice(0,10);
+          const endedDate = [t.centerEndDate, t.banchiEndDate, t.extraEndDate]
+            .filter(d => d && String(d).slice(0,10) <= _today)
+            .sort()[0];
+          const isEnded = !!endedDate;
+          const endedMark = isEnded
+            ? `<span style="display:inline-block;background:#757575;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="${endedDate} 종결">종결</span>`
+            : '';
+          const rowOpacity = isEnded ? 'opacity:0.55;' : '';
+          return `<tr style="${rowOpacity}">
+            <td>${supportBadge(t.support)}${endedMark}</td>
             <td>${t.therapist||c.therapist||'-'}</td>
             <td>${fmtCycle(t.cycle)}</td>
             <td>${t.timeSlot||'-'}</td>
