@@ -346,23 +346,41 @@ if (child) {
     }
   }
   const therapy = (child.therapies||[]).find(t => t.support === '발달재활서비스');
+  const mk = `${year}-${String(month).padStart(2,'0')}`;
+  let therapistName = '';
+  let cycleTxt = '';
+  let timeSlotTxt = '';
   if (therapy) {
-    // 인수인계 반영: 해당 월이 인수일 이후면 후임 치료사
-    const mk = `${year}-${String(month).padStart(2,'0')}`;
-    let therapistName = therapy.therapist || '';
+    therapistName = therapy.therapist || '';
     if (therapy.handoff?.date && therapy.handoff?.therapist) {
       const hoMk = String(therapy.handoff.date).substring(0,7);
       if (mk >= hoMk) therapistName = therapy.handoff.therapist;
     }
-    document.getElementById('s1_svcCharge').value = therapistName;
-    // 담당재활사 4개 컬럼 모두 자동 채움
-    for (let i=1;i<=4;i++) { const el=document.getElementById('s1_therapistName_'+i); if (el) el.value = therapistName; }
-    // 시작·종료 시간 공란 유지 (사용자 요청)
-    if (therapy.cycle) {
-      const cycleStr = `매주 ${therapy.cycle.replace(/,/g,'·')}`;
-      const timeStr = (therapy.timeSlot||'').trim();
-      document.getElementById('s1_svcCycle').value = timeStr ? `${cycleStr} ${timeStr} /10분 상담` : `${cycleStr} /10분 상담`;
-    }
+    cycleTxt = therapy.cycle || '';
+    timeSlotTxt = therapy.timeSlot || '';
+  }
+  // 발본 납부현황 (payments) 로 fallback / 보강
+  const _allPaysForCharge = JSON.parse(localStorage.getItem('payments')||'[]');
+  const _bonPaysForCharge = _allPaysForCharge.filter(p =>
+    p.support === '발달재활서비스' &&
+    (p.childId === child.id || (child.name && (p.childName||'').trim() === (child.name||'').trim()))
+  ).sort((a,b) => (b.monthKey||'').localeCompare(a.monthKey||''));
+  const _bonSrc = _bonPaysForCharge.find(pp => pp.monthKey === mk)
+              || _bonPaysForCharge.find(pp => (pp.therapist||'').trim())
+              || _bonPaysForCharge[0]
+              || null;
+  if (_bonSrc) {
+    if (!therapistName && _bonSrc.therapist) therapistName = _bonSrc.therapist;
+    if (!cycleTxt && _bonSrc.cycle) cycleTxt = _bonSrc.cycle;
+    if (!timeSlotTxt && _bonSrc.timeSlot) timeSlotTxt = _bonSrc.timeSlot;
+  }
+  document.getElementById('s1_svcCharge').value = therapistName;
+  // 담당재활사 4개 컬럼 모두 자동 채움
+  for (let i=1;i<=4;i++) { const el=document.getElementById('s1_therapistName_'+i); if (el) el.value = therapistName; }
+  if (cycleTxt) {
+    const cycleStr = `매주 ${cycleTxt.replace(/,/g,'·')}`;
+    const t = (timeSlotTxt||'').trim();
+    document.getElementById('s1_svcCycle').value = t ? `${cycleStr} ${t} /10분 상담` : `${cycleStr} /10분 상담`;
   }
 }
 
