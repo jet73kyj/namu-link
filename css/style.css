@@ -1,5 +1,11 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── 권한별 nav 노출 (치료사에게는 납부·치료사 관리 숨김) ── */
+body.role-therapist nav a[href="payments.html"],
+body.role-therapist nav a[href="therapists.html"] {
+  display: none !important;
+}
+
 body {
   font-family: 'Malgun Gothic', sans-serif;
   background: #f5f7fa;

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>치료 기록 - 나무링크</title>
   <link rel="stylesheet" href="css/style.css"><script>if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";</script>
+  <script src="js/permissions.js"></script>
   <script src="js/supabase-client.js"></script>
 </head>
 <body>
@@ -353,6 +354,10 @@
       const children = getChildren();
 
       let records = getRecords();
+      // 치료사 로그인 시: 본인 담당 아동 기록만
+      if (window.NamuPerm && window.NamuPerm.IS_THERAPIST) {
+        records = records.filter(r => window.NamuPerm.isChildIdVisible(r.childId));
+      }
       if (childId) records = records.filter(r => r.childId === childId);
       if (month) records = records.filter(r => r.date && r.date.startsWith(month));
 

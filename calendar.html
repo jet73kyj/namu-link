@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>아동 스케줄 - 나무링크</title>
   <link rel="stylesheet" href="css/style.css"><script>if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";</script>
+  <script src="js/permissions.js"></script>
   <style>
     /* ── 뷰 전환 탭 ── */
     .view-tabs { display:flex; gap:6px; margin-bottom:14px; }
@@ -427,7 +428,14 @@
     let currentSession = null;
 
     // ── 유틸 ──
-    function getChildren() { return JSON.parse(localStorage.getItem('children') || '[]'); }
+    function getChildren() {
+      const arr = JSON.parse(localStorage.getItem('children') || '[]');
+      // 치료사 로그인 시 본인 담당 아동만
+      if (window.NamuPerm && window.NamuPerm.IS_THERAPIST) {
+        return arr.filter(c => window.NamuPerm.isChildVisible(c));
+      }
+      return arr;
+    }
     function getChanges() { return JSON.parse(localStorage.getItem('scheduleChanges') || '[]'); }
     function saveChanges(d) { localStorage.setItem('scheduleChanges', JSON.stringify(d)); }
     // 휴가 날짜 연도 오입력(0026, 202626 등) 자동 보정

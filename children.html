@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>아동 관리 - 나무링크</title>
   <link rel="stylesheet" href="css/style.css"><script>if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";</script>
+  <script src="js/permissions.js"></script>
   <style>
     .child-card { background:#fff; border:1px solid #e0e0e0; border-radius:10px; margin-bottom:14px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
     .child-header { display:flex; align-items:center; gap:12px; padding:12px 16px; background:#f5f9f0; border-bottom:1px solid #e0e0e0; }
@@ -57,13 +58,14 @@
   <div class="container">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
       <div class="page-title">아동 관리</div>
-      <div style="display:flex;gap:8px;align-items:center;">
+      <div style="display:flex;gap:8px;align-items:center;" id="_adminTopBar">
         <span style="font-size:12px; color:#aaa;">납부현황 기준 자동 표기</span>
         <input type="file" id="_csvFile" accept=".csv,.txt" style="display:none;" onchange="_handleCsvUpload(this.files[0])">
         <a href="supabase-sync.html"><button style="padding:8px 14px;background:#1565c0;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">☁️ 클라우드 동기화</button></a>
         <button onclick="document.getElementById('_csvFile').click()" style="padding:8px 14px;background:#e65100;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">📥 데이터 일괄 업로드</button>
         <button onclick="openIntakeForm()" style="padding:8px 14px;background:#2e7d32;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">+ 신규 상담 등록</button>
       </div>
+      <script>if(window.NamuPerm && window.NamuPerm.IS_THERAPIST){document.getElementById('_adminTopBar').style.display='none';}</script>
     </div>
 
     <div class="card" style="padding:14px 16px;">
@@ -933,7 +935,11 @@
       const year  = new Date().getFullYear();
       const payments = getPayments();
 
-      const all = getChildren();
+      const _rawAll = getChildren();
+      // 치료사 로그인 시: 본인 담당 아동만
+      const all = (window.NamuPerm && window.NamuPerm.IS_THERAPIST)
+        ? _rawAll.filter(c => window.NamuPerm.isChildVisible(c))
+        : _rawAll;
       // 탭별 건수 (검색어 무관)
       const counts = { all: all.length, waiting:0, done:0, active:0, end:0 };
       all.forEach(c => { counts[_catOf(c)] = (counts[_catOf(c)]||0) + 1; });

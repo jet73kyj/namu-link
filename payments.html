@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>납부 관리 - 나무링크</title>
-  <link rel="stylesheet" href="css/style.css"><script>if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";</script>
+  <link rel="stylesheet" href="css/style.css"><script>
+    if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";
+    if(localStorage.getItem("currentUserRole")==="therapist"){alert("납부 관리는 관리자 전용입니다.");location.href="children.html";}
+  </script>
   <style>
     .tab-bar { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
     .tab-btn { padding:9px 20px; border-radius:8px; border:2px solid #2e7d32; background:white; color:#2e7d32; font-weight:bold; font-size:14px; cursor:pointer; position:relative; }

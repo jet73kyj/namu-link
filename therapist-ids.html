@@ -152,14 +152,26 @@
       return `${base}-${n}`;
     }
 
+    // 퇴사자 판정: resignDate 있고 오늘 이전이면 퇴사
+    function isResigned(t) {
+      if (!t.resignDate) return false;
+      const today = new Date().toISOString().slice(0,10);
+      return t.resignDate <= today;
+    }
+    // 재직중만 뽑기
+    function getActiveTherapists() {
+      return getTherapists().filter(t => !isResigned(t));
+    }
+
     // ===== 렌더링 =====
     function renderAll() {
-      const arr = getTherapists();
+      const arr = getActiveTherapists();
+      const resignedCount = getTherapists().length - arr.length;
       const withId = arr.filter(t => t.loginId).length;
       const noHire = arr.filter(t => !t.hireDate).length;
       const noBirth = arr.filter(t => !t.birth).length;
       document.getElementById('summary').innerHTML =
-        `전체 치료사 <b>${arr.length}명</b> · 아이디 발급됨 <b>${withId}명</b> · 미발급 <b>${arr.length-withId}명</b> · 입사일 없음 <b>${noHire}명</b> · 생년월일 없음 <b>${noBirth}명</b>`;
+        `재직 치료사 <b>${arr.length}명</b> · 아이디 발급됨 <b>${withId}명</b> · 미발급 <b>${arr.length-withId}명</b> · 입사일 없음 <b>${noHire}명</b> · 생년월일 없음 <b>${noBirth}명</b>${resignedCount?` <span style="color:#888;">(퇴사자 <b>${resignedCount}명</b> 제외)</span>`:''}`;
 
       const tbody = document.getElementById('tbody');
       tbody.innerHTML = arr.map((t, i) => {
@@ -249,6 +261,7 @@
       const existingIds = new Set(arr.filter(x => x.loginId).map(x => x.loginId));
       let count = 0;
       arr.forEach(t => {
+        if (isResigned(t)) return;   // 퇴사자 스킵
         if (t.loginId) return;
         const yymm = toYYMM(t.hireDate);
         const mmdd = toMMDD(t.birth);
