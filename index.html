@@ -38,14 +38,14 @@
     <!-- 직원 로그인 -->
     <div id="form-staff" class="form-block active">
       <div class="form-group">
-        <label>이름</label>
-        <input type="text" id="sName" placeholder="치료사·행정 이름 입력">
+        <label>아이디 (또는 이름)</label>
+        <input type="text" id="sName" placeholder="예: 박하은2607 · 관리자">
       </div>
       <div class="form-group">
         <label>비밀번호</label>
-        <input type="password" id="sPw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')loginStaff()">
+        <input type="password" id="sPw" placeholder="치료사: 생년월일 4자리 (MMDD)" onkeydown="if(event.key==='Enter')loginStaff()">
       </div>
-      <p class="error-msg" id="sErr">이름 또는 비밀번호가 올바르지 않습니다.</p>
+      <p class="error-msg" id="sErr">아이디 또는 비밀번호가 올바르지 않습니다.</p>
       <button class="btn btn-staff" onclick="loginStaff()">직원 로그인</button>
     </div>
 
@@ -65,6 +65,8 @@
     </div>
   </div>
 
+  <script src="js/supabase-client.js"></script>
+  <script src="js/auth.js"></script>
   <script>
     const USERS = {
       '관리자': '1234',
@@ -79,16 +81,42 @@
       document.getElementById('gErr').style.display = 'none';
     }
 
-    function loginStaff() {
-      const name = document.getElementById('sName').value.trim();
+    async function loginStaff() {
+      const input = document.getElementById('sName').value.trim();
       const pw = document.getElementById('sPw').value;
-      if (USERS[name] && USERS[name] === pw) {
-        localStorage.setItem('currentUser', name);
-        localStorage.setItem('currentUserRole', 'staff');
+
+      // 1) 관리자·행정 (하드코딩)
+      if (USERS[input] && USERS[input] === pw) {
+        localStorage.setItem('currentUser', input);
+        localStorage.setItem('currentUserRole', input === '관리자' ? 'admin' : 'staff');
         localStorage.removeItem('guardianChildId');
+        localStorage.removeItem('currentTherapistId');
         location.href = 'children.html';
+        return;
+      }
+
+      // 2) 치료사 로그인 (아이디 또는 이름)
+      try {
+        if (window.Supa) { try { await window.Supa.pullKey('therapists'); } catch(e) {} }
+      } catch(e) {}
+      const therapists = JSON.parse(localStorage.getItem('therapists')||'[]');
+      const t = therapists.find(x => x.loginId === input) || therapists.find(x => (x.name||'') === input && x.loginId);
+      if (!t || !t.loginId) { document.getElementById('sErr').style.display='block'; return; }
+
+      const ok = await window.NamuAuth.verifyTherapistPassword(t, pw);
+      if (!ok) { document.getElementById('sErr').style.display='block'; return; }
+
+      localStorage.setItem('currentUser', t.name || t.loginId);
+      localStorage.setItem('currentUserRole', 'therapist');
+      localStorage.setItem('currentTherapistId', t.id);
+      localStorage.setItem('currentTherapistLoginId', t.loginId);
+      localStorage.removeItem('guardianChildId');
+
+      // 첫 로그인 (해시 없음 → 초기 비번으로 통과했음) 이면 비밀번호 변경 페이지로
+      if (!t.passwordHash || t.mustChangePassword) {
+        location.href = 'change-password.html?first=1';
       } else {
-        document.getElementById('sErr').style.display = 'block';
+        location.href = 'children.html';
       }
     }
 

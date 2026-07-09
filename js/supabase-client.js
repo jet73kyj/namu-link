@@ -30,6 +30,8 @@
     'assessment_tokens':    { table: 'assessment_tokens',    idKey: 'id' },
     'initial_assessments':  { table: 'initial_assessments',  idKey: 'id' },
     'assessment_events':    { table: 'assessment_events',    idKey: 'id' },
+    'notices':              { table: 'notices',              idKey: 'id' },
+    'forms':                { table: 'forms',                idKey: 'id' },
   };
 
   // 각 레코드 → { id, data, updated_at } 형태로 변환

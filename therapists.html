@@ -62,6 +62,8 @@
     <a href="calendar.html">아동 스케줄</a>
     <a href="payments.html">납부 관리</a>
     <a href="therapists.html" class="active">치료사 관리</a>
+    <a href="notice.html">공지사항</a>
+    <a href="forms.html">자료실</a>
     <a href="#" onclick="logout()">로그아웃</a>
   </nav>
 
@@ -83,6 +85,10 @@
   <div class="container" id="mainContent" style="display:none;">
     <!-- 급여일 알림 배너 -->
     <div id="paydayBanner" style="display:none;background:#e53935;color:white;padding:10px 16px;border-radius:8px;margin-bottom:14px;font-size:14px;font-weight:bold;"></div>
+
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+      <a href="therapist-ids.html"><button style="padding:8px 14px;background:#1565c0;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">🆔 아이디 일괄 생성</button></a>
+    </div>
 
     <div class="tab-bar">
       <button class="tab-btn active" id="tabInfo" onclick="switchTab('info')">👤 치료사 정보</button>

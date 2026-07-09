@@ -47,7 +47,11 @@
     <a href="calendar.html">아동 스케줄</a>
     <a href="payments.html">납부 관리</a>
     <a href="therapists.html">치료사 관리</a>
+    <a href="notice.html">공지사항</a>
+    <a href="forms.html">자료실</a>
+    <a href="change-password.html" id="_pwLink" style="display:none;">🔐 비밀번호</a>
     <a href="#" onclick="logout()">로그아웃</a>
+    <script>if(localStorage.getItem('currentUserRole')==='therapist')document.getElementById('_pwLink').style.display='';</script>
   </nav>
 
   <div class="container">
@@ -1138,6 +1142,8 @@
             ${c.managerId ? `<div style="font-size:11px;color:#999;">관리자번호: ${c.managerId}</div>` : ''}
             <div style="margin-left:auto;display:flex;gap:6px;">
               <button onclick="_viewAssessments('${c.id}')" style="padding:5px 10px;background:#e3f2fd;color:#1565c0;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📋 상담지 조회</button>
+              <button onclick="_viewChildDocs('${c.id}','eval_report')" style="padding:5px 10px;background:#fff3e0;color:#e65100;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📄 평가보고서</button>
+              <button onclick="_viewChildDocs('${c.id}','consent_form')" style="padding:5px 10px;background:#f3e5f5;color:#6a1b9a;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">📷 촬영동의서</button>
             </div>
           </div>
           <table class="therapy-table">
@@ -1355,6 +1361,138 @@
       localStorage.setItem(key, JSON.stringify(arr));
       document.getElementById('_assessModal')?.remove();
       _viewAssessments(childId);
+    }
+
+    // ===== 평가보고서 · 촬영동의서 (Supabase Storage) =====
+    const DOC_META = {
+      eval_report: { label: '평가보고서', icon: '📄', color: '#e65100', bg: '#fff3e0', accept: '.pdf,.jpg,.jpeg,.png,.hwp,.hwpx,.doc,.docx' },
+      consent_form: { label: '촬영동의서', icon: '📷', color: '#6a1b9a', bg: '#f3e5f5', accept: '.pdf,.jpg,.jpeg,.png' },
+    };
+    const DOC_BUCKET = 'child-documents';
+
+    function _viewChildDocs(childId, category) {
+      const meta = DOC_META[category]; if (!meta) return;
+      const child = (JSON.parse(localStorage.getItem('children')||'[]')).find(c=>c.id===childId);
+      const key = `child_docs_${childId}`;
+      const all = JSON.parse(localStorage.getItem(key)||'[]');
+      const docs = all.filter(d => d.category === category)
+                      .sort((a,b) => (b.uploadedAt||'').localeCompare(a.uploadedAt||''));
+      document.getElementById('_docsModal')?.remove();
+      const modal = document.createElement('div');
+      modal.id = '_docsModal';
+      modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+      let list = '';
+      if (!docs.length) {
+        list = `<div style="color:#aaa;font-size:13px;padding:24px;text-align:center;background:#fafafa;border-radius:8px;">등록된 ${meta.label}가 없습니다.<br>우측 상단 버튼으로 업로드하세요.</div>`;
+      } else {
+        docs.forEach(d => {
+          const globalIdx = all.indexOf(d);
+          const sizeKB = d.size ? Math.round(d.size/1024) + ' KB' : '';
+          list += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#fafafa;border:1px solid #eee;border-radius:6px;margin-bottom:6px;">
+            <div style="flex:1;font-size:12px;min-width:0;">
+              <div style="font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${meta.icon} ${escapeHtml(d.filename||'파일')}</div>
+              <div style="color:#888;font-size:11px;margin-top:3px;">${new Date(d.uploadedAt).toLocaleString('ko-KR')} · ${sizeKB}${d.note?' · '+escapeHtml(d.note):''}</div>
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;margin-left:8px;">
+              <button onclick="_downloadChildDoc('${childId}',${globalIdx})" style="padding:4px 10px;background:#e3f2fd;color:#1565c0;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;">⬇ 다운로드</button>
+              <button onclick="_deleteChildDoc('${childId}',${globalIdx},'${category}')" style="padding:4px 10px;background:#c62828;color:white;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;">삭제</button>
+            </div>
+          </div>`;
+        });
+      }
+
+      modal.innerHTML = `
+        <div style="background:white;border-radius:10px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+          <div style="padding:14px 20px;background:${meta.color};color:white;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;font-size:15px;">${meta.icon} ${child?.name||''} ${meta.label}</h3>
+            <button onclick="document.getElementById('_docsModal').remove()" style="background:transparent;color:white;border:none;font-size:20px;cursor:pointer;">✕</button>
+          </div>
+          <div style="padding:18px 20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h4 style="margin:0;color:${meta.color};">📎 등록된 ${meta.label} (${docs.length})</h4>
+              <label style="padding:6px 12px;background:${meta.bg};color:${meta.color};border:1px solid ${meta.color};border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer;">
+                📤 파일 업로드
+                <input type="file" accept="${meta.accept}" style="display:none;" onchange="_uploadChildDoc('${childId}','${category}',this.files[0])">
+              </label>
+            </div>
+            <div id="_docsList">${list}</div>
+            <div id="_docsProgress" style="display:none;margin-top:12px;padding:10px;background:#e3f2fd;color:#1565c0;border-radius:6px;font-size:12px;text-align:center;"></div>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+
+    async function _uploadChildDoc(childId, category, file) {
+      if (!file) return;
+      if (file.size > 20*1024*1024) { alert('파일 크기가 20MB 를 초과합니다.'); return; }
+      const prog = document.getElementById('_docsProgress');
+      if (prog) { prog.style.display='block'; prog.textContent='⏳ 업로드 중...'; }
+      try {
+        if (!window.Supa) throw new Error('Supabase 클라이언트가 로드되지 않았습니다.');
+        const client = await window.Supa.getClient();
+        // 파일명은 안전한 형태로 (특수문자 제거 + timestamp prefix)
+        const safeName = file.name.replace(/[^\w.\-가-힣]/g,'_');
+        const stamp = Date.now();
+        const storagePath = `${childId}/${category}/${stamp}_${safeName}`;
+        const { error } = await client.storage.from(DOC_BUCKET).upload(storagePath, file, {
+          cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream',
+        });
+        if (error) throw error;
+        // 메타데이터 저장 (child_docs_{childId}) → 자동으로 Supabase 동기화됨
+        const key = `child_docs_${childId}`;
+        const arr = JSON.parse(localStorage.getItem(key)||'[]');
+        arr.push({
+          category, filename: file.name, size: file.size,
+          storagePath, contentType: file.type || '',
+          uploadedAt: new Date().toISOString(),
+        });
+        localStorage.setItem(key, JSON.stringify(arr));
+        // Supabase child_extras 동기화
+        try { await window.Supa.pushChildExtras(); } catch(e) { console.warn('child_extras 동기화 실패', e); }
+        if (prog) { prog.textContent='✅ 업로드 완료'; prog.style.background='#e8f5e9'; prog.style.color='#2e7d32'; }
+        setTimeout(() => _viewChildDocs(childId, category), 500);
+      } catch (e) {
+        console.error(e);
+        if (prog) { prog.textContent='❌ 실패: ' + (e.message||e); prog.style.background='#ffebee'; prog.style.color='#c62828'; }
+        else alert('업로드 실패: ' + (e.message||e));
+      }
+    }
+
+    async function _downloadChildDoc(childId, idx) {
+      const arr = JSON.parse(localStorage.getItem(`child_docs_${childId}`)||'[]');
+      const d = arr[idx];
+      if (!d || !d.storagePath) return alert('파일 정보가 없습니다.');
+      try {
+        const client = await window.Supa.getClient();
+        // 1시간 유효한 서명 URL 생성
+        const { data, error } = await client.storage.from(DOC_BUCKET).createSignedUrl(d.storagePath, 3600);
+        if (error) throw error;
+        window.open(data.signedUrl, '_blank');
+      } catch (e) {
+        alert('다운로드 실패: ' + (e.message||e));
+      }
+    }
+
+    async function _deleteChildDoc(childId, idx, category) {
+      if (!confirm('이 파일을 삭제하시겠습니까?\n(Supabase Storage 에서도 함께 삭제됩니다)')) return;
+      const key = `child_docs_${childId}`;
+      const arr = JSON.parse(localStorage.getItem(key)||'[]');
+      const d = arr[idx];
+      if (!d) return;
+      try {
+        if (d.storagePath) {
+          const client = await window.Supa.getClient();
+          const { error } = await client.storage.from(DOC_BUCKET).remove([d.storagePath]);
+          if (error) console.warn('Storage 삭제 실패(계속 진행):', error);
+        }
+        arr.splice(idx, 1);
+        localStorage.setItem(key, JSON.stringify(arr));
+        try { await window.Supa.pushChildExtras(); } catch(e) {}
+        _viewChildDocs(childId, category);
+      } catch (e) {
+        alert('삭제 실패: ' + (e.message||e));
+      }
     }
 
     // ===== 온라인 제출 응답 → PDF 출력 =====
