@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>관리자번호 유무 기반 병합 - 나무링크</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="js/supabase-client.js"></script>
+<style>
+  .wrap { max-width:1200px; margin:0 auto; padding:20px; }
+  .card { background:white; border-radius:10px; padding:18px 22px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .card h3 { margin:0 0 10px; color:#2e7d32; font-size:15px; border-left:4px solid #66bb6a; padding-left:6px; }
+  .btn { padding:9px 16px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px; }
+  .btn-primary { background:#2e7d32; color:white; }
+  .btn-orange { background:#e65100; color:white; }
+  .btn-sub { background:#f5f5f5; color:#333; border:1px solid #ccc; }
+  .info-box { background:#e3f2fd; padding:12px 16px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#0d47a1; }
+  .warn-box { background:#fff3e0; padding:12px 16px; border-radius:8px; margin-bottom:14px; font-size:13px; color:#5d4037; }
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:14px; }
+  .stat { background:#f5f9f0; padding:10px 12px; border-radius:6px; text-align:center; }
+  .stat .v { font-size:22px; font-weight:bold; color:#2e7d32; }
+  .stat.warn .v { color:#e65100; }
+  .group { border:1px solid #ddd; border-radius:8px; padding:12px 16px; margin-bottom:10px; background:#fafafa; }
+  .group-title { font-size:14px; font-weight:bold; color:#e65100; margin-bottom:6px; }
+  .keep-row { background:#e8f5e9; }
+  .delete-row { background:#ffebee; opacity:0.75; }
+  table.pv { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+  table.pv th { background:#f5f9f0; color:#2e7d32; padding:6px 8px; border-bottom:2px solid #2e7d32; text-align:left; }
+  table.pv td { padding:5px 8px; border-bottom:1px solid #eee; }
+  .badge-keep { background:#2e7d32; color:white; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:bold; }
+  .badge-del { background:#c62828; color:white; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:bold; }
+  .badge-mid { background:#1565c0; color:white; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:bold; margin-left:4px; }
+  .badge-nomid { background:#e65100; color:white; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:bold; margin-left:4px; }
+  .badge-match { background:#66bb6a; color:white; padding:1px 6px; border-radius:8px; font-size:10px; font-weight:bold; margin-left:4px; }
+  .badge-nomatch { background:#bdbdbd; color:white; padding:1px 6px; border-radius:8px; font-size:10px; font-weight:bold; margin-left:4px; }
+</style>
+</head>
+<body>
+<header><h1>🌿 관리자번호 유무 기반 병합</h1></header>
+<nav>
+  <a href="children.html">아동 관리</a>
+  <a href="merge-duplicates.html">중복 아동 병합</a>
+  <a href="cleanup-therapies.html">수업 정리</a>
+</nav>
+<div class="wrap">
+  <div class="info-box">
+    <b>📋 병합 규칙</b><br>
+    같은 <b>이름 + 생년월일 (정규화 8자리)</b> 그룹 안에서:<br>
+    - 관리자번호 있는 레코드가 있고<br>
+    - 관리자번호 없는 레코드가 있고<br>
+    - 두 레코드가 <b>적어도 한 명의 담당치료사를 공유</b>하면 (동일인 확증)<br>
+    → 관리자번호 없는 레코드를 관리자번호 있는 레코드로 병합 · 삭제<br><br>
+    담당치료사 매칭 안 되면 병합 안 함 (동명이인·다른 가족 방지)
+  </div>
+
+  <div class="warn-box">
+    ⚠️ 실행 전 <a href="supabase-sync.html" style="color:#c62828;font-weight:bold;">☁️ 클라우드 저장</a> 백업 권장.<br>
+    삭제 시 Supabase 에서도 명시 삭제 → 새로고침 후 부활 없음.
+  </div>
+
+  <div class="card">
+    <h3>📊 진단 요약</h3>
+    <div id="stats" class="stat-grid"></div>
+    <button class="btn btn-primary" onclick="scan()">🔍 다시 진단</button>
+    <button class="btn btn-orange" onclick="mergeAll()" style="margin-left:6px;">🔀 매칭된 그룹 전체 자동 병합</button>
+  </div>
+
+  <div class="card">
+    <h3>🔧 병합 대상 그룹</h3>
+    <div id="groupsArea"></div>
+  </div>
+</div>
+
+<script>
+function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+function normBirth(b) {
+  const d = String(b||'').replace(/\D/g,'');
+  if (d.length === 8) return d;
+  if (d.length === 6) return (parseInt(d.slice(0,2),10) <= 30 ? '20' : '19') + d;
+  return '';
+}
+function fmtBirth(b) {
+  const d = normBirth(b);
+  return d.length === 8 ? `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}` : (b||'-');
+}
+const _norm = s => String(s||'').replace(/[\s\-–—_]/g,'');
+
+let LAST_SCAN = null;
+
+function _therapistSet(c) {
+  return new Set((c.therapies||[])
+    .map(t => (t.therapist||'').trim())
+    .filter(Boolean));
+}
+
+function _hasTherapistOverlap(a, b) {
+  const A = _therapistSet(a);
+  const B = _therapistSet(b);
+  for (const x of A) if (B.has(x)) return true;
+  return false;
+}
+
+function scan() {
+  const children = JSON.parse(localStorage.getItem('children')||'[]');
+  const by = new Map();
+  children.forEach(c => {
+    const n = (c.name||'').trim();
+    const b = normBirth(c.birth);
+    if (!n || !b) return;
+    const k = `${n}|${b}`;
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(c);
+  });
+
+  // 병합 대상 그룹: 같은 name+birth 안에서 (managerId 있는 것) + (없는 것) 모두 존재 + 담당치료사 겹침
+  const mergeGroups = [];
+  let noMatchGroups = 0;
+  by.forEach((group, key) => {
+    if (group.length < 2) return;
+    const withMid = group.filter(c => _norm(c.managerId).length > 0);
+    const withoutMid = group.filter(c => _norm(c.managerId).length === 0);
+    if (!withMid.length || !withoutMid.length) return;   // 병합 대상 아님
+
+    // 유지: 관리자번호 있는 것 중 첫 번째 (또는 therapies 많은 것)
+    const keeper = [...withMid].sort((a,b) => (b.therapies||[]).length - (a.therapies||[]).length)[0];
+    // 병합할 후보: 관리자번호 없는 것들 중 keeper 와 담당치료사 하나라도 겹치는 것
+    const mergables = [];
+    const skipped = [];
+    withoutMid.forEach(c => {
+      if (_hasTherapistOverlap(keeper, c)) mergables.push(c);
+      else skipped.push(c);
+    });
+    if (mergables.length) {
+      mergeGroups.push({ key, name: group[0].name, birth: group[0].birth, keeper, mergables, skipped, withMid, withoutMid });
+    }
+    if (skipped.length && !mergables.length) noMatchGroups++;
+  });
+
+  LAST_SCAN = { children, mergeGroups, noMatchGroups };
+  renderStats();
+  renderGroups();
+}
+
+function renderStats() {
+  const { children, mergeGroups, noMatchGroups } = LAST_SCAN;
+  const totalMerges = mergeGroups.reduce((s,g) => s+g.mergables.length, 0);
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div style="font-size:11px;color:#666;">전체 아동</div><div class="v">${children.length}</div></div>
+    <div class="stat warn"><div style="font-size:11px;color:#666;">병합 가능 그룹</div><div class="v">${mergeGroups.length}</div></div>
+    <div class="stat warn"><div style="font-size:11px;color:#666;">병합 예정 레코드</div><div class="v">${totalMerges}</div></div>
+    <div class="stat"><div style="font-size:11px;color:#666;">치료사 미매칭 (스킵)</div><div class="v">${noMatchGroups}</div></div>`;
+}
+
+function renderGroups() {
+  const wrap = document.getElementById('groupsArea');
+  const groups = LAST_SCAN.mergeGroups;
+  if (!groups.length) { wrap.innerHTML = '<div style="color:#aaa;text-align:center;padding:20px;">병합 대상 없음</div>'; return; }
+
+  wrap.innerHTML = groups.map((g, gi) => {
+    const renderRow = (c, isKeeper, isMerging) => {
+      const midBadge = _norm(c.managerId).length > 0
+        ? '<span class="badge-mid">번호O</span>'
+        : '<span class="badge-nomid">번호X</span>';
+      const roleBadge = isKeeper ? '<span class="badge-keep">유지</span>'
+                       : isMerging ? '<span class="badge-del">병합·삭제</span>'
+                       : '<span style="background:#e0e0e0;color:#555;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:bold;">유지 (스킵)</span>';
+      const th = [...(_therapistSet(c))].join(', ') || '<i style="color:#999;">없음</i>';
+      const supports = (c.therapies||[]).map(t => t.support).filter(Boolean).join(' + ') || '<i style="color:#999;">없음</i>';
+      const cls = isKeeper ? 'keep-row' : isMerging ? 'delete-row' : '';
+      return `<tr class="${cls}">
+        <td>${roleBadge}${midBadge}</td>
+        <td style="font-family:monospace;font-size:10px;">${escapeHtml(c.id)}</td>
+        <td style="font-family:monospace;">${escapeHtml(c.managerId||'-')}</td>
+        <td>${escapeHtml(c.status)||'-'}</td>
+        <td style="font-size:11px;">${th}</td>
+        <td style="font-size:11px;">${supports}</td>
+      </tr>`;
+    };
+    return `<div class="group">
+      <div class="group-title">${escapeHtml(g.name)} · ${fmtBirth(g.birth)} · 병합 ${g.mergables.length}건</div>
+      <table class="pv">
+        <thead><tr><th></th><th>ID</th><th>관리자번호</th><th>status</th><th>담당치료사</th><th>지원유형</th></tr></thead>
+        <tbody>
+          ${renderRow(g.keeper, true, false)}
+          ${g.mergables.map(c => renderRow(c, false, true)).join('')}
+          ${g.skipped.map(c => renderRow(c, false, false)).join('')}
+        </tbody>
+      </table>
+      <div style="text-align:right;margin-top:8px;">
+        <button class="btn btn-orange" onclick="mergeOne(${gi})">이 그룹 병합</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 실제 병합 실행 (Supabase 명시 삭제 포함)
+async function doMerge(group) {
+  const { keeper, mergables } = group;
+  const delIds = mergables.map(c => c.id);
+
+  // therapies 통합 (support+therapist+cycle+timeSlot 로 dedup)
+  const seen = new Set();
+  const merged = [];
+  [...(keeper.therapies||[]), ...mergables.flatMap(c => c.therapies||[])].forEach(t => {
+    const k = `${(t.support||'').trim()}|${(t.therapist||'').trim()}|${(t.cycle||'').trim()}|${(t.timeSlot||'').trim()}`;
+    if (seen.has(k)) return;
+    seen.add(k); merged.push(t);
+  });
+  keeper.therapies = merged;
+
+  // 빈 필드 채우기
+  ['guardian','phone','gender','diagnosis','feeType','intakeArea','intakePref','intakeSource','intakeProgram','intakeNote'].forEach(f => {
+    if (!keeper[f]) { for (const c of mergables) if (c[f]) { keeper[f] = c[f]; break; } }
+  });
+  keeper.updatedAt = new Date().toISOString();
+
+  // localStorage 저장
+  const arr = JSON.parse(localStorage.getItem('children')||'[]');
+  const delSet = new Set(delIds);
+  const arrNew = arr.filter(c => !delSet.has(c.id));
+  // keeper 도 최신 상태로 반영
+  const kIdx = arrNew.findIndex(c => c.id === keeper.id);
+  if (kIdx >= 0) arrNew[kIdx] = keeper;
+  localStorage.setItem('children', JSON.stringify(arrNew));
+
+  // payments/events 이관
+  const payments = JSON.parse(localStorage.getItem('payments')||'[]');
+  payments.forEach(p => { if (delSet.has(p.childId)) p.childId = keeper.id; });
+  localStorage.setItem('payments', JSON.stringify(payments));
+
+  const events = JSON.parse(localStorage.getItem('assessment_events')||'[]');
+  events.forEach(e => {
+    if (delSet.has(e.childId)) e.childId = keeper.id;
+    delSet.forEach(oldId => {
+      if (e.id && e.id.startsWith('ev_'+oldId)) e.id = e.id.replace('ev_'+oldId, 'ev_'+keeper.id);
+    });
+  });
+  localStorage.setItem('assessment_events', JSON.stringify(events));
+
+  // child_extras 키 재작성
+  ['docs','timeline','parent_memos'].forEach(kind => {
+    delSet.forEach(oldId => {
+      const oldKey = `child_${kind}_${oldId}`;
+      const newKey = `child_${kind}_${keeper.id}`;
+      const val = localStorage.getItem(oldKey);
+      if (!val) return;
+      const existing = localStorage.getItem(newKey);
+      if (existing) {
+        try {
+          const a = JSON.parse(existing), b = JSON.parse(val);
+          const s = new Set(a.map(x => JSON.stringify(x)));
+          b.forEach(x => { const j = JSON.stringify(x); if (!s.has(j)) { a.push(x); s.add(j); } });
+          localStorage.setItem(newKey, JSON.stringify(a));
+        } catch(e) {}
+      } else localStorage.setItem(newKey, val);
+      localStorage.removeItem(oldKey);
+    });
+  });
+
+  // Supabase 명시 삭제 (부활 방지)
+  if (window.Supa && window.Supa.deleteKey) {
+    try {
+      const res = await window.Supa.deleteKey('children', delIds);
+      console.log(`✅ Supabase children ${res.count}건 삭제 · 그룹=${group.name}`);
+    } catch(e) { console.error('Supabase children delete failed', e); }
+  }
+  if (window.Supa) {
+    await window.Supa.pushKey('children').catch(()=>{});
+    window.Supa.pushKey('payments').catch(()=>{});
+    window.Supa.pushKey('assessment_events').catch(()=>{});
+    window.Supa.pushChildExtras().catch(()=>{});
+  }
+}
+
+async function mergeOne(gi) {
+  const g = LAST_SCAN.mergeGroups[gi];
+  if (!g) return;
+  if (!confirm(`"${g.name}" 그룹 병합 (${g.mergables.length}건 삭제)`)) return;
+  await doMerge(g);
+  alert(`✅ ${g.name} 병합 완료`);
+  scan();
+}
+
+async function mergeAll() {
+  const groups = LAST_SCAN.mergeGroups;
+  if (!groups.length) return alert('병합할 그룹이 없습니다.');
+  if (!window.Supa || !window.Supa.deleteKey) {
+    alert('❌ Supabase deleteKey 로드 안 됨. Ctrl+F5 로 강력 새로고침 후 재시도.');
+    return;
+  }
+  const total = groups.reduce((s,g)=>s+g.mergables.length, 0);
+  if (!confirm(`${groups.length}개 그룹 · 총 ${total}건 레코드를 자동 병합합니다.\n\nSupabase 에서도 명시 삭제되어 부활 안 함.\n계속하시겠습니까?`)) return;
+  for (const g of groups) { await doMerge(g); }
+  alert(`✅ ${groups.length}개 그룹 · ${total}건 병합 완료`);
+  scan();
+}
+
+scan();
+</script>
+</body>
+</html>
