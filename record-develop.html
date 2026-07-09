@@ -430,20 +430,29 @@ function _getScheduleDows() {
   const t = _getBonTherapy();
   return _extractCycleDows(t?.cycle);
 }
-// 치료사 이름 → 치료영역 (첫 요소)
+// 치료영역 자동 결정
+// 우선순위:
+//  1) 발본 납부현황(payment) 의 area (세부영역)
+//  2) therapy 의 area
+//  3) 담당 치료사의 areas[0]
+//  4) 입력 필드 값 (사용자 편집분)
+//  5) '감각발달재활' 기본값
 function _getServiceType() {
-  // 우선순위: 입력필드 → 치료사의 areas → payment.area → '감각발달재활'
-  const inputArea = document.getElementById('s1_svcType')?.value || document.getElementById('s1_area')?.value;
-  if (inputArea) return inputArea;
   const p = _getBonPayment();
   const t = _getBonTherapy();
+  const payArea = (p?.area || '').trim();
+  if (payArea) return payArea;
+  const therapyArea = (t?.area || '').trim();
+  if (therapyArea) return therapyArea;
   const therapistName = (p?.therapist || t?.therapist || '').trim();
   if (therapistName) {
     const therapists = JSON.parse(localStorage.getItem('therapists')||'[]');
     const tRec = therapists.find(x => (x.name||'').trim() === therapistName);
     const areas = tRec?.areas || [];
-    if (areas.length) return areas[0]; // 예: 음악치료·언어치료·감각통합
+    if (areas.length) return areas[0];
   }
+  const inputArea = document.getElementById('s1_svcType')?.value || document.getElementById('s1_area')?.value;
+  if (inputArea) return inputArea;
   return '감각발달재활';
 }
 // timeSlot 파싱 → 시작 시간에 50분 더한 종료 시간 반환 (예: 4:00~4:50)
