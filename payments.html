@@ -704,45 +704,37 @@
     setTimeout(() => { try { _integrityCheckOnLoad(); } catch(e){} }, 100);
 
     // 지원유형 정규화 - 저장 시점 통일
-    // 페이지 로드 시 기존 payments 의 support 값 일회성 정규화 (v1)
-    try {
-      if (!localStorage.getItem('_paySupportNorm_v1')) {
-        const pays = JSON.parse(localStorage.getItem('payments')||'[]');
-        let changed = 0;
-        pays.forEach(p => {
-          if (!p || !p.support) return;
-          const norm = (function _n(s){
-            const v = String(s||'').trim();
-            if (v === '방' || v === '방과후활동' || v === '방과후 활동비' || v === '방과후활동비지원') return '방과후활동비';
-            if (v === '센터') return '센터비용';
-            if (v === '치작') return '치료지원 작업치료';
-            if (v === '치언') return '치료지원 언어영역';
-            if (v === '방치작') return '방과후 치료지원 작업치료';
-            if (v === '방치언') return '방과후 치료지원 언어영역';
-            return v;
-          })(p.support);
-          if (norm !== p.support) { p.support = norm; changed++; }
-        });
-        if (changed) {
-          localStorage.setItem('payments', JSON.stringify(pays));
-          console.log(`[정규화 v1] payments support ${changed}건 통일`);
-          if (window.Supa && window.Supa.pushKey) window.Supa.pushKey('payments').catch(()=>{});
-        }
-        localStorage.setItem('_paySupportNorm_v1', '1');
-      }
-    } catch(e) { console.warn('payments support norm failed', e); }
-
+    // 지원유형 정규화 함수 (payments 저장/마이그레이션 공통)
     function _normPaySupport(s) {
       const v = String(s||'').trim();
       if (!v) return v;
       if (v === '방' || v === '방과후활동' || v === '방과후 활동비' || v === '방과후활동비지원') return '방과후활동비';
       if (v === '센터') return '센터비용';
-      if (v === '치작') return '치료지원 작업치료';
-      if (v === '치언') return '치료지원 언어영역';
-      if (v === '방치작') return '방과후 치료지원 작업치료';
-      if (v === '방치언') return '방과후 치료지원 언어영역';
+      if (v === '치작' || v === '작업치료' || v === '치료지원 작업' || v === '치료지원작업' || v === '치료지원작업치료') return '치료지원 작업치료';
+      if (v === '치언' || v === '언어치료' || v === '언어영역' || v === '치료지원 언어' || v === '치료지원언어' || v === '치료지원언어영역') return '치료지원 언어영역';
+      if (v === '방치작' || v === '방과후 치료지원 작업' || v === '방과후치료지원작업치료') return '방과후 치료지원 작업치료';
+      if (v === '방치언' || v === '방과후 치료지원 언어' || v === '방과후치료지원언어영역') return '방과후 치료지원 언어영역';
       return v;
     }
+
+    // 페이지 로드 시 기존 payments 의 support 값 일회성 정규화 (v2 - "치료지원 작업" 잘린 값 포함)
+    try {
+      if (!localStorage.getItem('_paySupportNorm_v2')) {
+        const pays = JSON.parse(localStorage.getItem('payments')||'[]');
+        let changed = 0;
+        pays.forEach(p => {
+          if (!p || !p.support) return;
+          const norm = _normPaySupport(p.support);
+          if (norm !== p.support) { p.support = norm; changed++; }
+        });
+        if (changed) {
+          localStorage.setItem('payments', JSON.stringify(pays));
+          console.log(`[정규화 v2] payments support ${changed}건 통일`);
+          if (window.Supa && window.Supa.pushKey) window.Supa.pushKey('payments').catch(()=>{});
+        }
+        localStorage.setItem('_paySupportNorm_v2', '1');
+      }
+    } catch(e) { console.warn('payments support norm v2 failed', e); }
     function savePayments(d){
       // 저장 직전 support 정규화 (변형 표기 통일)
       try { d.forEach(p => { if (p && p.support) p.support = _normPaySupport(p.support); }); } catch(e){}
