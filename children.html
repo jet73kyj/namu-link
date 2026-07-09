@@ -343,6 +343,27 @@
     }
     _migrateIntakeIfNeeded();
 
+    // therapies 스마트 dedup 마이그레이션 (v1) - 저장 원본 정리
+    // 같은 (support+therapist) 는 정보 많은 쪽으로 병합
+    try {
+      if (!localStorage.getItem('_therapies_dedup_v1')) {
+        const cs = JSON.parse(localStorage.getItem('children')||'[]');
+        let changed = 0;
+        cs.forEach(c => {
+          if (!c.therapies || c.therapies.length < 2) return;
+          const before = c.therapies.length;
+          c.therapies = _dedupTherapies(c.therapies);
+          if (c.therapies.length !== before) { c.updatedAt = new Date().toISOString(); changed++; }
+        });
+        if (changed) {
+          localStorage.setItem('children', JSON.stringify(cs));
+          console.log(`[therapies dedup v1] ${changed}명의 중복 수업 정리`);
+          if (window.Supa && window.Supa.pushKey) window.Supa.pushKey('children').catch(()=>{});
+        }
+        localStorage.setItem('_therapies_dedup_v1','1');
+      }
+    } catch(e) { console.warn('therapies dedup migration failed', e); }
+
     // 기존 children 에 phase 필드 없으면 'active' 로 간주하는 헬퍼
     function _getPhase(c) { return c.phase || 'active'; }
 
@@ -369,6 +390,34 @@
       }
       el.value = next;
     };
+    // 아동의 therapies 배열을 (support+therapist) 기준으로 스마트 dedup
+    // 같은 (support,therapist) 조합이 여러 개면 cycle/timeSlot 값 있는 쪽 우선
+    // 부가 필드는 병합 (baseCount·serviceStartDate 등 값 있는 쪽 채움)
+    function _dedupTherapies(list) {
+      if (!Array.isArray(list) || list.length < 2) return list;
+      const map = new Map();
+      list.forEach(t => {
+        const support = normSupport(t.support);
+        const therapist = String(t.therapist||'').trim();
+        if (!support && !therapist) { map.set(`_empty_${Math.random()}`, t); return; }
+        const key = `${support}|${therapist}`;
+        if (!map.has(key)) { map.set(key, { ...t, support }); return; }
+        const existing = map.get(key);
+        // 정보 많은 쪽을 keeper 로 스왑 (cycle+timeSlot 값 존재 개수 비교)
+        const scoreT = ((t.cycle||'').trim()?1:0) + ((t.timeSlot||'').trim()?1:0);
+        const scoreE = ((existing.cycle||'').trim()?1:0) + ((existing.timeSlot||'').trim()?1:0);
+        let keeper = existing, other = t;
+        if (scoreT > scoreE) { keeper = { ...t, support }; other = existing; }
+        // other 의 값 있는 필드를 keeper 의 빈 필드에 채움
+        Object.keys(other).forEach(k => {
+          if (keeper[k] == null || keeper[k] === '') keeper[k] = other[k];
+          if (typeof other[k] === 'number' && typeof keeper[k] === 'number' && other[k] > keeper[k]) keeper[k] = other[k];
+        });
+        map.set(key, keeper);
+      });
+      return [...map.values()];
+    }
+
     function _generateManagerId(inquiryDate) {
       // 항상 등록 시점의 연도 기준 · 연도 바뀌면 001 부터 다시 시작
       const year = (inquiryDate || new Date().toISOString().slice(0,10)).slice(0,4);
@@ -876,7 +925,7 @@
         }
         const st    = c.status||'치료중';
         const color = STATUS_COLOR[st]||'#2e7d32';
-        const therapies = c.therapies||[];
+        const therapies = _dedupTherapies(c.therapies||[]);
 
         // 납부이력에서 감지된 지원유형 중 therapies 에 없는 것 추론
         // 지원유형 값이 미묘하게 달라도 (방과후활동 vs 방과후활동비) 같은 카테고리로 취급
