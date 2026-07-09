@@ -1725,17 +1725,19 @@
 
           <div style="margin-bottom:16px;padding:12px 14px;background:#fafafa;border-radius:8px;border:1px solid #e0e0e0;">
             <label style="font-size:11px;color:#555;font-weight:bold;display:block;margin-bottom:8px;">📋 상태</label>
+            <!-- 라디오 초기 체크: therapy 레벨 우선. 아동에 방/치 therapy 여러 개일 때 각 therapy 별 개별 관리. -->
+            <!-- 우선순위: therapy.banchiEndDate(종결) > therapy.pending(대기중) > ch.status > 치료중 기본 -->
             <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;">
               <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;">
-                <input type="radio" name="bedit_status" value="치료중" ${ch.status==='치료중'||!ch.status?'checked':''} onchange="_beditStatusToggle()" style="accent-color:#2e7d32;">
+                <input type="radio" name="bedit_status" value="치료중" ${(!therapy?.banchiEndDate && !therapy?.pending && (ch.status==='치료중'||!ch.status))?'checked':''} onchange="_beditStatusToggle()" style="accent-color:#2e7d32;">
                 <span style="color:#2e7d32;font-weight:bold;">치료중</span>
               </label>
               <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;">
-                <input type="radio" name="bedit_status" value="대기중" ${ch.status==='대기중'?'checked':''} onchange="_beditStatusToggle()" style="accent-color:#e65100;">
+                <input type="radio" name="bedit_status" value="대기중" ${(therapy?.pending || (ch.status==='대기중' && !therapy?.pending && !therapy?.banchiEndDate))?'checked':''} onchange="_beditStatusToggle()" style="accent-color:#e65100;">
                 <span style="color:#e65100;font-weight:bold;">대기중</span>
               </label>
               <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;">
-                <input type="radio" name="bedit_status" value="종결" ${ch.status==='종결'?'checked':''} onchange="_beditStatusToggle()" style="accent-color:#757575;">
+                <input type="radio" name="bedit_status" value="종결" ${(therapy?.banchiEndDate || (ch.status==='종결' && !therapy?.pending))?'checked':''} onchange="_beditStatusToggle()" style="accent-color:#757575;">
                 <span style="color:#757575;font-weight:bold;">종결</span>
               </label>
             </div>
