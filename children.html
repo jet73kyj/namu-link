@@ -1016,8 +1016,12 @@
           const isOriginalEnded = !!originalEndedDate;
           const endedMark = (d) => `<span style="display:inline-block;background:#757575;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="${d} 종결">종결</span>`;
 
-          // 대기중 판정: 종결 아님 · 요일·시간 모두 빈 값 · 담당자 배정됨
-          const isPending = !isOriginalEnded && !(t.cycle||'').trim() && !(t.timeSlot||'').trim() && (t.therapist||'').trim();
+          // 대기중 판정: (t.pending 플래그) OR (종결 아님 · 요일·시간 모두 빈 값 · 담당자 배정됨)
+          // t.pending 은 payments 편집 팝업에서 therapy 별 대기 처리 시 마킹
+          const isPending = !isOriginalEnded && (
+            t.pending === true ||
+            (!(t.cycle||'').trim() && !(t.timeSlot||'').trim() && (t.therapist||'').trim())
+          );
           const pendingMark = isPending
             ? `<span style="display:inline-block;background:#fb8c00;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="담당 배정 · 요일·시간 미정">대기</span>`
             : '';

@@ -1875,11 +1875,36 @@
       }
       ch.therapist = newTherapist;
       const newStatus = document.querySelector('input[name="bedit_status"]:checked')?.value || ch.status || '치료중';
-      ch.status = newStatus;
-      if (isInactive(newStatus)) {
-        ch.endReason = (document.getElementById('bedit_end_reason')?.value || '').trim();
-      } else {
-        ch.endReason = '';
+      // therapy 별 개별 상태 저장 (아동 전체 status 는 다른 therapy 에 영향 주지 않도록 신중히 처리)
+      // - 편집 중인 therapy 가 아동의 유일한 방/치 therapy 인 경우에만 c.status 반영
+      // - 여러 therapy 가 있으면 이 therapy 에만 t.pending/t.endReason 마킹
+      const banchiTherapies = (ch.therapies||[]).filter(t => BANCHI_SUPPORTS.includes(t.support));
+      const isOnlyBanchi = banchiTherapies.length <= 1;
+      if (isOnlyBanchi) {
+        ch.status = newStatus;
+        if (isInactive(newStatus)) {
+          ch.endReason = (document.getElementById('bedit_end_reason')?.value || '').trim();
+        } else {
+          ch.endReason = '';
+        }
+      } else if (therapy) {
+        // 여러 방/치 therapy 가 있으면 편집 중인 therapy 에만 상태 마킹
+        if (newStatus === '대기중') {
+          therapy.pending = true;
+          delete therapy.banchiEndDate;
+        } else if (newStatus === '종결') {
+          therapy.banchiEndDate = new Date().toISOString().slice(0,10);
+          therapy.endReason = (document.getElementById('bedit_end_reason')?.value || '').trim();
+          delete therapy.pending;
+        } else {
+          delete therapy.pending;
+          delete therapy.banchiEndDate;
+        }
+        // 아동의 다른 therapy 가 모두 종결·대기중이 아니면 c.status 는 치료중 유지
+        if (isInactive(ch.status)) {
+          const anyActive = banchiTherapies.some(t => !t.pending && !t.banchiEndDate);
+          if (anyActive) ch.status = '치료중';
+        }
       }
 
       // 지원종류 변경 시 중복 therapy 자동 정리
