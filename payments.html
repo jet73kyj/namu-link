@@ -5238,8 +5238,23 @@
         return (therapy.cycle||'').split(',').map(d=>d.trim()).filter(Boolean);
       }
 
-      const unpaidRows = rows.filter(p=>p.status==='unpaid');
-      const paidRows   = rows.filter(p=>p.status==='paid');
+      // 종결 아동 payment 는 미납·완납 목록에서 모두 제외
+      const _chsForEndFilter = getChildren();
+      const _endedIds = new Set(_chsForEndFilter.filter(c => c.status === '종결').map(c => c.id));
+      const _endedNameBirth = new Set(
+        _chsForEndFilter.filter(c => c.status === '종결')
+          .map(c => `${(c.name||'').trim()}|${(c.birth||'').replace(/\D/g,'').slice(-6)}`)
+      );
+      const _isEndedPayment = p => {
+        if (p.childId && _endedIds.has(p.childId)) return true;
+        const nm = (p.childName||'').trim();
+        if (!nm) return false;
+        // 생년 없으면 이름만으로 판단 (동명이인 시 정확도 낮음)
+        const ch = _chsForEndFilter.find(c => (c.name||'').trim() === nm);
+        return ch ? ch.status === '종결' : false;
+      };
+      const unpaidRows = rows.filter(p => p.status==='unpaid' && !_isEndedPayment(p));
+      const paidRows   = rows.filter(p => p.status==='paid'   && !_isEndedPayment(p));
 
       // 요일별 그룹핑 (미납)
       const dayGroups = {};
@@ -5318,6 +5333,21 @@
         : rows.filter(p=>p.status==='unpaid');
       if (!unpaidRows.length) { container.innerHTML = ''; return; }
       const allCh = getChildren();
+      // 종결 아동 payment 제외
+      {
+        const _endedIds = new Set(allCh.filter(c => c.status === '종결').map(c => c.id));
+        const _endedNames = new Set(allCh.filter(c => c.status === '종결').map(c => (c.name||'').trim()));
+        unpaidRows = unpaidRows.filter(p => {
+          if (p.childId && _endedIds.has(p.childId)) return false;
+          const nm = (p.childName||'').trim();
+          if (nm && _endedNames.has(nm)) {
+            const ch = allCh.find(c => (c.name||'').trim() === nm);
+            if (ch && ch.status === '종결') return false;
+          }
+          return true;
+        });
+        if (!unpaidRows.length) { container.innerHTML = ''; return; }
+      }
       // 시각적 중복 차단: 같은 이름+생년+월+support 의 record 는 강제 1건 (timeSlot/cycle 무시 — 정규화 후에도 안 잡히는 case 까지 차단)
       {
         const _normBV = b => (b||'').replace(/\D/g,'').slice(-6);
