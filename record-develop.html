@@ -307,14 +307,14 @@ if (child) {
   else if (_baseTherapyForCost && (parseInt(_baseTherapyForCost.fee)||0) > 0) _selfCost = parseInt(_baseTherapyForCost.fee);
   else if (child.feeType && _FT_AMT[child.feeType] !== undefined) _selfCost = _FT_AMT[child.feeType];
   if (_selfCost > 0) document.getElementById('s1_costSelf').value = _selfCost.toLocaleString() + '원';
-  // 직성일자 = 전월 마지막주 (주기 요일) 자동 계산
-  // 주기가 "매주 목" 이면 전월의 마지막 목요일 날짜 사용
+  // 작성일자 = 전월 마지막 주 (발본 수업 요일) 자동 계산
+  // cycle 이 "매주 목", "매주 월,수", "목요일" 등 어떤 형태여도
+  // 문자열에서 첫 요일 문자만 추출해서 사용
   const _therapyForCycle = (child.therapies||[]).find(t => t.support === '발달재활서비스');
   if (_therapyForCycle && _therapyForCycle.cycle) {
     const _dayMap = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
-    const _cycleDays = (_therapyForCycle.cycle||'').split(',').map(s=>s.trim()).filter(Boolean);
-    // 여러 요일이면 첫 번째 요일 사용 (일반적으로 1개)
-    const targetDow = _dayMap[_cycleDays[0]];
+    const _dayChar = String(_therapyForCycle.cycle||'').match(/[일월화수목금토]/);
+    const targetDow = _dayChar ? _dayMap[_dayChar[0]] : undefined;
     if (targetDow !== undefined) {
       // 전월 계산 (1월이면 전년 12월)
       let prevY = year, prevM = month - 1;
