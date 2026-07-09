@@ -1431,10 +1431,12 @@
       try {
         if (!window.Supa) throw new Error('Supabase 클라이언트가 로드되지 않았습니다.');
         const client = await window.Supa.getClient();
-        // 파일명은 안전한 형태로 (특수문자 제거 + timestamp prefix)
-        const safeName = file.name.replace(/[^\w.\-가-힣]/g,'_');
+        // ASCII 안전 파일명 (한글은 Supabase Storage 가 거부) — 원본은 메타에 저장
+        const extMatch = file.name.match(/\.[A-Za-z0-9]{1,10}$/);
+        const ext = extMatch ? extMatch[0].toLowerCase() : '';
         const stamp = Date.now();
-        const storagePath = `${childId}/${category}/${stamp}_${safeName}`;
+        const rand = Math.random().toString(36).slice(2,8);
+        const storagePath = `${childId}/${category}/${stamp}_${rand}${ext}`;
         const { error } = await client.storage.from(DOC_BUCKET).upload(storagePath, file, {
           cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream',
         });

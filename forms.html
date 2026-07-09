@@ -275,8 +275,10 @@
           if (existingPath) {
             try { await client.storage.from(FORMS_BUCKET).remove([existingPath]); } catch(e) { console.warn('구버전 파일 삭제 실패', e); }
           }
-          const safeName = file.name.replace(/[^\w.\-가-힣]/g,'_');
-          storagePath = `${id}/${Date.now()}_${safeName}`;
+          const extMatch = file.name.match(/\.[A-Za-z0-9]{1,10}$/);
+          const ext = extMatch ? extMatch[0].toLowerCase() : '';
+          const rand = Math.random().toString(36).slice(2,8);
+          storagePath = `${id}/${Date.now()}_${rand}${ext}`;
           const { error } = await client.storage.from(FORMS_BUCKET).upload(storagePath, file, {
             cacheControl:'3600', upsert:false, contentType: file.type || 'application/octet-stream',
           });

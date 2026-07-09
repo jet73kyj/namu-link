@@ -1146,9 +1146,13 @@
       try {
         if (!window.Supa) throw new Error('Supabase 클라이언트가 로드되지 않았습니다.');
         const client = await window.Supa.getClient();
-        const safeName = file.name.replace(/[^\w.\-가-힣]/g,'_');
+        // Supabase Storage 는 한글 등 일부 문자 거부 → ASCII 안전 이름 + 확장자만 사용
+        // 원본 파일명은 메타데이터에 보존 (다운로드 시 원본 이름 복원)
+        const extMatch = file.name.match(/\.[A-Za-z0-9]{1,10}$/);
+        const ext = extMatch ? extMatch[0].toLowerCase() : '';
         const stamp = Date.now();
-        const storagePath = `${therapistId}/${category}/${stamp}_${safeName}`;
+        const rand = Math.random().toString(36).slice(2,8);
+        const storagePath = `${therapistId}/${category}/${stamp}_${rand}${ext}`;
         const { error } = await client.storage.from(T_DOC_BUCKET).upload(storagePath, file, {
           cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream',
         });
