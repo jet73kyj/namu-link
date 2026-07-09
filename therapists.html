@@ -824,15 +824,24 @@
     }
 
     // ── 치료사 카드 ──
+    function _isResignedT(t) {
+      if (!t.resignDate) return false;
+      const today = new Date().toISOString().slice(0,10);
+      return t.resignDate <= today;
+    }
     function renderCards() {
-      const list = getTherapists();
-      let html = list.map(t => `
-        <div class="therapist-card" onclick="openEdit('${t.id}')">
-          <div class="t-name">${t.name} 치료사</div>
+      const rawList = getTherapists();
+      // 재직 우선 · 퇴사(퇴사일 지난) 하단으로
+      const active  = rawList.filter(t => !_isResignedT(t));
+      const resigned = rawList.filter(t =>  _isResignedT(t))
+                              .sort((a,b) => (b.resignDate||'').localeCompare(a.resignDate||''));
+      function renderOne(t, isRes) {
+        return `<div class="therapist-card${isRes?' resigned':''}" onclick="openEdit('${t.id}')"${isRes?' style="opacity:0.65;background:#f5f5f5;"':''}>
+          <div class="t-name">${t.name} 치료사${isRes?' <span style="font-size:11px;color:#c62828;background:#ffebee;padding:2px 6px;border-radius:8px;margin-left:4px;">퇴사</span>':''}</div>
           <div class="t-area">${(t.areas||[]).join(' · ') || '-'}</div>
           <div class="t-meta">
             ${t.days ? t.days.join('·')+'요일' : ''}<br>
-            ${t.phone || ''}${t.salesPrice ? '<br>매출단가: '+t.salesPrice.toLocaleString()+'원' : ''}${t.rate ? '<br>세션급여: '+t.rate.toLocaleString()+'원' : ''}${t.resignDate ? '<br><span style="color:#e57373;font-weight:bold;">퇴사예정: '+t.resignDate+'</span>' : ''}
+            ${t.phone || ''}${t.salesPrice ? '<br>매출단가: '+t.salesPrice.toLocaleString()+'원' : ''}${t.rate ? '<br>세션급여: '+t.rate.toLocaleString()+'원' : ''}${t.resignDate ? `<br><span style="color:${isRes?'#c62828':'#e57373'};font-weight:bold;">${isRes?'퇴사일':'퇴사예정'}: ${t.resignDate}</span>` : ''}
           </div>
           <button class="btn btn-secondary" style="margin-top:8px;padding:4px 10px;font-size:11px;"
             onclick="event.stopPropagation();openTherapistPayslip('${t.id}')">📋 급여명세서</button>
@@ -842,11 +851,17 @@
             onclick="event.stopPropagation();openVacationModal('${t.id}','${t.name}')">🏖️ 휴가 관리</button>
           <button class="btn" style="margin-top:4px;padding:4px 10px;font-size:11px;background:#f3e5f5;color:#6a1b9a;border:1px solid #ce93d8;"
             onclick="event.stopPropagation();openTherapistDocs('${t.id}')">📎 서류 관리</button>
-        </div>`).join('');
+        </div>`;
+      }
+      let html = active.map(t => renderOne(t, false)).join('');
       html += `<div class="therapist-card add-card" onclick="openAdd()">
         <span style="font-size:26px;">＋</span>
         <span>치료사 등록</span>
       </div>`;
+      if (resigned.length) {
+        html += `<div style="grid-column:1/-1;margin:24px 0 10px;padding:8px 12px;background:#eeeeee;color:#555;border-radius:6px;font-size:13px;font-weight:bold;">🗂️ 퇴사 치료사 (${resigned.length}명)</div>`;
+        html += resigned.map(t => renderOne(t, true)).join('');
+      }
       document.getElementById('therapistCards').innerHTML = html;
     }
 
