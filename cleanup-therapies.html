@@ -289,16 +289,26 @@ function dedupTherapy(childId, dupKey) {
   scan();
 }
 
-function deleteChild(childId) {
+async function deleteChild(childId) {
   if (!confirm(`이 아동 (id: ${childId}) 을 완전히 삭제합니다.\n연동된 평가·1회성수업 이벤트와 미납현황도 함께 삭제됩니다.\n\n계속하시겠습니까?`)) return;
   const arr = JSON.parse(localStorage.getItem('children')||'[]').filter(c => c.id !== childId);
   localStorage.setItem('children', JSON.stringify(arr));
   const evPrefix = 'ev_' + childId;
   const pyPrefix = 'py_intake_' + childId;
-  const events = JSON.parse(localStorage.getItem('assessment_events')||'[]').filter(e => !e.id || !e.id.startsWith(evPrefix));
+  const evAll = JSON.parse(localStorage.getItem('assessment_events')||'[]');
+  const evDel = evAll.filter(e => e.id && e.id.startsWith(evPrefix)).map(e => e.id);
+  const events = evAll.filter(e => !e.id || !e.id.startsWith(evPrefix));
   localStorage.setItem('assessment_events', JSON.stringify(events));
-  const payments = JSON.parse(localStorage.getItem('payments')||'[]').filter(p => !p.id || (!p.id.startsWith(pyPrefix) && p.childId !== childId));
+  const pyAll = JSON.parse(localStorage.getItem('payments')||'[]');
+  const pyDel = pyAll.filter(p => p.id && (p.id.startsWith(pyPrefix) || p.childId === childId)).map(p => p.id);
+  const payments = pyAll.filter(p => !p.id || (!p.id.startsWith(pyPrefix) && p.childId !== childId));
   localStorage.setItem('payments', JSON.stringify(payments));
+  // Supabase 명시 삭제 → pull 시 부활 방지
+  if (window.Supa && window.Supa.deleteKey) {
+    try { await window.Supa.deleteKey('children', [childId]); } catch(e) { console.warn(e); }
+    if (evDel.length) try { await window.Supa.deleteKey('assessment_events', evDel); } catch(e) { console.warn(e); }
+    if (pyDel.length) try { await window.Supa.deleteKey('payments', pyDel); } catch(e) { console.warn(e); }
+  }
   if (window.Supa && window.Supa.pushKey) {
     window.Supa.pushKey('children').catch(()=>{});
     window.Supa.pushKey('assessment_events').catch(()=>{});

@@ -112,6 +112,24 @@
     return { table: cfg.table, count: all.length };
   }
 
+  // Supabase 에서 특정 테이블의 row 를 id 로 명시적 삭제
+  // 로컬에서 지운 레코드가 pull 시 부활하지 않도록 필수
+  async function deleteKey(key, ids) {
+    if (!ids || !ids.length) return { table: key, count: 0 };
+    const cfg = KEY_TABLE[key];
+    if (!cfg) throw new Error('알 수 없는 키: ' + key);
+    const client = await getClient();
+    // 500개씩 배치
+    let count = 0;
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i+500).map(String);
+      const { error } = await client.from(cfg.table).delete().in('id', chunk);
+      if (error) throw new Error(`${cfg.table} delete: ${error.message}`);
+      count += chunk.length;
+    }
+    return { table: cfg.table, count };
+  }
+
   // 아동별 확장 데이터 (child_docs_*, child_timeline_*, child_parent_memos_*) 처리
   // 새 스키마: id = "{childId}::{kind}", data = { child_id, kind, value }
   async function pushChildExtras() {
@@ -204,7 +222,7 @@
 
   window.Supa = {
     getClient,
-    pushKey, pullKey,
+    pushKey, pullKey, deleteKey,
     pushChildExtras, pullChildExtras,
     pushAll, pullAll,
     testConnection,

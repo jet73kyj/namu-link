@@ -190,7 +190,7 @@ function mergeGroup(group) {
   return { keeper: merged, deleteIds: others.map(o => o.id) };
 }
 
-function applyMerge(nameKey, group) {
+async function applyMerge(nameKey, group) {
   const arr = JSON.parse(localStorage.getItem('children')||'[]');
   const { keeper, deleteIds } = mergeGroup(group);
   const delSet = new Set(deleteIds);
@@ -239,9 +239,13 @@ function applyMerge(nameKey, group) {
     });
   });
 
-  // Supabase push
+  // Supabase: 삭제 대상 id 명시 삭제 후 push (부활 방지)
   if (window.Supa) {
-    window.Supa.pushKey('children').catch(()=>{});
+    if (window.Supa.deleteKey && deleteIds.length) {
+      try { await window.Supa.deleteKey('children', deleteIds); }
+      catch(e) { console.warn('children delete failed', e); }
+    }
+    try { await window.Supa.pushKey('children'); } catch(e) {}
     window.Supa.pushKey('payments').catch(()=>{});
     window.Supa.pushKey('assessment_events').catch(()=>{});
     window.Supa.pushChildExtras().catch(()=>{});
