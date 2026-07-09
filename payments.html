@@ -1235,14 +1235,23 @@
         if (start && _banMk < start.substring(0,7)) return;
         if (end && _banMk > end.substring(0,7)) return;
         if (paused.has(_banMk)) return;
-        // 매칭 fallback: (support+therapist+timeSlot+cycle) 완전 일치 → (support+therapist) → (support) 순
+        // 매칭 fallback: 각 단계에서 완납 우선 → 미납 순
+        // 1단계: support+therapist+timeSlot+cycle 완전 일치
+        // 2단계: support+therapist 일치
+        // 3단계: support 만 (기존 로직)
         const _pool = allPayments.filter(p => p.childId===id && p.monthKey===_banMk && p.support===therapy?.support);
-        const rec = _pool.find(p =>
+        const _isPaid = p => p.basePaid || p.extraPaid;
+        const _fullMatch = p =>
           (p.therapist||'') === (therapy?.therapist||'') &&
           (p.timeSlot||'')  === (therapy?.timeSlot||'') &&
-          (p.cycle||'')     === (therapy?.cycle||'')
-        ) || _pool.find(p => (p.therapist||'') === (therapy?.therapist||''))
-          || _pool[0];
+          (p.cycle||'')     === (therapy?.cycle||'');
+        const _semiMatch = p => (p.therapist||'') === (therapy?.therapist||'');
+        const rec = _pool.find(p => _fullMatch(p) && _isPaid(p))
+                 || _pool.find(_fullMatch)
+                 || _pool.find(p => _semiMatch(p) && _isPaid(p))
+                 || _pool.find(_semiMatch)
+                 || _pool.find(_isPaid)
+                 || _pool[0];
         if (!rec) return;
         if ((parseInt(rec.amount)||0) === 0 && !rec.basePaid && !rec.paidDate) return;
         if (rec.basePaid || rec.paidDate || rec.status==='paid') totalPaid++;
@@ -1390,15 +1399,24 @@
           const amt = effPriceB ? Math.max(0, effPriceB*sessions - deduct) : 0;
           const sup = effSup;
           // 인수인계 이후에는 후임 support(program) 또는 원래 support 어느 쪽으로 저장돼도 매칭
-          // 매칭 fallback: (support+therapist+timeSlot+cycle) 완전 일치 → (support+therapist) → (support) 순
+          // 매칭 fallback: 각 단계에서 완납 우선 → 미납 순
+          //  1단계: support+therapist+timeSlot+cycle 완전 일치
+          //  2단계: support+therapist 일치
+          //  3단계: support 만
           const origSup = therapy?.support||'';
           const _poolB = allPayments.filter(p => p.childId===id && p.monthKey===mk && (p.support===sup || p.support===origSup));
-          const rec = _poolB.find(p =>
+          const _isPaidB = p => p.basePaid || p.extraPaid;
+          const _fullMatchB = p =>
             (p.therapist||'') === (therapy?.therapist||'') &&
             (p.timeSlot||'')  === (therapy?.timeSlot||'') &&
-            (p.cycle||'')     === (therapy?.cycle||'')
-          ) || _poolB.find(p => (p.therapist||'') === (therapy?.therapist||''))
-            || _poolB[0];
+            (p.cycle||'')     === (therapy?.cycle||'');
+          const _semiMatchB = p => (p.therapist||'') === (therapy?.therapist||'');
+          const rec = _poolB.find(p => _fullMatchB(p) && _isPaidB(p))
+                   || _poolB.find(_fullMatchB)
+                   || _poolB.find(p => _semiMatchB(p) && _isPaidB(p))
+                   || _poolB.find(_semiMatchB)
+                   || _poolB.find(_isPaidB)
+                   || _poolB[0];
           const isPaid = rec?.basePaid||false;
           const dateStr = rec?.baseDepositDate ? rec.baseDepositDate.substring(5) : '';
           const cardNo = rec?.cardApproval||'';
