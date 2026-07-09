@@ -361,7 +361,7 @@
     // therapies 스마트 dedup 마이그레이션 (v1) - 저장 원본 정리
     // 같은 (support+therapist) 는 정보 많은 쪽으로 병합
     try {
-      if (!localStorage.getItem('_therapies_dedup_v2')) {
+      if (!localStorage.getItem('_therapies_dedup_v3')) {
         const cs = JSON.parse(localStorage.getItem('children')||'[]');
         let changed = 0;
         cs.forEach(c => {
@@ -375,7 +375,7 @@
           console.log(`[therapies dedup v1] ${changed}명의 중복 수업 정리`);
           if (window.Supa && window.Supa.pushKey) window.Supa.pushKey('children').catch(()=>{});
         }
-        localStorage.setItem('_therapies_dedup_v2','1');
+        localStorage.setItem('_therapies_dedup_v3','1');
       }
     } catch(e) { console.warn('therapies dedup migration failed', e); }
 
@@ -405,32 +405,58 @@
       }
       el.value = next;
     };
-    // 아동의 therapies 배열을 (support+therapist) 기준으로 스마트 dedup
-    // 같은 (support,therapist) 조합이 여러 개면 cycle/timeSlot 값 있는 쪽 우선
-    // 부가 필드는 병합 (baseCount·serviceStartDate 등 값 있는 쪽 채움)
+    // 아동의 therapies 배열을 스마트 dedup
+    // 1차: (support+therapist) 완전 일치로 병합
+    // 2차: 같은 support 안에서 therapist 가 비어있는 항목을 담당치료사 있는 항목으로 흡수
+    //      (t.therapist 는 비었지만 c.therapist fallback 으로 화면상 같은 이름 표시되는 케이스 대응)
+    // cycle/timeSlot 값 있는 쪽 우선, 부가 필드는 병합
     function _dedupTherapies(list) {
       if (!Array.isArray(list) || list.length < 2) return list;
+      // 1차 dedup: (support+therapist) 완전 일치
       const map = new Map();
       list.forEach(t => {
         const support = normSupport(t.support);
-        const therapist = _cleanUnicode(t.therapist);   // 유니코드 공백·불가시 문자 제거
+        const therapist = _cleanUnicode(t.therapist);
         if (!support && !therapist) { map.set(`_empty_${Math.random()}`, t); return; }
         const key = `${support}|${therapist}`;
         if (!map.has(key)) { map.set(key, { ...t, support }); return; }
         const existing = map.get(key);
-        // 정보 많은 쪽을 keeper 로 스왑 (cycle+timeSlot 값 존재 개수 비교)
         const scoreT = ((t.cycle||'').trim()?1:0) + ((t.timeSlot||'').trim()?1:0);
         const scoreE = ((existing.cycle||'').trim()?1:0) + ((existing.timeSlot||'').trim()?1:0);
         let keeper = existing, other = t;
         if (scoreT > scoreE) { keeper = { ...t, support }; other = existing; }
-        // other 의 값 있는 필드를 keeper 의 빈 필드에 채움
         Object.keys(other).forEach(k => {
           if (keeper[k] == null || keeper[k] === '') keeper[k] = other[k];
           if (typeof other[k] === 'number' && typeof keeper[k] === 'number' && other[k] > keeper[k]) keeper[k] = other[k];
         });
         map.set(key, keeper);
       });
-      return [...map.values()];
+      const first = [...map.values()];
+      // 2차: 같은 support 안에서 therapist 빈 항목을 채운 항목으로 흡수
+      const bySupport = new Map();
+      const emptyTherapist = [];
+      first.forEach(t => {
+        const s = normSupport(t.support);
+        const th = _cleanUnicode(t.therapist);
+        if (!th) { emptyTherapist.push(t); return; }
+        if (!bySupport.has(s)) bySupport.set(s, []);
+        bySupport.get(s).push(t);
+      });
+      // 빈 therapist 항목 각각에 대해 같은 support 담당자 있는 항목을 찾아 병합
+      const absorbed = new Set();
+      emptyTherapist.forEach(t => {
+        const s = normSupport(t.support);
+        const candidates = bySupport.get(s) || [];
+        if (!candidates.length) return;  // 흡수 대상 없음 → 그대로 둠
+        // cycle/timeSlot 값 있으면 그 쪽에 빈 항목의 부가필드 병합, 없으면 첫 후보
+        const target = candidates.find(c => (c.cycle||'').trim() || (c.timeSlot||'').trim()) || candidates[0];
+        Object.keys(t).forEach(k => {
+          if (target[k] == null || target[k] === '') target[k] = t[k];
+          if (typeof t[k] === 'number' && typeof target[k] === 'number' && t[k] > target[k]) target[k] = t[k];
+        });
+        absorbed.add(t);
+      });
+      return first.filter(t => !absorbed.has(t));
     }
 
     function _generateManagerId(inquiryDate) {
