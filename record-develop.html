@@ -681,7 +681,16 @@ function _prefillStatusFromVoucher() {
       if (targetBirth && bt && bt !== targetBirth) return false;
       return _normMk(v.provDate) === targetMk;
     }).sort((a,b) => (a.provDate||'').localeCompare(b.provDate||''));
-    return matches.map(v => ({
+    // 승인일자·승인번호 조합 기준 중복 제거 (같은 결제내역이 여러 번 저장된 경우 대비)
+    const seen = new Set();
+    const deduped = [];
+    matches.forEach(v => {
+      const key = `${(v.apprDate||v.provDate||'').replace(/\D/g,'')}|${v.apprNo||''}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      deduped.push(v);
+    });
+    return deduped.map(v => ({
       provDate: _normDate(v.provDate),
       apprDate: _normDate(v.apprDate || v.provDate),
       apprNo: v.apprNo || '',
