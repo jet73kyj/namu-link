@@ -861,6 +861,15 @@
         // 납부이력에서 감지된 지원유형 중 therapies 에 없는 것 추론
         const existingSupports = new Set(therapies.map(t => (t.support||'').trim()).filter(Boolean));
         const paymentsForChild = payments.filter(p => p.childId === c.id);
+        // 지원유형·담당·요일·시간·본인부담금 유형 모두 공란이면 카드 자체를 숨김
+        // (신규상담 phase='intake' 카드는 위에서 이미 별도 렌더 · 대상 아님)
+        const hasAnyTherapyInfo = therapies.some(t =>
+          (t.support||'').trim() || (t.therapist||'').trim() ||
+          (t.cycle||'').trim() || (t.timeSlot||'').trim()
+        );
+        const hasAnyPayment = paymentsForChild.some(p => (p.support||'').trim());
+        const hasFeeType = !!c.feeType;
+        if (!hasAnyTherapyInfo && !hasAnyPayment && !hasFeeType) return '';
         const inferredSupports = [];
         const seenInferred = new Set();
         paymentsForChild.forEach(p => {
