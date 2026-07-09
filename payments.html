@@ -1926,7 +1926,9 @@
 
       localStorage.setItem('children', JSON.stringify(children));
       document.getElementById('banchiEditModal')?.remove();
-      if (isInactive(newStatus)) setBanchiMode('ended');
+      // 아동 자체가 비활성 상태가 됐을 때만 종결 탭으로 전환
+      // (특정 therapy 만 대기·종결 처리하고 다른 therapy 는 활성인 경우는 유지)
+      if (isInactive(ch.status)) setBanchiMode('ended');
       else renderBanchi();
       if (newSupport === '센터비용') renderCenter();
     }
