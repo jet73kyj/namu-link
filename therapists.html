@@ -6,8 +6,9 @@
   <title>치료사 관리 - 나무링크</title>
   <link rel="stylesheet" href="css/style.css"><script>
     if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";
-    if(localStorage.getItem("currentUserRole")==="therapist"){alert("치료사 관리는 관리자 전용입니다.");location.href="children.html";}
+    if(localStorage.getItem("currentUserRole")==="therapist"){alert("치료사 관리는 관리자·행정직원만 접근 가능합니다.");location.href="children.html";}
   </script>
+  <script src="js/permissions.js"></script>
   <style>
     .tab-bar { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
     .tab-btn { padding:9px 22px; border-radius:8px; border:2px solid #2e7d32; background:white; color:#2e7d32; font-weight:bold; font-size:14px; cursor:pointer; }
@@ -97,8 +98,9 @@
     <!-- 급여일 알림 배너 -->
     <div id="paydayBanner" style="display:none;background:#e53935;color:white;padding:10px 16px;border-radius:8px;margin-bottom:14px;font-size:14px;font-weight:bold;"></div>
 
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-      <a href="therapist-ids.html"><button style="padding:8px 14px;background:#1565c0;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">🆔 아이디 일괄 생성</button></a>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">
+      <a href="therapist-ids.html"><button style="padding:8px 14px;background:#1565c0;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">🆔 치료사 아이디 발급</button></a>
+      <a href="staff-ids.html"><button style="padding:8px 14px;background:#6a1b9a;color:white;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;">🆔 행정직원 아이디 발급</button></a>
     </div>
 
     <div class="tab-bar">

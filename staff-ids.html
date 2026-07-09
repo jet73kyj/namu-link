@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>행정직원 아이디 일괄 생성 - 나무링크</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script>if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";</script>
+  <script src="js/supabase-client.js"></script>
+  <style>
+    .container { max-width: 1100px; }
+    table.grid { width:100%; border-collapse:collapse; background:white; font-size:13px; }
+    table.grid th, table.grid td { border:1px solid #e0e0e0; padding:8px 10px; text-align:left; vertical-align:middle; }
+    table.grid th { background:#f5f9f0; color:#2e7d32; font-weight:bold; font-size:12px; }
+    input.mini { padding:5px 7px; border:1px solid #ccc; border-radius:4px; font-size:12px; box-sizing:border-box; }
+    .id-cell { font-family:monospace; font-weight:bold; color:#1565c0; }
+    .badge { padding:2px 7px; font-size:11px; border-radius:10px; font-weight:bold; }
+    .badge-ok { background:#c8e6c9; color:#2e7d32; }
+    .badge-warn { background:#ffe0b2; color:#e65100; }
+    .badge-none { background:#e0e0e0; color:#666; }
+    .btn { padding:8px 14px; border:none; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; }
+    .btn-primary { background:#2e7d32; color:white; }
+    .btn-secondary { background:#e0e0e0; color:#333; }
+    .btn-mini { padding:4px 10px; font-size:11px; }
+    .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:10px; flex-wrap:wrap; }
+    .summary { padding:12px 14px; background:#e3f2fd; border-radius:8px; margin-bottom:14px; font-size:13px; color:#0d47a1; }
+    .warn-box { padding:12px 14px; background:#fff3e0; border:1px solid #ffb74d; border-radius:8px; margin-bottom:14px; font-size:12px; color:#e65100; }
+    .locked { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; display:flex; align-items:center; justify-content:center; }
+    .locked-box { background:white; padding:24px 30px; border-radius:10px; text-align:center; width:340px; }
+    .locked-box input { width:100%; padding:8px; border:1px solid #ccc; border-radius:6px; margin:10px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌿 나무링크</h1>
+    <span id="userLabel" style="font-size:14px;"></span>
+  </header>
+  <nav>
+    <a href="children.html">아동 관리</a>
+    <a href="records.html">치료 기록</a>
+    <a href="calendar.html">아동 스케줄</a>
+    <a href="payments.html">납부 관리</a>
+    <a href="therapists.html" class="active">치료사 관리</a>
+    <a href="notice.html">공지사항</a>
+    <a href="forms.html">자료실</a>
+    <a href="#" onclick="logout()">로그아웃</a>
+  </nav>
+
+  <div class="container">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="page-title">🆔 행정직원 아이디 일괄 생성</div>
+      <a href="therapists.html"><button class="btn btn-secondary">← 치료사 관리로</button></a>
+    </div>
+
+    <div class="warn-box">
+      ⚠️ 이 페이지는 <b>관리자 전용</b>입니다. 기존 행정직원 전체에게 로그인 아이디·초기 비밀번호를 일괄 부여합니다.
+    </div>
+
+    <div class="summary" id="summary">불러오는 중...</div>
+
+    <div class="toolbar">
+      <div>
+        <button class="btn btn-primary" onclick="generateAll()">🔧 미부여 행정직원 일괄 생성</button>
+        <button class="btn btn-secondary" onclick="downloadCsv()" style="margin-left:6px;">📥 아이디 목록 CSV 다운로드</button>
+      </div>
+      <div style="font-size:12px;color:#888;">
+        형식: 이름 + 입사년월(YYMM) · 예: 김행정2607
+      </div>
+    </div>
+
+    <div class="card" style="padding:6px;">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th style="width:60px;">순번</th>
+            <th style="width:90px;">이름</th>
+            <th style="width:120px;">입사년월</th>
+            <th style="width:100px;">생년월일 (월일)</th>
+            <th style="width:150px;">로그인 아이디</th>
+            <th style="width:100px;">초기 비밀번호</th>
+            <th>동작</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:20px;padding:16px;background:#f5f9f0;border-radius:8px;font-size:13px;color:#33691e;">
+      💡 <b>생성 규칙 안내</b><br>
+      • 로그인 아이디 = 이름 + 입사년월 (YYMM 2자리+2자리)<br>
+      • 초기 비밀번호 = 생년월일 4자리 (MMDD)<br>
+      • 동명이인 · 같은 달 입사 시 → 이름YYMM-2, -3 자동 처리<br>
+      • 행정직원 권한: 아동·치료기록·스케줄·납부·공지·자료실 열람 및 수정 가능 (삭제는 관리자만)
+    </div>
+  </div>
+
+  <div id="adminGate" class="locked" style="display:none;">
+    <div class="locked-box">
+      <h3 style="margin:0 0 8px;color:#2e7d32;">🔒 관리자 확인</h3>
+      <p style="font-size:13px;color:#555;">이 페이지는 관리자만 접근 가능합니다.</p>
+      <input type="password" id="adminPw" placeholder="관리자 비밀번호" onkeydown="if(event.key==='Enter')unlockAdmin()">
+      <button class="btn btn-primary" onclick="unlockAdmin()" style="width:100%;">확인</button>
+      <button class="btn btn-secondary" onclick="location.href='therapists.html'" style="width:100%;margin-top:8px;">돌아가기</button>
+    </div>
+  </div>
+
+  <script>
+    if (!localStorage.getItem('currentUser')) location.href = 'index.html';
+    const CURRENT_USER = localStorage.getItem('currentUser') || '';
+    document.getElementById('userLabel').textContent = CURRENT_USER + '님';
+    function logout() { localStorage.removeItem('currentUser'); location.href = 'index.html'; }
+
+    if (CURRENT_USER !== '관리자') {
+      document.getElementById('adminGate').style.display = 'flex';
+    }
+    function unlockAdmin() {
+      const pw = document.getElementById('adminPw').value;
+      if (pw === '1234') { document.getElementById('adminGate').style.display='none'; renderAll(); }
+      else alert('비밀번호가 올바르지 않습니다.');
+    }
+
+    function getStaff() { try { return JSON.parse(localStorage.getItem('staff')||'[]'); } catch(e) { return []; } }
+    function setStaff(arr) { localStorage.setItem('staff', JSON.stringify(arr)); }
+
+    function toYYMM(hireDate) {
+      if (!hireDate) return null;
+      const m = String(hireDate).match(/^(\d{4})-(\d{2})/);
+      if (!m) return null;
+      return m[1].slice(2) + m[2];
+    }
+    function toMMDD(birth) {
+      if (!birth) return null;
+      const m = String(birth).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return null;
+      return m[2] + m[3];
+    }
+    function birthFromRrn(rrn) {
+      const m = String(rrn||'').replace(/\D/g,'').match(/^(\d{2})(\d{2})(\d{2})(\d)/);
+      if (!m) return '';
+      const g = +m[4], yy = +m[1];
+      const century = (g===1||g===2||g===5||g===6) ? 1900 : (g===3||g===4||g===7||g===8) ? 2000 : (yy<=25?2000:1900);
+      return `${century+yy}-${m[2]}-${m[3]}`;
+    }
+
+    function computeLoginId(name, yymm, existingIds) {
+      const base = `${name}${yymm}`;
+      if (!existingIds.has(base)) return base;
+      let n = 2;
+      while (existingIds.has(`${base}-${n}`)) n++;
+      return `${base}-${n}`;
+    }
+
+    function renderAll() {
+      const arr = getStaff();
+      const withId = arr.filter(s => s.loginId).length;
+      const noHire = arr.filter(s => !s.hireDate).length;
+      const noBirth = arr.filter(s => !s.birth && !birthFromRrn(s.rrn||'')).length;
+      document.getElementById('summary').innerHTML =
+        `전체 행정직원 <b>${arr.length}명</b> · 아이디 발급됨 <b>${withId}명</b> · 미발급 <b>${arr.length-withId}명</b> · 입사일 없음 <b>${noHire}명</b> · 생년월일 없음 <b>${noBirth}명</b>`;
+
+      const tbody = document.getElementById('tbody');
+      if (!arr.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:24px;">등록된 행정직원이 없습니다. 치료사 관리 → 행정직원 탭에서 먼저 등록하세요.</td></tr>'; return; }
+      tbody.innerHTML = arr.map((s, i) => {
+        const effBirth = s.birth || birthFromRrn(s.rrn||'');
+        const yymm = toYYMM(s.hireDate);
+        const mmdd = toMMDD(effBirth);
+        const hireYm = s.hireDate ? s.hireDate.slice(0,7) : '';
+        const birthMd = effBirth ? effBirth.slice(5) : '';
+        const idBadge = s.loginId
+          ? `<span class="badge badge-ok">발급됨</span>`
+          : (yymm && mmdd ? `<span class="badge badge-warn">생성 가능</span>` : `<span class="badge badge-none">정보 부족</span>`);
+        return `<tr data-id="${s.id}">
+          <td>${i+1}</td>
+          <td><b>${escapeHtml(s.name||'')}</b></td>
+          <td><input type="month" class="mini" value="${hireYm}" onchange="setHireYm('${s.id}', this.value)" style="width:130px;"></td>
+          <td><input type="text" class="mini" placeholder="MM-DD" value="${birthMd}" onchange="setBirthMd('${s.id}', this.value)" style="width:80px;text-align:center;"></td>
+          <td class="id-cell">${s.loginId ? escapeHtml(s.loginId) : '<span style="color:#aaa;">미발급</span>'}</td>
+          <td class="id-cell">${s.initPassword ? escapeHtml(s.initPassword) : '<span style="color:#aaa;">-</span>'}</td>
+          <td>${idBadge}<button class="btn btn-primary btn-mini" onclick="generateOne('${s.id}')" style="margin-left:6px;">생성/재생성</button></td>
+        </tr>`;
+      }).join('');
+    }
+
+    function escapeHtml(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+    function setHireYm(id, ym) {
+      if (!/^\d{4}-\d{2}$/.test(ym||'')) return;
+      const arr = getStaff();
+      const s = arr.find(x => x.id === id); if (!s) return;
+      s.hireDate = /^\d{4}-\d{2}-\d{2}$/.test(s.hireDate||'') ? ym + '-' + s.hireDate.slice(8) : ym + '-01';
+      setStaff(arr); renderAll();
+    }
+    function setBirthMd(id, md) {
+      const m = String(md||'').match(/^(\d{2})-?(\d{2})$/);
+      if (!m) return;
+      const arr = getStaff();
+      const s = arr.find(x => x.id === id); if (!s) return;
+      const mm = m[1], dd = m[2];
+      s.birth = /^\d{4}-\d{2}-\d{2}$/.test(s.birth||'') ? s.birth.slice(0,4) + `-${mm}-${dd}` : `1990-${mm}-${dd}`;
+      setStaff(arr); renderAll();
+    }
+
+    function generateOne(id) {
+      const arr = getStaff();
+      const s = arr.find(x => x.id === id); if (!s) return;
+      const yymm = toYYMM(s.hireDate);
+      const effBirth = s.birth || birthFromRrn(s.rrn||'');
+      const mmdd = toMMDD(effBirth);
+      if (!yymm) { alert('입사년월을 먼저 입력하세요.'); return; }
+      if (!mmdd) { alert('생년월일 (MM-DD) 을 먼저 입력하세요.'); return; }
+      const existingIds = new Set(arr.filter(x => x.id !== id && x.loginId).map(x => x.loginId));
+      s.loginId = computeLoginId(s.name || '이름', yymm, existingIds);
+      s.initPassword = mmdd;
+      s.passwordHash = null;
+      s.mustChangePassword = true;
+      s.loginIdIssuedAt = new Date().toISOString();
+      setStaff(arr); pushSync(); renderAll();
+    }
+
+    function generateAll() {
+      const arr = getStaff();
+      const skipped = [];
+      const existingIds = new Set(arr.filter(x => x.loginId).map(x => x.loginId));
+      let count = 0;
+      arr.forEach(s => {
+        if (s.loginId) return;
+        const yymm = toYYMM(s.hireDate);
+        const effBirth = s.birth || birthFromRrn(s.rrn||'');
+        const mmdd = toMMDD(effBirth);
+        if (!yymm || !mmdd) { skipped.push(`${s.name} (${!yymm?'입사일':''}${!yymm&&!mmdd?'·':''}${!mmdd?'생년월일':''} 없음)`); return; }
+        s.loginId = computeLoginId(s.name || '이름', yymm, existingIds);
+        s.initPassword = mmdd;
+        s.passwordHash = null;
+        s.mustChangePassword = true;
+        s.loginIdIssuedAt = new Date().toISOString();
+        existingIds.add(s.loginId);
+        count++;
+      });
+      setStaff(arr); pushSync(); renderAll();
+      let msg = `✅ ${count}명 아이디 생성 완료`;
+      if (skipped.length) msg += `\n\n⚠️ 정보 부족으로 건너뜀:\n- ${skipped.join('\n- ')}`;
+      alert(msg);
+    }
+
+    async function pushSync() {
+      try { if (window.Supa) await window.Supa.pushKey('staff'); } catch (e) { console.warn('Supabase push 실패', e); }
+    }
+    async function pullSync() {
+      try { if (window.Supa) await window.Supa.pullKey('staff'); } catch (e) { console.warn('Supabase pull 실패', e); }
+    }
+
+    function downloadCsv() {
+      const arr = getStaff();
+      const rows = [['이름','입사일','생년월일','로그인 아이디','초기 비밀번호','발급일']];
+      arr.forEach(s => {
+        const effBirth = s.birth || birthFromRrn(s.rrn||'');
+        rows.push([s.name||'', s.hireDate||'', effBirth||'', s.loginId||'', s.initPassword||'',
+          s.loginIdIssuedAt ? new Date(s.loginIdIssuedAt).toLocaleDateString('ko-KR') : '']);
+      });
+      const csv = '﻿' + rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+      const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `행정직원_아이디목록_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    (async () => { if (CURRENT_USER === '관리자') { await pullSync(); renderAll(); } })();
+  </script>
+</body>
+</html>

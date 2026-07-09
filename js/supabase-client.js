@@ -22,6 +22,7 @@
   const KEY_TABLE = {
     'children':             { table: 'children',             idKey: 'id' },
     'therapists':           { table: 'therapists',           idKey: 'id' },
+    'staff':                { table: 'staff',                idKey: 'id' },
     'payments':             { table: 'payments',             idKey: 'id' },
     'records':              { table: 'records',              idKey: 'id',
                               genId: (r) => r.id || `rec_${r.childId||r.child_id||''}_${r.year||''}_${r.month||''}_${r.category||''}` },

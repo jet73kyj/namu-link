@@ -26,25 +26,32 @@
   }
 
   // 비밀번호 변경 (현재 비번 검증 + 새 비번 해시 저장)
-  async function changeTherapistPassword(therapistId, currentPw, newPw) {
+  // kind: 'therapist' | 'staff'
+  async function changePassword(kind, accountId, currentPw, newPw) {
     if (!newPw || newPw.length < 4) throw new Error('새 비밀번호는 4자 이상이어야 합니다.');
-    const arr = JSON.parse(localStorage.getItem('therapists')||'[]');
-    const t = arr.find(x => x.id === therapistId);
-    if (!t) throw new Error('치료사를 찾을 수 없습니다.');
+    const key = kind === 'staff' ? 'staff' : 'therapists';
+    const label = kind === 'staff' ? '행정직원' : '치료사';
+    const arr = JSON.parse(localStorage.getItem(key)||'[]');
+    const rec = arr.find(x => x.id === accountId);
+    if (!rec) throw new Error(`${label}를 찾을 수 없습니다.`);
 
-    // 현재 비번 확인 (첫 변경이면 initPassword, 이후면 passwordHash)
-    const ok = await verifyTherapistPassword(t, currentPw);
+    const ok = await verifyTherapistPassword(rec, currentPw);
     if (!ok) throw new Error('현재 비밀번호가 일치하지 않습니다.');
 
-    t.passwordHash = await sha256Hex(newPw);
-    t.mustChangePassword = false;
-    t.initPassword = null;                // 평문 초기 비번 폐기
-    t.passwordChangedAt = new Date().toISOString();
+    rec.passwordHash = await sha256Hex(newPw);
+    rec.mustChangePassword = false;
+    rec.initPassword = null;
+    rec.passwordChangedAt = new Date().toISOString();
 
-    localStorage.setItem('therapists', JSON.stringify(arr));
-    try { if (window.Supa) await window.Supa.pushKey('therapists'); } catch(e) { console.warn('Supabase push 실패', e); }
+    localStorage.setItem(key, JSON.stringify(arr));
+    try { if (window.Supa) await window.Supa.pushKey(key); } catch(e) { console.warn('Supabase push 실패', e); }
     return true;
   }
 
-  window.NamuAuth = { sha256Hex, verifyTherapistPassword, changeTherapistPassword };
+  // 하위 호환
+  async function changeTherapistPassword(therapistId, currentPw, newPw) {
+    return changePassword('therapist', therapistId, currentPw, newPw);
+  }
+
+  window.NamuAuth = { sha256Hex, verifyTherapistPassword, changePassword, changeTherapistPassword };
 })();

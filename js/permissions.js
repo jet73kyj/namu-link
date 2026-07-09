@@ -10,9 +10,14 @@
   const therapistId = localStorage.getItem('currentTherapistId') || '';
 
   const IS_ADMIN = (role === 'admin') || (user === '관리자');
-  const IS_STAFF = IS_ADMIN || (role === 'staff');
+  const IS_STAFF_ROLE = (role === 'staff'); // 순수 행정직원 (관리자 제외)
+  const IS_STAFF = IS_ADMIN || IS_STAFF_ROLE; // 편집 권한 (admin+staff)
   const IS_THERAPIST = (role === 'therapist');
   const IS_GUARDIAN = (role === 'guardian');
+  // 쓰기 권한 (신규·수정) — admin·staff
+  const CAN_WRITE = IS_ADMIN || IS_STAFF_ROLE;
+  // 삭제 권한 — admin 만
+  const CAN_DELETE = IS_ADMIN;
 
   // 치료사 로그인 시 본인 이름 (children.therapies 매칭 기준)
   let currentTherapistName = '';
@@ -47,16 +52,19 @@
   }
 
   window.NamuPerm = {
-    IS_ADMIN, IS_STAFF, IS_THERAPIST, IS_GUARDIAN,
+    IS_ADMIN, IS_STAFF, IS_STAFF_ROLE, IS_THERAPIST, IS_GUARDIAN,
+    CAN_WRITE, CAN_DELETE,
     role, user, therapistId, currentTherapistName,
     isChildVisible, isChildIdVisible,
   };
 
-  // 치료사 로그인 시 body 에 클래스 추가 → CSS 로 nav 링크 숨김
+  // 역할별 body 클래스 → CSS 로 UI 노출 제어
   function applyBodyClass() {
     if (!document.body) return;
-    if (IS_THERAPIST) document.body.classList.add('role-therapist');
     if (IS_ADMIN) document.body.classList.add('role-admin');
+    if (IS_STAFF_ROLE) document.body.classList.add('role-staff');
+    if (IS_THERAPIST) document.body.classList.add('role-therapist');
+    if (!CAN_DELETE) document.body.classList.add('no-delete');
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', applyBodyClass);

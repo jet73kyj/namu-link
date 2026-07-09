@@ -139,9 +139,13 @@
   <script>
     if (!localStorage.getItem('currentUser')) location.href = 'index.html';
     const CURRENT_USER = localStorage.getItem('currentUser') || '';
-    const IS_ADMIN = (CURRENT_USER === '관리자');
+    const ROLE = localStorage.getItem('currentUserRole') || '';
+    const IS_ADMIN = (CURRENT_USER === '관리자') || (ROLE === 'admin');
+    const IS_STAFF_ROLE = (ROLE === 'staff');
+    const CAN_WRITE = IS_ADMIN || IS_STAFF_ROLE;
+    const CAN_DELETE = IS_ADMIN;
     document.getElementById('userLabel').textContent = CURRENT_USER + '님';
-    if (IS_ADMIN) document.getElementById('adminActions').style.display = 'block';
+    if (CAN_WRITE) document.getElementById('adminActions').style.display = 'block';
     function logout() { localStorage.removeItem('currentUser'); location.href = 'index.html'; }
 
     const FORMS_BUCKET = 'forms';
@@ -196,15 +200,15 @@
           </div>
           <div class="form-actions">
             <button class="btn btn-download" onclick="downloadForm('${f.id}')">⬇ 다운로드</button>
-            ${IS_ADMIN?`<button class="btn btn-edit" onclick="editForm('${f.id}')">수정</button>
-                        <button class="btn btn-delete" onclick="deleteForm('${f.id}')">삭제</button>`:''}
+            ${CAN_WRITE?`<button class="btn btn-edit" onclick="editForm('${f.id}')">수정</button>`:''}
+            ${CAN_DELETE?`<button class="btn btn-delete" onclick="deleteForm('${f.id}')">삭제</button>`:''}
           </div>
         </div>`;
       }).join('');
     }
 
     function openEditor(id) {
-      if (!IS_ADMIN) return;
+      if (!CAN_WRITE) return;
       const editing = !!id;
       document.getElementById('editorTitle').textContent = editing ? '서식 수정' : '서식 업로드';
       document.getElementById('edProgress').style.display='none';
@@ -241,7 +245,7 @@
     });
 
     async function saveForm() {
-      if (!IS_ADMIN) return;
+      if (!CAN_WRITE) return;
       const id = document.getElementById('edId').value || ('form_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
       const editing = !!document.getElementById('edId').value;
       const name = document.getElementById('edName').value.trim();
@@ -320,7 +324,7 @@
     }
 
     async function deleteForm(id) {
-      if (!IS_ADMIN) return;
+      if (!CAN_DELETE) return;
       const f = getAll().find(x => x.id===id);
       if (!f) return;
       if (!confirm(`"${f.name}" 서식을 삭제하시겠습니까?\n(Supabase Storage 에서도 함께 삭제됩니다)`)) return;

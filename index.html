@@ -95,25 +95,41 @@
         return;
       }
 
-      // 2) 치료사 로그인 (아이디 또는 이름)
+      // 2) 치료사 · 행정직원 로그인 (아이디 또는 이름)
       try {
-        if (window.Supa) { try { await window.Supa.pullKey('therapists'); } catch(e) {} }
+        if (window.Supa) {
+          try { await window.Supa.pullKey('therapists'); } catch(e) {}
+          try { await window.Supa.pullKey('staff'); } catch(e) {}
+        }
       } catch(e) {}
-      const therapists = JSON.parse(localStorage.getItem('therapists')||'[]');
-      const t = therapists.find(x => x.loginId === input) || therapists.find(x => (x.name||'') === input && x.loginId);
-      if (!t || !t.loginId) { document.getElementById('sErr').style.display='block'; return; }
 
-      const ok = await window.NamuAuth.verifyTherapistPassword(t, pw);
+      const therapists = JSON.parse(localStorage.getItem('therapists')||'[]');
+      const staff = JSON.parse(localStorage.getItem('staff')||'[]');
+      const t = therapists.find(x => x.loginId === input) || therapists.find(x => (x.name||'') === input && x.loginId);
+      const s = staff.find(x => x.loginId === input) || staff.find(x => (x.name||'') === input && x.loginId);
+      const account = t || s;
+      if (!account || !account.loginId) { document.getElementById('sErr').style.display='block'; return; }
+
+      const ok = await window.NamuAuth.verifyTherapistPassword(account, pw);
       if (!ok) { document.getElementById('sErr').style.display='block'; return; }
 
-      localStorage.setItem('currentUser', t.name || t.loginId);
-      localStorage.setItem('currentUserRole', 'therapist');
-      localStorage.setItem('currentTherapistId', t.id);
-      localStorage.setItem('currentTherapistLoginId', t.loginId);
+      const isTherapist = !!t;
+      localStorage.setItem('currentUser', account.name || account.loginId);
+      localStorage.setItem('currentUserRole', isTherapist ? 'therapist' : 'staff');
+      if (isTherapist) {
+        localStorage.setItem('currentTherapistId', account.id);
+        localStorage.setItem('currentTherapistLoginId', account.loginId);
+        localStorage.removeItem('currentStaffId');
+      } else {
+        localStorage.setItem('currentStaffId', account.id);
+        localStorage.setItem('currentStaffLoginId', account.loginId);
+        localStorage.removeItem('currentTherapistId');
+        localStorage.removeItem('currentTherapistLoginId');
+      }
       localStorage.removeItem('guardianChildId');
 
-      // 첫 로그인 (해시 없음 → 초기 비번으로 통과했음) 이면 비밀번호 변경 페이지로
-      if (!t.passwordHash || t.mustChangePassword) {
+      // 첫 로그인 시 비밀번호 변경 페이지로
+      if (!account.passwordHash || account.mustChangePassword) {
         location.href = 'change-password.html?first=1';
       } else {
         location.href = 'children.html';
@@ -150,6 +166,18 @@
     const role = localStorage.getItem('currentUserRole');
     if (localStorage.getItem('currentUser')) {
       if (role === 'guardian') location.href = 'guardian-home.html';
+      else if (role === 'therapist' || role === 'staff') {
+        // 치료사·행정직원 세션 복귀 시: 비번 변경 미완료면 변경 화면으로
+        const key = role === 'therapist' ? 'therapists' : 'staff';
+        const idKey = role === 'therapist' ? 'currentTherapistId' : 'currentStaffId';
+        const arr = JSON.parse(localStorage.getItem(key)||'[]');
+        const rec = arr.find(x => x.id === localStorage.getItem(idKey));
+        if (rec && (!rec.passwordHash || rec.mustChangePassword)) {
+          location.href = 'change-password.html?first=1';
+        } else {
+          location.href = 'children.html';
+        }
+      }
       else location.href = 'children.html';
     }
   </script>
