@@ -40,8 +40,16 @@
     /* 등록 폼 모달 */
     .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1000; align-items:center; justify-content:center; }
     .modal-bg.open { display:flex; }
-    .modal { background:white; border-radius:12px; padding:28px; width:400px; max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+    .modal { background:white; border-radius:12px; padding:28px; width:400px; max-width:95vw; max-height:90vh; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
     .modal h3 { margin:0 0 18px; color:#2e7d32; }
+    /* 치료사 등록/수정 모달만 넓게 · 2열 배치 */
+    #modalBg .modal { width:720px; }
+    #modalBg .modal .row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    #modalBg .modal .row2 .field { margin-bottom:0; }
+    @media (max-width:640px) {
+      #modalBg .modal { width:95vw; }
+      #modalBg .modal .row2 { grid-template-columns:1fr; }
+    }
     .field { margin-bottom:14px; }
     .field label { display:block; font-size:13px; font-weight:bold; color:#555; margin-bottom:4px; }
     .field input, .field select, .field textarea { width:100%; padding:9px 11px; border:1px solid #ccc; border-radius:7px; font-size:13px; box-sizing:border-box; }
@@ -283,20 +291,29 @@
   <div class="modal-bg" id="modalBg">
     <div class="modal">
       <h3 id="modalTitle">치료사 등록</h3>
-      <div class="field">
-        <label>이름 *</label>
-        <input type="text" id="tName" placeholder="예: 정다혜">
+
+      <div class="row2">
+        <div class="field">
+          <label>이름 *</label>
+          <input type="text" id="tName" placeholder="예: 정다혜">
+        </div>
+        <div class="field">
+          <label>연락처</label>
+          <input type="tel" id="tPhone" placeholder="010-0000-0000">
+        </div>
       </div>
-      <div style="display:flex;gap:10px;">
-        <div class="field" style="flex:1;">
-          <label>주민등록번호 <span style="font-size:11px;color:#888;font-weight:normal;">(내부 보관용 · 생년월일 자동 반영)</span></label>
+
+      <div class="row2">
+        <div class="field">
+          <label>주민등록번호 <span style="font-size:11px;color:#888;font-weight:normal;">(생년월일 자동 반영)</span></label>
           <input type="text" id="tRrn" placeholder="990318-1234567" maxlength="14" oninput="fmtRrn(this)">
         </div>
-        <div class="field" style="flex:1;">
+        <div class="field">
           <label>입사일</label>
           <input type="date" id="tHireDate">
         </div>
       </div>
+
       <div class="field">
         <label>담당 치료 영역</label>
         <div class="check-group" id="tAreaGroup">
@@ -308,6 +325,7 @@
           <label><input type="checkbox" value="학습인지"><span>학습인지</span></label>
         </div>
       </div>
+
       <div class="field">
         <label>근무 요일</label>
         <div class="check-group" id="tDayGroup">
@@ -319,43 +337,65 @@
           <label><input type="checkbox" value="토"><span>토</span></label>
         </div>
       </div>
-      <div style="display:flex;gap:10px;">
-        <div class="field" style="flex:1;">
-          <label>연락처</label>
-          <input type="tel" id="tPhone" placeholder="010-0000-0000">
-        </div>
-        <div class="field" style="flex:1;">
-          <label>세션급여단가 (원)</label>
+
+      <div class="row2">
+        <div class="field">
+          <label>💰 현재 세션급여단가 (원)</label>
           <input type="number" id="tRate" placeholder="예: 40000">
         </div>
-      </div>
-      <div style="display:flex;gap:10px;">
-        <div class="field" style="flex:1;">
-          <label>매출단가 (원) <span style="font-size:11px;color:#1565c0;font-weight:normal;">→ 방/치 치료단가 자동 적용</span></label>
-          <input type="number" id="tSalesPrice" placeholder="예: 62000">
+        <div class="field">
+          <label>적용 시작일</label>
+          <input type="date" id="tRateEffectiveDate">
         </div>
       </div>
-      <div style="display:flex;gap:10px;">
-        <div class="field" style="flex:1;">
-          <label>퇴사 예정일 <span style="font-size:11px;color:#e57373;font-weight:normal;">(해당 시 기록)</span></label>
+
+      <div class="field" style="background:#fffbea;border:1px solid #ffd54f;border-radius:8px;padding:10px 12px;">
+        <label style="color:#e65100;">📌 단가 변경 등록 <span style="font-size:11px;color:#888;font-weight:normal;">(재계약·인상 시 사용 · 등록 시 위 현재단가에 자동 반영)</span></label>
+        <div class="row2" style="gap:8px;align-items:end;">
+          <div>
+            <div style="font-size:11px;color:#555;margin-bottom:3px;">새 세션단가 (원)</div>
+            <input type="number" id="tNewRate" placeholder="예: 33000">
+          </div>
+          <div>
+            <div style="font-size:11px;color:#555;margin-bottom:3px;">적용 시작일</div>
+            <input type="date" id="tNewRateEff">
+          </div>
+        </div>
+        <button type="button" onclick="_applyNewRate()" style="margin-top:8px;width:100%;padding:8px;background:#e65100;color:white;border:none;border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">➕ 단가 변경 반영 (현재 단가 자동 이력화)</button>
+      </div>
+
+      <div class="field" id="tRateHistoryBox" style="display:none;">
+        <label>📊 과거 세션단가 이력 <span style="font-size:11px;color:#888;font-weight:normal;">(자동 기록)</span></label>
+        <div id="tRateHistoryList" style="background:#fafafa;border:1px solid #e0e0e0;border-radius:6px;padding:8px 10px;font-size:12px;"></div>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label>매출단가 (원) <span style="font-size:11px;color:#1565c0;font-weight:normal;">→ 방/치 자동적용</span></label>
+          <input type="number" id="tSalesPrice" placeholder="예: 62000">
+        </div>
+        <div class="field">
+          <label>퇴사 예정일 <span style="font-size:11px;color:#e57373;font-weight:normal;">(해당 시)</span></label>
           <input type="date" id="tResignDate" style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:5px;font-size:13px;box-sizing:border-box;">
         </div>
       </div>
+
       <div class="field">
         <label>자격 · 면허 (최대 3개)</label>
-        <div style="display:flex;gap:6px;margin-bottom:4px;">
-          <input type="text" id="tLicName1" placeholder="자격명 1 (예: 언어재활사 2급)" style="flex:1.4;">
-          <input type="text" id="tLicNo1" placeholder="면허번호 1" style="flex:1;">
+        <div class="row2" style="gap:6px;margin-bottom:4px;">
+          <input type="text" id="tLicName1" placeholder="자격명 1 (예: 언어재활사 2급)">
+          <input type="text" id="tLicNo1" placeholder="면허번호 1">
         </div>
-        <div style="display:flex;gap:6px;margin-bottom:4px;">
-          <input type="text" id="tLicName2" placeholder="자격명 2" style="flex:1.4;">
-          <input type="text" id="tLicNo2" placeholder="면허번호 2" style="flex:1;">
+        <div class="row2" style="gap:6px;margin-bottom:4px;">
+          <input type="text" id="tLicName2" placeholder="자격명 2">
+          <input type="text" id="tLicNo2" placeholder="면허번호 2">
         </div>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="tLicName3" placeholder="자격명 3" style="flex:1.4;">
-          <input type="text" id="tLicNo3" placeholder="면허번호 3" style="flex:1;">
+        <div class="row2" style="gap:6px;">
+          <input type="text" id="tLicName3" placeholder="자격명 3">
+          <input type="text" id="tLicNo3" placeholder="면허번호 3">
         </div>
       </div>
+
       <div class="field">
         <label>메모</label>
         <textarea id="tNote" rows="2" placeholder="경력, 기타 특이사항 등"></textarea>
@@ -815,9 +855,14 @@
       document.getElementById('tHireDate').value = '';
       document.getElementById('tPhone').value = '';
       document.getElementById('tRate').value = '';
+      document.getElementById('tRateEffectiveDate').value = '';
       document.getElementById('tSalesPrice').value = '';
       document.getElementById('tResignDate').value = '';
       document.getElementById('tNote').value = '';
+      document.getElementById('tRateHistoryBox').style.display = 'none';
+      document.getElementById('tRateHistoryList').innerHTML = '';
+      document.getElementById('tNewRate').value = '';
+      document.getElementById('tNewRateEff').value = '';
       for (let i=1; i<=3; i++) {
         document.getElementById('tLicName'+i).value = '';
         document.getElementById('tLicNo'+i).value = '';
@@ -838,9 +883,27 @@
       document.getElementById('tHireDate').value = t.hireDate || '';
       document.getElementById('tPhone').value = t.phone || '';
       document.getElementById('tRate').value = t.rate || '';
+      document.getElementById('tRateEffectiveDate').value = t.rateEffectiveDate || '';
       document.getElementById('tSalesPrice').value = t.salesPrice || '';
       document.getElementById('tResignDate').value = t.resignDate || '';
       document.getElementById('tNote').value = t.note || '';
+      // 세션단가 이력 렌더
+      const hist = (t.rateHistory || []).slice().sort((a,b) => (b.effectiveDate||'').localeCompare(a.effectiveDate||''));
+      const box = document.getElementById('tRateHistoryBox');
+      const listEl = document.getElementById('tRateHistoryList');
+      if (hist.length) {
+        box.style.display = '';
+        listEl.innerHTML = hist.map(h => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 4px;border-bottom:1px dashed #e0e0e0;">
+            <span>${h.effectiveDate ? h.effectiveDate + ' 부터' : '적용일 미상'}</span>
+            <span style="font-weight:bold;color:#333;">${(h.rate||0).toLocaleString()}원</span>
+          </div>`).join('') + `<div style="font-size:11px;color:#888;margin-top:6px;text-align:right;">현재 단가 변경 시 자동으로 이력에 추가됩니다.</div>`;
+      } else {
+        box.style.display = 'none';
+        listEl.innerHTML = '';
+      }
+      document.getElementById('tNewRate').value = '';
+      document.getElementById('tNewRateEff').value = '';
       // 자격·면허 3개 슬롯 불러오기
       const licenses = t.licenses || [];
       for (let i=1; i<=3; i++) {
@@ -881,6 +944,21 @@
         return `${century+yy}-${m[2]}-${m[3]}`;
       }
       const existing = editingId ? getTherapists().find(t=>t.id===editingId) : null;
+      const newRate = parseInt(document.getElementById('tRate').value) || 0;
+      const newRateEff = document.getElementById('tRateEffectiveDate').value || '';
+      // 단가 변경 시 이전 단가를 이력에 자동 편입
+      const rateHistory = (existing?.rateHistory || []).slice();
+      if (existing && existing.rate && existing.rate !== newRate) {
+        // 중복 방지 (기존 이력에 같은 (rate, effectiveDate) 조합 없을 때만)
+        const dup = rateHistory.find(h => h.rate === existing.rate && (h.effectiveDate||'') === (existing.rateEffectiveDate||''));
+        if (!dup) {
+          rateHistory.push({
+            rate: existing.rate,
+            effectiveDate: existing.rateEffectiveDate || '',
+            archivedAt: new Date().toISOString(),
+          });
+        }
+      }
       const record = {
         // 기존 값 보존 (loginId, passwordHash, initPassword 등 로그인 관련)
         ...(existing || {}),
@@ -890,7 +968,9 @@
         hireDate,
         birth: birthFromRrn(rrn) || existing?.birth || '',
         phone: document.getElementById('tPhone').value.trim(),
-        rate:       parseInt(document.getElementById('tRate').value) || 0,
+        rate: newRate,
+        rateEffectiveDate: newRateEff,
+        rateHistory,
         salesPrice:  parseInt(document.getElementById('tSalesPrice').value) || 0,
         resignDate:  document.getElementById('tResignDate').value || '',
         licenses,
@@ -911,6 +991,42 @@
       renderCards();
     }
 
+    // 재계약·인상 시 새 단가 반영 (현재 단가는 자동으로 이력화)
+    function _applyNewRate() {
+      const newRate = parseInt(document.getElementById('tNewRate').value) || 0;
+      const newEff = document.getElementById('tNewRateEff').value || '';
+      if (!newRate) { alert('새 세션단가를 입력해주세요.'); return; }
+      if (!newEff) { alert('적용 시작일을 입력해주세요.'); return; }
+      const curRate = parseInt(document.getElementById('tRate').value) || 0;
+      const curEff = document.getElementById('tRateEffectiveDate').value || '';
+      if (curRate && curRate === newRate) { alert('현재 단가와 동일합니다.'); return; }
+      // 현재 단가를 위 필드에 새 값으로 갱신 (saveTherapist 시 자동으로 이력에 편입됨)
+      document.getElementById('tRate').value = newRate;
+      document.getElementById('tRateEffectiveDate').value = newEff;
+      // 편집 중인 치료사의 경우 즉시 이력 미리보기 갱신
+      if (editingId) {
+        const arr = getTherapists();
+        const t = arr.find(x => x.id === editingId);
+        if (t && curRate) {
+          const hist = t.rateHistory ? t.rateHistory.slice() : [];
+          const dup = hist.find(h => h.rate === curRate && (h.effectiveDate||'') === curEff);
+          if (!dup) hist.push({ rate: curRate, effectiveDate: curEff, archivedAt: new Date().toISOString() });
+          const sorted = hist.slice().sort((a,b) => (b.effectiveDate||'').localeCompare(a.effectiveDate||''));
+          const box = document.getElementById('tRateHistoryBox');
+          const listEl = document.getElementById('tRateHistoryList');
+          box.style.display = '';
+          listEl.innerHTML = sorted.map(h => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 4px;border-bottom:1px dashed #e0e0e0;">
+              <span>${h.effectiveDate ? h.effectiveDate + ' 부터' : '적용일 미상'}</span>
+              <span style="font-weight:bold;color:#333;">${(h.rate||0).toLocaleString()}원</span>
+            </div>`).join('') + `<div style="font-size:11px;color:#888;margin-top:6px;text-align:right;">💾 저장 클릭 시 최종 반영됩니다.</div>`;
+        }
+      }
+      document.getElementById('tNewRate').value = '';
+      document.getElementById('tNewRateEff').value = '';
+      alert('✅ 현재 세션단가 필드에 반영되었습니다.\n[저장] 버튼을 눌러 최종 확정하세요.');
+    }
+
     function closeModal() { document.getElementById('modalBg').classList.remove('open'); }
 
     // ===== 치료사 서류 (이력서·등본·통장사본) — Supabase Storage =====
@@ -919,6 +1035,8 @@
       resume:   { label: '이력서',    icon: '📄', color: '#1565c0', bg: '#e3f2fd', accept: '.pdf,.jpg,.jpeg,.png,.hwp,.hwpx,.doc,.docx' },
       census:   { label: '주민등록등본', icon: '🏠', color: '#2e7d32', bg: '#e8f5e9', accept: '.pdf,.jpg,.jpeg,.png' },
       bankbook: { label: '통장사본',   icon: '🏦', color: '#e65100', bg: '#fff3e0', accept: '.pdf,.jpg,.jpeg,.png' },
+      degree:   { label: '학위증 (학부·석사·박사)', icon: '🎓', color: '#6a1b9a', bg: '#f3e5f5', accept: '.pdf,.jpg,.jpeg,.png' },
+      license:  { label: '자격증', icon: '🏅', color: '#00695c', bg: '#e0f2f1', accept: '.pdf,.jpg,.jpeg,.png', maxCount: 5 },
     };
 
     function escapeHtmlT(s){ return String(s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
@@ -955,15 +1073,22 @@
             </div>`;
           }).join('');
         }
-        return `<div style="margin-bottom:18px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <h4 style="margin:0;color:${meta.color};">${meta.icon} ${meta.label} (${list.length})</h4>
-            <label style="padding:5px 10px;background:${meta.bg};color:${meta.color};border:1px solid ${meta.color};border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">
+        const countLabel = meta.maxCount ? `${list.length}/${meta.maxCount}` : `${list.length}`;
+        const atLimit = meta.maxCount && list.length >= meta.maxCount;
+        const uploadBtn = atLimit
+          ? `<span style="padding:5px 10px;background:#e0e0e0;color:#888;border-radius:5px;font-size:12px;font-weight:bold;">최대 ${meta.maxCount}개 도달</span>`
+          : `<label style="padding:5px 10px;background:${meta.bg};color:${meta.color};border:1px solid ${meta.color};border-radius:5px;font-size:12px;font-weight:bold;cursor:pointer;">
               📤 업로드
               <input type="file" accept="${meta.accept}" style="display:none;" onchange="_uploadTDoc('${therapistId}','${cat}',this.files[0])">
-            </label>
+            </label>`;
+        const dropHint = atLimit ? '' : `<div class="_dropHint" style="display:none;padding:20px;text-align:center;background:${meta.bg};border:2px dashed ${meta.color};border-radius:8px;color:${meta.color};font-size:13px;font-weight:bold;margin-top:6px;">📥 여기에 파일을 놓으세요</div>`;
+        return `<div class="_dropZone" data-cat="${cat}" data-tid="${therapistId}" data-limit="${atLimit?1:0}" style="margin-bottom:18px;padding:6px;border-radius:8px;transition:background .12s;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <h4 style="margin:0;color:${meta.color};">${meta.icon} ${meta.label} (${countLabel})</h4>
+            ${uploadBtn}
           </div>
           ${rows}
+          ${dropHint}
         </div>`;
       }).join('');
 
@@ -979,11 +1104,43 @@
           </div>
         </div>`;
       document.body.appendChild(modal);
+      // 드래그 앤 드롭 바인딩
+      modal.querySelectorAll('._dropZone').forEach(zone => {
+        const cat = zone.dataset.cat;
+        const tid = zone.dataset.tid;
+        const isLimit = zone.dataset.limit === '1';
+        const hint = zone.querySelector('._dropHint');
+        const setActive = on => {
+          if (isLimit) return;
+          zone.style.background = on ? '#f5f9f0' : '';
+          if (hint) hint.style.display = on ? '' : 'none';
+        };
+        zone.addEventListener('dragover', e => { e.preventDefault(); setActive(true); });
+        zone.addEventListener('dragenter', e => { e.preventDefault(); setActive(true); });
+        zone.addEventListener('dragleave', e => {
+          if (e.target === zone) setActive(false);
+        });
+        zone.addEventListener('drop', e => {
+          e.preventDefault(); setActive(false);
+          if (isLimit) { alert(`${T_DOC_META[cat]?.label}는 최대 ${T_DOC_META[cat].maxCount}개까지 등록 가능합니다.`); return; }
+          const file = e.dataTransfer?.files?.[0];
+          if (file) _uploadTDoc(tid, cat, file);
+        });
+      });
+      // 모달 전체 드롭 시 브라우저 기본 동작(파일 열기) 방지
+      modal.addEventListener('dragover', e => e.preventDefault());
+      modal.addEventListener('drop', e => e.preventDefault());
     }
 
     async function _uploadTDoc(therapistId, category, file) {
       if (!file) return;
       if (file.size > 20*1024*1024) { alert('파일 크기가 20MB 를 초과합니다.'); return; }
+      const meta = T_DOC_META[category];
+      if (meta?.maxCount) {
+        const t0 = getTherapists().find(x => x.id === therapistId);
+        const cur = (t0?.documents?.[category] || []).length;
+        if (cur >= meta.maxCount) { alert(`${meta.label}는 최대 ${meta.maxCount}개까지 등록 가능합니다.`); return; }
+      }
       const prog = document.getElementById('_tDocsProgress');
       if (prog) { prog.style.display='block'; prog.textContent='⏳ 업로드 중...'; }
       try {
