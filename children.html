@@ -364,6 +364,45 @@
       }
     } catch(e) { console.warn('therapies dedup migration failed', e); }
 
+    // 아동 status 자동 복구: c.status='대기중' 인데 실제 활성 therapy 있으면 치료중으로
+    // (payments 편집 팝업의 과거 버그 잔재 정리)
+    try {
+      if (!localStorage.getItem('_child_status_repair_v1')) {
+        const cs = JSON.parse(localStorage.getItem('children')||'[]');
+        let repaired = 0;
+        cs.forEach(c => {
+          if (c.status !== '대기중') return;
+          // 활성 therapy 판정: 종결 아님 · cycle 또는 timeSlot 값 있음
+          const hasActive = (c.therapies||[]).some(t => {
+            const ended = t.centerEndDate || t.banchiEndDate || t.extraEndDate;
+            if (ended && String(ended).slice(0,10) <= new Date().toISOString().slice(0,10)) return false;
+            const hasSchedule = (t.cycle||'').trim() || (t.timeSlot||'').trim();
+            return hasSchedule;
+          });
+          if (hasActive) {
+            c.status = '치료중';
+            c.phase = 'active';
+            delete c.endDate;
+            // 스케줄 없는 therapy 는 개별 pending 마킹 (이전에 대기 처리했던 항목 복원)
+            (c.therapies||[]).forEach(t => {
+              const ended = t.centerEndDate || t.banchiEndDate || t.extraEndDate;
+              if (ended) return;
+              const hasSchedule = (t.cycle||'').trim() || (t.timeSlot||'').trim();
+              if (!hasSchedule && (t.therapist||'').trim()) t.pending = true;
+            });
+            c.updatedAt = new Date().toISOString();
+            repaired++;
+          }
+        });
+        if (repaired) {
+          localStorage.setItem('children', JSON.stringify(cs));
+          console.log(`[status repair v1] ${repaired}명 아동 status 복구 · 활성 therapy 유지 + partial therapy 는 개별 pending 마킹`);
+          if (window.Supa && window.Supa.pushKey) window.Supa.pushKey('children').catch(()=>{});
+        }
+        localStorage.setItem('_child_status_repair_v1','1');
+      }
+    } catch(e) { console.warn('child status repair failed', e); }
+
     // 기존 children 에 phase 필드 없으면 'active' 로 간주하는 헬퍼
     function _getPhase(c) { return c.phase || 'active'; }
 
