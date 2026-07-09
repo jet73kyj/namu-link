@@ -689,9 +689,12 @@ function _prefillStatusFromVoucher() {
     }));
   } catch(e) { return []; }
 }
-const _prefilledRows = _prefillStatusFromVoucher();
+const _prefilledRaw = _prefillStatusFromVoucher();
 // 서비스 제공일자는 공란 유지 (사용자 요청)
-_prefilledRows.forEach(r => { if (r) r.provDate = ''; });
+_prefilledRaw.forEach(r => { if (r) r.provDate = ''; });
+// 결과기록지는 항상 4행 (부족하면 빈 행 채움, 넘치면 앞 4개만)
+const _prefilledRows = _prefilledRaw.slice(0, 4);
+while (_prefilledRows.length < 4) _prefilledRows.push({});
 buildStatusRows(_prefilledRows);
 // 바우처에 담당치료사 정보가 있으면 각 세션의 담당재활사 자동 채움 (1~4행)
 if (_prefilledRows.length) {
