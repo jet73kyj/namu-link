@@ -396,10 +396,12 @@
     // 유니코드 불가시 문자 제거 (안전한 \u 이스케이프만 사용)
     // NBSP · ZWSP · ZWNJ · ZWJ · LSEP · PSEP · NNBSP · MMSP · ideographic space · BOM
     function _cleanUnicode(s) {
-      return String(s||'')
-        .replace(/[ ​‌‍    　﻿]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+        // regex 리터럴에 U+2028/2029 를 못 넣으므로 charCode 필터 사용
+        const INVIS = { 160:1, 8203:1, 8204:1, 8205:1, 8232:1, 8233:1, 8239:1, 8287:1, 12288:1, 65279:1 };
+        let out = "";
+        const str = String(s||"");
+        for (let i=0;i<str.length;i++) { out += INVIS[str.charCodeAt(i)] ? " " : str[i]; }
+        return out.replace(/\s+/g, " ").trim();
     }
     // 아동의 therapies 스마트 dedup (2단계)
     // 1차: (support+therapist) 완전 일치로 병합
