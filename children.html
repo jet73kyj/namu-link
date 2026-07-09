@@ -227,6 +227,23 @@
       return `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
     }
 
+    // 지원유형 정규화 - 저장 시점 통일용 (payments·therapies 모두)
+    // 표시상 같은 카테고리인데 문자열이 미묘하게 다른 케이스를 하나로 통일
+    function normSupport(s) {
+      const v = String(s||'').trim();
+      if (!v) return '';
+      // 방과후활동/방과후활동비/방과후 활동비 → 방과후활동비
+      if (v === '방' || v === '방과후활동' || v === '방과후 활동비' || v === '방과후활동비지원') return '방과후활동비';
+      if (v === '센터') return '센터비용';
+      if (v === '치작') return '치료지원 작업치료';
+      if (v === '치언') return '치료지원 언어영역';
+      if (v === '방치작') return '방과후 치료지원 작업치료';
+      if (v === '방치언') return '방과후 치료지원 언어영역';
+      return v;
+    }
+    // 매칭용 정규화 - inference 비교 등에서 사용 (normSupport 와 동일하지만 이름으로 의도 명확화)
+    function normSupportForMatch(s) { return normSupport(s); }
+
     function abbrevSupport(s) {
       if (!s) return '-';
       if (s === '발달재활서비스') return '발달재활서비스';
@@ -859,7 +876,8 @@
         const therapies = c.therapies||[];
 
         // 납부이력에서 감지된 지원유형 중 therapies 에 없는 것 추론
-        const existingSupports = new Set(therapies.map(t => (t.support||'').trim()).filter(Boolean));
+        // 지원유형 값이 미묘하게 달라도 (방과후활동 vs 방과후활동비) 같은 카테고리로 취급
+        const existingSupports = new Set(therapies.map(t => normSupportForMatch(t.support)).filter(Boolean));
         const paymentsForChild = payments.filter(p => p.childId === c.id);
         // 지원유형·담당·요일·시간·본인부담금 유형 모두 공란이면 카드 자체를 숨김
         // (신규상담 phase='intake' 카드는 위에서 이미 별도 렌더 · 대상 아님)
@@ -875,9 +893,10 @@
         paymentsForChild.forEach(p => {
           const sup = (p.support||'').trim();
           if (!sup || sup.startsWith('평가') || sup === '1회성 수업') return;   // 첫방문 결제는 별도
-          if (existingSupports.has(sup) || seenInferred.has(sup)) return;
-          seenInferred.add(sup);
-          inferredSupports.push(sup);
+          const normed = normSupportForMatch(sup);
+          if (existingSupports.has(normed) || seenInferred.has(normed)) return;
+          seenInferred.add(normed);
+          inferredSupports.push(normed);
         });
 
         // 지원유형별 rows
