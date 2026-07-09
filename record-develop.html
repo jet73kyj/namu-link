@@ -307,26 +307,42 @@ if (child) {
   else if (_baseTherapyForCost && (parseInt(_baseTherapyForCost.fee)||0) > 0) _selfCost = parseInt(_baseTherapyForCost.fee);
   else if (child.feeType && _FT_AMT[child.feeType] !== undefined) _selfCost = _FT_AMT[child.feeType];
   if (_selfCost > 0) document.getElementById('s1_costSelf').value = _selfCost.toLocaleString() + '원';
-  // 작성일자 = 전월 마지막 주 (발본 수업 요일) 자동 계산
-  // cycle 이 "매주 목", "매주 월,수", "목요일" 등 어떤 형태여도
-  // 문자열에서 첫 요일 문자만 추출해서 사용
-  const _therapyForCycle = (child.therapies||[]).find(t => t.support === '발달재활서비스');
-  if (_therapyForCycle && _therapyForCycle.cycle) {
-    const _dayMap = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
-    const _dayChar = String(_therapyForCycle.cycle||'').match(/[일월화수목금토]/);
-    const targetDow = _dayChar ? _dayMap[_dayChar[0]] : undefined;
-    if (targetDow !== undefined) {
-      // 전월 계산 (1월이면 전년 12월)
-      let prevY = year, prevM = month - 1;
-      if (prevM < 1) { prevM = 12; prevY--; }
-      const lastDay = new Date(prevY, prevM, 0).getDate();
-      let lastMatchDay = 0;
-      for (let d = lastDay; d >= 1; d--) {
-        if (new Date(prevY, prevM-1, d).getDay() === targetDow) { lastMatchDay = d; break; }
-      }
-      if (lastMatchDay) {
-        document.getElementById('s1_writeDate').value = `${prevY}.${prevM}.${lastMatchDay}`;
-      }
+  // 작성일자 = 전월 마지막 주 (발본 납부현황에 기재된 수업 요일) 자동 계산
+  // 우선순위:
+  //   1) 발본 payments (support='발달재활서비스') 의 cycle
+  //   2) therapies (support='발달재활서비스') 의 cycle (백업)
+  const _dayMap = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
+  function _extractDow(txt) {
+    const m = String(txt||'').match(/[일월화수목금토]/);
+    return m ? _dayMap[m[0]] : undefined;
+  }
+  // 발본 납부현황에서 해당 아동의 발달재활 결제 중 최신 cycle 값 찾기
+  const _allPays = JSON.parse(localStorage.getItem('payments')||'[]');
+  const _mkNow = `${year}-${String(month).padStart(2,'0')}`;
+  const _bonPays = _allPays.filter(p =>
+    p.support === '발달재활서비스' &&
+    (p.childId === child.id || (child.name && (p.childName||'').trim() === (child.name||'').trim()))
+  );
+  // 현재 월 우선 → 이후 이전 월 최신순
+  _bonPays.sort((a,b) => (b.monthKey||'').localeCompare(a.monthKey||''));
+  const _sameMonth = _bonPays.find(p => p.monthKey === _mkNow);
+  const _cycleSource = _sameMonth || _bonPays.find(p => (p.cycle||'').trim()) || null;
+  let targetDow = _cycleSource ? _extractDow(_cycleSource.cycle) : undefined;
+  // 백업: therapies 의 cycle
+  if (targetDow === undefined) {
+    const _therapyForCycle = (child.therapies||[]).find(t => t.support === '발달재활서비스');
+    if (_therapyForCycle) targetDow = _extractDow(_therapyForCycle.cycle);
+  }
+  if (targetDow !== undefined) {
+    let prevY = year, prevM = month - 1;
+    if (prevM < 1) { prevM = 12; prevY--; }
+    const lastDay = new Date(prevY, prevM, 0).getDate();
+    let lastMatchDay = 0;
+    for (let d = lastDay; d >= 1; d--) {
+      if (new Date(prevY, prevM-1, d).getDay() === targetDow) { lastMatchDay = d; break; }
+    }
+    if (lastMatchDay) {
+      document.getElementById('s1_writeDate').value = `${prevY}.${prevM}.${lastMatchDay}`;
     }
   }
   const therapy = (child.therapies||[]).find(t => t.support === '발달재활서비스');
