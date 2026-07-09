@@ -1016,11 +1016,16 @@
           const isOriginalEnded = !!originalEndedDate;
           const endedMark = (d) => `<span style="display:inline-block;background:#757575;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="${d} 종결">종결</span>`;
 
-          const origRow = `<tr style="${isOriginalEnded ? 'opacity:0.55;' : ''}">
-            <td>${supportBadge(t.support)}${isOriginalEnded ? endedMark(originalEndedDate) : ''}</td>
+          // 대기중 판정: 종결 아님 · 요일·시간 모두 빈 값 · 담당자 배정됨
+          const isPending = !isOriginalEnded && !(t.cycle||'').trim() && !(t.timeSlot||'').trim() && (t.therapist||'').trim();
+          const pendingMark = isPending
+            ? `<span style="display:inline-block;background:#fb8c00;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="담당 배정 · 요일·시간 미정">대기</span>`
+            : '';
+          const origRow = `<tr style="${isOriginalEnded ? 'opacity:0.55;' : (isPending ? 'background:#fff8e1;' : '')}">
+            <td>${supportBadge(t.support)}${isOriginalEnded ? endedMark(originalEndedDate) : pendingMark}</td>
             <td>${t.therapist||c.therapist||'-'}</td>
-            <td>${fmtCycle(t.cycle)}</td>
-            <td>${t.timeSlot||'-'}</td>
+            <td>${isPending ? '<span style="color:#e65100;">미정</span>' : fmtCycle(t.cycle)}</td>
+            <td>${isPending ? '<span style="color:#e65100;">미정</span>' : (t.timeSlot||'-')}</td>
             ${extraCols}
           </tr>`;
 
