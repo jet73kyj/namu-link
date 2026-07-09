@@ -988,38 +988,51 @@
           inferredSupports.push(normed);
         });
 
-        // 지원유형별 rows
-        const rows = therapies.map(t=>{
+        // 지원유형별 rows (인수인계 있으면 2개 행으로 분리: 전임 종결 + 후임 현행)
+        const _today = new Date().toISOString().slice(0,10);
+        const rows = therapies.flatMap(t=>{
           const isBandal  = t.support===BANDAL_SUPPORT;
-          const isCenter  = t.support===CENTER_SUPPORT;
-          const isBanchi  = BANCHI_SUPPORTS.includes(t.support);
+          const buildExtraCols = () => {
+            if (isBandal) {
+              const ftLabel = c.feeType ? `<span class="fee-type-badge">${FEE_TYPE_LABEL[c.feeType]||c.feeType}</span>` : '<span style="color:#bbb;font-size:11px;">-</span>';
+              return `<td style="text-align:left;">${ftLabel}</td>`;
+            }
+            return `<td style="color:#ddd;font-size:11px;">-</td>`;
+          };
+          const extraCols = buildExtraCols();
 
-          let extraCols = '';
+          // 인수인계 판정: handoff.date 가 오늘 이전이면 후임에게 인수됨
+          const handoff = t.handoff;
+          const handoffActive = handoff && handoff.date && String(handoff.date).slice(0,10) <= _today && handoff.therapist;
 
-          if (isBandal) {
-            const ftLabel = c.feeType ? `<span class="fee-type-badge">${FEE_TYPE_LABEL[c.feeType]||c.feeType}</span>` : '<span style="color:#bbb;font-size:11px;">-</span>';
-            extraCols = `<td style="text-align:left;">${ftLabel}</td>`;
-          } else {
-            extraCols = `<td style="color:#ddd;font-size:11px;">-</td>`;
-          }
-
-          // therapy 종결 여부: centerEndDate/banchiEndDate/extraEndDate 중 하나가 오늘 이전이면 종결
-          const _today = new Date().toISOString().slice(0,10);
-          const endedDate = [t.centerEndDate, t.banchiEndDate, t.extraEndDate]
+          // therapy 종결 여부: endDate 계열이 오늘 이전이면 종결
+          const rawEndedDate = [t.centerEndDate, t.banchiEndDate, t.extraEndDate]
             .filter(d => d && String(d).slice(0,10) <= _today)
             .sort()[0];
-          const isEnded = !!endedDate;
-          const endedMark = isEnded
-            ? `<span style="display:inline-block;background:#757575;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="${endedDate} 종결">종결</span>`
-            : '';
-          const rowOpacity = isEnded ? 'opacity:0.55;' : '';
-          return `<tr style="${rowOpacity}">
-            <td>${supportBadge(t.support)}${endedMark}</td>
+          // 인수인계도 전임 세션의 '종결' 로 취급 (endDate = handoff.date)
+          const originalEndedDate = rawEndedDate || (handoffActive ? handoff.date : null);
+          const isOriginalEnded = !!originalEndedDate;
+          const endedMark = (d) => `<span style="display:inline-block;background:#757575;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="${d} 종결">종결</span>`;
+
+          const origRow = `<tr style="${isOriginalEnded ? 'opacity:0.55;' : ''}">
+            <td>${supportBadge(t.support)}${isOriginalEnded ? endedMark(originalEndedDate) : ''}</td>
             <td>${t.therapist||c.therapist||'-'}</td>
             <td>${fmtCycle(t.cycle)}</td>
             <td>${t.timeSlot||'-'}</td>
             ${extraCols}
           </tr>`;
+
+          if (!handoffActive) return [origRow];
+
+          // 후임 행: handoff 정보로 대체된 필드
+          const successorRow = `<tr style="background:#f5f9ff;">
+            <td>${supportBadge(t.support)} <span style="display:inline-block;background:#1565c0;color:white;font-size:9px;border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:bold;vertical-align:middle;" title="${handoff.date} 인수인계">인수</span></td>
+            <td><b>${handoff.therapist}</b><br><span style="font-size:10px;color:#888;">${t.therapist||'-'} 인수</span></td>
+            <td>${fmtCycle(handoff.cycle || t.cycle)}</td>
+            <td>${handoff.timeSlot || t.timeSlot || '-'}</td>
+            ${extraCols}
+          </tr>`;
+          return [origRow, successorRow];
         }).join('');
 
         // 추론된 지원유형 행 추가 (요일/시간 정보 없음 표시)
