@@ -140,16 +140,28 @@
     const rows = [];
     Object.keys(localStorage).forEach(k => {
       let kind = null;
-      if (k.startsWith('child_docs_'))         { kind = 'docs';         }
-      else if (k.startsWith('child_timeline_')) { kind = 'timeline';     }
-      else if (k.startsWith('child_parent_memos_')) { kind = 'parent_memos'; }
-      if (!kind) return;
-      const childId = k.replace(/^child_(docs|timeline|parent_memos)_/, '');
+      let childId = null;
+      let subKey = '';   // 같은 아동/카테고리 안에서 여러 레코드 구분자 (예: year-month, category)
+      if (k.startsWith('child_docs_'))              { kind = 'docs';         childId = k.replace(/^child_docs_/, ''); }
+      else if (k.startsWith('child_timeline_'))     { kind = 'timeline';     childId = k.replace(/^child_timeline_/, ''); }
+      else if (k.startsWith('child_parent_memos_')) { kind = 'parent_memos'; childId = k.replace(/^child_parent_memos_/, ''); }
+      else if (k.startsWith('record_develop_')) {
+        // record_develop_{childId}_{YYYY}_{MM}
+        const m = k.match(/^record_develop_(.+)_(\d{4})_(\d{2})$/);
+        if (m) { kind = 'record_develop'; childId = m[1]; subKey = `${m[2]}-${m[3]}`; }
+      }
+      else if (k.startsWith('record_form_')) {
+        // record_form_{childId}_{YYYY}_{MM}_{category}
+        const m = k.match(/^record_form_(.+?)_(\d{4})_(\d{2})_(.+)$/);
+        if (m) { kind = 'record_form'; childId = m[1]; subKey = `${m[2]}-${m[3]}::${m[4]}`; }
+      }
+      if (!kind || !childId) return;
       let value;
-      try { value = JSON.parse(localStorage.getItem(k)||'[]'); } catch(e) { return; }
+      try { value = JSON.parse(localStorage.getItem(k)||'null'); } catch(e) { return; }
+      const id = subKey ? `${childId}::${kind}::${subKey}` : `${childId}::${kind}`;
       rows.push({
-        id: `${childId}::${kind}`,
-        data: { child_id: childId, kind, value },
+        id,
+        data: { child_id: childId, kind, sub_key: subKey || null, ls_key: k, value },
         updated_at: new Date().toISOString(),
       });
     });
@@ -179,7 +191,20 @@
     let count = 0;
     all.forEach(d => {
       if (!d || !d.child_id || !d.kind) return;
-      const key = `child_${d.kind}_${d.child_id}`;
+      // 저장 시 사용한 원본 localStorage 키가 있으면 그대로 사용, 없으면 구식 매핑
+      let key = d.ls_key || null;
+      if (!key) {
+        if (d.kind === 'docs' || d.kind === 'timeline' || d.kind === 'parent_memos') {
+          key = `child_${d.kind}_${d.child_id}`;
+        } else if (d.kind === 'record_develop' && d.sub_key) {
+          const [ym] = d.sub_key.split('::');
+          if (/^\d{4}-\d{2}$/.test(ym||'')) key = `record_develop_${d.child_id}_${ym.slice(0,4)}_${ym.slice(5,7)}`;
+        } else if (d.kind === 'record_form' && d.sub_key) {
+          const [ym, cat] = d.sub_key.split('::');
+          if (/^\d{4}-\d{2}$/.test(ym||'') && cat) key = `record_form_${d.child_id}_${ym.slice(0,4)}_${ym.slice(5,7)}_${cat}`;
+        }
+      }
+      if (!key) return;
       localStorage.setItem(key, JSON.stringify(d.value));
       count++;
     });

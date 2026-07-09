@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>치료지원 기록지</title>
 <link rel="stylesheet" href="css/style.css"><script>if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";</script>
+<script src="js/supabase-client.js"></script>
 <style>
   body { font-family:'Malgun Gothic','맑은 고딕',sans-serif; background:#f5f7fa; margin:0; }
   header { background:#2e7d32; color:white; padding:12px 24px; display:flex; align-items:center; gap:12px; }
@@ -481,5 +482,10 @@ function saveRecord() {
   alert('✅ 저장되었습니다.');
 }
 </script>
+<script>
+  // 치료기록지 자동 동기화 (record_form_* → child_extras)
+  window._supaLiveKeys = ['records'];
+</script>
+<script src="js/supabase-live.js"></script>
 </body>
 </html>

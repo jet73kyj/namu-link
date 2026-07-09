@@ -90,8 +90,9 @@
   const origSet = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function(k, v) {
     origSet(k, v);
-    // 아동별 확장 데이터
-    if (k.startsWith('child_docs_') || k.startsWith('child_timeline_') || k.startsWith('child_parent_memos_')) {
+    // 아동별 확장 데이터 (문서·타임라인·학부모메모·발달재활 결과보고서·치료기록지)
+    if (k.startsWith('child_docs_') || k.startsWith('child_timeline_') || k.startsWith('child_parent_memos_')
+        || k.startsWith('record_develop_') || k.startsWith('record_form_')) {
       schedulePush('__extras__', async () => { await Supa.pushChildExtras(); });
       return;
     }
