@@ -346,7 +346,7 @@
     // therapies 스마트 dedup 마이그레이션 (v1) - 저장 원본 정리
     // 같은 (support+therapist) 는 정보 많은 쪽으로 병합
     try {
-      if (!localStorage.getItem('_therapies_dedup_v4')) {
+      if (!localStorage.getItem('_therapies_dedup_v5')) {
         const cs = JSON.parse(localStorage.getItem('children')||'[]');
         let changed = 0;
         cs.forEach(c => {
@@ -360,7 +360,7 @@
           console.log(`[therapies dedup v1] ${changed}명의 중복 수업 정리`);
           if (window.Supa && window.Supa.pushKey) window.Supa.pushKey('children').catch(()=>{});
         }
-        localStorage.setItem('_therapies_dedup_v4','1');
+        localStorage.setItem('_therapies_dedup_v5','1');
       }
     } catch(e) { console.warn('therapies dedup migration failed', e); }
 
@@ -403,54 +403,56 @@
         for (let i=0;i<str.length;i++) { out += INVIS[str.charCodeAt(i)] ? " " : str[i]; }
         return out.replace(/\s+/g, " ").trim();
     }
-    // 아동의 therapies 스마트 dedup (2단계)
-    // 1차: (support+therapist) 완전 일치로 병합
-    // 2차: 같은 support 안에서 therapist 가 빈 항목을 담당자 있는 항목으로 흡수
-    //      (render 의 t.therapist||c.therapist 폴백으로 화면상 같아 보이는 케이스 대응)
+    // 아동의 therapies 스마트 dedup
+    // 규칙:
+    // 1) '실 정보' (cycle 또는 timeSlot 있음) 는 (support+therapist+cycle+timeSlot) 완전 일치일 때만 병합
+    //    → 주 2회 같은 담당자 (화·금 등) 는 별도 유지
+    // 2) '부분 정보' (cycle·timeSlot 둘 다 빈 항목) 는 같은 (support+therapist) 실 정보에 흡수
+    //    → 부분 정보끼리는 support 만 같아도 흡수 후보 (담당자 매칭 우선)
     function _dedupTherapies(list) {
       if (!Array.isArray(list) || list.length < 2) return list;
-      const map = new Map();
+      const full = [], partial = [];
       list.forEach(t => {
+        const hasInfo = ((t.cycle||'').trim() || (t.timeSlot||'').trim());
+        if (hasInfo) full.push(t); else partial.push(t);
+      });
+
+      // 1) full: 엄격 dedup (support+therapist+cycle+timeSlot)
+      const map = new Map();
+      full.forEach(t => {
         const support = normSupport(t.support);
         const therapist = _cleanUnicode(t.therapist);
-        if (!support && !therapist) { map.set('_empty_' + Math.random(), t); return; }
-        const key = support + '|' + therapist;
+        const cycle = (t.cycle||'').trim();
+        const timeSlot = (t.timeSlot||'').trim();
+        const key = support + '|' + therapist + '|' + cycle + '|' + timeSlot;
         if (!map.has(key)) { map.set(key, { ...t, support }); return; }
         const existing = map.get(key);
-        const scoreT = ((t.cycle||'').trim()?1:0) + ((t.timeSlot||'').trim()?1:0);
-        const scoreE = ((existing.cycle||'').trim()?1:0) + ((existing.timeSlot||'').trim()?1:0);
-        let keeper = existing, other = t;
-        if (scoreT > scoreE) { keeper = { ...t, support }; other = existing; }
-        Object.keys(other).forEach(k => {
-          if (keeper[k] == null || keeper[k] === '') keeper[k] = other[k];
-          if (typeof other[k] === 'number' && typeof keeper[k] === 'number' && other[k] > keeper[k]) keeper[k] = other[k];
+        Object.keys(t).forEach(k => {
+          if (existing[k] == null || existing[k] === '') existing[k] = t[k];
+          if (typeof t[k] === 'number' && typeof existing[k] === 'number' && t[k] > existing[k]) existing[k] = t[k];
         });
-        map.set(key, keeper);
       });
-      const first = [...map.values()];
-      // 2차: 빈 therapist 를 같은 support 담당자 있는 항목으로 흡수
-      const bySupport = new Map();
-      const emptyList = [];
-      first.forEach(t => {
+      const fullArr = [...map.values()];
+
+      // 2) partial 항목 흡수: 같은 support 실 정보 있으면 흡수, 없으면 유지
+      const kept = [];
+      partial.forEach(t => {
         const s = normSupport(t.support);
         const th = _cleanUnicode(t.therapist);
-        if (!th) { emptyList.push(t); return; }
-        if (!bySupport.has(s)) bySupport.set(s, []);
-        bySupport.get(s).push(t);
+        // 담당자 매칭 우선, 없으면 support 만 매칭
+        let target = fullArr.find(c => normSupport(c.support) === s && _cleanUnicode(c.therapist) === th);
+        if (!target) target = fullArr.find(c => normSupport(c.support) === s);
+        if (target) {
+          Object.keys(t).forEach(k => {
+            if (target[k] == null || target[k] === '') target[k] = t[k];
+            if (typeof t[k] === 'number' && typeof target[k] === 'number' && t[k] > target[k]) target[k] = t[k];
+          });
+        } else {
+          kept.push(t);
+        }
       });
-      const absorbed = new Set();
-      emptyList.forEach(t => {
-        const s = normSupport(t.support);
-        const candidates = bySupport.get(s);
-        if (!candidates || !candidates.length) return;
-        const target = candidates.find(c => (c.cycle||'').trim() || (c.timeSlot||'').trim()) || candidates[0];
-        Object.keys(t).forEach(k => {
-          if (target[k] == null || target[k] === '') target[k] = t[k];
-          if (typeof t[k] === 'number' && typeof target[k] === 'number' && t[k] > target[k]) target[k] = t[k];
-        });
-        absorbed.add(t);
-      });
-      return first.filter(t => !absorbed.has(t));
+
+      return [...fullArr, ...kept];
     }
 
     function _generateManagerId(inquiryDate) {
