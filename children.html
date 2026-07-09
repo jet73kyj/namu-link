@@ -227,25 +227,10 @@
       return `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
     }
 
-    // 유니코드 불가시 문자 정규화 (NBSP·ZWSP·BOM·다양한 공백류를 일반 공백으로)
-    //  =NBSP, ​~D=ZWSP/ZWJ,  /29=LSEP/PSEP,  =NNBSP,
-    //  =MMSP, 　=ideographic space, ﻿=BOM
-    function _cleanUnicode(s) {
-      return String(s||'')
-        .replace(/[   -‍    　﻿]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
     // 지원유형 정규화 - 저장 시점 통일용 (payments·therapies 모두)
     // 표시상 같은 카테고리인데 문자열이 미묘하게 다른 케이스를 하나로 통일
     function normSupport(s) {
-      // 유니코드 공백·제로폭·불가시 문자 제거 (NBSP·ZWSP·BOM 등)
-      // 그 뒤에도 여러 공백은 하나로 축약
-      const v = _cleanUnicode(s);
-      /* legacy inline norm - replaced by _cleanUnicode above */ if (false) String('')
-        .replace(/[   -‍﻿　]/g,' ')
-        .replace(/\s+/g,' ')
-        .trim();
+      const v = String(s||'').trim();
       if (!v) return '';
       // 방과후활동/방과후활동비/방과후 활동비 → 방과후활동비
       if (v === '방' || v === '방과후활동' || v === '방과후 활동비' || v === '방과후활동비지원') return '방과후활동비';
@@ -361,7 +346,7 @@
     // therapies 스마트 dedup 마이그레이션 (v1) - 저장 원본 정리
     // 같은 (support+therapist) 는 정보 많은 쪽으로 병합
     try {
-      if (!localStorage.getItem('_therapies_dedup_v3')) {
+      if (!localStorage.getItem('_therapies_dedup_v4')) {
         const cs = JSON.parse(localStorage.getItem('children')||'[]');
         let changed = 0;
         cs.forEach(c => {
@@ -375,7 +360,7 @@
           console.log(`[therapies dedup v1] ${changed}명의 중복 수업 정리`);
           if (window.Supa && window.Supa.pushKey) window.Supa.pushKey('children').catch(()=>{});
         }
-        localStorage.setItem('_therapies_dedup_v3','1');
+        localStorage.setItem('_therapies_dedup_v4','1');
       }
     } catch(e) { console.warn('therapies dedup migration failed', e); }
 
@@ -405,20 +390,29 @@
       }
       el.value = next;
     };
-    // 아동의 therapies 배열을 스마트 dedup
+    // 아동의 therapies 배열을 (support+therapist) 기준으로 스마트 dedup
+    // 같은 (support,therapist) 조합이 여러 개면 cycle/timeSlot 값 있는 쪽 우선
+    // 부가 필드는 병합 (baseCount·serviceStartDate 등 값 있는 쪽 채움)
+    // 유니코드 불가시 문자 제거 (안전한 \u 이스케이프만 사용)
+    // NBSP · ZWSP · ZWNJ · ZWJ · LSEP · PSEP · NNBSP · MMSP · ideographic space · BOM
+    function _cleanUnicode(s) {
+      return String(s||'')
+        .replace(/[ ​‌‍    　﻿]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    // 아동의 therapies 스마트 dedup (2단계)
     // 1차: (support+therapist) 완전 일치로 병합
-    // 2차: 같은 support 안에서 therapist 가 비어있는 항목을 담당치료사 있는 항목으로 흡수
-    //      (t.therapist 는 비었지만 c.therapist fallback 으로 화면상 같은 이름 표시되는 케이스 대응)
-    // cycle/timeSlot 값 있는 쪽 우선, 부가 필드는 병합
+    // 2차: 같은 support 안에서 therapist 가 빈 항목을 담당자 있는 항목으로 흡수
+    //      (render 의 t.therapist||c.therapist 폴백으로 화면상 같아 보이는 케이스 대응)
     function _dedupTherapies(list) {
       if (!Array.isArray(list) || list.length < 2) return list;
-      // 1차 dedup: (support+therapist) 완전 일치
       const map = new Map();
       list.forEach(t => {
         const support = normSupport(t.support);
         const therapist = _cleanUnicode(t.therapist);
-        if (!support && !therapist) { map.set(`_empty_${Math.random()}`, t); return; }
-        const key = `${support}|${therapist}`;
+        if (!support && !therapist) { map.set('_empty_' + Math.random(), t); return; }
+        const key = support + '|' + therapist;
         if (!map.has(key)) { map.set(key, { ...t, support }); return; }
         const existing = map.get(key);
         const scoreT = ((t.cycle||'').trim()?1:0) + ((t.timeSlot||'').trim()?1:0);
@@ -432,23 +426,21 @@
         map.set(key, keeper);
       });
       const first = [...map.values()];
-      // 2차: 같은 support 안에서 therapist 빈 항목을 채운 항목으로 흡수
+      // 2차: 빈 therapist 를 같은 support 담당자 있는 항목으로 흡수
       const bySupport = new Map();
-      const emptyTherapist = [];
+      const emptyList = [];
       first.forEach(t => {
         const s = normSupport(t.support);
         const th = _cleanUnicode(t.therapist);
-        if (!th) { emptyTherapist.push(t); return; }
+        if (!th) { emptyList.push(t); return; }
         if (!bySupport.has(s)) bySupport.set(s, []);
         bySupport.get(s).push(t);
       });
-      // 빈 therapist 항목 각각에 대해 같은 support 담당자 있는 항목을 찾아 병합
       const absorbed = new Set();
-      emptyTherapist.forEach(t => {
+      emptyList.forEach(t => {
         const s = normSupport(t.support);
-        const candidates = bySupport.get(s) || [];
-        if (!candidates.length) return;  // 흡수 대상 없음 → 그대로 둠
-        // cycle/timeSlot 값 있으면 그 쪽에 빈 항목의 부가필드 병합, 없으면 첫 후보
+        const candidates = bySupport.get(s);
+        if (!candidates || !candidates.length) return;
         const target = candidates.find(c => (c.cycle||'').trim() || (c.timeSlot||'').trim()) || candidates[0];
         Object.keys(t).forEach(k => {
           if (target[k] == null || target[k] === '') target[k] = t[k];
