@@ -1002,8 +1002,10 @@
           const extraCols = buildExtraCols();
 
           // 인수인계 판정: handoff.date 가 오늘 이전이면 후임에게 인수됨
+          // handoff.therapist 가 빈 문자열이면 무시 (빈 handoff 잔재)
           const handoff = t.handoff;
-          const handoffActive = handoff && handoff.date && String(handoff.date).slice(0,10) <= _today && handoff.therapist;
+          const handoffActive = handoff && handoff.date && String(handoff.date).slice(0,10) <= _today
+                              && (handoff.therapist||'').trim();
 
           // therapy 종결 여부: endDate 계열이 오늘 이전이면 종결
           const rawEndedDate = [t.centerEndDate, t.banchiEndDate, t.extraEndDate]
