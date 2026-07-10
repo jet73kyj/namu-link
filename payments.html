@@ -4847,10 +4847,13 @@
           window._lastGenMk = _mk3;
         }
       }
+      // [H단계] payments·children 캐시 — 이후 렌더링 내 재사용 (JSON.parse 중복 제거)
+      const _paysCache = getPayments();
+      const _chsCache = getChildren();
       // 월 헤더 옆 요약 — 초기값은 payments 전체 기준, 카드 렌더 후 실제 표시 아동 기준으로 재갱신
       {
         const mkNow = monthKey(payYear, payMonth);
-        const _allP = getPayments().filter(p => p.monthKey === mkNow);
+        const _allP = _paysCache.filter(p => p.monthKey === mkNow);
         const _isP = p => !!p.basePaid || !!p.extraPaid || !!p.paidDate || p.status==='paid' || (parseInt(p.amount)||0)===0;
         const _paidNow = _allP.filter(_isP).length;
         const _unpaidNow = _allP.length - _paidNow;
@@ -4862,15 +4865,14 @@
       const searchQuery = (document.getElementById('childSearchInput')?.value||'').trim();
 
       // 미래 월(오늘 이후)에서는 자동 생성된 stale 미납 record 는 화면에서 숨김 (데이터 삭제 없이 표시만 제외)
-      let rows = getPayments().filter(p=>p.monthKey===mk);
+      let rows = _paysCache.filter(p=>p.monthKey===mk);
       // ⭐ 절대 소실 방지: paid_locks 를 payments 에 병합. 이후 모든 렌더/필터 는 복원된 상태 기준
       try {
         _applyPaidLocksToPayments(rows);   // 화면 표시용은 매번 적용 (가벼움)
         // [D단계] localStorage 저장은 월 단위로만 (검색·필터 변경 시 skip)
         if (window._lastLocksMk !== _mkCur) {
-          const _fullP = getPayments();
-          _applyPaidLocksToPayments(_fullP);
-          localStorage.setItem('payments', JSON.stringify(_fullP));
+          _applyPaidLocksToPayments(_paysCache);
+          localStorage.setItem('payments', JSON.stringify(_paysCache));
           window._lastLocksMk = _mkCur;
         }
       } catch(e) { console.error('paid_locks apply error:', e); }
@@ -4889,7 +4891,7 @@
       document.getElementById('_kanaDbg2')?.remove();
       // 센터비용 entries: centerPayments에서 납부 여부 확인하여 status 동기화
       const centerPays = getCenterPayments();
-      const allCh = getChildren();
+      const allCh = _chsCache;
       rows.forEach(p=>{
         if (p.support !== '센터비용') return;
         const ch = allCh.find(c=>c.id===p.childId);
@@ -4922,7 +4924,7 @@
       const unpaidAmt  = rows.filter(p=>!_isPaidRec(p)).reduce((s,p)=>s+finalAmt(p),0);
 
       // 미납 아동 이름 + 리뷰 작성 아동 명단
-      const _allCh1 = getChildren();
+      const _allCh1 = _chsCache;
       const _nmOf = p => {
         const c = _allCh1.find(x=>x.id===p.childId);
         return ((c?.name)||p.childName||'').trim();
@@ -6521,10 +6523,10 @@
            </div>`
         : '';
       const _unpaidTotalSum = sortedGroups.reduce((s,[,g])=>s+(g.unpaidTotal||0), 0);
-      container.innerHTML = `
-        ${_unpaidNamesHtml}
-        <div style="margin-bottom:10px;font-size:13px;color:#555;">총 <strong style="color:#e65100;">${_actualUnpaidCount}명</strong>의 미납 아동 · 미납 합계 <strong style="color:#1565c0;">${_unpaidTotalSum.toLocaleString()}원</strong></div>
-        ${sortedGroups.map(([id,g])=>`
+      // [H단계] DocumentFragment 로 분할 렌더링 — 카드 100+ 일 때 반영 부드러움
+      const _headerHtml = `${_unpaidNamesHtml}
+        <div style="margin-bottom:10px;font-size:13px;color:#555;">총 <strong style="color:#e65100;">${_actualUnpaidCount}명</strong>의 미납 아동 · 미납 합계 <strong style="color:#1565c0;">${_unpaidTotalSum.toLocaleString()}원</strong></div>`;
+      const _cardsHtml = sortedGroups.map(([id,g])=>`
           <div style="margin-bottom:14px;background:white;border-radius:10px;overflow:hidden;border:2px solid #ffcc80;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
             <div style="background:#fff3e0;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
               <div>
@@ -6553,8 +6555,14 @@
                 <tbody>${g.items.map(it=>it.html).join('')}</tbody>
               </table>
             </div>
-          </div>`).join('')}
-      `;
+          </div>`).join('');
+      // DocumentFragment 를 통해 한 번에 DOM 반영 — reflow 최소화
+      const _tmp = document.createElement('div');
+      _tmp.innerHTML = _headerHtml + _cardsHtml;
+      const _frag = document.createDocumentFragment();
+      while (_tmp.firstChild) _frag.appendChild(_tmp.firstChild);
+      container.textContent = '';
+      container.appendChild(_frag);
     }
 
     function togglePaidSection() {
