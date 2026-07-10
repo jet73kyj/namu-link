@@ -7454,8 +7454,20 @@
 
     function _ceBulk() {
       const from = parseInt(document.getElementById('ce_bulk_from')?.value)||1;
-      const amt  = parseInt(document.getElementById('ce_bulk_amt')?.value);
-      if (isNaN(amt)) return;
+      let amt = parseInt(document.getElementById('ce_bulk_amt')?.value);
+      // 일괄금액 빈값이면 · 선택된 본인부담금 유형에서 자동 유추
+      if (isNaN(amt)) {
+        const sel = document.querySelector('input[name="ce_fee_type"]:checked');
+        const feeTypeMap = { 가형:20000, 나형:40000, 다형:0, 라형:60000, 마형:80000 };
+        if (sel && feeTypeMap[sel.value] !== undefined) {
+          amt = feeTypeMap[sel.value];
+          const bulkEl = document.getElementById('ce_bulk_amt');
+          if (bulkEl) bulkEl.value = amt;
+        } else {
+          alert('⚠️ 일괄 적용할 금액을 입력하거나 본인부담금 유형을 선택하세요.');
+          return;
+        }
+      }
       for (let m=from; m<=12; m++) {
         const el = document.getElementById(`ce_fee_${m}`);
         if (el) el.value = amt;
