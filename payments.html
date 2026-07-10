@@ -3600,6 +3600,8 @@
         (child.therapies||[]).forEach(therapy=>{
           const sup = therapy.support || '없음';
           if (sup === '없음') return; // 지원종류 없음은 제외
+          // therapy.status '종결'·'쉼' 이면 record 생성 skip (사용자 요청)
+          if (therapy.status === '종결' || therapy.status === '쉼') return;
           // therapy-level 종결 체크
           if (therapy.centerEndDate) {
             const _te = _fixISODate(therapy.centerEndDate);
@@ -4611,10 +4613,10 @@
             }
           }
         });
-        // 모호한 미납 record 제거
-        const _before = _pays.length;
-        _pays = _pays.filter(p => !p._ambiguous);
-        if (_pays.length !== _before) _fix++;
+        // 모호한 미납 record 제거 — 비활성화 (사용자 요청 · 데이터 손실 방지)
+        // const _before = _pays.length;
+        // _pays = _pays.filter(p => !p._ambiguous);
+        // if (_pays.length !== _before) _fix++;
         // 영구 중복 정리 — 같은 이름+생년+월+support+치료사+timeSlot+cycle+금액 record 는 1건만 유지 (paid + 데이터 풍부 우선)
         {
           const _normBB = b => (b||'').replace(/\D/g,'').slice(-6);
