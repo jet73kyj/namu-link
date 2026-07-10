@@ -740,12 +740,13 @@
     function savePayments(d){
       // 저장 직전 support 정규화 (변형 표기 통일)
       try { d.forEach(p => { if (p && p.support) p.support = _normPaySupport(p.support); }); } catch(e){}
-      // [A·C·D·F단계] 저장 후 캐시 무효화 — 다음 렌더링에서 재실행 보장
+      // [A·C·D·F·M단계] 저장 후 캐시 무효화 — 다음 렌더링에서 재실행 보장
       // F단계: 내부 자동 저장 (generateMonthRecords 등) 은 무효화 skip
       if (!window._suppressCacheInvalidate) {
         window._lastGenMk = null;
         window._lastMigMk = null;
         window._lastLocksMk = null;
+        window._renderCache = {};   // M단계: 렌더 캐시도 전체 무효화
       }
       const json = JSON.stringify(d);
       // [1단계] payments 저장만 수행 — 백업 생성 제거 (Supabase 가 source of truth)
@@ -4480,6 +4481,20 @@
     async function renderUnpaid() {
       // _cleanupFutureAutoRecords();  // 임시 비활성화 — 데이터 손실 방지
       const mk = monthKey(payYear, payMonth);
+      // [M단계] 렌더 캐시 hit → 즉시 화면 복원 (같은 월·같은 검색상태 재방문 시)
+      window._renderCache = window._renderCache || {};
+      const _cacheKey = `${mk}|${(document.getElementById('childSearchInput')?.value||'').trim()}|${document.getElementById('filterUnpaidOnly')?.checked}|${(typeof unpaidCategory !== 'undefined' ? unpaidCategory : '')}`;
+      if (window._renderCache[_cacheKey]) {
+        const _c = window._renderCache[_cacheKey];
+        try {
+          if (_c.grouped != null)    document.getElementById('unpaidGrouped').innerHTML = _c.grouped;
+          if (_c.title != null)      document.getElementById('monthTitle').innerHTML   = _c.title;
+          if (_c.summary != null)    document.getElementById('unpaidSummary').innerHTML = _c.summary;
+          console.log('[M단계] 렌더 캐시 hit → 즉시 표시 (' + _cacheKey + ')');
+          try { updateBadges(); } catch(e){}
+          return;
+        } catch(e) { console.warn('cache restore failed, 재계산', e); }
+      }
       // [J단계] children 의 birth 필드 정규화 — 세션당 1번만 (idempotent)
       if (!window._birthNormDone) try {
         const _chs0 = getChildren();
@@ -4958,6 +4973,15 @@
       // 새 그룹 렌더링
       try { _renderUnpaidGrouped(rows); } catch(e) { console.error('grouped render error:', e); }
       try { updateBadges(); } catch(e) {}
+
+      // [M단계] 렌더 결과 캐시 저장 → 같은 월 재방문 시 즉시 복원
+      try {
+        window._renderCache[_cacheKey] = {
+          grouped: document.getElementById('unpaidGrouped')?.innerHTML || '',
+          title:   document.getElementById('monthTitle')?.innerHTML   || '',
+          summary: document.getElementById('unpaidSummary')?.innerHTML || '',
+        };
+      } catch(e){}
 
       // [K단계] 옛 unpaidTable 은 display:none 로 숨김 상태 → 렌더 skip (약 1초 절감)
       return;
