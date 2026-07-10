@@ -99,21 +99,46 @@
     if (!KEYS.includes(k)) return;
     schedulePush(k, async () => { await Supa.pushKey(k); });
   };
-  function schedulePush(key, fn) {
-    if (pending.has(key)) clearTimeout(pending.get(key));
-    setStatus('☁️ 저장 중...', '#1565c0');
-    const t = setTimeout(async () => {
-      pending.delete(key);
+  // [N단계] 즉시 push + 재시도 3회 (500ms 디바운스 제거)
+  // pending 은 key → fn(재시도용). 진행중 push 는 pendingFns 로 추적
+  const pendingFns = new Map();
+  async function pushWithRetry(key, fn) {
+    for (let i = 0; i < 3; i++) {
       try {
         await fn();
-        if (!pending.size) setStatus('☁️ 저장됨', '#2e7d32', `마지막 저장: ${new Date().toLocaleTimeString('ko-KR')}`);
+        return;
       } catch (e) {
-        setStatus('⚠️ 저장 실패', '#c62828', e.message);
-        console.error('push failed', key, e);
+        if (i === 2) throw e;
+        await new Promise(r => setTimeout(r, 800 * (i+1)));   // 800·1600ms 대기
       }
-    }, 500);
-    pending.set(key, t);
+    }
   }
+  function schedulePush(key, fn) {
+    // 진행중이든 아니든 새 요청 도착 시 최신 데이터로 재시작
+    pending.set(key, fn);
+    pendingFns.set(key, fn);
+    setStatus('☁️ 저장 중...', '#1565c0');
+    (async () => {
+      try {
+        await pushWithRetry(key, fn);
+        pendingFns.delete(key);
+        pending.delete(key);
+        if (!pendingFns.size) setStatus('☁️ 저장됨', '#2e7d32', `마지막 저장: ${new Date().toLocaleTimeString('ko-KR')}`);
+      } catch (e) {
+        setStatus('⚠️ 저장 실패 (재시도 3회 실패)', '#c62828', e.message);
+        console.error('push failed after retries', key, e);
+      }
+    })();
+  }
+
+  // [beforeunload 안전망] 페이지 종료 시 pending push 를 마지막으로 시도
+  // - 대부분 push 는 이미 완료. 미완료된 것만 강제 실행
+  window.addEventListener('beforeunload', () => {
+    if (!pendingFns.size) return;
+    // sendBeacon 은 REST API 인증 헤더 자유롭지 못하므로 sync XHR 대신 fire-and-forget async 만 시도
+    // (일부 브라우저는 unload 중 network 요청 취소 · 성공 보장은 못하지만 확률은 높임)
+    pendingFns.forEach((fn) => { try { fn(); } catch(e) {} });
+  });
 
   // 3) 다른 탭·기기에서 변경된 최신 데이터 받아오기 (수동)
   badge.addEventListener('dblclick', async () => {
