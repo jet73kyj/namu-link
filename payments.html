@@ -740,10 +740,13 @@
     function savePayments(d){
       // 저장 직전 support 정규화 (변형 표기 통일)
       try { d.forEach(p => { if (p && p.support) p.support = _normPaySupport(p.support); }); } catch(e){}
-      // [A·C·D단계] 저장 후 캐시 무효화 — 다음 렌더링에서 재실행 보장
-      window._lastGenMk = null;
-      window._lastMigMk = null;
-      window._lastLocksMk = null;
+      // [A·C·D·F단계] 저장 후 캐시 무효화 — 다음 렌더링에서 재실행 보장
+      // F단계: 내부 자동 저장 (generateMonthRecords 등) 은 무효화 skip
+      if (!window._suppressCacheInvalidate) {
+        window._lastGenMk = null;
+        window._lastMigMk = null;
+        window._lastLocksMk = null;
+      }
       const json = JSON.stringify(d);
       // [1단계] payments 저장만 수행 — 백업 생성 제거 (Supabase 가 source of truth)
       //   기존: payments_backup_YYYY-MM-DD · payments_slot_prev/current · IDB 백업 다중 저장
@@ -4509,7 +4512,9 @@
         try {
           const _mk1 = monthKey(payYear, payMonth);
           if (window._lastGenMk !== _mk1) {
+            window._suppressCacheInvalidate = true;
             generateMonthRecords(true);
+            window._suppressCacheInvalidate = false;
             window._lastGenMk = _mk1;
           }
         } catch(e){}
@@ -4738,7 +4743,9 @@
         {
           const _mk2 = monthKey(payYear, payMonth);
           if (window._lastGenMk !== _mk2) {
+            window._suppressCacheInvalidate = true;
             generateMonthRecords(true);
+            window._suppressCacheInvalidate = false;
             window._lastGenMk = _mk2;
           }
         }
@@ -4827,7 +4834,9 @@
       {
         const _mk3 = monthKey(payYear, payMonth);
         if (window._lastGenMk !== _mk3) {
+          window._suppressCacheInvalidate = true;
           generateMonthRecords(true);
+          window._suppressCacheInvalidate = false;
           window._lastGenMk = _mk3;
         }
       }
