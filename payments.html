@@ -3572,6 +3572,14 @@
       const children = getChildren();
       let added = 0;
 
+      // [G단계] O(N²) → O(N) 최적화 — payments 를 Map 으로 인덱싱
+      const _existsKey = (childId, sup, mkV, ts, cy, ther) =>
+        `${childId}|${sup}|${mkV}|${ts}|${cy}|${ther}`;
+      const _payMap = new Map();
+      payments.forEach(p => {
+        _payMap.set(_existsKey(p.childId, p.support, p.monthKey, p.timeSlot||'', p.cycle||'', p.therapist||''), p);
+      });
+
       children.forEach(child=>{
         (child.therapies||[]).forEach(therapy=>{
           const sup = therapy.support || '없음';
@@ -3599,17 +3607,13 @@
           // 동일 치료사·동일 support·동일 timeSlot 이라도 cycle(요일) 다르면 별개 수업
           // 인수인계 후 월: 후임 명의 record OR 원래 치료사 명의 record 둘 다 "이미 있음"으로 간주
           const isHandoffMonth = effTherapist !== (therapy.therapist || '');
-          const exists = payments.find(p=>
-            p.childId===child.id && p.support===sup && p.monthKey===mk &&
-            ((p.timeSlot||'') === effTimeSlot) &&
-            ((p.cycle||'') === effCycle) &&
-            (
-              ((p.therapist||'') === effTherapist) ||
-              (isHandoffMonth && (p.therapist||'') === (therapy.therapist||''))
-            )
-          );
+          // [G단계] Map.get O(1) — 인수인계 월은 원본 치료사 명의도 확인
+          let exists = _payMap.get(_existsKey(child.id, sup, mk, effTimeSlot, effCycle, effTherapist));
+          if (!exists && isHandoffMonth) {
+            exists = _payMap.get(_existsKey(child.id, sup, mk, effTimeSlot, effCycle, therapy.therapist || ''));
+          }
           if (!exists) {
-            payments.push({
+            const _new = {
               id: genId(),
               childId: child.id,
               childName: child.name,
@@ -3622,7 +3626,10 @@
               status: 'unpaid',
               paidDate: '',
               memo: '',
-            });
+            };
+            payments.push(_new);
+            // 방금 push 한 record 도 Map 에 반영 → 같은 loop 내 중복 push 방지
+            _payMap.set(_existsKey(child.id, sup, mk, effTimeSlot, effCycle, effTherapist), _new);
             added++;
           }
         });
