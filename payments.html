@@ -3643,12 +3643,14 @@
         if (isPaid && !existingIsPaid) _dedup[idx] = p;   // 납부 정보 있으면 교체
         _removed++;
       });
+      // [E단계] 변경 사항 있을 때만 저장 (4초 지연 해소)
       if (_removed > 0) {
         console.log(`[generateMonthRecords] 자동 dedup: 방치 ${_removed}건 제거`);
         savePayments(_dedup);
-      } else {
+      } else if (added > 0) {
         savePayments(payments);
       }
+      // added===0 && _removed===0 : 변경 없음 → save skip (1MB JSON serialize · Supabase push 회피)
       if (!silent) {
         const msg = added > 0 ? `✅ ${added}건 동기화 완료 (dedup ${_removed}건)` : `✅ 동기화 완료 (추가 없음 · dedup ${_removed}건)`;
         showRefreshToast(msg);
