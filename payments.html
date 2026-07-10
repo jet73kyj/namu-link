@@ -7403,13 +7403,9 @@
         </div>`;
       document.body.appendChild(modal);
 
-      // 본인부담금 유형 선택 → 시작월부터 12월까지 자동 입력 (이전 월은 그대로 유지)
+      // 본인부담금 유형 선택 → 일괄금액 input 에만 값 세팅
+      // (개별 월 값은 건드리지 않음 · 사용자가 명시적으로 "일괄적용" 클릭해야 실제 반영)
       window._ceFeeTypeChange = function(amt) {
-        const from = parseInt(document.getElementById('ce_bulk_from')?.value)||1;
-        for (let m = from; m <= 12; m++) {
-          const el = document.getElementById('ce_fee_' + m);
-          if (el) el.value = amt;
-        }
         const bulk = document.getElementById('ce_bulk_amt');
         if (bulk) bulk.value = amt;
       };
