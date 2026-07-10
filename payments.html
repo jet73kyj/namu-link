@@ -4979,13 +4979,13 @@
             </div>
             <div style="font-size:12px;color:#5d4037;line-height:1.6;">${unpaidNames.length ? unpaidNames.join(' · ') : '<span style="color:#aaa;">미납 아동 없음</span>'}</div>
           </div>
-          <div style="flex:1;min-width:300px;padding:12px 16px;background:#e3f2fd;border:1.5px solid #90caf9;border-radius:10px;">
+          <div style="flex:1;min-width:300px;padding:12px 16px;background:#ede7f6;border:1.5px solid #b39ddb;border-radius:10px;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-              <span style="font-size:20px;font-weight:bold;color:#1565c0;">리뷰 ${reviewCountSum}회</span>
-              <span style="font-size:13px;color:#1565c0;font-weight:bold;">-${reviewDiscountSum.toLocaleString()}원</span>
-              <span style="font-size:12px;color:#0d47a1;">(${reviewNames.length}명)</span>
+              <span style="font-size:20px;font-weight:bold;color:#4527a0;">리뷰 ${reviewCountSum}회</span>
+              <span style="font-size:13px;color:#4527a0;font-weight:bold;">-${reviewDiscountSum.toLocaleString()}원</span>
+              <span style="font-size:12px;color:#311b92;">(${reviewNames.length}명)</span>
             </div>
-            <div style="font-size:12px;color:#0d47a1;line-height:1.6;">${reviewNames.length ? reviewNames.join(' · ') : '<span style="color:#aaa;">리뷰 작성 아동 없음</span>'}</div>
+            <div style="font-size:12px;color:#311b92;line-height:1.6;">${reviewNames.length ? reviewNames.join(' · ') : '<span style="color:#aaa;">리뷰 작성 아동 없음</span>'}</div>
           </div>
         </div>`;
 
@@ -6532,7 +6532,8 @@
 
       // 상단 unpaidSummary 재갱신 — 실제 카드에 표시되는 items 기준
       try {
-        const _cardUnpaidNames = [...new Set(sortedGroups.filter(([,g])=>(g.unpaidCount||0)>0).map(([,g])=>g.name))];
+        const _cardUnpaidNames = [...new Set(sortedGroups.filter(([,g])=>(g.unpaidCount||0)>0).map(([,g])=>g.name))]
+          .sort((a,b)=>a.localeCompare(b,'ko'));
         const _cardUnpaidTotal = sortedGroups.reduce((s,[,g])=>s+(g.unpaidTotal||0), 0);
         const _sum = document.getElementById('unpaidSummary');
         if (_sum) {
@@ -6562,7 +6563,8 @@
         document.getElementById('monthTitle').innerHTML =
           `${payYear}년 ${payMonth}월 <span style="font-size:13px;color:#2e7d32;margin-left:10px;font-weight:bold;">납부 ${_paidItemsTotal}건</span> <span style="font-size:13px;color:#bbb;margin:0 4px;">|</span> <span style="font-size:13px;color:#e65100;font-weight:bold;">미납 ${_unpaidItemsTotal}건</span> <span style="font-size:12px;color:#888;margin-left:8px;">(총 ${_nameSet.size}명)</span>`;
       } catch(e){}
-      const _unpaidNamesTop = sortedGroups.filter(([, g]) => (g.unpaidCount||0) > 0).map(([, g]) => g.name);
+      const _unpaidNamesTop = sortedGroups.filter(([, g]) => (g.unpaidCount||0) > 0).map(([, g]) => g.name)
+        .sort((a,b)=>a.localeCompare(b,'ko'));
       const _unpaidNamesHtml = _unpaidNamesTop.length
         ? `<div style="margin-bottom:10px;padding:10px 14px;background:#fff3e0;border:1.5px solid #ffb74d;border-radius:8px;">
              <div style="font-size:12px;color:#bf360c;font-weight:bold;margin-bottom:4px;">📋 미납 아동 (${_unpaidNamesTop.length}명)</div>
@@ -7226,7 +7228,7 @@
         return `<tr ${rowBg}>
           <td style="padding:4px 8px;border:1px solid #eee;text-align:center;font-weight:bold;color:#1565c0;font-size:12px;">${m}월</td>
           <td style="padding:4px 6px;border:1px solid #eee;">
-            <input type="number" id="ce_fee_${m}" value="${rec&&!isBeforeStart?parseInt(rec.amount)||'':''}" placeholder="${isBeforeStart?'개시 전':'-'}" min="0" step="10000" ${inputDisabled?'disabled':''}
+            <input type="number" id="ce_fee_${m}" value="${rec&&!isBeforeStart&&rec.amount!=null?parseInt(rec.amount):''}" placeholder="${isBeforeStart?'개시 전':'-'}" min="0" step="10000" ${inputDisabled?'disabled':''}
               style="width:100px;border:1px solid #90caf9;border-radius:4px;padding:3px 6px;font-size:12px;text-align:right;${inputDisabled?'background:#eee;color:#aaa;':''}">
           </td>
           <td style="padding:4px 6px;border:1px solid #eee;text-align:center;">
@@ -7702,18 +7704,31 @@
       };
       for (let m=1; m<=12; m++) {
         const inputEl = document.getElementById(`ce_fee_${m}`);
-        const inputVal = inputEl ? inputEl.value.trim() : '';
-        const val = inputVal !== '' ? parseInt(inputVal) : (feeType ? FT_DEFAULT : NaN);
-        if (isNaN(val)) continue;
+        if (!inputEl) continue;
+        // 개시 전 / 종결 후 / 휴식월 (disabled) 은 절대 건드리지 않음
+        //   → 이 월의 기존 record 를 FT_DEFAULT 로 덮어쓰거나 유령 record 를 만드는 문제 방지
+        if (inputEl.disabled) continue;
+
+        const inputVal = inputEl.value.trim();
         const mk = `${year}-${String(m).padStart(2,'0')}`;
-        // 매칭되는 모든 record 업데이트 (중복 record 동기화)
         const matched = payments.filter(p=>_isSameChild(p) && p.monthKey===mk && p.support==='발달재활서비스');
-        if (matched.length) {
-          matched.forEach(p => { p.amount = val; });
-        } else if (feeType || val > 0) {
+
+        if (inputVal !== '') {
+          // 사용자가 명시적으로 값 입력 (0 포함) — 그대로 저장
+          const val = parseInt(inputVal) || 0;
+          if (matched.length) {
+            matched.forEach(p => { p.amount = val; });
+          } else {
+            payments.push({ id:'pay_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), childId,
+              childName: children[idx].name||'', therapist: children[idx].therapies?.[tIdx]?.therapist||'',
+              monthKey:mk, support:'발달재활서비스', amount:val, basePaid:false, status:'unpaid', paidDate:'', memo:'' });
+          }
+        } else if (matched.length === 0 && feeType) {
+          // 빈 input + 기존 record 없음 + feeType 있음 → 신규 생성 (FT_DEFAULT)
+          //   기존 record 가 있으면 절대 건드리지 않음 (0원 record 가 덮어써지는 사고 방지)
           payments.push({ id:'pay_'+Date.now()+'_'+Math.random().toString(36).slice(2,5), childId,
             childName: children[idx].name||'', therapist: children[idx].therapies?.[tIdx]?.therapist||'',
-            monthKey:mk, support:'발달재활서비스', amount:val, basePaid:false, status:'unpaid', paidDate:'', memo:'' });
+            monthKey:mk, support:'발달재활서비스', amount:FT_DEFAULT, basePaid:false, status:'unpaid', paidDate:'', memo:'' });
         }
       }
       savePayments(payments);

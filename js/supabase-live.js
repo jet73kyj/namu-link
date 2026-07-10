@@ -40,8 +40,18 @@
   const isMissingTable = (msg) => /does not exist|relation .* does not exist|schema cache|not found|PGRST205/i.test(String(msg||''));
   const loadErrs = [];
   const skipped = [];
-  for (const k of KEYS) {
-    try { await Supa.pullKey(k); }
+ 
+// 임시 수정 2026/07/10
+for (const k of KEYS) {
+    // payments는 fetchPaymentsByMonth()로 필요한 월만 조회하므로 전체 pull 생략
+    if (k === 'payments') {
+      console.log('[supabase-live] payments 전체 pull 스킵');
+      continue;
+    }
+
+    try { 
+      await Supa.pullKey(k); 
+    }
     catch (e) {
       if (isMissingTable(e.message)) {
         skipped.push(k);
@@ -51,7 +61,8 @@
         console.error('[supabase-live] pullKey failed', k, e);
       }
     }
-  }
+}
+
   // child_extras 도 함께
   try { await Supa.pullChildExtras(); } catch(e) {
     if (isMissingTable(e.message)) { skipped.push('child_extras'); console.warn('[supabase-live] child_extras 테이블 없음 - 스킵'); }
