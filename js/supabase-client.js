@@ -45,9 +45,13 @@
     return row;
   }
 
+  // 싱글톤 — GoTrueClient 중복 인스턴스 경고 방지
+  let _clientInstance = null;
   async function getClient() {
+    if (_clientInstance) return _clientInstance;
     const sb = await loadSdk();
-    return sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    _clientInstance = sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return _clientInstance;
   }
 
   // 배열에서 id 중복 제거 (마지막 값 우선 — 최신 상태 유지)
