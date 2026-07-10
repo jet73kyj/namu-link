@@ -740,9 +740,10 @@
     function savePayments(d){
       // 저장 직전 support 정규화 (변형 표기 통일)
       try { d.forEach(p => { if (p && p.support) p.support = _normPaySupport(p.support); }); } catch(e){}
-      // [A·C단계] 저장 후 캐시 무효화 — 다음 렌더링에서 재실행 보장
+      // [A·C·D단계] 저장 후 캐시 무효화 — 다음 렌더링에서 재실행 보장
       window._lastGenMk = null;
       window._lastMigMk = null;
+      window._lastLocksMk = null;
       const json = JSON.stringify(d);
       // [1단계] payments 저장만 수행 — 백업 생성 제거 (Supabase 가 source of truth)
       //   기존: payments_backup_YYYY-MM-DD · payments_slot_prev/current · IDB 백업 다중 저장
@@ -4846,11 +4847,14 @@
       let rows = getPayments().filter(p=>p.monthKey===mk);
       // ⭐ 절대 소실 방지: paid_locks 를 payments 에 병합. 이후 모든 렌더/필터 는 복원된 상태 기준
       try {
-        _applyPaidLocksToPayments(rows);
-        // localStorage 에도 즉시 반영 → 다른 뷰에서도 일관성 유지
-        const _fullP = getPayments();
-        _applyPaidLocksToPayments(_fullP);
-        localStorage.setItem('payments', JSON.stringify(_fullP));
+        _applyPaidLocksToPayments(rows);   // 화면 표시용은 매번 적용 (가벼움)
+        // [D단계] localStorage 저장은 월 단위로만 (검색·필터 변경 시 skip)
+        if (window._lastLocksMk !== _mkCur) {
+          const _fullP = getPayments();
+          _applyPaidLocksToPayments(_fullP);
+          localStorage.setItem('payments', JSON.stringify(_fullP));
+          window._lastLocksMk = _mkCur;
+        }
       } catch(e) { console.error('paid_locks apply error:', e); }
       {
         const _tD = new Date();
