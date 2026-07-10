@@ -116,7 +116,7 @@
       <div class="summary-row" id="unpaidSummary"></div>
 
       <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input type="text" id="childSearchInput" placeholder="아동 이름 검색..." oninput="renderUnpaid()"
+        <input type="text" id="childSearchInput" placeholder="아동 이름 검색..." oninput="clearTimeout(window._searchTimer); window._searchTimer = setTimeout(renderUnpaid, 300);"
           style="padding:5px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:160px;">
         <label style="font-size:13px;display:flex;align-items:center;gap:5px;cursor:pointer;">
           <input type="checkbox" id="filterUnpaidOnly" onchange="renderUnpaid()" checked>
