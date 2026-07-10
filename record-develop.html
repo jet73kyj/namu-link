@@ -437,22 +437,29 @@ function _getScheduleDows() {
 //  3) 담당 치료사의 areas[0]
 //  4) 입력 필드 값 (사용자 편집분)
 //  5) '감각발달재활' 기본값
+// 표기 통일: '전산화인지' → 기록지에서는 '감각통합' 으로 표기
+function _normalizeAreaForRecord(area) {
+  if (!area) return area;
+  const a = String(area).trim();
+  if (a === '전산화인지' || /감각통합\(전산\)/.test(a)) return '감각통합';
+  return a;
+}
 function _getServiceType() {
   const p = _getBonPayment();
   const t = _getBonTherapy();
   const payArea = (p?.area || '').trim();
-  if (payArea) return payArea;
+  if (payArea) return _normalizeAreaForRecord(payArea);
   const therapyArea = (t?.area || '').trim();
-  if (therapyArea) return therapyArea;
+  if (therapyArea) return _normalizeAreaForRecord(therapyArea);
   const therapistName = (p?.therapist || t?.therapist || '').trim();
   if (therapistName) {
     const therapists = JSON.parse(localStorage.getItem('therapists')||'[]');
     const tRec = therapists.find(x => (x.name||'').trim() === therapistName);
     const areas = tRec?.areas || [];
-    if (areas.length) return areas[0];
+    if (areas.length) return _normalizeAreaForRecord(areas[0]);
   }
   const inputArea = document.getElementById('s1_svcType')?.value || document.getElementById('s1_area')?.value;
-  if (inputArea) return inputArea;
+  if (inputArea) return _normalizeAreaForRecord(inputArea);
   return '감각발달재활';
 }
 // timeSlot 파싱 → 시작 시간에 50분 더한 종료 시간 반환 (예: 4:00~4:50)

@@ -1291,7 +1291,8 @@
         const birthFmt = birth.length===8
           ? `${birth.slice(2,4)}.${birth.slice(4,6)}.${birth.slice(6,8)}`
           : birth.length===6 ? `${birth.slice(0,2)}.${birth.slice(2,4)}.${birth.slice(4,6)}` : '-';
-        const SUB_ABBR = {'전산화인지':'전산','감각통합':'감통'};
+        // 세부프로그램 배지 표기: 전산화인지 → 감각통합(전산) 로 표기 통일
+        const SUB_ABBR = {'전산화인지':'감각통합(전산)','감각통합':'감통'};
         const subLabel = therapy?.subProgram ? `<span style="background:#ede7f6;color:#6a1b9a;font-size:9px;border-radius:3px;padding:1px 4px;margin-left:3px;">${SUB_ABBR[therapy.subProgram]||therapy.subProgram}</span>` : '';
         const SUPPORT_ABBR = {
           '치료지원 언어영역': '치언',
@@ -1619,7 +1620,7 @@
       const isOT = ['치료지원 작업치료','방과후 치료지원 작업치료'].includes(therapy?.support||'');
       const SUB_PROGS = [
         { value:'', label:'없음 (기본)' },
-        { value:'전산화인지', label:'전산화인지 (표기: 전산)' },
+        { value:'전산화인지', label:'감각통합 (전산) [표기: 감각통합(전산)]' },
         { value:'감각통합', label:'감각통합 (표기: 감통)' },
       ];
 
@@ -7167,7 +7168,7 @@
             <label style="font-size:11px;color:#555;font-weight:bold;display:block;margin-bottom:4px;">🔹 세부 프로그램</label>
             <select id="ce_subprog" style="width:100%;border:1px solid #90caf9;border-radius:4px;padding:5px 8px;font-size:13px;">
               <option value="" ${!therapy?.subProgram?'selected':''}>없음 (기본)</option>
-              <option value="전산화인지" ${therapy?.subProgram==='전산화인지'?'selected':''}>전산화인지 (표기: 전산)</option>
+              <option value="전산화인지" ${therapy?.subProgram==='전산화인지'?'selected':''}>감각통합 (전산) [표기: 감각통합(전산)]</option>
               <option value="감각통합" ${therapy?.subProgram==='감각통합'?'selected':''}>감각통합 (표기: 감통)</option>
               <option value="언어치료" ${therapy?.subProgram==='언어치료'?'selected':''}>언어치료 (표기: 언어)</option>
               <option value="학습인지" ${therapy?.subProgram==='학습인지'?'selected':''}>학습인지 (표기: 학습)</option>

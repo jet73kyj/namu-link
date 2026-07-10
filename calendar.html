@@ -534,7 +534,8 @@
       return '';
     }
 
-    const SUB_ABBR_CAL = {'전산화인지':'전산','감각통합':'감통'};
+    // 시간표(달력) 세부프로그램 표기: 전산화인지 → 감각통합(전산)
+    const SUB_ABBR_CAL = {'전산화인지':'감각통합(전산)','감각통합':'감통'};
     function birthCode(b) {
       if (!b) return '';
       const c = b.replace(/-/g,'');
