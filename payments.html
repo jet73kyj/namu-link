@@ -4952,9 +4952,12 @@
           </div>
         </div>`;
 
-      // 새 그룹 렌더링을 먼저 호출하여 옛 테이블 렌더 실패 시에도 표시되도록 보장
+      // 새 그룹 렌더링
       try { _renderUnpaidGrouped(rows); } catch(e) { console.error('grouped render error:', e); }
       try { updateBadges(); } catch(e) {}
+
+      // [K단계] 옛 unpaidTable 은 display:none 로 숨김 상태 → 렌더 skip (약 1초 절감)
+      return;
 
       // ── 지원종류 칩 ──
       const SUPPORT_COLORS = {
