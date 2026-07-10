@@ -4480,8 +4480,8 @@
     async function renderUnpaid() {
       // _cleanupFutureAutoRecords();  // 임시 비활성화 — 데이터 손실 방지
       const mk = monthKey(payYear, payMonth);
-      // children 의 birth 필드 정규화 (숫자만 추출, 6/8자리 통일)
-      try {
+      // [J단계] children 의 birth 필드 정규화 — 세션당 1번만 (idempotent)
+      if (!window._birthNormDone) try {
         const _chs0 = getChildren();
         let _bfix = 0;
         _chs0.forEach(c => {
@@ -4499,6 +4499,7 @@
           });
         });
         if (_bfix > 0) localStorage.setItem('children', JSON.stringify(_chs0));
+        window._birthNormDone = true;
       } catch(e){}
 
       // 직전 저장 직후엔 destructive 마이그레이션 skip (사용자 입력 데이터 보존)
@@ -4813,8 +4814,8 @@
           delete window.__paidSnapshot;
         }
       } catch(e) {}
-      // 매번 잘못된 4자리 연도 (0026 등) 일괄 보정
-      try {
+      // [J단계] 날짜/연도 정규화 — 세션당 1번만 (idempotent · 3400개 loop 절감)
+      if (!window._dateNormDone) try {
         const pays0 = getPayments();
         let ch0 = 0;
         pays0.forEach(p=>{
@@ -4836,6 +4837,7 @@
           }
         });
         if (ch0>0) localStorage.setItem('payments', JSON.stringify(pays0));
+        window._dateNormDone = true;
       } catch(e){}
       // 매번 누락 항목 자동 추가 (이미 있는 항목은 건드리지 않음)
       {
