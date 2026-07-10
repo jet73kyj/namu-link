@@ -152,6 +152,50 @@
         return { table: cfg.table, count: 0, preservedLocal: true };
       }
     }
+
+    // ⭐ payments 는 로컬의 완납 상태를 보존하며 병합 (사용자 저장 유실 방지)
+    // 시나리오: 사용자가 결제 완납 처리 → 로컬 저장 → push 진행 중에 다른 렌더가 pull 실행 →
+    //          옛 서버 데이터로 로컬 덮어씀 → 저장한 완납 상태 사라짐
+    // 해결: 원격 데이터를 로컬에 반영할 때, 로컬에 이미 완납 상태인 record 는 그 상태 유지
+    if (key === 'payments') {
+      const localArr = JSON.parse(localStorage.getItem(key) || '[]');
+      const localPaidMap = new Map();
+      localArr.forEach(p => {
+        if (p && p.id && (p.basePaid || p.extraPaid || p.paidDate)) {
+          localPaidMap.set(p.id, p);
+        }
+      });
+      // 원격 record 순회 → 로컬에 완납 상태 있으면 완납 필드 병합
+      all = all.map(remote => {
+        if (!remote || !remote.id) return remote;
+        const localPaid = localPaidMap.get(remote.id);
+        if (!localPaid) return remote;
+        return {
+          ...remote,
+          basePaid: localPaid.basePaid || remote.basePaid,
+          extraPaid: localPaid.extraPaid || remote.extraPaid,
+          paidDate: localPaid.paidDate || remote.paidDate,
+          baseDepositDate: localPaid.baseDepositDate || remote.baseDepositDate,
+          extraDepositDate: localPaid.extraDepositDate || remote.extraDepositDate,
+          baseDepositorName: localPaid.baseDepositorName || remote.baseDepositorName,
+          payMethod: localPaid.payMethod || remote.payMethod,
+          payMemo: localPaid.payMemo || remote.payMemo,
+          cardApproval: localPaid.cardApproval || remote.cardApproval,
+          status: localPaid.status === 'paid' ? 'paid' : (remote.status||localPaid.status),
+        };
+      });
+      // 로컬에만 있는 완납 record (원격에 없음) 는 push 대기 상태 → 로컬에서 유지
+      const remoteIds = new Set(all.map(p => p?.id).filter(Boolean));
+      let addedLocal = 0;
+      localArr.forEach(local => {
+        if (local && local.id && !remoteIds.has(local.id) && (local.basePaid || local.extraPaid || local.paidDate)) {
+          all.push(local);
+          addedLocal++;
+        }
+      });
+      if (addedLocal > 0) console.log(`[pullKey merge] payments: 로컬 완납 record ${addedLocal}건 보존`);
+    }
+
     localStorage.setItem(key, JSON.stringify(all));
     return { table: cfg.table, count: all.length };
   }
