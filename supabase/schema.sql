@@ -16,6 +16,8 @@ drop table if exists initial_assessments cascade;
 drop table if exists assessment_tokens  cascade;
 drop table if exists intake_list        cascade;
 drop table if exists voucher_data       cascade;
+drop table if exists refunds           cascade;
+drop table if exists center_payments   cascade;
 drop table if exists records            cascade;
 drop table if exists payments           cascade;
 drop table if exists therapists         cascade;
@@ -44,6 +46,20 @@ create table payments (
 );
 
 create table records (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+-- 센터비용 납부 (childId + tIdx + year + month 조합키)
+create table center_payments (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+-- 환불 내역
+create table refunds (
   id text primary key,
   data jsonb not null default '{}'::jsonb,
   updated_at timestamptz default now()
@@ -97,6 +113,10 @@ create index children_birth_idx          on children           ((data ->> 'birth
 create index children_managerId_idx      on children           ((data ->> 'managerId'));
 create index payments_year_idx           on payments           (((data ->> 'year')::int));
 create index payments_month_idx          on payments           (((data ->> 'month')::int));
+create index center_payments_child_idx   on center_payments    ((data ->> 'childId'));
+create index center_payments_year_idx    on center_payments    (((data ->> 'year')::int));
+create index refunds_child_idx           on refunds            ((data ->> 'childId'));
+create index refunds_date_idx            on refunds            ((data ->> 'date'));
 create index tokens_token_idx            on assessment_tokens  ((data ->> 'token'));
 create index tokens_child_id_idx         on assessment_tokens  ((data ->> 'child_id'));
 create index assessments_child_id_idx    on initial_assessments((data ->> 'child_id'));

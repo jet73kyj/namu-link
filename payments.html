@@ -1225,11 +1225,12 @@
           (p.timeSlot||'')  === (therapy?.timeSlot||'') &&
           (p.cycle||'')     === (therapy?.cycle||'');
         const _semiMatch = p => (p.therapist||'') === (therapy?.therapist||'');
+        // 완납 우선 판정: pool 내 완납 record 가 있으면 무조건 완납 우선 선택
         const rec = _pool.find(p => _fullMatch(p) && _isPaid(p))
-                 || _pool.find(_fullMatch)
                  || _pool.find(p => _semiMatch(p) && _isPaid(p))
-                 || _pool.find(_semiMatch)
                  || _pool.find(_isPaid)
+                 || _pool.find(_fullMatch)
+                 || _pool.find(_semiMatch)
                  || _pool[0];
         if (!rec) return;
         if ((parseInt(rec.amount)||0) === 0 && !rec.basePaid && !rec.paidDate) return;
@@ -1391,11 +1392,13 @@
             (p.timeSlot||'')  === (therapy?.timeSlot||'') &&
             (p.cycle||'')     === (therapy?.cycle||'');
           const _semiMatchB = p => (p.therapist||'') === (therapy?.therapist||'');
+          // 완납 우선 판정: pool 내 완납 record 가 있으면 무조건 완납 우선 선택
+          // 매칭 정확도(full → semi → any) 순으로 완납 record 먼저 찾고, 없으면 미납 record 선택
           const rec = _poolB.find(p => _fullMatchB(p) && _isPaidB(p))
-                   || _poolB.find(_fullMatchB)
                    || _poolB.find(p => _semiMatchB(p) && _isPaidB(p))
-                   || _poolB.find(_semiMatchB)
                    || _poolB.find(_isPaidB)
+                   || _poolB.find(_fullMatchB)
+                   || _poolB.find(_semiMatchB)
                    || _poolB[0];
           const isPaid = rec?.basePaid||false;
           const dateStr = rec?.baseDepositDate ? rec.baseDepositDate.substring(5) : '';
@@ -10856,7 +10859,7 @@
     }, { passive: true });
   </script>
   <script>
-    window._supaLiveKeys = ['children','payments','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+    window._supaLiveKeys = ['children','payments','centerPayments','refunds','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
     window._supaLiveOnLoad = () => { try { renderAll(); } catch(e) {} };
   </script>
   <script src="js/supabase-live.js"></script>

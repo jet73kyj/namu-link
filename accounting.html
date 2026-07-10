@@ -5,6 +5,7 @@
 <title>회계 관리 - 나무링크</title>
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/nav.css"><script>if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";</script>
+<script src="js/supabase-client.js"></script>
 <style>
   body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; background:#f5f7fa; margin:0; }
   header { background:#2e7d32; color:white; padding:12px 24px; display:flex; align-items:center; gap:12px; }
@@ -440,5 +441,11 @@
     _init();
   }
 </script>
+<script>
+  // Supabase 동기화 — 페이지 로드 시 pull, 이후 setItem 시 자동 push
+  window._supaLiveKeys = ['children','payments','centerPayments','refunds','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+  window._supaLiveOnLoad = () => { try { if (typeof _render === 'function') _render(); } catch(e) {} };
+</script>
+<script src="js/supabase-live.js"></script>
 </body>
 </html>

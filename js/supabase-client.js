@@ -26,6 +26,13 @@
     'payments':             { table: 'payments',             idKey: 'id' },
     'records':              { table: 'records',              idKey: 'id',
                               genId: (r) => r.id || `rec_${r.childId||r.child_id||''}_${r.year||''}_${r.month||''}_${r.category||''}` },
+    // 센터비용 납부 — key 필드가 자연키 (childId__tIdx__year__month)
+    'centerPayments':       { table: 'center_payments',      idKey: 'key',
+                              genId: (r) => r.key || (r.childId && r.year && r.month != null && r.tIdx != null
+                                ? `${r.childId}__${r.tIdx}__${r.year}__${r.month}` : null) },
+    // 환불 내역 — id 는 Date.now() 로 이미 생성됨
+    'refunds':              { table: 'refunds',              idKey: 'id',
+                              genId: (r) => r.id || `refund_${r.childId||''}_${r.date||''}_${r.amount||''}` },
     'voucher_data':         { table: 'voucher_data',         idKey: false },   // bigserial 자동 채번
     'intake_list':          { table: 'intake_list',          idKey: 'id' },
     'assessment_tokens':    { table: 'assessment_tokens',    idKey: 'id' },
@@ -118,6 +125,9 @@
   }
 
   // Supabase 에서 특정 key 데이터 전체 로드 → localStorage 에 저장
+  // ⚠️ 안전장치: 원격 = 빈 배열 && 로컬 = 비어있지 않음 → 덮어쓰기 스킵 (데이터 유실 방지)
+  //   신규 테이블 최초 로드 시 로컬 데이터가 지워지는 사고를 막고,
+  //   이후 setItem 후킹 시 pushKey 가 로컬 데이터를 원격으로 밀어올림.
   async function pullKey(key) {
     const cfg = KEY_TABLE[key];
     if (!cfg) throw new Error('알 수 없는 키: ' + key);
@@ -132,6 +142,15 @@
       all = all.concat(data.map(r => r.data));
       if (data.length < 1000) break;
       from += 1000;
+    }
+    if (all.length === 0) {
+      const localRaw = localStorage.getItem(key);
+      if (localRaw && localRaw !== '[]' && localRaw !== 'null') {
+        console.warn(`[pullKey] ${cfg.table}: 원격이 비어있어 로컬 보존 (${(JSON.parse(localRaw)||[]).length}건). 다음 저장 시 원격에 push 됩니다.`);
+        // 로컬 데이터를 강제로 push (다음 setItem 없이도 원격 동기화)
+        try { await pushKey(key); } catch(e) { console.warn(`[pullKey→pushKey] ${key} push 실패:`, e.message); }
+        return { table: cfg.table, count: 0, preservedLocal: true };
+      }
     }
     localStorage.setItem(key, JSON.stringify(all));
     return { table: cfg.table, count: all.length };
