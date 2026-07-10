@@ -741,13 +741,13 @@
       // 저장 직전 support 정규화 (변형 표기 통일)
       try { d.forEach(p => { if (p && p.support) p.support = _normPaySupport(p.support); }); } catch(e){}
       const json = JSON.stringify(d);
-      // 백업 정리: 최근 10개만 유지 (오래된 backup 제거)
+      // 백업 정리: 1개만 유지 (사용자 요청 · 용량 절약)
       const _pruneBackups = () => {
         try {
           const backupKeys = Object.keys(localStorage)
             .filter(k => k.startsWith('payments_backup_'))
             .sort(); // YYYY-MM-DD 순
-          const KEEP = 10;
+          const KEEP = 1;
           while (backupKeys.length > KEEP) {
             localStorage.removeItem(backupKeys.shift());
           }
