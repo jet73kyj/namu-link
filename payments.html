@@ -7403,9 +7403,10 @@
         </div>`;
       document.body.appendChild(modal);
 
-      // 본인부담금 유형 선택 → 월별 금액 자동 입력
+      // 본인부담금 유형 선택 → 시작월부터 12월까지 자동 입력 (이전 월은 그대로 유지)
       window._ceFeeTypeChange = function(amt) {
-        for (let m = 1; m <= 12; m++) {
+        const from = parseInt(document.getElementById('ce_bulk_from')?.value)||1;
+        for (let m = from; m <= 12; m++) {
           const el = document.getElementById('ce_fee_' + m);
           if (el) el.value = amt;
         }
