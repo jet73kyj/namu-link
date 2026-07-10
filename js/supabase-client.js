@@ -95,6 +95,24 @@
     return { table: cfg.table, count, dupCount };
   }
 
+  // 특정 월의 payments 만 Supabase 에서 조회 (인덱스 활용)
+  // 실패 시 localStorage 에서 filter 로 fallback
+  async function fetchPaymentsByMonth(monthKey) {
+    try {
+      const client = await getClient();
+      const { data, error } = await client
+        .from('payments')
+        .select('data')
+        .eq('data->>monthKey', monthKey);
+      if (error) throw error;
+      return (data||[]).map(r => r.data);
+    } catch (e) {
+      console.warn('[fetchPaymentsByMonth] Supabase 실패 → localStorage fallback:', e.message);
+      const all = JSON.parse(localStorage.getItem('payments')||'[]');
+      return all.filter(p => p.monthKey === monthKey);
+    }
+  }
+
   // Supabase 에서 특정 key 데이터 전체 로드 → localStorage 에 저장
   async function pullKey(key) {
     const cfg = KEY_TABLE[key];
@@ -251,6 +269,7 @@
   window.Supa = {
     getClient,
     pushKey, pullKey, deleteKey,
+    fetchPaymentsByMonth,
     pushChildExtras, pullChildExtras,
     pushAll, pullAll,
     testConnection,

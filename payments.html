@@ -4477,7 +4477,7 @@
       } catch(e){}
     }
 
-    function renderUnpaid() {
+    async function renderUnpaid() {
       // _cleanupFutureAutoRecords();  // 임시 비활성화 — 데이터 손실 방지
       const mk = monthKey(payYear, payMonth);
       // children 의 birth 필드 정규화 (숫자만 추출, 6/8자리 통일)
@@ -4847,34 +4847,30 @@
           window._lastGenMk = _mk3;
         }
       }
-      // [H단계] payments·children 캐시 — 이후 렌더링 내 재사용 (JSON.parse 중복 제거)
-      const _paysCache = getPayments();
+      // [I단계] 해당 월 payments 만 Supabase 에서 직접 조회 (인덱스 활용)
+      //   기존: getPayments() 로 3400개 전부 → filter
+      //   변경: fetchPaymentsByMonth(mk) 로 해당 월만 (~200개)
+      //   실패 시 localStorage 에서 filter 로 fallback (fetchPaymentsByMonth 내부 처리)
+      let rows = window.Supa?.fetchPaymentsByMonth
+        ? await window.Supa.fetchPaymentsByMonth(mk)
+        : getPayments().filter(p => p.monthKey === mk);
+      // children 은 여전히 로컬 캐시 사용 (양이 훨씬 적음 · 다른 뷰에서도 필요)
       const _chsCache = getChildren();
-      // 월 헤더 옆 요약 — 초기값은 payments 전체 기준, 카드 렌더 후 실제 표시 아동 기준으로 재갱신
+      // 월 헤더 옆 요약 — rows 자체가 이미 이번 월 데이터
       {
-        const mkNow = monthKey(payYear, payMonth);
-        const _allP = _paysCache.filter(p => p.monthKey === mkNow);
         const _isP = p => !!p.basePaid || !!p.extraPaid || !!p.paidDate || p.status==='paid' || (parseInt(p.amount)||0)===0;
-        const _paidNow = _allP.filter(_isP).length;
-        const _unpaidNow = _allP.length - _paidNow;
-        const _nameSet = new Set(_allP.map(p => ((p.childName||'').trim())).filter(Boolean));
+        const _paidNow = rows.filter(_isP).length;
+        const _unpaidNow = rows.length - _paidNow;
+        const _nameSet = new Set(rows.map(p => ((p.childName||'').trim())).filter(Boolean));
         document.getElementById('monthTitle').innerHTML =
           `${payYear}년 ${payMonth}월 <span style="font-size:13px;color:#2e7d32;margin-left:10px;font-weight:bold;">납부 ${_paidNow}건</span> <span style="font-size:13px;color:#bbb;margin:0 4px;">|</span> <span style="font-size:13px;color:#e65100;font-weight:bold;">미납 ${_unpaidNow}건</span> <span style="font-size:12px;color:#888;margin-left:8px;">(총 ${_nameSet.size}명)</span>`;
       }
       const filterOnly = document.getElementById('filterUnpaidOnly').checked;
       const searchQuery = (document.getElementById('childSearchInput')?.value||'').trim();
 
-      // 미래 월(오늘 이후)에서는 자동 생성된 stale 미납 record 는 화면에서 숨김 (데이터 삭제 없이 표시만 제외)
-      let rows = _paysCache.filter(p=>p.monthKey===mk);
-      // ⭐ 절대 소실 방지: paid_locks 를 payments 에 병합. 이후 모든 렌더/필터 는 복원된 상태 기준
+      // paid_locks 는 화면 표시용 rows 에만 적용 (localStorage 저장은 하지 않음 — Supabase 가 원본)
       try {
-        _applyPaidLocksToPayments(rows);   // 화면 표시용은 매번 적용 (가벼움)
-        // [D단계] localStorage 저장은 월 단위로만 (검색·필터 변경 시 skip)
-        if (window._lastLocksMk !== _mkCur) {
-          _applyPaidLocksToPayments(_paysCache);
-          localStorage.setItem('payments', JSON.stringify(_paysCache));
-          window._lastLocksMk = _mkCur;
-        }
+        _applyPaidLocksToPayments(rows);
       } catch(e) { console.error('paid_locks apply error:', e); }
       {
         const _tD = new Date();
