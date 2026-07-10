@@ -78,14 +78,10 @@
 
   <div class="container">
     <!-- 백업/복구 안내바 -->
-    <div id="backupBar" style="display:none;background:#fff3e0;border:1.5px solid #ffcc80;border-radius:8px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <span style="font-size:13px;color:#e65100;font-weight:bold;">💾 자동 백업 복구 가능</span>
-      <span id="backupBarMsg" style="font-size:12px;color:#555;flex:1;"></span>
-      <button onclick="showBackupList()" style="background:#e65100;color:white;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:bold;">백업 목록 보기</button>
-      <button onclick="exportAllData()" style="background:#1565c0;color:white;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:bold;">💾 파일로 백업</button>
-      <button onclick="document.getElementById('_importFile').click()" style="background:#2e7d32;color:white;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:bold;">📂 파일에서 복구</button>
+    <!-- 백업/복구 안내바 (숨김 처리 · 사용자 요청) -->
+    <div id="backupBar" style="display:none !important;">
+      <span id="backupBarMsg"></span>
       <input type="file" id="_importFile" accept=".json" style="display:none;" onchange="importAllData(this.files[0])">
-      <button onclick="document.getElementById('backupBar').style.display='none'" style="background:#eee;color:#555;border:none;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;">닫기</button>
     </div>
 
     <div class="tab-bar">
@@ -7138,7 +7134,10 @@
               style="width:100px;border:1px solid #90caf9;border-radius:4px;padding:3px 6px;font-size:12px;text-align:right;${inputDisabled?'background:#eee;color:#aaa;':''}">
           </td>
           <td style="padding:4px 6px;border:1px solid #eee;text-align:center;">
-            <button type="button" onclick="_cePauseToggle('${mk}',this)" title="${isPaused?'현재 쉼 상태 — 클릭 시 해제':'클릭 시 쉼(휴식월) 처리'}" style="padding:2px 8px;font-size:10px;background:${isPaused?'#888':'#f5f5f5'};color:${isPaused?'white':'#999'};border:1px solid ${isPaused?'#888':'#ccc'};border-radius:4px;cursor:pointer;font-weight:bold;" ${isEnded||isBeforeStart?'disabled':''}>${isPaused?'💤 쉼(해제)':'○ 쉼처리'}</button>
+            <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;${isEnded||isBeforeStart?'opacity:0.4;cursor:not-allowed;':''}" title="${isPaused?'현재 쉼 상태':'클릭해서 쉼(휴식월)으로 표기'}">
+              <input type="checkbox" ${isPaused?'checked':''} ${isEnded||isBeforeStart?'disabled':''} onchange="_cePauseToggle('${mk}',this)" style="accent-color:#1565c0;cursor:${isEnded||isBeforeStart?'not-allowed':'pointer'};">
+              <span style="color:${isPaused?'#1565c0':'#888'};font-weight:${isPaused?'bold':'normal'};">쉼</span>
+            </label>
           </td>
           <td style="padding:4px 6px;border:1px solid #eee;font-size:11px;text-align:center;">
             ${statusCell}
@@ -10694,18 +10693,8 @@
     }
 
     // 페이지 로드 시 백업 존재 여부 안내
-    (function checkBackups() {
-      const keys = getBackupKeys();
-      const today = new Date().toISOString().slice(0,10);
-      // 오늘 것 제외한 과거 백업이 있으면 안내바 표시
-      const pastKeys = keys.filter(k=>!k.includes(today));
-      if (pastKeys.length > 0) {
-        const latest = pastKeys[0].replace('payments_backup_','');
-        document.getElementById('backupBarMsg').textContent =
-          `최근 백업: ${latest} (총 ${pastKeys.length}개 보관)`;
-        document.getElementById('backupBar').style.display = 'flex';
-      }
-    })();
+    // 백업 안내바 자동 표시 비활성화 (사용자 요청)
+    // (function checkBackups() { ... })();
 
     // 탭과 모드 복원 (새로고침 후에도 마지막 작업창 그대로 표시)
     function restoreLastState() {
