@@ -740,46 +740,17 @@
     function savePayments(d){
       // 저장 직전 support 정규화 (변형 표기 통일)
       try { d.forEach(p => { if (p && p.support) p.support = _normPaySupport(p.support); }); } catch(e){}
+      // [A단계] 저장 후 캐시 무효화 — 다음 렌더링에서 generateMonthRecords 재실행 보장
+      window._lastGenMk = null;
       const json = JSON.stringify(d);
-      // 백업 정리: 1개만 유지 (사용자 요청 · 용량 절약)
-      const _pruneBackups = () => {
-        try {
-          const backupKeys = Object.keys(localStorage)
-            .filter(k => k.startsWith('payments_backup_'))
-            .sort(); // YYYY-MM-DD 순
-          const KEEP = 1;
-          while (backupKeys.length > KEEP) {
-            localStorage.removeItem(backupKeys.shift());
-          }
-        } catch(e) {}
-      };
-      const _doSave = () => {
-        localStorage.setItem('payments', json);
-        const today = new Date().toISOString().slice(0,10);
-        localStorage.setItem('payments_backup_'+today, json);
-        // 로테이션 슬롯 3중 저장 (localStorage 다른 키 — 손실 위험 분산)
-        try {
-          localStorage.setItem('payments_slot_prev', localStorage.getItem('payments_slot_current') || '');
-          localStorage.setItem('payments_slot_current', json);
-        } catch(e){}
-        localStorage.setItem('_lastPaymentsSize', String(d.length));
-        // IndexedDB 자동 백업 (localStorage 완전 소실 대비)
-        _autoBackupToIDB(d);
-      };
+      // [1단계] payments 저장만 수행 — 백업 생성 제거 (Supabase 가 source of truth)
+      //   기존: payments_backup_YYYY-MM-DD · payments_slot_prev/current · IDB 백업 다중 저장
+      //   변경: localStorage.payments 만 저장 (캐시 역할). Supabase push 는 setItem 후킹이 처리.
       try {
-        _pruneBackups();
-        _doSave();
+        localStorage.setItem('payments', json);
+        localStorage.setItem('_lastPaymentsSize', String(d.length));
       } catch(e) {
-        // 용량 부족 시 백업 전부 삭제 후 재시도
-        try {
-          Object.keys(localStorage)
-            .filter(k => k.startsWith('payments_backup_'))
-            .forEach(k => localStorage.removeItem(k));
-          _doSave();
-          alert('⚠️ 저장 공간 부족으로 이전 백업이 모두 삭제되었습니다. 저장은 정상 완료되었습니다.');
-        } catch(e2) {
-          alert('⚠️ 데이터 저장 실패: ' + e2.message + '\n브라우저 저장 공간이 부족하거나 오류가 발생했습니다.');
-        }
+        alert('⚠️ 데이터 저장 실패: ' + e.message + '\n브라우저 저장 공간이 부족하거나 오류가 발생했습니다.');
       }
     }
     // 고유 ID 생성 (루프 내에서도 충돌 없음)
@@ -4529,7 +4500,13 @@
           if (_changed) localStorage.setItem('payments', JSON.stringify(_p0));
         } catch(e){}
         // 여기서 일반 마이그레이션 건너뛰고 generateMonthRecords 만 호출 (신규 항목 추가용)
-        try { generateMonthRecords(true); } catch(e){}
+        try {
+          const _mk1 = monthKey(payYear, payMonth);
+          if (window._lastGenMk !== _mk1) {
+            generateMonthRecords(true);
+            window._lastGenMk = _mk1;
+          }
+        } catch(e){}
       } else
       // status/childName 누락 record 일괄 복구 + 중복 record 병합
       try {
@@ -4750,7 +4727,13 @@
         }
         // 항상 호출 — 신규로 추가된 therapy(예: 센터 2월 시작) 도 자동으로 record 생성
         // generateMonthRecords 내부에서 중복 체크하므로 안전함
-        generateMonthRecords(true);
+        {
+          const _mk2 = monthKey(payYear, payMonth);
+          if (window._lastGenMk !== _mk2) {
+            generateMonthRecords(true);
+            window._lastGenMk = _mk2;
+          }
+        }
         // 🛡️ 스냅샷 복구 (generateMonthRecords 이후 실행 — 신규 생성 record 도 대상)
         if (window.__paidSnapshot) {
           const { map, keyFn } = window.__paidSnapshot;
@@ -4833,7 +4816,13 @@
         if (ch0>0) localStorage.setItem('payments', JSON.stringify(pays0));
       } catch(e){}
       // 매번 누락 항목 자동 추가 (이미 있는 항목은 건드리지 않음)
-      generateMonthRecords(true);
+      {
+        const _mk3 = monthKey(payYear, payMonth);
+        if (window._lastGenMk !== _mk3) {
+          generateMonthRecords(true);
+          window._lastGenMk = _mk3;
+        }
+      }
       // 월 헤더 옆 요약 — 초기값은 payments 전체 기준, 카드 렌더 후 실제 표시 아동 기준으로 재갱신
       {
         const mkNow = monthKey(payYear, payMonth);
