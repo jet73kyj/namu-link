@@ -3650,9 +3650,32 @@
         });
       });
 
-      savePayments(payments);
+      // 자동 dedup — 방치 유형에서 (childId+monthKey+support+therapist+timeSlot+cycle) 중복 정리
+      // 정규화 (공백·전각 제거 후) 로 비교 → 미묘한 차이로 중복 생기는 문제 방지
+      // 납부완료 record 우선 보존
+      const _BANCHI_SET_GEN = new Set(['방치','방과후활동비','치료지원 언어영역','치료지원 작업치료','방과후 치료지원 언어영역','방과후 치료지원 작업치료']);
+      const _norm = s => String(s||'').replace(/\s+/g,'').replace(/[　 ]/g,'').trim();
+      const _seen = new Map();
+      const _dedup = [];
+      let _removed = 0;
+      payments.forEach(p => {
+        if (!_BANCHI_SET_GEN.has(p.support)) { _dedup.push(p); return; }
+        const key = `${p.childId}|${p.monthKey}|${_norm(p.support)}|${_norm(p.therapist)}|${_norm(p.timeSlot)}|${_norm(p.cycle)}`;
+        const isPaid = p.basePaid || p.extraPaid;
+        if (!_seen.has(key)) { _seen.set(key, _dedup.length); _dedup.push(p); return; }
+        const idx = _seen.get(key);
+        const existingIsPaid = _dedup[idx].basePaid || _dedup[idx].extraPaid;
+        if (isPaid && !existingIsPaid) _dedup[idx] = p;   // 납부 정보 있으면 교체
+        _removed++;
+      });
+      if (_removed > 0) {
+        console.log(`[generateMonthRecords] 자동 dedup: 방치 ${_removed}건 제거`);
+        savePayments(_dedup);
+      } else {
+        savePayments(payments);
+      }
       if (!silent) {
-        const msg = added > 0 ? `✅ ${added}건 동기화 완료` : '✅ 동기화 완료 (추가 항목 없음)';
+        const msg = added > 0 ? `✅ ${added}건 동기화 완료 (dedup ${_removed}건)` : `✅ 동기화 완료 (추가 없음 · dedup ${_removed}건)`;
         showRefreshToast(msg);
         renderAll();
       }
