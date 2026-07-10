@@ -3576,9 +3576,14 @@
       // [G단계] O(N²) → O(N) 최적화 — payments 를 Map 으로 인덱싱
       const _existsKey = (childId, sup, mkV, ts, cy, ther) =>
         `${childId}|${sup}|${mkV}|${ts}|${cy}|${ther}`;
+      // [사용자 요청] 광폭 중복 방지: childId + support + monthKey + timeSlot 조합
+      const _broadKey = (childId, sup, mkV, ts) =>
+        `${childId}|${sup}|${mkV}|${ts}`;
       const _payMap = new Map();
+      const _broadMap = new Map();   // 광폭 매칭용
       payments.forEach(p => {
         _payMap.set(_existsKey(p.childId, p.support, p.monthKey, p.timeSlot||'', p.cycle||'', p.therapist||''), p);
+        _broadMap.set(_broadKey(p.childId, p.support, p.monthKey, p.timeSlot||''), p);
       });
 
       children.forEach(child=>{
@@ -3613,6 +3618,11 @@
           if (!exists && isHandoffMonth) {
             exists = _payMap.get(_existsKey(child.id, sup, mk, effTimeSlot, effCycle, therapy.therapist || ''));
           }
+          // [사용자 요청] 광폭 검사: childId + support + monthKey + timeSlot 이 이미 있으면 skip
+          //   → therapist/cycle 이 미묘하게 달라도 동일 수업으로 간주하여 중복 record 생성 방지
+          if (!exists) {
+            exists = _broadMap.get(_broadKey(child.id, sup, mk, effTimeSlot));
+          }
           if (!exists) {
             const _new = {
               id: genId(),
@@ -3631,6 +3641,7 @@
             payments.push(_new);
             // 방금 push 한 record 도 Map 에 반영 → 같은 loop 내 중복 push 방지
             _payMap.set(_existsKey(child.id, sup, mk, effTimeSlot, effCycle, effTherapist), _new);
+            _broadMap.set(_broadKey(child.id, sup, mk, effTimeSlot), _new);
             added++;
           }
         });
