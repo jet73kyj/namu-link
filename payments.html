@@ -2361,8 +2361,11 @@
       const children = getChildren();
       const child = children.find(c => c.id === childId);
       if (!child) return;
-      const therapy = (child.therapies||[]).find(t => BANCHI_SUPPORTS.includes(t.support));
-      if (therapy) therapy.banchiSessionPref = pref;
+      // 사용자 요청: 첫 therapy 만 업데이트 → 방·치 계열 모든 therapy 업데이트
+      //   (같은 아동에 여러 방·치 therapy 있으면 회기 UI 는 1개이므로 일괄 적용)
+      (child.therapies||[])
+        .filter(t => BANCHI_SUPPORTS.includes(t.support))
+        .forEach(t => { t.banchiSessionPref = pref; });
       localStorage.setItem('children', JSON.stringify(children));
     }
 
@@ -4120,14 +4123,16 @@
         const keepIdx = chs.findIndex(c => c.id === it.keep.id);
         if (keepIdx < 0) return;
         const removeIds = new Set(it.remove.map(c => c.id));
-        // therapies 병합 (중복 제거: support+therapist+timeSlot+cycle)
+        // therapies 병합 (중복 제거: support+therapist+timeSlot+cycle+banchiSessionPref)
+        // 사용자 요청: banchiSessionPref 도 비교 → 회기 자동/고정 만 다른 duplicate 잡음
         it.remove.forEach(rc => {
           (rc.therapies||[]).forEach(t => {
             const dupT = (chs[keepIdx].therapies||[]).find(x =>
               x.support === t.support &&
               (x.therapist||'') === (t.therapist||'') &&
               (x.timeSlot||'') === (t.timeSlot||'') &&
-              (x.cycle||'') === (t.cycle||'')
+              (x.cycle||'') === (t.cycle||'') &&
+              (x.banchiSessionPref||'') === (t.banchiSessionPref||'')
             );
             if (!dupT) {
               chs[keepIdx].therapies = chs[keepIdx].therapies || [];
