@@ -81,12 +81,15 @@
     <input id="mk" type="month" value="2026-07">
     <button id="load">불러오기</button>
     <button id="save">저장하기</button>
+    <input id="q" type="search" placeholder="아동 이름 검색" style="width:150px;">
     <span class="sum" id="sum"></span>
   </div>
 
   <div class="note">
     · 엑셀을 보면서 아동별로 지원유형과 금액을 입력하세요.<br>
     · 한 아동이 여러 지원유형을 냈으면 <b>＋줄추가</b> 를 눌러 여러 줄로 넣으세요.<br>
+    · <b>아동 이름 검색</b> 칸에 이름을 치면 그 아동만 남습니다. 비우면 전체가 다시 보입니다.<br>
+    · 검색으로 숨겨진 아동의 입력값도 그대로 살아 있고, 저장할 때 함께 저장됩니다.<br>
     · 이미 저장된 것은 <span class="saved">저장됨</span> 표시가 나옵니다. 금액을 고치면 새 값으로 바뀝니다.<br>
     · 금액칸이 <b>비어 있으면 저장하지 않습니다.</b><br>
     · <b>0원</b>도 저장할 수 있습니다(발달재활서비스 다형 등). 저장 전에 확인 창이 뜹니다.<br>
@@ -197,6 +200,7 @@ async function load() {
 
     LOADED_MK = mk;
     $('empty').style.display = 'none';
+    applyFilter();
     calcSum();
     show($('msg2'), mk + ' 불러왔습니다. 이미 저장된 것 ' + (data || []).length + '건.', true);
   } catch (e) {
@@ -282,6 +286,16 @@ async function save() {
     $('save').textContent = '저장하기';
   }
 }
+
+// 이름 검색 (화면에서 숨기기만 함. 입력값은 그대로 살아 있음)
+function applyFilter() {
+  const q = $('q').value.trim().toLowerCase();
+  document.querySelectorAll('#rows tr').forEach(tr => {
+    const nm = (tr.querySelector('.name')?.textContent || '').toLowerCase();
+    tr.style.display = (!q || nm.includes(q)) ? '' : 'none';
+  });
+}
+$('q').addEventListener('input', applyFilter);
 
 // 달을 바꾸면 화면을 비운다 (이전 달 값이 남아 잘못 저장되는 것 방지)
 $('mk').addEventListener('change', () => {
