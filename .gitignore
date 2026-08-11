@@ -11,3 +11,7 @@ Thumbs.db
 namu-link-backup*.json
 backup*.json
 *-backup.json
+
+*.lnk
+*.hwpx
+*.hwp
