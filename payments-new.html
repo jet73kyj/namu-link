@@ -91,6 +91,7 @@
     · <b>아동 이름 검색</b> 칸에 이름을 치면 그 아동만 남습니다. 비우면 전체가 다시 보입니다.<br>
     · 검색으로 숨겨진 아동의 입력값도 그대로 살아 있고, 저장할 때 함께 저장됩니다.<br>
     · 이미 저장된 것은 <span class="saved">저장됨</span> 표시가 나옵니다. 금액을 고치면 새 값으로 바뀝니다.<br>
+    · 금액은 세 자리마다 <b>쉼표가 자동으로</b> 붙습니다. 숫자만 치세요.<br>
     · 금액칸이 <b>비어 있으면 저장하지 않습니다.</b><br>
     · <b>0원</b>도 저장할 수 있습니다(발달재활서비스 다형 등). 저장 전에 확인 창이 뜹니다.<br>
     · 달을 바꾸면 화면이 비워집니다. <b>불러오기</b> 를 먼저 누르세요.
@@ -130,6 +131,15 @@ function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+// 금액 쉼표: 화면에는 1,234,000 / 저장할 때는 1234000
+function onlyNum(v) {
+  return String(v == null ? '' : v).replace(/[^0-9]/g, '');
+}
+function fmt(v) {
+  const s = onlyNum(v);
+  return s === '' ? '' : Number(s).toLocaleString();
+}
+
 function typeOptions(sel) {
   return '<option value="">-- 지원유형 --</option>' +
     TYPES.map(t => '<option value="' + t.id + '"' +
@@ -140,7 +150,7 @@ function inputRow(childId, typeId, amount, paidOn, isSaved) {
   return '<div class="row-in" data-child="' + childId + '">'
     + (isSaved ? '<span class="saved">저장됨</span> ' : '')
     + '<select class="ty">' + typeOptions(typeId) + '</select>'
-    + '<input class="amt" type="number" placeholder="금액" value="' + (amount ?? '') + '">'
+    + '<input class="amt" type="text" inputmode="numeric" placeholder="금액" value="' + fmt(amount) + '">'
     + '<input class="day" type="date" value="' + (paidOn ?? '') + '">'
     + '<button class="del" type="button">삭제</button>'
     + '</div>';
@@ -214,7 +224,9 @@ async function load() {
 function calcSum() {
   let total = 0, cnt = 0;
   document.querySelectorAll('.row-in').forEach(r => {
-    const v = parseInt(r.querySelector('.amt').value, 10);
+    const raw = onlyNum(r.querySelector('.amt').value);
+    if (raw === '') return;
+    const v = parseInt(raw, 10);
     if (!isNaN(v) && v >= 0) { total += v; cnt++; }
   });
   $('sum').textContent = cnt + '건 · ' + total.toLocaleString() + '원';
@@ -235,7 +247,7 @@ async function save() {
   document.querySelectorAll('.row-in').forEach(r => {
     const childId = r.dataset.child;
     const typeId  = r.querySelector('.ty').value;
-    const amtRaw  = String(r.querySelector('.amt').value).trim();
+    const amtRaw  = onlyNum(r.querySelector('.amt').value);
     const day     = r.querySelector('.day').value;
     if (amtRaw === '') return;
     const amt = parseInt(amtRaw, 10);
@@ -331,7 +343,18 @@ $('rows').addEventListener('click', e => {
   }
 });
 $('rows').addEventListener('input', e => {
-  if (e.target.classList.contains('amt')) calcSum();
+  if (e.target.classList.contains('amt')) {
+    const el = e.target;
+    const before = el.value;
+    const after  = fmt(before);
+    if (before !== after) {
+      const tailLen = before.length - el.selectionStart;
+      el.value = after;
+      const pos = Math.max(0, after.length - tailLen);
+      el.setSelectionRange(pos, pos);
+    }
+    calcSum();
+  }
 });
 
 $('load').onclick = load;
