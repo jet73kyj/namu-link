@@ -48,6 +48,15 @@
   .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
   .flag { color:#e65100; font-size:12px; }
   .idcell { color:#8d6e63; font-weight:bold; white-space:nowrap; width:50px; }
+  .addbox { background:#f1f8e9; border:1px solid #c5e1a5; border-radius:10px;
+            padding:18px; margin-bottom:18px; }
+  .addtitle { font-size:15px; font-weight:bold; color:#33691e; margin-bottom:12px; }
+  .addgrid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+             gap:10px 14px; }
+  .addgrid label { font-size:12.5px; font-weight:bold; margin:0 0 4px; color:#555; }
+  .addgrid input, .addgrid select { width:100%; padding:8px 10px; font-size:14px;
+             border:1px solid #ddd; border-radius:6px; box-sizing:border-box; }
+  .addbtns { margin-top:14px; display:flex; gap:8px; }
 </style>
 </head>
 <body>
@@ -83,7 +92,68 @@
     <button class="tab" data-st="종결">종결</button>
     <button class="tab" data-st="대기중">대기중</button>
     <input class="search" id="q" type="text" placeholder="이름 검색">
+    <button id="addBtn" class="tab" style="background:#8bc34a;color:#fff;font-weight:bold;">＋ 신규 등록</button>
     <span class="count" id="count"></span>
+  </div>
+
+  <!-- 신규 등록 창 -->
+  <div id="addBox" class="addbox" style="display:none;">
+    <div class="addtitle">신규 아동 등록</div>
+    <div class="addgrid">
+      <div>
+        <label for="f_no">관리번호 (자동)</label>
+        <input id="f_no" type="text" readonly style="background:#f5f5f5;">
+      </div>
+      <div>
+        <label for="f_name">이름 <span style="color:#c62828;">*</span></label>
+        <input id="f_name" type="text" placeholder="아동 이름">
+      </div>
+      <div>
+        <label for="f_birth">생년월일 <span style="color:#c62828;">*</span></label>
+        <input id="f_birth" type="date">
+      </div>
+      <div>
+        <label for="f_status">상태 <span style="color:#c62828;">*</span></label>
+        <select id="f_status">
+          <option value="대기중">대기중</option>
+          <option value="치료중">치료중</option>
+          <option value="종결">종결</option>
+        </select>
+      </div>
+      <div>
+        <label for="f_gender">성별</label>
+        <select id="f_gender">
+          <option value="">-- 선택 --</option>
+          <option value="남">남</option>
+          <option value="여">여</option>
+        </select>
+      </div>
+      <div>
+        <label for="f_phone">연락처</label>
+        <input id="f_phone" type="text" placeholder="010-0000-0000">
+      </div>
+      <div>
+        <label for="f_guardian">보호자</label>
+        <input id="f_guardian" type="text" placeholder="보호자 이름">
+      </div>
+      <div>
+        <label for="f_diagnosis">진단명</label>
+        <input id="f_diagnosis" type="text">
+      </div>
+      <div>
+        <label for="f_disability">장애구분</label>
+        <input id="f_disability" type="text">
+      </div>
+      <div style="grid-column:1 / -1;">
+        <label for="f_memo">메모</label>
+        <input id="f_memo" type="text">
+      </div>
+    </div>
+    <div class="addbtns">
+      <button id="saveNew" class="tab" style="background:#2e7d32;color:#fff;font-weight:bold;">저장하기</button>
+      <button id="cancelNew" class="tab">취소</button>
+    </div>
+    <div id="msg3" class="out"></div>
   </div>
 
   <table>
@@ -232,6 +302,102 @@ document.querySelectorAll('.tab').forEach(b => {
     draw();
   };
 });
+
+// ===== 신규 아동 등록 =====
+
+// 올해 마지막 관리번호 다음 번호를 만든다
+function nextManagerNo() {
+  const yr = new Date().getFullYear();
+  const pre = String(yr) + '01-자라는 ';
+  let max = 0;
+  ALL.forEach(c => {
+    const s = c.manager_no || '';
+    if (s.startsWith(pre)) {
+      const n = parseInt(s.slice(pre.length).trim(), 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  });
+  return pre + String(max + 1).padStart(3, '0');
+}
+
+function show3(text, ok) {
+  $('msg3').textContent = text;
+  $('msg3').className = 'out ' + (ok ? 'ok' : 'err');
+}
+
+function clearForm() {
+  ['f_name','f_birth','f_phone','f_guardian','f_diagnosis','f_disability','f_memo']
+    .forEach(k => $(k).value = '');
+  $('f_gender').value = '';
+  $('f_status').value = '대기중';
+  $('msg3').className = 'out';
+  $('msg3').textContent = '';
+}
+
+$('addBtn').onclick = () => {
+  const open = $('addBox').style.display !== 'none';
+  if (open) { $('addBox').style.display = 'none'; return; }
+  clearForm();
+  $('f_no').value = nextManagerNo();
+  $('addBox').style.display = 'block';
+  $('f_name').focus();
+};
+
+$('cancelNew').onclick = () => { $('addBox').style.display = 'none'; };
+
+$('saveNew').onclick = async () => {
+  const name  = $('f_name').value.trim();
+  const birth = $('f_birth').value;
+  const st    = $('f_status').value;
+
+  if (!name)  { show3('이름을 입력하세요.', false); return; }
+  if (!birth) { show3('생년월일을 입력하세요.', false); return; }
+  if (!st)    { show3('상태를 고르세요.', false); return; }
+
+  // 같은 이름 + 같은 생년월일이 이미 있으면 막는다
+  const dup = ALL.find(c => (c.name || '') === name && (c.birth || '') === birth);
+  if (dup) {
+    show3('⚠️ 같은 이름 · 같은 생년월일 아동이 이미 있습니다.\n번호 ' + dup.id +
+          ' (' + (dup.manager_no || '관리번호 없음') + ')\n중복 등록이 아닌지 확인하세요.', false);
+    return;
+  }
+
+  const row = {
+    manager_no: $('f_no').value,
+    name: name,
+    birth: birth,
+    status: st,
+    gender:     $('f_gender').value || null,
+    phone:      $('f_phone').value.trim() || null,
+    guardian:   $('f_guardian').value.trim() || null,
+    diagnosis:  $('f_diagnosis').value.trim() || null,
+    disability: $('f_disability').value.trim() || null,
+    memo:       $('f_memo').value.trim() || null
+  };
+
+  $('saveNew').disabled = true;
+  $('saveNew').textContent = '저장 중...';
+  try {
+    const { data, error } = await sb.from('nl_children')
+      .insert(row)
+      .select('id, manager_no, name, birth, gender, status, memo')
+      .single();
+    if (error) throw error;
+
+    ALL.push(data);
+    ALL.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+    draw();
+    show3('✅ 등록했습니다. 번호 ' + data.id + ' / ' + data.manager_no, true);
+    clearForm();
+    $('f_no').value = nextManagerNo();
+    $('f_name').focus();
+  } catch (e) {
+    show3('❌ 등록하지 못했습니다.\n' + e.message, false);
+  } finally {
+    $('saveNew').disabled = false;
+    $('saveNew').textContent = '저장하기';
+  }
+};
 
 $('q').addEventListener('input', draw);
 $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
