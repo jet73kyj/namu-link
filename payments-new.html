@@ -44,6 +44,7 @@
   .row-in select { width:190px; }
   .row-in input.amt { width:110px; text-align:right; }
   .row-in input.day { width:140px; }
+  .row-in input.pmemo { width:170px; }
   .add { background:#8bc34a; padding:5px 11px; font-size:12px; }
   .del { background:#e57373; padding:5px 9px; font-size:12px; }
   .saved { background:#e8f5e9; color:#1b5e20; padding:3px 9px; border-radius:11px;
@@ -91,6 +92,7 @@
     · <b>아동 이름 검색</b> 칸에 이름을 치면 그 아동만 남습니다. 비우면 전체가 다시 보입니다.<br>
     · 검색으로 숨겨진 아동의 입력값도 그대로 살아 있고, 저장할 때 함께 저장됩니다.<br>
     · 이미 저장된 것은 <span class="saved">저장됨</span> 표시가 나옵니다. 금액을 고치면 새 값으로 바뀝니다.<br>
+    · <b>메모</b> 칸에 세부 내용을 적을 수 있습니다 (예: 평가비 → 어떤 평가인지).<br>
     · 금액은 세 자리마다 <b>쉼표가 자동으로</b> 붙습니다. 숫자만 치세요.<br>
     · 금액칸이 <b>비어 있으면 저장하지 않습니다.</b><br>
     · <b>0원</b>도 저장할 수 있습니다(발달재활서비스 다형 등). 저장 전에 확인 창이 뜹니다.<br>
@@ -101,7 +103,7 @@
     <thead>
       <tr>
         <th style="width:120px;">아동</th>
-        <th>지원유형 / 금액 / 결제일</th>
+        <th>지원유형 / 금액 / 결제일 / 메모</th>
       </tr>
     </thead>
     <tbody id="rows"></tbody>
@@ -146,12 +148,13 @@ function typeOptions(sel) {
       (String(sel) === String(t.id) ? ' selected' : '') + '>' +
       esc(t.name) + '</option>').join('');
 }
-function inputRow(childId, typeId, amount, paidOn, isSaved) {
+function inputRow(childId, typeId, amount, paidOn, isSaved, memo) {
   return '<div class="row-in" data-child="' + childId + '">'
     + (isSaved ? '<span class="saved">저장됨</span> ' : '')
     + '<select class="ty">' + typeOptions(typeId) + '</select>'
     + '<input class="amt" type="text" inputmode="numeric" placeholder="금액" value="' + fmt(amount) + '">'
     + '<input class="day" type="date" value="' + (paidOn ?? '') + '">'
+    + '<input class="pmemo" type="text" placeholder="메모" value="' + esc(memo ?? '') + '">'
     + '<button class="del" type="button">삭제</button>'
     + '</div>';
 }
@@ -187,7 +190,7 @@ async function load() {
   $('load').textContent = '불러오는 중...';
   try {
     const { data, error } = await sb.from('nl_payments')
-      .select('child_id, support_type_id, amount, paid_on')
+      .select('child_id, support_type_id, amount, paid_on, memo')
       .eq('month_key', mk);
     if (error) throw error;
 
@@ -199,8 +202,9 @@ async function load() {
     $('rows').innerHTML = CHILDREN.map(ch => {
       const list = byChild[ch.id] || [];
       const inner = list.length
-        ? list.map(p => inputRow(ch.id, p.support_type_id, p.amount, p.paid_on, true)).join('')
-        : inputRow(ch.id, '', '', '', false);
+        ? list.map(p => inputRow(ch.id, p.support_type_id, p.amount, p.paid_on, true,
+            (p.memo || '').startsWith('2026-08-11 자동이관') ? '' : p.memo)).join('')
+        : inputRow(ch.id, '', '', '', false, '');
       return '<tr data-child="' + ch.id + '">'
         + '<td class="name">' + esc(ch.name) + '</td>'
         + '<td class="cell">' + inner
@@ -249,6 +253,7 @@ async function save() {
     const typeId  = r.querySelector('.ty').value;
     const amtRaw  = onlyNum(r.querySelector('.amt').value);
     const day     = r.querySelector('.day').value;
+    const pmemo   = r.querySelector('.pmemo').value.trim();
     if (amtRaw === '') return;
     const amt = parseInt(amtRaw, 10);
     if (isNaN(amt) || amt < 0) return;
@@ -266,7 +271,7 @@ async function save() {
       amount: amt,
       is_paid: true,
       paid_on: day || null,
-      memo: '화면입력'
+      memo: pmemo || '화면입력'
     });
   });
 
@@ -330,14 +335,16 @@ $('rows').addEventListener('click', e => {
   if (e.target.classList.contains('add')) {
     const tr = e.target.closest('tr');
     e.target.insertAdjacentHTML('beforebegin',
-      inputRow(tr.dataset.child, '', '', '', false));
+      inputRow(tr.dataset.child, '', '', '', false, ''));
   }
   if (e.target.classList.contains('del')) {
     const cell = e.target.closest('.cell');
     if (cell.querySelectorAll('.row-in').length > 1) {
       e.target.closest('.row-in').remove();
     } else {
-      e.target.closest('.row-in').querySelector('.amt').value = '';
+      const row = e.target.closest('.row-in');
+      row.querySelector('.amt').value = '';
+      row.querySelector('.pmemo').value = '';
     }
     calcSum();
   }
