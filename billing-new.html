@@ -63,7 +63,16 @@
 
   .sect { font-size:11px; font-weight:600; letter-spacing:.06em; color:var(--ink3);
           margin:0 0 10px; }
-  .sect.bank { margin-top:26px; padding-top:20px; border-top:1px solid var(--line); }
+  .sect.bank { margin-top:24px; margin-bottom:0; padding:12px 14px 8px;
+               background:#eef1fb; border-radius:10px 10px 0 0;
+               color:#4a56a6; border-top:none; }
+  .bankbody { background:#eef1fb; border-radius:0 0 10px 10px;
+              padding:2px 14px 14px; margin-bottom:4px; }
+  .bankbody .r { padding:6px 0; }
+  .bankbody .nm { color:#3b4694; font-weight:600; }
+  .bankbody .am { color:#3b4694; font-weight:600; }
+  .bankbody input { border-color:#c9d0ec; }
+  .bankbody .pay { margin-top:10px; }
 
   .r { display:flex; align-items:center; gap:12px; padding:5px 0; font-size:14px; }
   .r .nm  { flex:0 0 170px; color:var(--ink2); }
@@ -431,6 +440,7 @@ function drawKid(c) {
     const pv = gr ? gr.self_pay : null;
     const ds = sv[2];
     b += '<div class="sect bank">계좌입금 · 발달재활서비스 본인부담금</div>'
+      + '<div class="bankbody">'
       + '<div class="r gsum" data-st="2" data-fixed="' + (pv == null ? '' : pv) + '">'
       + '<span class="nm">발달재활서비스'
       + (gr ? ' <b>' + gr.grade + '형</b>' : '')
@@ -442,7 +452,8 @@ function drawKid(c) {
       + '<div class="pay">'
       + '<input class="dt bday" type="date" value="' + (ds && ds.paid_on ? ds.paid_on : '') + '">'
       + '<input class="tx bmemo" type="text" placeholder="입금자명" value="'
-      + esc(memoOf(ds, true)) + '"></div>';
+      + esc(memoOf(ds, true)) + '"></div>'
+      + '</div>';
   }
 
   b += '<div class="kidfoot"><button class="ksave" type="button">저장</button></div>';
