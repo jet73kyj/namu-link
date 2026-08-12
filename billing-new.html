@@ -63,6 +63,12 @@
            font-size:11.5px; }
   .warn { color:#e65100; font-size:12px; }
   .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
+  .secttl { font-size:12.5px; font-weight:bold; color:#558b2f; margin:4px 0 6px;
+            padding-left:2px; }
+  .secttl.bank { color:#5c6bc0; margin-top:16px; padding-top:12px;
+                 border-top:1px dashed #ddd; }
+  tr.cardsum td { background:#f1f8e9; border-top:2px solid #c5e1a5; }
+  tr[data-review] td { background:#fffdf5; }
 </style>
 </head>
 <body>
@@ -100,7 +106,8 @@
   <div class="note">
     · <b>회기</b>는 그 달의 수업 요일 수로 자동 계산됩니다. 결석이 있으면 숫자만 고치세요.<br>
     · <b>리뷰</b>는 1건당 5,000원, 월 최대 4건까지 차감됩니다. 발달재활서비스는 차감 대상이 아닙니다.<br>
-    · <b>결제일</b>을 넣으면 납부완료로, 비워두면 미납으로 저장됩니다.<br>
+    · <b>카드결제</b>와 <b>계좌입금</b>(발달재활 본인부담금)은 날짜와 메모를 따로 넣습니다.<br>
+    · 날짜를 넣으면 납부완료로, 비워두면 미납으로 저장됩니다.<br>
     · 아동별로 <b>저장</b>을 눌러야 기록됩니다. 이미 저장된 것은 <span class="saved">저장됨</span> 표시가 나옵니다.<br>
     · 수업 요일·치료사·지원유형이 실제와 다르면 아동 목록 화면에서 먼저 고쳐야 합니다.
   </div>
@@ -322,12 +329,14 @@ function drawKid(c) {
       + '</div></div>';
   }
 
-  let body = '<table class="calc"><thead><tr>'
-    + '<th style="width:200px;">지원유형</th><th>내용</th>'
+  // ===== 위: 카드결제 묶음 (발달재활 본인부담금 2번 제외) =====
+  let body = '<div class="secttl">카드결제 (방문일 결제)</div>';
+  body += '<table class="calc"><thead><tr>'
+    + '<th style="width:190px;">지원유형</th><th>내용</th>'
     + '<th style="width:70px;">회기</th><th style="width:90px;">단가</th>'
     + '<th style="width:110px;">금액</th></tr></thead><tbody>';
 
-  groups.forEach(g => {
+  groups.filter(g => g.support_type_id !== 2).forEach(g => {
     const tname = TYPES[g.support_type_id] || ('유형' + g.support_type_id);
     const isSaved = sv[g.support_type_id] !== undefined;
 
@@ -350,14 +359,6 @@ function drawKid(c) {
         + '<td></td><td colspan="3" class="num">' + esc(tname) + ' 합계</td>'
         + '<td class="num gamt">0</td></tr>';
 
-    } else if (g.calc_type === '등급정액') {
-      const gr = GRADES[c.id];
-      const pay = gr ? gr.self_pay : null;
-      body += '<tr class="sumline gsum" data-st="2" data-fixed="' + (pay == null ? '' : pay) + '">'
-        + '<td>' + esc(tname) + (isSaved ? ' <span class="saved">저장됨</span>' : '') + '</td>'
-        + '<td class="dim">' + (gr ? gr.grade + '형 본인부담금' : '<span class="warn">등급 없음 — 아동 목록에서 등급을 먼저 넣으세요</span>') + '</td>'
-        + '<td></td><td></td><td class="num gamt">0</td></tr>';
-
     } else if (g.calc_type === '치료사정액') {
       body += '<tr class="sumline gsum" data-st="8" data-extra="' + (g.extra_unit == null ? '' : g.extra_unit) + '">'
         + '<td>' + esc(tname) + (isSaved ? ' <span class="saved">저장됨</span>' : '') + '</td>'
@@ -376,17 +377,52 @@ function drawKid(c) {
     + '<td class="num"><input class="mn evamt" type="text" inputmode="numeric" value="'
     + (evSaved ? Number(evSaved.amount).toLocaleString() : '') + '" placeholder="0"></td></tr>';
 
+  // 리뷰 차감
+  body += '<tr data-review="1"><td>리뷰 차감</td>'
+    + '<td class="dim">1건 5,000원 · 월 최대 4건</td>'
+    + '<td><input class="cnt rv" type="text" inputmode="numeric" value="0"></td>'
+    + '<td class="num dim">5,000</td>'
+    + '<td class="num dim rvtxt">− 0</td></tr>';
+
+  // 카드 합계 + 결제일 + 메모
+  const cardPaid = Object.keys(sv).map(k => sv[k])
+    .find(p => Number(p.support_type_id) !== 2 && p.paid_on);
+  body += '<tr class="cardsum"><td></td>'
+    + '<td colspan="2" class="num"><b>카드결제 합계</b></td>'
+    + '<td colspan="2" class="num"><b class="cardtotal">0원</b></td></tr>';
   body += '</tbody></table>';
 
-  const anyPaid = Object.values(sv).find(p => p.paid_on);
   body += '<div class="kidfoot">'
-    + '<label>리뷰 건수</label>'
-    + '<input class="cnt rv" type="text" inputmode="numeric" value="0">'
-    + '<span class="dim rvtxt">− 0원</span>'
-    + '<label style="margin-left:10px;">결제일</label>'
-    + '<input class="pday" type="date" value="' + (anyPaid ? anyPaid.paid_on : '') + '">'
-    + '<input class="mn kmemo" type="text" placeholder="메모" style="width:150px;text-align:left;">'
-    + '<button class="btn-sm ksave" type="button" style="margin-left:auto;">저장</button>'
+    + '<label>결제일</label>'
+    + '<input class="pday" type="date" value="' + (cardPaid ? cardPaid.paid_on : '') + '">'
+    + '<input class="mn kmemo" type="text" placeholder="메모 (승인번호 등)" style="width:200px;text-align:left;">'
+    + '</div>';
+
+  // ===== 아래: 계좌입금 (발달재활 본인부담금) =====
+  const devG = groups.find(g => g.support_type_id === 2);
+  if (devG) {
+    const gr = GRADES[c.id];
+    const pay = gr ? gr.self_pay : null;
+    const dsv = sv[2];
+    body += '<div class="secttl bank">계좌입금 (발달재활서비스 본인부담금)</div>';
+    body += '<table class="calc"><tbody>'
+      + '<tr class="sumline gsum" data-st="2" data-fixed="' + (pay == null ? '' : pay) + '">'
+      + '<td style="width:190px;">발달재활서비스'
+      + (dsv ? ' <span class="saved">저장됨</span>' : '') + '</td>'
+      + '<td class="dim">' + (gr ? gr.grade + '형 본인부담금'
+          : '<span class="warn">등급 없음 — 아동 목록에서 등급을 먼저 넣으세요</span>') + '</td>'
+      + '<td colspan="2"></td>'
+      + '<td class="num gamt" style="width:110px;">0</td></tr>'
+      + '</tbody></table>';
+    body += '<div class="kidfoot">'
+      + '<label>입금일</label>'
+      + '<input class="bday" type="date" value="' + (dsv && dsv.paid_on ? dsv.paid_on : '') + '">'
+      + '<input class="mn bmemo" type="text" placeholder="입금자명" style="width:200px;text-align:left;">'
+      + '</div>';
+  }
+
+  body += '<div class="kidfoot" style="border-top:1px solid #ddd;">'
+    + '<button class="btn-sm ksave" type="button" style="margin-left:auto;">이 아동 저장</button>'
     + '</div>';
 
   return '<div class="kid" data-child="' + c.id + '">'
@@ -441,9 +477,12 @@ function calcKid(childId) {
   });
 
   // 3) 리뷰 차감 — 발달재활(2번) 빼고 나머지에서 순서대로 뺀다
-  let rv = Math.min(numOf(box.querySelector('.rv').value), REVIEW_MAX);
+  const rvEl = box.querySelector('.rv');
+  let rv = rvEl ? Math.min(numOf(rvEl.value), REVIEW_MAX) : 0;
   let cut = rv * REVIEW_UNIT;
-  box.querySelector('.rvtxt').textContent = '− ' + cut.toLocaleString() + '원';
+  if (box.querySelector('.rvtxt')) {
+    box.querySelector('.rvtxt').textContent = '− ' + cut.toLocaleString();
+  }
 
   parts.forEach(p => {
     if (!p.review || cut <= 0) return;
@@ -456,7 +495,13 @@ function calcKid(childId) {
     }
   });
 
-  const total = parts.reduce((s, p) => s + p.amt, 0);
+  const card = parts.filter(p => p.st !== 2).reduce((s, p) => s + p.amt, 0);
+  const bank = parts.filter(p => p.st === 2).reduce((s, p) => s + p.amt, 0);
+  if (box.querySelector('.cardtotal')) {
+    box.querySelector('.cardtotal').textContent = won(card);
+  }
+
+  const total = card + bank;
   box.querySelector('.ktotal').textContent = won(total);
   box.dataset.total = total;
   box.dataset.parts = JSON.stringify(parts);
@@ -474,18 +519,28 @@ function sumAll() {
 async function saveKid(childId, btn) {
   const box = document.querySelector('.kid[data-child="' + childId + '"]');
   const parts = JSON.parse(box.dataset.parts || '[]');
-  const day   = box.querySelector('.pday').value;
-  const memo  = box.querySelector('.kmemo').value.trim();
+  const cEl = box.querySelector('.pday'),  cMemo = box.querySelector('.kmemo');
+  const bEl = box.querySelector('.bday'),  bMemo = box.querySelector('.bmemo');
+  const cardDay  = cEl ? cEl.value : '';
+  const cardMemo = cMemo ? cMemo.value.trim() : '';
+  const bankDay  = bEl ? bEl.value : '';
+  const bankMemo = bMemo ? bMemo.value.trim() : '';
 
-  const rows = parts.filter(p => p.amt > 0 || p.st === 2).map(p => ({
-    child_id: childId,
-    support_type_id: p.st,
-    month_key: LOADED_MK,
-    amount: p.amt,
-    is_paid: !!day,
-    paid_on: day || null,
-    memo: memo || '자동계산'
-  }));
+  const rows = parts.filter(p => p.amt > 0 || p.st === 2).map(p => {
+    const isBank = (p.st === 2);
+    const day  = isBank ? bankDay  : cardDay;
+    const memo = isBank ? (bankMemo ? '계좌입금 ' + bankMemo : '계좌입금')
+                        : (cardMemo || '카드결제');
+    return {
+      child_id: childId,
+      support_type_id: p.st,
+      month_key: LOADED_MK,
+      amount: p.amt,
+      is_paid: !!day,
+      paid_on: day || null,
+      memo: memo
+    };
+  });
 
   if (!rows.length) { show($('msg2'), '저장할 내용이 없습니다.', false); return; }
 
@@ -497,8 +552,9 @@ async function saveKid(childId, btn) {
     rows.forEach(r => {
       (SAVED[childId] = SAVED[childId] || {})[r.support_type_id] = r;
     });
+    const unpaid = rows.filter(r => !r.paid_on).length;
     show($('msg2'), '✅ ' + rows.length + '건 저장했습니다.'
-      + (day ? '' : ' (결제일이 없어 미납으로 저장)'), true);
+      + (unpaid ? ' (그중 ' + unpaid + '건은 날짜가 없어 미납으로 저장)' : ''), true);
     btn.textContent = '저장됨';
     setTimeout(() => { btn.textContent = '저장'; btn.disabled = false; }, 1200);
   } catch (e) {
