@@ -45,6 +45,8 @@
   .row-in input.amt { width:110px; text-align:right; }
   .row-in input.day { width:140px; }
   .row-in input.pmemo { width:170px; }
+  .stg { display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px;
+         background:#fff8e1; color:#e65100; font-weight:normal; }
   .add { background:#8bc34a; padding:5px 11px; font-size:12px; }
   .del { background:#e57373; padding:5px 9px; font-size:12px; }
   .saved { background:#e8f5e9; color:#1b5e20; padding:3px 9px; border-radius:11px;
@@ -83,6 +85,12 @@
     <button id="load">불러오기</button>
     <button id="save">저장하기</button>
     <input id="q" type="search" placeholder="아동 이름 검색" style="width:150px;">
+    <select id="stf" style="width:110px;">
+      <option value="치료중">치료중</option>
+      <option value="전체">전체</option>
+      <option value="대기중">대기중</option>
+      <option value="종결">종결</option>
+    </select>
     <span class="sum" id="sum"></span>
   </div>
 
@@ -90,6 +98,7 @@
     · 엑셀을 보면서 아동별로 지원유형과 금액을 입력하세요.<br>
     · 한 아동이 여러 지원유형을 냈으면 <b>＋줄추가</b> 를 눌러 여러 줄로 넣으세요.<br>
     · <b>아동 이름 검색</b> 칸에 이름을 치면 그 아동만 남습니다. 비우면 전체가 다시 보입니다.<br>
+    · 옆의 <b>상태 고르기</b>로 대기중·종결 아동도 볼 수 있습니다 (평가비, 지난달 정산 등).<br>
     · 검색으로 숨겨진 아동의 입력값도 그대로 살아 있고, 저장할 때 함께 저장됩니다.<br>
     · 이미 저장된 것은 <span class="saved">저장됨</span> 표시가 나옵니다. 금액을 고치면 새 값으로 바뀝니다.<br>
     · <b>메모</b> 칸에 세부 내용을 적을 수 있습니다 (예: 평가비 → 어떤 평가인지).<br>
@@ -173,10 +182,12 @@ async function afterLogin(user) {
   if (c.error) { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
   if (t.error) { show($('msg'), '❌ 지원유형 조회 실패\n' + t.error.message, false); return; }
 
-  CHILDREN = (c.data || []).filter(x => x.status === '치료중');
+  CHILDREN = (c.data || []);
   TYPES    = t.data || [];
 
-  $('who').textContent = me.name + ' (' + me.role + ') 님 · 치료중 아동 ' + CHILDREN.length + '명';
+  const ing = CHILDREN.filter(x => x.status === '치료중').length;
+  $('who').textContent = me.name + ' (' + me.role + ') 님 · 전체 ' + CHILDREN.length
+    + '명 (치료중 ' + ing + ')';
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
   $('empty').style.display    = 'block';
@@ -205,8 +216,11 @@ async function load() {
         ? list.map(p => inputRow(ch.id, p.support_type_id, p.amount, p.paid_on, true,
             (p.memo || '').startsWith('2026-08-11 자동이관') ? '' : p.memo)).join('')
         : inputRow(ch.id, '', '', '', false, '');
-      return '<tr data-child="' + ch.id + '">'
-        + '<td class="name">' + esc(ch.name) + '</td>'
+      return '<tr data-child="' + ch.id + '" data-status="' + esc(ch.status) + '">'
+        + '<td class="name">' + esc(ch.name)
+        + (ch.status !== '치료중'
+            ? ' <span class="stg">' + esc(ch.status) + '</span>' : '')
+        + '</td>'
         + '<td class="cell">' + inner
         + '<button class="add" type="button">＋줄추가</button></td>'
         + '</tr>';
@@ -304,15 +318,20 @@ async function save() {
   }
 }
 
-// 이름 검색 (화면에서 숨기기만 함. 입력값은 그대로 살아 있음)
+// 이름 검색 + 상태 고르기 (화면에서 숨기기만 함. 입력값은 그대로 살아 있음)
 function applyFilter() {
-  const q = $('q').value.trim().toLowerCase();
+  const q  = $('q').value.trim().toLowerCase();
+  const st = $('stf').value;
   document.querySelectorAll('#rows tr').forEach(tr => {
     const nm = (tr.querySelector('.name')?.textContent || '').toLowerCase();
-    tr.style.display = (!q || nm.includes(q)) ? '' : 'none';
+    const s  = tr.dataset.status || '';
+    const okQ  = !q || nm.includes(q);
+    const okSt = (st === '전체') || (s === st);
+    tr.style.display = (okQ && okSt) ? '' : 'none';
   });
 }
 $('q').addEventListener('input', applyFilter);
+$('stf').addEventListener('change', applyFilter);
 
 // 달을 바꾸면 화면을 비운다 (이전 달 값이 남아 잘못 저장되는 것 방지)
 $('mk').addEventListener('change', () => {
