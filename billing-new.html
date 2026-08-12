@@ -5,82 +5,108 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>납부 계산 - 나무링크</title>
 <style>
-  body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:#f5f9f0;
-         margin:0; padding:24px; color:#333; }
-  .box { max-width:460px; margin:40px auto; background:#fff; border-radius:12px;
-         padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-  .wide { max-width:1000px; margin:20px auto; background:#fff; border-radius:12px;
-          padding:24px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-  h1 { font-size:20px; color:#2e7d32; margin:0 0 4px; }
-  .sub { font-size:13px; color:#888; margin-bottom:22px; }
-  label { display:block; font-size:13px; font-weight:bold; margin:14px 0 5px; }
-  input, select { padding:9px; border:1px solid #ddd; border-radius:6px;
-                  font-size:14px; box-sizing:border-box; }
-  .box input { width:100%; padding:11px; font-size:15px; }
-  button { padding:11px 18px; background:#2e7d32; color:#fff; border:none;
-           border-radius:7px; font-size:14px; font-weight:bold; cursor:pointer; }
-  button:disabled { background:#bbb; cursor:default; }
-  .box button { width:100%; padding:13px; margin-top:20px; font-size:15px; }
-  .out { margin-top:16px; padding:14px; border-radius:8px; font-size:14px;
-         line-height:1.7; display:none; white-space:pre-wrap; }
-  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
-  .err { background:#ffebee; color:#b71c1c; display:block; }
+  :root {
+    --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
+    --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system, "Malgun Gothic", sans-serif; background:var(--bg);
+         margin:0; padding:28px 20px; color:var(--ink);
+         font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
 
-  .top { display:flex; justify-content:space-between; align-items:center;
-         flex-wrap:wrap; gap:10px; margin-bottom:16px; }
-  .who { font-size:13px; color:#666; }
-  .btn-out { background:#757575; padding:8px 16px; font-size:13px; }
+  .box  { max-width:400px; margin:56px auto; background:#fff; border-radius:14px;
+          padding:32px; border:1px solid var(--line); }
+  .wide { max-width:820px; margin:0 auto; }
+
+  h1 { font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0; color:var(--ink); }
+  .sub { font-size:13px; color:var(--ink3); margin:6px 0 24px; }
+  label { display:block; font-size:12px; color:var(--ink2); margin:16px 0 6px; }
+
+  input, select { font:inherit; font-size:14px; padding:9px 11px; color:var(--ink);
+                  border:1px solid var(--line); border-radius:8px; background:#fff; }
+  input:focus, select:focus { outline:2px solid var(--acc); outline-offset:-1px;
+                              border-color:transparent; }
+  .box input { width:100%; }
+
+  button { font:inherit; font-size:14px; font-weight:500; padding:10px 16px;
+           background:var(--acc); color:#fff; border:none; border-radius:8px;
+           cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  button:disabled { background:#c3c8c0; cursor:default; }
+  .box button { width:100%; padding:12px; margin-top:24px; }
+  .ghost { background:none; color:var(--ink2); border:1px solid var(--line); }
+
+  .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
+         line-height:1.6; display:none; white-space:pre-wrap; }
+  .ok  { background:var(--acc-bg); color:#2c5c37; display:block; }
+  .err { background:#fdeeee; color:#9c2b2b; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:flex-start;
+         gap:12px; margin-bottom:24px; }
+  .who { font-size:13px; color:var(--ink3); margin-top:4px; }
+
   .tools { display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-           margin-bottom:14px; padding:14px; background:#f1f8e9; border-radius:8px; }
-  .tools label { margin:0; font-size:13px; }
-  .btn-sm { padding:8px 14px; font-size:13px; }
-  .note { font-size:12.5px; color:#888; margin:10px 0 16px; line-height:1.8; }
+           padding-bottom:18px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+  .tools label { margin:0; }
+  .allsum { margin-left:auto; font-size:14px; color:var(--ink2); }
 
-  .kid { border:1px solid #dcedc8; border-radius:10px; margin-bottom:14px;
-         overflow:hidden; }
-  .kidhead { background:#f1f8e9; padding:11px 14px; display:flex; gap:10px;
-             align-items:center; flex-wrap:wrap; }
-  .kidname { font-weight:bold; font-size:15px; color:#33691e; }
-  .kidno { font-size:12px; color:#888; }
-  .stg { display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px;
-         background:#fff8e1; color:#e65100; }
-  .kidtotal { margin-left:auto; font-weight:bold; color:#1b5e20; font-size:15px; }
-  .kidbody { padding:12px 14px; }
+  .note { font-size:12.5px; color:var(--ink3); line-height:1.9; margin:14px 0 22px; }
+  .note b { color:var(--ink2); font-weight:600; }
 
-  table.calc { width:100%; border-collapse:collapse; font-size:13.5px; }
-  table.calc th { background:#fafafa; color:#666; padding:7px 6px; text-align:left;
-       border-bottom:1px solid #eee; font-size:12px; white-space:nowrap; }
-  table.calc td { padding:7px 6px; border-bottom:1px solid #f4f4f4; vertical-align:middle; }
-  td.num { text-align:right; white-space:nowrap; }
-  input.cnt { width:52px; text-align:center; padding:5px; }
-  input.mn  { width:100px; text-align:right; padding:5px; }
-  .dim { color:#999; font-size:12px; }
-  .sumline { background:#f9fbf6; font-weight:bold; }
-  .kidfoot { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-             margin-top:10px; padding-top:10px; border-top:1px dashed #ddd; }
-  .kidfoot label { margin:0; font-size:12.5px; font-weight:normal; color:#666; }
-  .saved { background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:10px;
-           font-size:11.5px; }
-  .warn { color:#e65100; font-size:12px; }
-  .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
-  .secttl { font-size:12.5px; font-weight:bold; color:#558b2f; margin:4px 0 6px;
-            padding-left:2px; }
-  .secttl.bank { color:#5c6bc0; margin-top:16px; padding-top:12px;
-                 border-top:1px dashed #ddd; }
-  tr.cardsum td { background:#f1f8e9; border-top:2px solid #c5e1a5; }
-  tr[data-review] td { background:#fffdf5; }
+  /* ── 아동 카드 ── */
+  .kid { background:#fff; border:1px solid var(--line); border-radius:14px;
+         padding:22px 24px; margin-bottom:14px; }
+  .kidhead { display:flex; align-items:baseline; gap:10px; margin-bottom:18px; }
+  .kidname { font-size:16px; font-weight:600; letter-spacing:-.01em; }
+  .kidno   { font-size:12px; color:var(--ink3); }
+  .ktotal  { margin-left:auto; font-size:17px; font-weight:600; }
+
+  .sect { font-size:11px; font-weight:600; letter-spacing:.06em; color:var(--ink3);
+          margin:0 0 10px; }
+  .sect.bank { margin-top:26px; padding-top:20px; border-top:1px solid var(--line); }
+
+  .r { display:flex; align-items:center; gap:12px; padding:5px 0; font-size:14px; }
+  .r .nm  { flex:0 0 150px; color:var(--ink2); }
+  .r .de  { flex:1; color:var(--ink3); font-size:13px; }
+  .r .ct  { flex:0 0 46px; }
+  .r .up  { flex:0 0 68px; text-align:right; color:var(--ink3); font-size:13px; }
+  .r .am  { flex:0 0 96px; text-align:right; }
+  .r input.cnt { width:46px; padding:5px 0; text-align:center; font-size:13px; }
+  .r input.mn  { width:96px; padding:5px 8px; text-align:right; font-size:13px; }
+
+  .r.sum { padding-top:11px; margin-top:5px; border-top:1px solid var(--line);
+           font-weight:600; }
+  .r.sub2 .am { color:var(--ink3); font-size:13px; }
+  .r.tot { margin-top:9px; padding-top:11px; border-top:1.5px solid var(--ink);
+           font-size:15px; font-weight:600; }
+  .cut { color:var(--ink3); font-size:12px; font-weight:400; }
+  .warn { color:#b5651d; font-size:12.5px; }
+
+  .pay { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+  .pay input.dt { width:150px; }
+  .pay input.tx { flex:1; min-width:150px; }
+  .kidfoot { display:flex; margin-top:20px; }
+  .kidfoot button { margin-left:auto; }
+  .saved { font-size:11px; color:var(--acc); font-weight:500; margin-left:5px; }
+  .empty { padding:60px 20px; text-align:center; color:var(--ink3); font-size:14px; }
+
+  @media (max-width:640px) {
+    .r { flex-wrap:wrap; gap:8px; }
+    .r .nm { flex:0 0 100%; }
+    .r .de { flex:1 1 auto; }
+  }
 </style>
 </head>
 <body>
 
 <!-- 로그인 전 -->
 <div class="box" id="loginBox">
-  <h1>🌿 나무링크 납부 계산</h1>
-  <div class="sub">로그인하세요.</div>
+  <h1>납부 계산</h1>
+  <div class="sub">나무링크</div>
   <label for="em">이메일</label>
   <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
   <label for="pw">비밀번호</label>
-  <input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
+  <input id="pw" type="password" autocomplete="current-password">
   <button id="btn">로그인</button>
   <div id="msg" class="out"></div>
 </div>
@@ -89,31 +115,27 @@
 <div class="wide" id="mainBox" style="display:none;">
   <div class="top">
     <div>
-      <h1>🌿 납부 계산</h1>
+      <h1>납부 계산</h1>
       <div class="who" id="who"></div>
     </div>
-    <button id="out" class="btn-out">로그아웃</button>
+    <button id="out" class="ghost">로그아웃</button>
   </div>
 
   <div class="tools">
-    <label for="mk">계산할 달</label>
     <input id="mk" type="month" value="2026-08">
-    <input id="q" type="search" placeholder="아동 이름 검색" style="width:150px;">
-    <button id="load" class="btn-sm">불러오기</button>
-    <span class="kidtotal" id="allsum"></span>
+    <input id="q" type="search" placeholder="아동 이름" style="width:150px;">
+    <button id="load">불러오기</button>
+    <span class="allsum" id="allsum"></span>
   </div>
 
   <div class="note">
-    · <b>회기</b>는 그 달의 수업 요일 수로 자동 계산됩니다. 결석이 있으면 숫자만 고치세요.<br>
-    · <b>리뷰</b>는 1건당 5,000원, 월 최대 4건까지 차감됩니다. 발달재활서비스는 차감 대상이 아닙니다.<br>
-    · <b>카드결제</b>와 <b>계좌입금</b>(발달재활 본인부담금)은 날짜와 메모를 따로 넣습니다.<br>
-    · 날짜를 넣으면 납부완료로, 비워두면 미납으로 저장됩니다.<br>
-    · 아동별로 <b>저장</b>을 눌러야 기록됩니다. 이미 저장된 것은 <span class="saved">저장됨</span> 표시가 나옵니다.<br>
-    · 수업 요일·치료사·지원유형이 실제와 다르면 아동 목록 화면에서 먼저 고쳐야 합니다.
+    <b>회기</b>는 그 달의 수업 요일 수로 채워집니다. 결석이 있으면 숫자를 고치세요.<br>
+    <b>리뷰</b>는 1건 5,000원, 월 4건까지. 발달재활 본인부담금에서는 빠지지 않습니다.<br>
+    날짜를 넣으면 납부완료, 비워두면 미납으로 저장됩니다.
   </div>
 
   <div id="kids"></div>
-  <div class="empty" id="empty">달을 고르고 불러오기를 눌러주세요.</div>
+  <div class="empty" id="empty">달을 고르고 불러오기를 누르세요.</div>
   <div id="msg2" class="out"></div>
 </div>
 
@@ -321,117 +343,99 @@ function drawKid(c) {
   const groups = buildRows(c.id, mk);
   const sv = SAVED[c.id] || {};
 
+  const head = '<div class="kidhead">'
+    + '<span class="kidname">' + esc(c.name) + '</span>'
+    + '<span class="kidno">' + esc(c.manager_no) + '</span>'
+    + '<span class="ktotal">0원</span></div>';
+
   if (!groups.length) {
-    return '<div class="kid" data-child="' + c.id + '">'
-      + '<div class="kidhead"><span class="kidname">' + esc(c.name) + '</span>'
-      + '<span class="kidno">' + esc(c.manager_no) + '</span>'
-      + '<span class="warn">수업 정보가 없습니다. 아동 목록 화면에서 치료를 먼저 등록하세요.</span>'
-      + '</div></div>';
-  }
-
-  // ===== 위: 카드결제 묶음 (발달재활 본인부담금 2번 제외) =====
-  let body = '<div class="secttl">카드결제 (방문일 결제)</div>';
-  body += '<table class="calc"><thead><tr>'
-    + '<th style="width:190px;">지원유형</th><th>내용</th>'
-    + '<th style="width:70px;">회기</th><th style="width:90px;">단가</th>'
-    + '<th style="width:110px;">금액</th></tr></thead><tbody>';
-
-  groups.filter(g => g.support_type_id !== 2).forEach(g => {
-    const tname = TYPES[g.support_type_id] || ('유형' + g.support_type_id);
-    const isSaved = sv[g.support_type_id] !== undefined;
-
-    if (g.calc_type === '회기계산') {
-      g.items.forEach((it, i) => {
-        body += '<tr class="line" data-st="' + g.support_type_id + '">'
-          + '<td>' + (i === 0 ? esc(tname) + (isSaved ? ' <span class="saved">저장됨</span>' : '') : '') + '</td>'
-          + '<td class="dim">' + esc(it.label) + '</td>'
-          + '<td><input class="cnt" type="text" inputmode="numeric" value="' + it.count + '"></td>'
-          + '<td class="num dim">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</td>'
-          + '<td class="num lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</td>'
-          + '</tr>';
-      });
-      if (g.deduction > 0) {
-        body += '<tr data-st="' + g.support_type_id + '"><td></td>'
-          + '<td class="dim">지원금 제외</td><td></td><td></td>'
-          + '<td class="num dim">− ' + g.deduction.toLocaleString() + '</td></tr>';
-      }
-      body += '<tr class="sumline gsum" data-st="' + g.support_type_id + '" data-ded="' + g.deduction + '">'
-        + '<td></td><td colspan="3" class="num">' + esc(tname) + ' 합계</td>'
-        + '<td class="num gamt">0</td></tr>';
-
-    } else if (g.calc_type === '치료사정액') {
-      body += '<tr class="sumline gsum" data-st="8" data-extra="' + (g.extra_unit == null ? '' : g.extra_unit) + '">'
-        + '<td>' + esc(tname) + (isSaved ? ' <span class="saved">저장됨</span>' : '') + '</td>'
-        + '<td class="dim">선택 사용. 사용했으면 1, 안 했으면 0</td>'
-        + '<td><input class="cnt xcnt" type="text" inputmode="numeric" value="' + (isSaved ? 1 : 0) + '"></td>'
-        + '<td class="num dim">' + (g.extra_unit == null ? '<span class="warn">단가없음</span>' : g.extra_unit.toLocaleString()) + '</td>'
-        + '<td class="num gamt">0</td></tr>';
-    }
-  });
-
-  // 평가비 (직접 입력)
-  const evSaved = sv[9];
-  body += '<tr class="sumline gsum" data-st="9" data-manual="1">'
-    + '<td>평가비' + (evSaved ? ' <span class="saved">저장됨</span>' : '') + '</td>'
-    + '<td class="dim">있을 때만 입력</td><td></td><td></td>'
-    + '<td class="num"><input class="mn evamt" type="text" inputmode="numeric" value="'
-    + (evSaved ? Number(evSaved.amount).toLocaleString() : '') + '" placeholder="0"></td></tr>';
-
-  // 리뷰 차감
-  body += '<tr data-review="1"><td>리뷰 차감</td>'
-    + '<td class="dim">1건 5,000원 · 월 최대 4건</td>'
-    + '<td><input class="cnt rv" type="text" inputmode="numeric" value="0"></td>'
-    + '<td class="num dim">5,000</td>'
-    + '<td class="num dim rvtxt">− 0</td></tr>';
-
-  // 카드 합계 + 결제일 + 메모
-  const cardPaid = Object.keys(sv).map(k => sv[k])
-    .find(p => Number(p.support_type_id) !== 2 && p.paid_on);
-  body += '<tr class="cardsum"><td></td>'
-    + '<td colspan="2" class="num"><b>카드결제 합계</b></td>'
-    + '<td colspan="2" class="num"><b class="cardtotal">0원</b></td></tr>';
-  body += '</tbody></table>';
-
-  body += '<div class="kidfoot">'
-    + '<label>결제일</label>'
-    + '<input class="pday" type="date" value="' + (cardPaid ? cardPaid.paid_on : '') + '">'
-    + '<input class="mn kmemo" type="text" placeholder="메모 (승인번호 등)" style="width:200px;text-align:left;">'
-    + '</div>';
-
-  // ===== 아래: 계좌입금 (발달재활 본인부담금) =====
-  const devG = groups.find(g => g.support_type_id === 2);
-  if (devG) {
-    const gr = GRADES[c.id];
-    const pay = gr ? gr.self_pay : null;
-    const dsv = sv[2];
-    body += '<div class="secttl bank">계좌입금 (발달재활서비스 본인부담금)</div>';
-    body += '<table class="calc"><tbody>'
-      + '<tr class="sumline gsum" data-st="2" data-fixed="' + (pay == null ? '' : pay) + '">'
-      + '<td style="width:190px;">발달재활서비스'
-      + (dsv ? ' <span class="saved">저장됨</span>' : '') + '</td>'
-      + '<td class="dim">' + (gr ? gr.grade + '형 본인부담금'
-          : '<span class="warn">등급 없음 — 아동 목록에서 등급을 먼저 넣으세요</span>') + '</td>'
-      + '<td colspan="2"></td>'
-      + '<td class="num gamt" style="width:110px;">0</td></tr>'
-      + '</tbody></table>';
-    body += '<div class="kidfoot">'
-      + '<label>입금일</label>'
-      + '<input class="bday" type="date" value="' + (dsv && dsv.paid_on ? dsv.paid_on : '') + '">'
-      + '<input class="mn bmemo" type="text" placeholder="입금자명" style="width:200px;text-align:left;">'
+    return '<div class="kid" data-child="' + c.id + '">' + head
+      + '<div class="warn">수업이 등록되어 있지 않습니다. 아동 목록 화면에서 치료를 먼저 넣으세요.</div>'
       + '</div>';
   }
 
-  body += '<div class="kidfoot" style="border-top:1px solid #ddd;">'
-    + '<button class="btn-sm ksave" type="button" style="margin-left:auto;">이 아동 저장</button>'
-    + '</div>';
+  let b = '<div class="sect">카드결제</div>';
 
-  return '<div class="kid" data-child="' + c.id + '">'
-    + '<div class="kidhead">'
-    + '<span class="kidname">' + esc(c.name) + '</span>'
-    + '<span class="kidno">' + esc(c.manager_no) + '</span>'
-    + '<span class="kidtotal ktotal">0원</span>'
-    + '</div>'
-    + '<div class="kidbody">' + body + '</div></div>';
+  groups.filter(g => g.support_type_id !== 2).forEach(g => {
+    const tn = TYPES[g.support_type_id] || ('유형' + g.support_type_id);
+    const sd = sv[g.support_type_id] !== undefined
+      ? '<span class="saved">저장됨</span>' : '';
+
+    if (g.calc_type === '회기계산') {
+      g.items.forEach((it, i) => {
+        b += '<div class="r line" data-st="' + g.support_type_id + '">'
+          + '<span class="nm">' + (i === 0 ? esc(tn) + sd : '') + '</span>'
+          + '<span class="de">' + esc(it.label) + '</span>'
+          + '<span class="ct"><input class="cnt" type="text" inputmode="numeric" value="' + it.count + '"></span>'
+          + '<span class="up">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</span>'
+          + '<span class="am lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</span>'
+          + '</div>';
+      });
+      if (g.deduction > 0) {
+        b += '<div class="r sub2"><span class="nm"></span>'
+          + '<span class="de">지원금 제외</span><span class="ct"></span><span class="up"></span>'
+          + '<span class="am">−' + g.deduction.toLocaleString() + '</span></div>';
+        b += '<div class="r sum gsum" data-st="' + g.support_type_id + '" data-ded="' + g.deduction + '">'
+          + '<span class="nm"></span><span class="de"></span><span class="ct"></span>'
+          + '<span class="up">' + esc(tn) + '</span>'
+          + '<span class="am gamt">0</span></div>';
+      } else {
+        b += '<div class="gsum" data-st="' + g.support_type_id + '" data-ded="0" hidden>'
+          + '<span class="gamt"></span></div>';
+      }
+
+    } else if (g.calc_type === '치료사정액') {
+      b += '<div class="r gsum" data-st="8" data-extra="' + (g.extra_unit == null ? '' : g.extra_unit) + '">'
+        + '<span class="nm">' + esc(tn) + sd + '</span>'
+        + '<span class="de">사용했으면 1</span>'
+        + '<span class="ct"><input class="cnt xcnt" type="text" inputmode="numeric" value="' + (sv[8] !== undefined ? 1 : 0) + '"></span>'
+        + '<span class="up">' + (g.extra_unit == null ? '<span class="warn">단가없음</span>' : g.extra_unit.toLocaleString()) + '</span>'
+        + '<span class="am gamt">0</span></div>';
+    }
+  });
+
+  const ev = sv[9];
+  b += '<div class="r gsum" data-st="9" data-manual="1">'
+    + '<span class="nm">평가비' + (ev ? '<span class="saved">저장됨</span>' : '') + '</span>'
+    + '<span class="de">있을 때만</span><span class="ct"></span><span class="up"></span>'
+    + '<span class="am"><input class="mn evamt" type="text" inputmode="numeric" value="'
+    + (ev ? Number(ev.amount).toLocaleString() : '') + '" placeholder="0"></span></div>';
+
+  b += '<div class="r"><span class="nm">리뷰 차감</span>'
+    + '<span class="de">1건 5,000원 · 4건까지</span>'
+    + '<span class="ct"><input class="cnt rv" type="text" inputmode="numeric" value="0"></span>'
+    + '<span class="up"></span><span class="am rvtxt">0</span></div>';
+
+  b += '<div class="r tot"><span class="nm"></span><span class="de"></span>'
+    + '<span class="ct"></span><span class="up">카드 합계</span>'
+    + '<span class="am cardtotal">0원</span></div>';
+
+  const cp = Object.keys(sv).map(k => sv[k])
+    .find(p => Number(p.support_type_id) !== 2 && p.paid_on);
+  b += '<div class="pay">'
+    + '<input class="dt pday" type="date" value="' + (cp ? cp.paid_on : '') + '">'
+    + '<input class="tx kmemo" type="text" placeholder="메모 (승인번호 등)"></div>';
+
+  const dev = groups.find(g => g.support_type_id === 2);
+  if (dev) {
+    const gr = GRADES[c.id];
+    const pv = gr ? gr.self_pay : null;
+    const ds = sv[2];
+    b += '<div class="sect bank">계좌입금 · 발달재활서비스 본인부담금</div>'
+      + '<div class="r gsum" data-st="2" data-fixed="' + (pv == null ? '' : pv) + '">'
+      + '<span class="nm">본인부담금' + (ds ? '<span class="saved">저장됨</span>' : '') + '</span>'
+      + '<span class="de">' + (gr ? gr.grade + '형'
+          : '<span class="warn">등급이 없습니다. 아동 목록에서 먼저 넣으세요.</span>') + '</span>'
+      + '<span class="ct"></span><span class="up"></span>'
+      + '<span class="am gamt">0</span></div>'
+      + '<div class="pay">'
+      + '<input class="dt bday" type="date" value="' + (ds && ds.paid_on ? ds.paid_on : '') + '">'
+      + '<input class="tx bmemo" type="text" placeholder="입금자명"></div>';
+  }
+
+  b += '<div class="kidfoot"><button class="ksave" type="button">저장</button></div>';
+
+  return '<div class="kid" data-child="' + c.id + '">' + head + b + '</div>';
 }
 
 function numOf(v) {
@@ -445,7 +449,7 @@ function calcKid(childId) {
   if (!box) return;
 
   // 1) 회기계산 줄
-  box.querySelectorAll('tr.line').forEach(tr => {
+  box.querySelectorAll('.line').forEach(tr => {
     const unit = tr.querySelector('.lineamt').dataset.unit;
     const cnt  = numOf(tr.querySelector('.cnt').value);
     const amt  = unit === '' ? 0 : Number(unit) * cnt;
@@ -454,7 +458,7 @@ function calcKid(childId) {
 
   // 2) 유형별 합계
   const parts = [];   // {st, amt, review}
-  box.querySelectorAll('tr.gsum').forEach(tr => {
+  box.querySelectorAll('.gsum').forEach(tr => {
     const st = Number(tr.dataset.st);
     let amt = 0;
 
@@ -467,7 +471,7 @@ function calcKid(childId) {
       amt = numOf(tr.querySelector('.evamt').value);
     } else {
       let base = 0;
-      box.querySelectorAll('tr.line[data-st="' + st + '"] .lineamt')
+      box.querySelectorAll('.line[data-st="' + st + '"] .lineamt')
          .forEach(td => base += numOf(td.textContent));
       amt = Math.max(0, base - Number(tr.dataset.ded || 0));
     }
@@ -481,14 +485,14 @@ function calcKid(childId) {
   let rv = rvEl ? Math.min(numOf(rvEl.value), REVIEW_MAX) : 0;
   let cut = rv * REVIEW_UNIT;
   if (box.querySelector('.rvtxt')) {
-    box.querySelector('.rvtxt').textContent = '− ' + cut.toLocaleString();
+    box.querySelector('.rvtxt').textContent = cut ? '−' + cut.toLocaleString() : '0';
   }
 
   parts.forEach(p => {
     if (!p.review || cut <= 0) return;
     const take = Math.min(p.amt, cut);
     p.amt -= take; cut -= take;
-    const tr = box.querySelector('tr.gsum[data-st="' + p.st + '"]');
+    const tr = box.querySelector('.gsum[data-st="' + p.st + '"]');
     if (tr && tr.querySelector('.gamt') && take > 0) {
       tr.querySelector('.gamt').innerHTML = p.amt.toLocaleString()
         + ' <span class="dim">(리뷰 −' + take.toLocaleString() + ')</span>';
