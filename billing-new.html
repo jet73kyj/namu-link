@@ -66,7 +66,7 @@
   .sect.bank { margin-top:26px; padding-top:20px; border-top:1px solid var(--line); }
 
   .r { display:flex; align-items:center; gap:12px; padding:5px 0; font-size:14px; }
-  .r .nm  { flex:0 0 150px; color:var(--ink2); }
+  .r .nm  { flex:0 0 170px; color:var(--ink2); }
   .r .de  { flex:1; color:var(--ink3); font-size:13px; }
   .r .ct  { flex:0 0 46px; }
   .r .up  { flex:0 0 68px; text-align:right; color:var(--ink3); font-size:13px; }
@@ -165,6 +165,11 @@ function esc(s) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function won(n) { return (n || 0).toLocaleString() + '원'; }
+// 2019-03-14 -> 190314
+function ymd(b) {
+  const s = String(b || '').replace(/[^0-9]/g, '');
+  return s.length >= 8 ? s.slice(2, 8) : '';
+}
 
 // 그 달에 해당 요일이 몇 번 있는지 센다
 function countWeekday(mk, day) {
@@ -197,7 +202,7 @@ async function afterLogin(user) {
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
 
   const [c, st, tt] = await Promise.all([
-    sb.from('nl_children').select('id, name, manager_no, status').order('name'),
+    sb.from('nl_children').select('id, name, birth, manager_no, status').order('name'),
     sb.from('nl_support_types').select('id, name').order('id'),
     sb.from('nl_therapy_types').select('id, name').order('id')
   ]);
@@ -345,6 +350,7 @@ function drawKid(c) {
 
   const head = '<div class="kidhead">'
     + '<span class="kidname">' + esc(c.name) + '</span>'
+    + '<span class="kidno">' + ymd(c.birth) + '</span>'
     + '<span class="kidno">' + esc(c.manager_no) + '</span>'
     + '<span class="ktotal">0원</span></div>';
 
@@ -426,8 +432,10 @@ function drawKid(c) {
     const ds = sv[2];
     b += '<div class="sect bank">계좌입금 · 발달재활서비스 본인부담금</div>'
       + '<div class="r gsum" data-st="2" data-fixed="' + (pv == null ? '' : pv) + '">'
-      + '<span class="nm">본인부담금' + (ds ? '<span class="saved">저장됨</span>' : '') + '</span>'
-      + '<span class="de">' + (gr ? gr.grade + '형'
+      + '<span class="nm">발달재활서비스'
+      + (gr ? ' <b>' + gr.grade + '형</b>' : '')
+      + (ds ? '<span class="saved">저장됨</span>' : '') + '</span>'
+      + '<span class="de">' + (gr ? '본인부담금'
           : '<span class="warn">등급이 없습니다. 아동 목록에서 먼저 넣으세요.</span>') + '</span>'
       + '<span class="ct"></span><span class="up"></span>'
       + '<span class="am gamt">0</span></div>'
