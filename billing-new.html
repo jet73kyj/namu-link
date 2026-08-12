@@ -77,6 +77,7 @@
   .r { display:flex; align-items:center; gap:12px; padding:5px 0; font-size:14px; }
   .r .nm  { flex:0 0 170px; color:var(--ink2); }
   .r .de  { flex:1; color:var(--ink3); font-size:13px; }
+  .thr { color:var(--ink2); font-weight:600; }
   .r .ct  { flex:0 0 46px; }
   .r .up  { flex:0 0 68px; text-align:right; color:var(--ink3); font-size:13px; }
   .r .am  { flex:0 0 96px; text-align:right; }
@@ -318,6 +319,7 @@ function buildRows(childId, mk) {
       kind: '회기',
       label: (TTYPES[s.therapy_type_id] || '치료') + ' ' + s.weekday + ' '
              + String(s.start_time).slice(0,5) + ' (' + s.duration + '분)',
+      therapist_name: thrName(s.therapist_id),
       therapist_id: s.therapist_id,
       unit: unit,
       count: countWeekday(mk, s.weekday)
@@ -397,7 +399,8 @@ function drawKid(c) {
       g.items.forEach((it, i) => {
         b += '<div class="r line" data-st="' + g.support_type_id + '">'
           + '<span class="nm">' + (i === 0 ? esc(tn) + sd : '') + '</span>'
-          + '<span class="de">' + esc(it.label) + '</span>'
+          + '<span class="de">' + esc(it.label)
+          + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
           + '<span class="ct"><input class="cnt" type="text" inputmode="numeric" value="' + it.count + '"></span>'
           + '<span class="up">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</span>'
           + '<span class="am lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</span>'
@@ -465,7 +468,9 @@ function drawKid(c) {
       + (gr ? ' <b>' + gr.grade + '형</b>' : '')
       + (ds ? '<span class="saved">저장됨</span>' : '') + '</span>'
       + '<span class="de">' + (gr ? '본인부담금'
-          : '<span class="warn">등급이 없습니다. 아동 목록에서 먼저 넣으세요.</span>') + '</span>'
+          : '<span class="warn">등급이 없습니다. 아동 목록에서 먼저 넣으세요.</span>')
+      + (dev.items.length ? ' · <b class="thr">' + esc(thrName(dev.items[0].therapist_id)) + '</b>' : '')
+      + '</span>'
       + '<span class="ct"></span><span class="up"></span>'
       + '<span class="am gamt">0</span></div>'
       + '<div class="pay">'
@@ -501,6 +506,11 @@ function therapistOptions(sel) {
        + '>' + esc(t.name) + '</option>';
   });
   return o;
+}
+// 치료사 이름
+function thrName(tid) {
+  const t = THERAPISTS.find(x => String(x.id) === String(tid));
+  return t ? t.name : ('치료사' + (tid == null ? '?' : tid));
 }
 // 그 치료사의 발추 단가
 function feeExtra(tid) {
