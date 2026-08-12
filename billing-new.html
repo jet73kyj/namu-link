@@ -412,9 +412,12 @@ function drawKid(c) {
 
   const cp = Object.keys(sv).map(k => sv[k])
     .find(p => Number(p.support_type_id) !== 2 && p.paid_on);
+  const cm = Object.keys(sv).map(k => sv[k])
+    .find(p => Number(p.support_type_id) !== 2 && memoOf(p, false));
   b += '<div class="pay">'
     + '<input class="dt pday" type="date" value="' + (cp ? cp.paid_on : '') + '">'
-    + '<input class="tx kmemo" type="text" placeholder="메모 (승인번호 등)"></div>';
+    + '<input class="tx kmemo" type="text" placeholder="메모 (승인번호 등)" value="'
+    + esc(cm ? memoOf(cm, false) : '') + '"></div>';
 
   const dev = groups.find(g => g.support_type_id === 2);
   if (dev) {
@@ -430,12 +433,26 @@ function drawKid(c) {
       + '<span class="am gamt">0</span></div>'
       + '<div class="pay">'
       + '<input class="dt bday" type="date" value="' + (ds && ds.paid_on ? ds.paid_on : '') + '">'
-      + '<input class="tx bmemo" type="text" placeholder="입금자명"></div>';
+      + '<input class="tx bmemo" type="text" placeholder="입금자명" value="'
+      + esc(memoOf(ds, true)) + '"></div>';
   }
 
   b += '<div class="kidfoot"><button class="ksave" type="button">저장</button></div>';
 
   return '<div class="kid" data-child="' + c.id + '">' + head + b + '</div>';
+}
+
+// 저장된 메모에서 사람이 적은 부분만 꺼낸다
+function memoOf(p, isBank) {
+  let m = (p && p.memo) ? String(p.memo) : '';
+  if (isBank) {
+    if (m === '계좌입금') return '';
+    if (m.indexOf('계좌입금 ') === 0) return m.slice(5);
+  } else {
+    if (m === '카드결제' || m === '자동계산' || m === '화면입력') return '';
+    if (m.indexOf('2026-08-11 자동이관') === 0) return '';
+  }
+  return m;
 }
 
 function numOf(v) {
