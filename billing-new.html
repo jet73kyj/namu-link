@@ -82,6 +82,8 @@
   .r .am  { flex:0 0 96px; text-align:right; }
   .r input.cnt { width:46px; padding:5px 0; text-align:center; font-size:13px; }
   .r input.mn  { width:96px; padding:5px 8px; text-align:right; font-size:13px; }
+  .r select.xthr { padding:4px 6px; font-size:12.5px; border-radius:6px;
+                   border:1px solid var(--line); max-width:110px; }
 
   .r.sum { padding-top:11px; margin-top:5px; border-top:1px solid var(--line);
            font-weight:600; }
@@ -159,10 +161,11 @@ const $  = id => document.getElementById(id);
 const REVIEW_UNIT = 5000;   // 리뷰 1건당 차감액
 const REVIEW_MAX  = 4;      // 월 최대 건수
 
-let CHILDREN = [], TYPES = {}, TTYPES = {};
+let CHILDREN = [], TYPES = {}, TTYPES = {}, THERAPISTS = [];
 let FEES = {}, RULES = {}, GRADES = {};
 let SCHED = {};             // child_id -> 수업 목록
 let SAVED = {};             // child_id -> 저장된 납부
+let LASTX = {};             // child_id -> 지난 발추 담당 치료사
 let LOADED_MK = null;
 
 function show(el, text, ok) {
@@ -210,10 +213,11 @@ async function afterLogin(user) {
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
 
-  const [c, st, tt] = await Promise.all([
+  const [c, st, tt, th] = await Promise.all([
     sb.from('nl_children').select('id, name, birth, manager_no, status').order('name'),
     sb.from('nl_support_types').select('id, name').order('id'),
-    sb.from('nl_therapy_types').select('id, name').order('id')
+    sb.from('nl_therapy_types').select('id, name').order('id'),
+    sb.from('nl_therapists').select('id, name, active').order('id')
   ]);
   if (c.error)  { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
   if (st.error) { show($('msg'), '❌ 지원유형 조회 실패\n' + st.error.message, false); return; }
@@ -221,6 +225,7 @@ async function afterLogin(user) {
   CHILDREN = (c.data || []).filter(x => x.status === '치료중');
   (st.data || []).forEach(x => TYPES[x.id] = x.name);
   (tt.data || []).forEach(x => TTYPES[x.id] = x.name);
+  THERAPISTS = (th.data || []).filter(x => x.active !== false);
 
   $('who').textContent = me.name + ' (' + me.role + ') 님 · 치료중 아동 ' + CHILDREN.length + '명';
   $('loginBox').style.display = 'none';
@@ -236,7 +241,7 @@ async function load() {
   try {
     const ids = CHILDREN.map(c => c.id);
 
-    const [th, fe, ru, gr, pay] = await Promise.all([
+    const [th, fe, ru, gr, pay, px] = await Promise.all([
       sb.from('nl_therapies')
         .select('id, child_id, therapy_type_id, support_type_id, nl_therapy_schedules(weekday, start_time, therapist_id, duration)')
         .in('child_id', ids),
@@ -244,13 +249,17 @@ async function load() {
       sb.from('nl_support_rules').select('*'),
       sb.from('nl_child_grades').select('*'),
       sb.from('nl_payments').select('child_id, support_type_id, amount, paid_on, memo')
-        .eq('month_key', mk)
+        .eq('month_key', mk),
+      sb.from('nl_payments').select('child_id, month_key, memo')
+        .eq('support_type_id', 8).lt('month_key', mk)
+        .order('month_key', { ascending: false })
     ]);
     if (th.error)  throw th.error;
     if (fe.error)  throw fe.error;
     if (ru.error)  throw ru.error;
     if (gr.error)  throw gr.error;
     if (pay.error) throw pay.error;
+    if (px.error)  throw px.error;
 
     FEES   = pickLatest(fe.data, mk, 'therapist_id');
     RULES  = pickLatest(ru.data, mk, 'support_type_id');
@@ -273,6 +282,14 @@ async function load() {
     SAVED = {};
     (pay.data || []).forEach(p => {
       (SAVED[p.child_id] = SAVED[p.child_id] || {})[p.support_type_id] = p;
+    });
+
+    // 지난달 이전 기록에서 아동별 발추 담당 치료사를 찾아둔다 (가장 최근 것)
+    LASTX = {};
+    (px.data || []).forEach(p => {
+      if (LASTX[p.child_id]) return;   // 이미 더 최근 것이 있음
+      const t = extraTherapistOf(p);
+      if (t) LASTX[p.child_id] = t;
     });
 
     LOADED_MK = mk;
@@ -400,11 +417,13 @@ function drawKid(c) {
       }
 
     } else if (g.calc_type === '치료사정액') {
-      b += '<div class="r gsum" data-st="8" data-extra="' + (g.extra_unit == null ? '' : g.extra_unit) + '">'
+      const savedT = sv[8] ? extraTherapistOf(sv[8]) : null;
+      const curT = savedT || LASTX[c.id] || g.extra_therapist;
+      b += '<div class="r gsum" data-st="8">'
         + '<span class="nm">' + esc(tn) + sd + '</span>'
-        + '<span class="de">사용했으면 1</span>'
+        + '<span class="de">담당 <select class="xthr">' + therapistOptions(curT) + '</select></span>'
         + '<span class="ct"><input class="cnt xcnt" type="text" inputmode="numeric" value="' + (sv[8] !== undefined ? 1 : 0) + '"></span>'
-        + '<span class="up">' + (g.extra_unit == null ? '<span class="warn">단가없음</span>' : g.extra_unit.toLocaleString()) + '</span>'
+        + '<span class="up xunit">' + feeExtra(curT).toLocaleString() + '</span>'
         + '<span class="am gamt">0</span></div>';
     }
   });
@@ -474,6 +493,26 @@ function memoOf(p, isBank) {
   return m;
 }
 
+// 치료사 고르는 칸
+function therapistOptions(sel) {
+  let o = '';
+  THERAPISTS.forEach(t => {
+    o += '<option value="' + t.id + '"' + (String(sel) === String(t.id) ? ' selected' : '')
+       + '>' + esc(t.name) + '</option>';
+  });
+  return o;
+}
+// 그 치료사의 발추 단가
+function feeExtra(tid) {
+  const f = FEES[tid];
+  return f ? (f.fee_extra || 0) : 0;
+}
+// 저장된 발추 메모에서 치료사 번호를 꺼낸다
+function extraTherapistOf(p) {
+  const m = String((p && p.memo) || '').match(/\[발추치료사(\d+)\]/);
+  return m ? Number(m[1]) : null;
+}
+
 function numOf(v) {
   const s = String(v == null ? '' : v).replace(/[^0-9]/g, '');
   return s === '' ? 0 : parseInt(s, 10);
@@ -500,8 +539,10 @@ function calcKid(childId) {
 
     if (tr.dataset.fixed !== undefined) {
       amt = tr.dataset.fixed === '' ? 0 : Number(tr.dataset.fixed);
-    } else if (tr.dataset.extra !== undefined) {
-      const unit = tr.dataset.extra === '' ? 0 : Number(tr.dataset.extra);
+    } else if (tr.querySelector('.xthr')) {
+      const tid = Number(tr.querySelector('.xthr').value);
+      const unit = feeExtra(tid);
+      tr.querySelector('.xunit').textContent = unit.toLocaleString();
       amt = unit * numOf(tr.querySelector('.xcnt').value);
     } else if (tr.dataset.manual !== undefined) {
       amt = numOf(tr.querySelector('.evamt').value);
@@ -571,6 +612,11 @@ async function saveKid(childId, btn) {
     const day  = isBank ? bankDay  : cardDay;
     const memo = isBank ? (bankMemo ? '계좌입금 ' + bankMemo : '계좌입금')
                         : (cardMemo || '카드결제');
+    let memo2 = memo;
+    if (p.st === 8) {
+      const el = box.querySelector('.gsum[data-st="8"] .xthr');
+      if (el) memo2 = memo + ' [발추치료사' + el.value + ']';
+    }
     return {
       child_id: childId,
       support_type_id: p.st,
@@ -578,7 +624,7 @@ async function saveKid(childId, btn) {
       amount: p.amt,
       is_paid: !!day,
       paid_on: day || null,
-      memo: memo
+      memo: memo2
     };
   });
 
@@ -611,6 +657,13 @@ $('kids').addEventListener('input', e => {
       const v = numOf(e.target.value);
       e.target.value = v === 0 ? '' : v.toLocaleString();
     }
+    calcKid(Number(box.dataset.child));
+    sumAll();
+  }
+});
+$('kids').addEventListener('change', e => {
+  if (e.target.classList.contains('xthr')) {
+    const box = e.target.closest('.kid');
     calcKid(Number(box.dataset.child));
     sumAll();
   }
