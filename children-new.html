@@ -47,6 +47,7 @@
   .b-etc  { background:#f5f5f5; color:#777; }
   .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
   .flag { color:#e65100; font-size:12px; }
+  .idcell { color:#8d6e63; font-weight:bold; white-space:nowrap; width:50px; }
 </style>
 </head>
 <body>
@@ -88,6 +89,7 @@
   <table>
     <thead>
       <tr>
+        <th>번호</th>
         <th>관리번호</th>
         <th>이름</th>
         <th>생년월일</th>
@@ -159,6 +161,7 @@ function draw() {
     const flag = (c.memo || '').includes('[확인필요]')
       ? ' <span class="flag">[확인필요]</span>' : '';
     return '<tr>'
+      + '<td class="idcell">' + c.id + '</td>'
       + '<td>' + esc(c.manager_no) + '</td>'
       + '<td>' + esc(c.name) + '</td>'
       + '<td>' + esc(c.birth) + '</td>'
