@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>납부 계산 - 나무링크</title>
+<style>
+  body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:#f5f9f0;
+         margin:0; padding:24px; color:#333; }
+  .box { max-width:460px; margin:40px auto; background:#fff; border-radius:12px;
+         padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  .wide { max-width:1000px; margin:20px auto; background:#fff; border-radius:12px;
+          padding:24px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  h1 { font-size:20px; color:#2e7d32; margin:0 0 4px; }
+  .sub { font-size:13px; color:#888; margin-bottom:22px; }
+  label { display:block; font-size:13px; font-weight:bold; margin:14px 0 5px; }
+  input, select { padding:9px; border:1px solid #ddd; border-radius:6px;
+                  font-size:14px; box-sizing:border-box; }
+  .box input { width:100%; padding:11px; font-size:15px; }
+  button { padding:11px 18px; background:#2e7d32; color:#fff; border:none;
+           border-radius:7px; font-size:14px; font-weight:bold; cursor:pointer; }
+  button:disabled { background:#bbb; cursor:default; }
+  .box button { width:100%; padding:13px; margin-top:20px; font-size:15px; }
+  .out { margin-top:16px; padding:14px; border-radius:8px; font-size:14px;
+         line-height:1.7; display:none; white-space:pre-wrap; }
+  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
+  .err { background:#ffebee; color:#b71c1c; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:center;
+         flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+  .who { font-size:13px; color:#666; }
+  .btn-out { background:#757575; padding:8px 16px; font-size:13px; }
+  .tools { display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+           margin-bottom:14px; padding:14px; background:#f1f8e9; border-radius:8px; }
+  .tools label { margin:0; font-size:13px; }
+  .btn-sm { padding:8px 14px; font-size:13px; }
+  .note { font-size:12.5px; color:#888; margin:10px 0 16px; line-height:1.8; }
+
+  .kid { border:1px solid #dcedc8; border-radius:10px; margin-bottom:14px;
+         overflow:hidden; }
+  .kidhead { background:#f1f8e9; padding:11px 14px; display:flex; gap:10px;
+             align-items:center; flex-wrap:wrap; }
+  .kidname { font-weight:bold; font-size:15px; color:#33691e; }
+  .kidno { font-size:12px; color:#888; }
+  .stg { display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px;
+         background:#fff8e1; color:#e65100; }
+  .kidtotal { margin-left:auto; font-weight:bold; color:#1b5e20; font-size:15px; }
+  .kidbody { padding:12px 14px; }
+
+  table.calc { width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.calc th { background:#fafafa; color:#666; padding:7px 6px; text-align:left;
+       border-bottom:1px solid #eee; font-size:12px; white-space:nowrap; }
+  table.calc td { padding:7px 6px; border-bottom:1px solid #f4f4f4; vertical-align:middle; }
+  td.num { text-align:right; white-space:nowrap; }
+  input.cnt { width:52px; text-align:center; padding:5px; }
+  input.mn  { width:100px; text-align:right; padding:5px; }
+  .dim { color:#999; font-size:12px; }
+  .sumline { background:#f9fbf6; font-weight:bold; }
+  .kidfoot { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+             margin-top:10px; padding-top:10px; border-top:1px dashed #ddd; }
+  .kidfoot label { margin:0; font-size:12.5px; font-weight:normal; color:#666; }
+  .saved { background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:10px;
+           font-size:11.5px; }
+  .warn { color:#e65100; font-size:12px; }
+  .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
+</style>
+</head>
+<body>
+
+<!-- 로그인 전 -->
+<div class="box" id="loginBox">
+  <h1>🌿 나무링크 납부 계산</h1>
+  <div class="sub">로그인하세요.</div>
+  <label for="em">이메일</label>
+  <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
+  <button id="btn">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<!-- 로그인 후 -->
+<div class="wide" id="mainBox" style="display:none;">
+  <div class="top">
+    <div>
+      <h1>🌿 납부 계산</h1>
+      <div class="who" id="who"></div>
+    </div>
+    <button id="out" class="btn-out">로그아웃</button>
+  </div>
+
+  <div class="tools">
+    <label for="mk">계산할 달</label>
+    <input id="mk" type="month" value="2026-08">
+    <input id="q" type="search" placeholder="아동 이름 검색" style="width:150px;">
+    <button id="load" class="btn-sm">불러오기</button>
+    <span class="kidtotal" id="allsum"></span>
+  </div>
+
+  <div class="note">
+    · <b>회기</b>는 그 달의 수업 요일 수로 자동 계산됩니다. 결석이 있으면 숫자만 고치세요.<br>
+    · <b>리뷰</b>는 1건당 5,000원, 월 최대 4건까지 차감됩니다. 발달재활서비스는 차감 대상이 아닙니다.<br>
+    · <b>결제일</b>을 넣으면 납부완료로, 비워두면 미납으로 저장됩니다.<br>
+    · 아동별로 <b>저장</b>을 눌러야 기록됩니다. 이미 저장된 것은 <span class="saved">저장됨</span> 표시가 나옵니다.<br>
+    · 수업 요일·치료사·지원유형이 실제와 다르면 아동 목록 화면에서 먼저 고쳐야 합니다.
+  </div>
+
+  <div id="kids"></div>
+  <div class="empty" id="empty">달을 고르고 불러오기를 눌러주세요.</div>
+  <div id="msg2" class="out"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+
+const sb = window.supabase.createClient(URL_, KEY_);
+const $  = id => document.getElementById(id);
+
+const REVIEW_UNIT = 5000;   // 리뷰 1건당 차감액
+const REVIEW_MAX  = 4;      // 월 최대 건수
+
+let CHILDREN = [], TYPES = {}, TTYPES = {};
+let FEES = {}, RULES = {}, GRADES = {};
+let SCHED = {};             // child_id -> 수업 목록
+let SAVED = {};             // child_id -> 저장된 납부
+let LOADED_MK = null;
+
+function show(el, text, ok) {
+  el.textContent = text;
+  el.className = 'out ' + (ok ? 'ok' : 'err');
+}
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function won(n) { return (n || 0).toLocaleString() + '원'; }
+
+// 그 달에 해당 요일이 몇 번 있는지 센다
+function countWeekday(mk, day) {
+  const NAMES = ['일','월','화','수','목','금','토'];
+  const [y, m] = mk.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  let n = 0;
+  for (let d = 1; d <= last; d++) {
+    if (NAMES[new Date(y, m - 1, d).getDay()] === day) n++;
+  }
+  return n;
+}
+
+// 여러 줄 중 from_month 가 기준달 이하인 것 중 가장 최근 것을 고른다
+function pickLatest(rows, mk, keyName) {
+  const out = {};
+  (rows || []).forEach(r => {
+    if (r.from_month > mk) return;
+    const k = r[keyName];
+    if (!out[k] || r.from_month > out[k].from_month) out[k] = r;
+  });
+  return out;
+}
+
+async function afterLogin(user) {
+  const { data: me, error: e1 } = await sb
+    .from('nl_therapists').select('name, role')
+    .eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+
+  const [c, st, tt] = await Promise.all([
+    sb.from('nl_children').select('id, name, manager_no, status').order('name'),
+    sb.from('nl_support_types').select('id, name').order('id'),
+    sb.from('nl_therapy_types').select('id, name').order('id')
+  ]);
+  if (c.error)  { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
+  if (st.error) { show($('msg'), '❌ 지원유형 조회 실패\n' + st.error.message, false); return; }
+
+  CHILDREN = (c.data || []).filter(x => x.status === '치료중');
+  (st.data || []).forEach(x => TYPES[x.id] = x.name);
+  (tt.data || []).forEach(x => TTYPES[x.id] = x.name);
+
+  $('who').textContent = me.name + ' (' + me.role + ') 님 · 치료중 아동 ' + CHILDREN.length + '명';
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
+
+async function load() {
+  const mk = $('mk').value;
+  if (!mk) { show($('msg2'), '달을 골라주세요.', false); return; }
+
+  $('load').disabled = true;
+  $('load').textContent = '불러오는 중...';
+  try {
+    const ids = CHILDREN.map(c => c.id);
+
+    const [th, fe, ru, gr, pay] = await Promise.all([
+      sb.from('nl_therapies')
+        .select('id, child_id, therapy_type_id, support_type_id, nl_therapy_schedules(weekday, start_time, therapist_id, duration)')
+        .in('child_id', ids),
+      sb.from('nl_therapist_fees').select('*'),
+      sb.from('nl_support_rules').select('*'),
+      sb.from('nl_child_grades').select('*'),
+      sb.from('nl_payments').select('child_id, support_type_id, amount, paid_on, memo')
+        .eq('month_key', mk)
+    ]);
+    if (th.error)  throw th.error;
+    if (fe.error)  throw fe.error;
+    if (ru.error)  throw ru.error;
+    if (gr.error)  throw gr.error;
+    if (pay.error) throw pay.error;
+
+    FEES   = pickLatest(fe.data, mk, 'therapist_id');
+    RULES  = pickLatest(ru.data, mk, 'support_type_id');
+    GRADES = pickLatest(gr.data, mk, 'child_id');
+
+    SCHED = {};
+    (th.data || []).forEach(t => {
+      (t.nl_therapy_schedules || []).forEach(s => {
+        (SCHED[t.child_id] = SCHED[t.child_id] || []).push({
+          therapy_type_id: t.therapy_type_id,
+          support_type_id: t.support_type_id,
+          weekday: s.weekday,
+          start_time: s.start_time,
+          therapist_id: s.therapist_id,
+          duration: s.duration || 40
+        });
+      });
+    });
+
+    SAVED = {};
+    (pay.data || []).forEach(p => {
+      (SAVED[p.child_id] = SAVED[p.child_id] || {})[p.support_type_id] = p;
+    });
+
+    LOADED_MK = mk;
+    drawAll();
+    show($('msg2'), mk + ' 계산했습니다. 회기와 리뷰를 확인하고 아동별로 저장하세요.', true);
+  } catch (e) {
+    show($('msg2'), '❌ 불러오지 못했습니다.\n' + e.message, false);
+  } finally {
+    $('load').disabled = false;
+    $('load').textContent = '불러오기';
+  }
+}
+
+// 한 아동의 계산 줄들을 만든다
+function buildRows(childId, mk) {
+  const list = SCHED[childId] || [];
+  const groups = {};   // support_type_id -> 줄들
+
+  list.forEach(s => {
+    const fee = FEES[s.therapist_id];
+    const unit = !fee ? null
+      : s.duration === 60 ? fee.fee_60
+      : s.duration === 50 ? fee.fee_50
+      : fee.fee_40;
+    (groups[s.support_type_id] = groups[s.support_type_id] || []).push({
+      kind: '회기',
+      label: (TTYPES[s.therapy_type_id] || '치료') + ' ' + s.weekday + ' '
+             + String(s.start_time).slice(0,5) + ' (' + s.duration + '분)',
+      therapist_id: s.therapist_id,
+      unit: unit,
+      count: countWeekday(mk, s.weekday)
+    });
+  });
+
+  const out = [];
+  Object.keys(groups).forEach(stid => {
+    const rule = RULES[stid] || { calc_type: '회기계산', deduction: 0, review_target: true };
+    out.push({
+      support_type_id: Number(stid),
+      calc_type: rule.calc_type,
+      deduction: rule.deduction || 0,
+      review_target: rule.review_target !== false,
+      items: groups[stid]
+    });
+  });
+
+  // 발달재활(2번)이 있으면 발추(8번) 줄도 만들어 둔다
+  const dev = out.find(g => g.support_type_id === 2);
+  if (dev) {
+    const tid = dev.items.length ? dev.items[0].therapist_id : null;
+    const fee = tid ? FEES[tid] : null;
+    const rule8 = RULES[8] || { calc_type: '치료사정액', deduction: 0, review_target: true };
+    out.push({
+      support_type_id: 8,
+      calc_type: rule8.calc_type,
+      deduction: 0,
+      review_target: rule8.review_target !== false,
+      extra_unit: fee ? (fee.fee_extra || 0) : null,
+      extra_therapist: tid,
+      items: []
+    });
+  }
+
+  out.sort((a, b) => a.support_type_id - b.support_type_id);
+  return out;
+}
+
+function drawAll() {
+  const q = $('q').value.trim().toLowerCase();
+  const list = CHILDREN.filter(c => !q || (c.name || '').toLowerCase().includes(q));
+
+  $('empty').style.display = list.length ? 'none' : 'block';
+  if (!list.length) { $('kids').innerHTML = ''; $('allsum').textContent = ''; return; }
+
+  $('kids').innerHTML = list.map(c => drawKid(c)).join('');
+  list.forEach(c => calcKid(c.id));
+  sumAll();
+}
+
+function drawKid(c) {
+  const mk = LOADED_MK;
+  const groups = buildRows(c.id, mk);
+  const sv = SAVED[c.id] || {};
+
+  if (!groups.length) {
+    return '<div class="kid" data-child="' + c.id + '">'
+      + '<div class="kidhead"><span class="kidname">' + esc(c.name) + '</span>'
+      + '<span class="kidno">' + esc(c.manager_no) + '</span>'
+      + '<span class="warn">수업 정보가 없습니다. 아동 목록 화면에서 치료를 먼저 등록하세요.</span>'
+      + '</div></div>';
+  }
+
+  let body = '<table class="calc"><thead><tr>'
+    + '<th style="width:200px;">지원유형</th><th>내용</th>'
+    + '<th style="width:70px;">회기</th><th style="width:90px;">단가</th>'
+    + '<th style="width:110px;">금액</th></tr></thead><tbody>';
+
+  groups.forEach(g => {
+    const tname = TYPES[g.support_type_id] || ('유형' + g.support_type_id);
+    const isSaved = sv[g.support_type_id] !== undefined;
+
+    if (g.calc_type === '회기계산') {
+      g.items.forEach((it, i) => {
+        body += '<tr class="line" data-st="' + g.support_type_id + '">'
+          + '<td>' + (i === 0 ? esc(tname) + (isSaved ? ' <span class="saved">저장됨</span>' : '') : '') + '</td>'
+          + '<td class="dim">' + esc(it.label) + '</td>'
+          + '<td><input class="cnt" type="text" inputmode="numeric" value="' + it.count + '"></td>'
+          + '<td class="num dim">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</td>'
+          + '<td class="num lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</td>'
+          + '</tr>';
+      });
+      if (g.deduction > 0) {
+        body += '<tr data-st="' + g.support_type_id + '"><td></td>'
+          + '<td class="dim">지원금 제외</td><td></td><td></td>'
+          + '<td class="num dim">− ' + g.deduction.toLocaleString() + '</td></tr>';
+      }
+      body += '<tr class="sumline gsum" data-st="' + g.support_type_id + '" data-ded="' + g.deduction + '">'
+        + '<td></td><td colspan="3" class="num">' + esc(tname) + ' 합계</td>'
+        + '<td class="num gamt">0</td></tr>';
+
+    } else if (g.calc_type === '등급정액') {
+      const gr = GRADES[c.id];
+      const pay = gr ? gr.self_pay : null;
+      body += '<tr class="sumline gsum" data-st="2" data-fixed="' + (pay == null ? '' : pay) + '">'
+        + '<td>' + esc(tname) + (isSaved ? ' <span class="saved">저장됨</span>' : '') + '</td>'
+        + '<td class="dim">' + (gr ? gr.grade + '형 본인부담금' : '<span class="warn">등급 없음 — 아동 목록에서 등급을 먼저 넣으세요</span>') + '</td>'
+        + '<td></td><td></td><td class="num gamt">0</td></tr>';
+
+    } else if (g.calc_type === '치료사정액') {
+      body += '<tr class="sumline gsum" data-st="8" data-extra="' + (g.extra_unit == null ? '' : g.extra_unit) + '">'
+        + '<td>' + esc(tname) + (isSaved ? ' <span class="saved">저장됨</span>' : '') + '</td>'
+        + '<td class="dim">선택 사용. 사용했으면 1, 안 했으면 0</td>'
+        + '<td><input class="cnt xcnt" type="text" inputmode="numeric" value="' + (isSaved ? 1 : 0) + '"></td>'
+        + '<td class="num dim">' + (g.extra_unit == null ? '<span class="warn">단가없음</span>' : g.extra_unit.toLocaleString()) + '</td>'
+        + '<td class="num gamt">0</td></tr>';
+    }
+  });
+
+  // 평가비 (직접 입력)
+  const evSaved = sv[9];
+  body += '<tr class="sumline gsum" data-st="9" data-manual="1">'
+    + '<td>평가비' + (evSaved ? ' <span class="saved">저장됨</span>' : '') + '</td>'
+    + '<td class="dim">있을 때만 입력</td><td></td><td></td>'
+    + '<td class="num"><input class="mn evamt" type="text" inputmode="numeric" value="'
+    + (evSaved ? Number(evSaved.amount).toLocaleString() : '') + '" placeholder="0"></td></tr>';
+
+  body += '</tbody></table>';
+
+  const anyPaid = Object.values(sv).find(p => p.paid_on);
+  body += '<div class="kidfoot">'
+    + '<label>리뷰 건수</label>'
+    + '<input class="cnt rv" type="text" inputmode="numeric" value="0">'
+    + '<span class="dim rvtxt">− 0원</span>'
+    + '<label style="margin-left:10px;">결제일</label>'
+    + '<input class="pday" type="date" value="' + (anyPaid ? anyPaid.paid_on : '') + '">'
+    + '<input class="mn kmemo" type="text" placeholder="메모" style="width:150px;text-align:left;">'
+    + '<button class="btn-sm ksave" type="button" style="margin-left:auto;">저장</button>'
+    + '</div>';
+
+  return '<div class="kid" data-child="' + c.id + '">'
+    + '<div class="kidhead">'
+    + '<span class="kidname">' + esc(c.name) + '</span>'
+    + '<span class="kidno">' + esc(c.manager_no) + '</span>'
+    + '<span class="kidtotal ktotal">0원</span>'
+    + '</div>'
+    + '<div class="kidbody">' + body + '</div></div>';
+}
+
+function numOf(v) {
+  const s = String(v == null ? '' : v).replace(/[^0-9]/g, '');
+  return s === '' ? 0 : parseInt(s, 10);
+}
+
+// 한 아동의 금액을 다시 계산한다
+function calcKid(childId) {
+  const box = document.querySelector('.kid[data-child="' + childId + '"]');
+  if (!box) return;
+
+  // 1) 회기계산 줄
+  box.querySelectorAll('tr.line').forEach(tr => {
+    const unit = tr.querySelector('.lineamt').dataset.unit;
+    const cnt  = numOf(tr.querySelector('.cnt').value);
+    const amt  = unit === '' ? 0 : Number(unit) * cnt;
+    tr.querySelector('.lineamt').textContent = amt.toLocaleString();
+  });
+
+  // 2) 유형별 합계
+  const parts = [];   // {st, amt, review}
+  box.querySelectorAll('tr.gsum').forEach(tr => {
+    const st = Number(tr.dataset.st);
+    let amt = 0;
+
+    if (tr.dataset.fixed !== undefined) {
+      amt = tr.dataset.fixed === '' ? 0 : Number(tr.dataset.fixed);
+    } else if (tr.dataset.extra !== undefined) {
+      const unit = tr.dataset.extra === '' ? 0 : Number(tr.dataset.extra);
+      amt = unit * numOf(tr.querySelector('.xcnt').value);
+    } else if (tr.dataset.manual !== undefined) {
+      amt = numOf(tr.querySelector('.evamt').value);
+    } else {
+      let base = 0;
+      box.querySelectorAll('tr.line[data-st="' + st + '"] .lineamt')
+         .forEach(td => base += numOf(td.textContent));
+      amt = Math.max(0, base - Number(tr.dataset.ded || 0));
+    }
+
+    if (tr.querySelector('.gamt')) tr.querySelector('.gamt').textContent = amt.toLocaleString();
+    parts.push({ st: st, amt: amt, review: st !== 2 });
+  });
+
+  // 3) 리뷰 차감 — 발달재활(2번) 빼고 나머지에서 순서대로 뺀다
+  let rv = Math.min(numOf(box.querySelector('.rv').value), REVIEW_MAX);
+  let cut = rv * REVIEW_UNIT;
+  box.querySelector('.rvtxt').textContent = '− ' + cut.toLocaleString() + '원';
+
+  parts.forEach(p => {
+    if (!p.review || cut <= 0) return;
+    const take = Math.min(p.amt, cut);
+    p.amt -= take; cut -= take;
+    const tr = box.querySelector('tr.gsum[data-st="' + p.st + '"]');
+    if (tr && tr.querySelector('.gamt') && take > 0) {
+      tr.querySelector('.gamt').innerHTML = p.amt.toLocaleString()
+        + ' <span class="dim">(리뷰 −' + take.toLocaleString() + ')</span>';
+    }
+  });
+
+  const total = parts.reduce((s, p) => s + p.amt, 0);
+  box.querySelector('.ktotal').textContent = won(total);
+  box.dataset.total = total;
+  box.dataset.parts = JSON.stringify(parts);
+}
+
+function sumAll() {
+  let t = 0, n = 0;
+  document.querySelectorAll('.kid').forEach(b => {
+    const v = Number(b.dataset.total || 0);
+    if (v > 0) { t += v; n++; }
+  });
+  $('allsum').textContent = n + '명 · ' + won(t);
+}
+
+async function saveKid(childId, btn) {
+  const box = document.querySelector('.kid[data-child="' + childId + '"]');
+  const parts = JSON.parse(box.dataset.parts || '[]');
+  const day   = box.querySelector('.pday').value;
+  const memo  = box.querySelector('.kmemo').value.trim();
+
+  const rows = parts.filter(p => p.amt > 0 || p.st === 2).map(p => ({
+    child_id: childId,
+    support_type_id: p.st,
+    month_key: LOADED_MK,
+    amount: p.amt,
+    is_paid: !!day,
+    paid_on: day || null,
+    memo: memo || '자동계산'
+  }));
+
+  if (!rows.length) { show($('msg2'), '저장할 내용이 없습니다.', false); return; }
+
+  btn.disabled = true; btn.textContent = '저장 중...';
+  try {
+    const { error } = await sb.from('nl_payments')
+      .upsert(rows, { onConflict: 'child_id,support_type_id,month_key' });
+    if (error) throw error;
+    rows.forEach(r => {
+      (SAVED[childId] = SAVED[childId] || {})[r.support_type_id] = r;
+    });
+    show($('msg2'), '✅ ' + rows.length + '건 저장했습니다.'
+      + (day ? '' : ' (결제일이 없어 미납으로 저장)'), true);
+    btn.textContent = '저장됨';
+    setTimeout(() => { btn.textContent = '저장'; btn.disabled = false; }, 1200);
+  } catch (e) {
+    show($('msg2'), '❌ 저장하지 못했습니다.\n' + e.message, false);
+    btn.disabled = false; btn.textContent = '저장';
+  }
+}
+
+// 숫자 고치면 바로 다시 계산
+$('kids').addEventListener('input', e => {
+  if (e.target.classList.contains('cnt') || e.target.classList.contains('evamt')) {
+    const box = e.target.closest('.kid');
+    if (e.target.classList.contains('evamt')) {
+      const v = numOf(e.target.value);
+      e.target.value = v === 0 ? '' : v.toLocaleString();
+    }
+    calcKid(Number(box.dataset.child));
+    sumAll();
+  }
+});
+$('kids').addEventListener('click', e => {
+  if (e.target.classList.contains('ksave')) {
+    saveKid(Number(e.target.closest('.kid').dataset.child), e.target);
+  }
+});
+$('q').addEventListener('input', () => { if (LOADED_MK) drawAll(); });
+$('mk').addEventListener('change', () => {
+  $('kids').innerHTML = ''; $('allsum').textContent = '';
+  LOADED_MK = null; $('empty').style.display = 'block';
+  show($('msg2'), '달이 바뀌었습니다. [불러오기] 를 눌러주세요.', true);
+});
+
+// 마우스 휠로 칸 값이 바뀌지 않게
+document.addEventListener('wheel', () => {
+  const a = document.activeElement;
+  if (a && a.tagName === 'INPUT') a.blur();
+}, true);
+
+$('load').onclick = load;
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+$('out').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data.session) await afterLogin(data.session.user);
+})();
+</script>
+</body>
+</html>
