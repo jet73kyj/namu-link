@@ -78,10 +78,23 @@
   .r .nm  { flex:0 0 170px; color:var(--ink2); }
   .r .de  { flex:1; color:var(--ink3); font-size:13px; }
   .thr { color:var(--ink2); font-weight:600; }
+  .r .ap  { flex:0 0 72px; }
   .r .ct  { flex:0 0 46px; }
   .r .up  { flex:0 0 68px; text-align:right; color:var(--ink3); font-size:13px; }
   .r .am  { flex:0 0 96px; text-align:right; }
   .r input.cnt { width:46px; padding:5px 0; text-align:center; font-size:13px; }
+  .r input.apu { width:72px; padding:5px 4px; text-align:center; font-size:12.5px;
+                 border-style:dashed; color:#8a5a1a; }
+  .r input.apu::placeholder { color:#c9c9c0; font-size:11.5px; }
+  .r.line.hasap { background:#fdf6ea; border-radius:6px; }
+  .r.line.hasap input.apu { border-style:solid; border-color:#d8a349;
+                            background:#fff; font-weight:600; }
+  .oldup { text-decoration:line-through; color:#c0c5bc; }
+  .aptag { font-size:11px; color:#a9701c; font-weight:600; margin-left:5px; }
+  .r select.evsel { padding:4px 6px; font-size:12.5px; border-radius:6px;
+                    border:1px solid var(--line); max-width:190px; }
+  .r select.xmode { padding:4px 6px; font-size:12.5px; border-radius:6px;
+                    border:1px solid var(--line); max-width:130px; margin-left:6px; }
   .r input.mn  { width:96px; padding:5px 8px; text-align:right; font-size:13px; }
   .r select.xthr { padding:4px 6px; font-size:12.5px; border-radius:6px;
                    border:1px solid var(--line); max-width:110px; }
@@ -142,7 +155,10 @@
 
   <div class="note">
     <b>회기</b>는 그 달의 수업 요일 수로 채워집니다. 결석이 있으면 숫자를 고치세요.<br>
+    <b>적용단가</b>를 넣으면 치료사 단가 대신 그 값으로 계산합니다 (할인 등). 다음 달에도 이어집니다.
+    할인을 끝낼 때는 칸을 비우세요.<br>
     <b>리뷰</b>는 1건 5,000원, 월 4건까지. 발달재활 본인부담금에서는 빠지지 않습니다.<br>
+    <b>승인번호</b>는 다음 달로 넘어가지 않습니다. 매달 새로 넣으세요.<br>
     날짜를 넣으면 납부완료, 비워두면 미납으로 저장됩니다.
   </div>
 
@@ -165,9 +181,38 @@ const REVIEW_MAX  = 4;      // 월 최대 건수
 let CHILDREN = [], TYPES = {}, TTYPES = {}, THERAPISTS = [];
 let FEES = {}, RULES = {}, GRADES = {};
 let SCHED = {};             // child_id -> 수업 목록
-let SAVED = {};             // child_id -> 저장된 납부
+let SAVED = {};             // child_id -> 저장된 납부 (이번 달)
+let PREV  = {};             // child_id -> 지난달 납부 (적용단가·발추방식 이어받기용)
 let LASTX = {};             // child_id -> 지난 발추 담당 치료사
 let LOADED_MK = null;
+
+// 평가비 기준 — nl_eval_fees 표를 읽어오고, 못 읽으면 아래 기본값을 쓴다
+const EVAL_FALLBACK = [
+  { id:1, name:'심리평가 (기본)',        amount:180000 },
+  { id:2, name:'지능평가 + 심리평가',    amount:250000 },
+  { id:3, name:'언어평가 1개',           amount:80000  },
+  { id:4, name:'언어평가 2개',           amount:130000 },
+  { id:5, name:'언어평가 3개',           amount:180000 },
+  { id:6, name:'발달평가 1개',           amount:80000  },
+  { id:7, name:'발달평가 2개',           amount:130000 },
+  { id:8, name:'발달평가 3개',           amount:180000 },
+  { id:9, name:'베일리평가',             amount:250000 }
+];
+let EVALFEES = EVAL_FALLBACK.slice();
+
+// 발추 적용 방식
+const XMODES = {
+  1: '매월 1회',
+  2: '5주차만 1회',
+  3: '적용 없음'
+};
+
+// 지난달 (2026-08 -> 2026-07)
+function prevMonth(mk) {
+  const [y, m] = mk.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
 
 function show(el, text, ok) {
   el.textContent = text;
@@ -214,21 +259,31 @@ async function afterLogin(user) {
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
 
-  const [c, st, tt, th] = await Promise.all([
+  const [c, st, tt, th, ef] = await Promise.all([
     sb.from('nl_children').select('id, name, birth, manager_no, status').order('name'),
     sb.from('nl_support_types').select('id, name').order('id'),
     sb.from('nl_therapy_types').select('id, name').order('id'),
-    sb.from('nl_therapists').select('id, name, active').order('id')
+    sb.from('nl_therapists').select('id, name, active').order('id'),
+    sb.from('nl_eval_fees').select('id, name, amount, active').order('id')
   ]);
   if (c.error)  { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
   if (st.error) { show($('msg'), '❌ 지원유형 조회 실패\n' + st.error.message, false); return; }
 
-  CHILDREN = (c.data || []).filter(x => x.status === '치료중');
+  // 치료중 + 대기중 (대기중 아동도 평가비를 받는 일이 있음)
+  CHILDREN = (c.data || []).filter(x => x.status === '치료중' || x.status === '대기중');
   (st.data || []).forEach(x => TYPES[x.id] = x.name);
   (tt.data || []).forEach(x => TTYPES[x.id] = x.name);
   THERAPISTS = (th.data || []).filter(x => x.active !== false);
 
-  $('who').textContent = me.name + ' (' + me.role + ') 님 · 치료중 아동 ' + CHILDREN.length + '명';
+  // 평가비 표를 못 읽으면 기본값을 그대로 쓴다 (화면이 멈추지 않도록)
+  if (!ef.error && ef.data && ef.data.length) {
+    EVALFEES = ef.data.filter(x => x.active !== false);
+  }
+
+  const nT = CHILDREN.filter(x => x.status === '치료중').length;
+  const nW = CHILDREN.length - nT;
+  $('who').textContent = me.name + ' (' + me.role + ') 님 · 치료중 ' + nT + '명'
+                       + (nW ? ' · 대기중 ' + nW + '명' : '');
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
 }
@@ -242,7 +297,9 @@ async function load() {
   try {
     const ids = CHILDREN.map(c => c.id);
 
-    const [th, fe, ru, gr, pay, px] = await Promise.all([
+    const pmk = prevMonth(mk);
+
+    const [th, fe, ru, gr, pay, px, pv] = await Promise.all([
       sb.from('nl_therapies')
         .select('id, child_id, therapy_type_id, support_type_id, nl_therapy_schedules(weekday, start_time, therapist_id, duration)')
         .in('child_id', ids),
@@ -253,7 +310,9 @@ async function load() {
         .eq('month_key', mk),
       sb.from('nl_payments').select('child_id, month_key, memo')
         .eq('support_type_id', 8).lt('month_key', mk)
-        .order('month_key', { ascending: false })
+        .order('month_key', { ascending: false }),
+      sb.from('nl_payments').select('child_id, support_type_id, memo')
+        .eq('month_key', pmk)
     ]);
     if (th.error)  throw th.error;
     if (fe.error)  throw fe.error;
@@ -261,6 +320,7 @@ async function load() {
     if (gr.error)  throw gr.error;
     if (pay.error) throw pay.error;
     if (px.error)  throw px.error;
+    if (pv.error)  throw pv.error;
 
     FEES   = pickLatest(fe.data, mk, 'therapist_id');
     RULES  = pickLatest(ru.data, mk, 'support_type_id');
@@ -283,6 +343,12 @@ async function load() {
     SAVED = {};
     (pay.data || []).forEach(p => {
       (SAVED[p.child_id] = SAVED[p.child_id] || {})[p.support_type_id] = p;
+    });
+
+    // 지난달 기록 — 적용단가와 발추 방식만 이어받는다. 승인번호는 이어받지 않는다.
+    PREV = {};
+    (pv.data || []).forEach(p => {
+      (PREV[p.child_id] = PREV[p.child_id] || {})[p.support_type_id] = p;
     });
 
     // 지난달 이전 기록에서 아동별 발추 담당 치료사를 찾아둔다 (가장 최근 것)
@@ -351,6 +417,7 @@ function buildRows(childId, mk) {
       review_target: rule8.review_target !== false,
       extra_unit: fee ? (fee.fee_extra || 0) : null,
       extra_therapist: tid,
+      extra_weekday: dev.items.length ? dev.items[0].weekday : null,
       items: []
     });
   }
@@ -382,13 +449,14 @@ function drawKid(c) {
     + '<span class="kidno">' + esc(c.manager_no) + '</span>'
     + '<span class="ktotal">0원</span></div>';
 
-  if (!groups.length) {
-    return '<div class="kid" data-child="' + c.id + '">' + head
-      + '<div class="warn">수업이 등록되어 있지 않습니다. 아동 목록 화면에서 치료를 먼저 넣으세요.</div>'
-      + '</div>';
-  }
+  const lastM = PREV[c.id] || {};
+  const noClass = !groups.length;
 
-  let b = '<div class="sect">카드결제</div>';
+  let b = '';
+  if (noClass) {
+    b += '<div class="warn">수업이 등록되어 있지 않습니다. 평가비만 넣을 수 있습니다.</div>';
+  }
+  b += '<div class="sect">카드결제</div>';
 
   groups.filter(g => g.support_type_id !== 2).forEach(g => {
     const tn = TYPES[g.support_type_id] || ('유형' + g.support_type_id);
@@ -397,15 +465,20 @@ function drawKid(c) {
 
     if (g.calc_type === '회기계산') {
       const savedCnt = countsOf(sv[g.support_type_id]);
+      // 적용단가 — 이번 달 저장분이 없으면 지난달 것을 이어받는다
+      const apList = unitsOf(sv[g.support_type_id]) || unitsOf(lastM[g.support_type_id]);
       g.items.forEach((it, i) => {
         const cnt = (savedCnt && savedCnt[i] != null && !isNaN(savedCnt[i]))
                     ? savedCnt[i] : it.count;
-        b += '<div class="r line" data-st="' + g.support_type_id + '">'
+        const ap = (apList && apList[i] > 0) ? apList[i] : '';
+        b += '<div class="r line' + (ap ? ' hasap' : '') + '" data-st="' + g.support_type_id + '">'
           + '<span class="nm">' + (i === 0 ? esc(tn) + sd : '') + '</span>'
           + '<span class="de">' + esc(it.label)
           + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
+          + '<span class="ap"><input class="apu" type="text" inputmode="numeric" placeholder="적용단가" value="'
+          + (ap ? ap.toLocaleString() : '') + '"></span>'
           + '<span class="ct"><input class="cnt" type="text" inputmode="numeric" value="' + cnt + '"></span>'
-          + '<span class="up">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</span>'
+          + '<span class="up upbox">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</span>'
           + '<span class="am lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</span>'
           + '</div>';
       });
@@ -425,38 +498,62 @@ function drawKid(c) {
     } else if (g.calc_type === '치료사정액') {
       const savedT = sv[8] ? extraTherapistOf(sv[8]) : null;
       const curT = savedT || LASTX[c.id] || g.extra_therapist;
-      b += '<div class="r gsum" data-st="8">'
+
+      // 적용방식 — 이번 달 저장분 → 지난달 → (저장된 게 있으면 매월, 없으면 적용없음)
+      const mode = xmodeOf(sv[8]) || xmodeOf(lastM[8]) || (sv[8] !== undefined ? 1 : 3);
+      // 5주차 여부
+      const five = g.extra_weekday ? (countWeekday(mk, g.extra_weekday) >= 5) : false;
+      let cnt;
+      if (sv[8] !== undefined && xmodeOf(sv[8])) {
+        const cs = countsOf(sv[8]);
+        cnt = (cs && cs[0] != null) ? cs[0] : autoXcnt(mode, five);
+      } else if (sv[8] !== undefined) {
+        cnt = 1;
+      } else {
+        cnt = autoXcnt(mode, five);
+      }
+
+      b += '<div class="r gsum" data-st="8" data-five="' + (five ? 1 : 0) + '">'
         + '<span class="nm">' + esc(tn) + sd + '</span>'
-        + '<span class="de">담당 <select class="xthr">' + therapistOptions(curT) + '</select></span>'
-        + '<span class="ct"><input class="cnt xcnt" type="text" inputmode="numeric" value="' + (sv[8] !== undefined ? 1 : 0) + '"></span>'
+        + '<span class="de">담당 <select class="xthr">' + therapistOptions(curT) + '</select>'
+        + '<select class="xmode">' + xmodeOptions(mode) + '</select>'
+        + (five ? ' <span class="aptag">5주차</span>' : '') + '</span>'
+        + '<span class="ap"></span>'
+        + '<span class="ct"><input class="cnt xcnt" type="text" inputmode="numeric" value="' + cnt + '"></span>'
         + '<span class="up xunit">' + feeExtra(curT).toLocaleString() + '</span>'
         + '<span class="am gamt">0</span></div>';
     }
   });
 
   const ev = sv[9];
+  const evT = evalTypeOf(ev);
   b += '<div class="r gsum" data-st="9" data-manual="1">'
     + '<span class="nm">평가비' + (ev ? '<span class="saved">저장됨</span>' : '') + '</span>'
-    + '<span class="de">있을 때만</span><span class="ct"></span><span class="up"></span>'
+    + '<span class="de">있을 때만 <select class="evsel">' + evalOptions(evT) + '</select></span>'
+    + '<span class="ap"></span><span class="ct"></span><span class="up"></span>'
     + '<span class="am"><input class="mn evamt" type="text" inputmode="numeric" value="'
     + (ev ? Number(ev.amount).toLocaleString() : '') + '" placeholder="0"></span></div>';
 
-  b += '<div class="r"><span class="nm">리뷰 차감</span>'
-    + '<span class="de">1건 5,000원 · 4건까지</span>'
-    + '<span class="ct"><input class="cnt rv" type="text" inputmode="numeric" value="0"></span>'
-    + '<span class="up"></span><span class="am rvtxt">0</span></div>';
+  if (!noClass) {
+    b += '<div class="r"><span class="nm">리뷰 차감</span>'
+      + '<span class="de">1건 5,000원 · 4건까지</span>'
+      + '<span class="ap"></span>'
+      + '<span class="ct"><input class="cnt rv" type="text" inputmode="numeric" value="0"></span>'
+      + '<span class="up"></span><span class="am rvtxt">0</span></div>';
+  }
 
   b += '<div class="r tot"><span class="nm"></span><span class="de"></span>'
-    + '<span class="ct"></span><span class="up">카드 합계</span>'
+    + '<span class="ap"></span><span class="ct"></span><span class="up">카드 합계</span>'
     + '<span class="am cardtotal">0원</span></div>';
 
   const cp = Object.keys(sv).map(k => sv[k])
     .find(p => Number(p.support_type_id) !== 2 && p.paid_on);
   const cm = Object.keys(sv).map(k => sv[k])
     .find(p => Number(p.support_type_id) !== 2 && memoOf(p, false));
+  // 승인번호는 이번 달 저장분에서만 가져온다. 지난달 것을 끌어오지 않는다.
   b += '<div class="pay">'
     + '<input class="dt pday" type="date" value="' + (cp ? cp.paid_on : '') + '">'
-    + '<input class="tx kmemo" type="text" placeholder="메모 (승인번호 등)" value="'
+    + '<input class="tx kmemo" type="text" placeholder="카드 승인번호" value="'
     + esc(cm ? memoOf(cm, false) : '') + '"></div>';
 
   const dev = groups.find(g => g.support_type_id === 2);
@@ -498,7 +595,10 @@ function memoOf(p, isBank) {
     if (m.indexOf('2026-08-11 자동이관') === 0) return '';
   }
   m = m.replace(/\s*\[회기[0-9,]+\]/g, '')
-       .replace(/\s*\[발추치료사\d+\]/g, '').trim();
+       .replace(/\s*\[적용단가[0-9,]+\]/g, '')
+       .replace(/\s*\[발추치료사\d+\]/g, '')
+       .replace(/\s*\[발추방식[123]\]/g, '')
+       .replace(/\s*\[평가유형\d+\]/g, '').trim();
   if (m === '카드결제' || m === '자동계산' || m === '화면입력' || m === '계좌입금') return '';
   return m;
 }
@@ -534,6 +634,48 @@ function extraTherapistOf(p) {
   return m ? Number(m[1]) : null;
 }
 
+// 저장된 메모에서 적용단가 목록을 꺼낸다  [적용단가54000,0,0]
+function unitsOf(p) {
+  const m = String((p && p.memo) || '').match(/\[적용단가([0-9,]+)\]/);
+  return m ? m[1].split(',').map(x => parseInt(x, 10) || 0) : null;
+}
+// 저장된 메모에서 발추 적용방식을 꺼낸다  [발추방식2]
+function xmodeOf(p) {
+  const m = String((p && p.memo) || '').match(/\[발추방식([123])\]/);
+  return m ? Number(m[1]) : null;
+}
+// 저장된 메모에서 평가유형을 꺼낸다  [평가유형5]
+function evalTypeOf(p) {
+  const m = String((p && p.memo) || '').match(/\[평가유형(\d+)\]/);
+  return m ? Number(m[1]) : null;
+}
+
+// 발추 방식에 따른 기본 회수
+function autoXcnt(mode, isFiveWeek) {
+  if (Number(mode) === 1) return 1;
+  if (Number(mode) === 2) return isFiveWeek ? 1 : 0;
+  return 0;
+}
+// 발추 방식 고르는 칸
+function xmodeOptions(sel) {
+  let o = '';
+  [1, 2, 3].forEach(k => {
+    o += '<option value="' + k + '"' + (Number(sel) === k ? ' selected' : '')
+       + '>' + XMODES[k] + '</option>';
+  });
+  return o;
+}
+// 평가 종류 고르는 칸
+function evalOptions(sel) {
+  let o = '<option value="">선택 안 함</option>';
+  EVALFEES.forEach(f => {
+    o += '<option value="' + f.id + '" data-amt="' + f.amount + '"'
+       + (Number(sel) === Number(f.id) ? ' selected' : '') + '>'
+       + esc(f.name) + ' · ' + Number(f.amount).toLocaleString() + '</option>';
+  });
+  return o;
+}
+
 function numOf(v) {
   const s = String(v == null ? '' : v).replace(/[^0-9]/g, '');
   return s === '' ? 0 : parseInt(s, 10);
@@ -544,12 +686,29 @@ function calcKid(childId) {
   const box = document.querySelector('.kid[data-child="' + childId + '"]');
   if (!box) return;
 
-  // 1) 회기계산 줄
+  // 1) 회기계산 줄 — 적용단가가 있으면 그 값이 치료사 단가보다 우선한다
   box.querySelectorAll('.line').forEach(tr => {
-    const unit = tr.querySelector('.lineamt').dataset.unit;
+    const base = tr.querySelector('.lineamt').dataset.unit;   // 치료사 단가
+    const apEl = tr.querySelector('.apu');
+    const ap   = apEl ? numOf(apEl.value) : 0;
     const cnt  = numOf(tr.querySelector('.cnt').value);
-    const amt  = unit === '' ? 0 : Number(unit) * cnt;
+
+    const use = ap > 0 ? ap : (base === '' ? null : Number(base));
+    const amt = use == null ? 0 : use * cnt;
     tr.querySelector('.lineamt').textContent = amt.toLocaleString();
+
+    // 단가 칸 표시 — 할인 중이면 원래 단가에 줄을 긋는다
+    const up = tr.querySelector('.upbox');
+    if (up) {
+      if (base === '') {
+        up.innerHTML = ap > 0 ? ap.toLocaleString() : '<span class="warn">단가없음</span>';
+      } else if (ap > 0) {
+        up.innerHTML = '<span class="oldup">' + Number(base).toLocaleString() + '</span>';
+      } else {
+        up.textContent = Number(base).toLocaleString();
+      }
+    }
+    tr.classList.toggle('hasap', ap > 0);
   });
 
   // 2) 유형별 합계
@@ -636,12 +795,23 @@ async function saveKid(childId, btn) {
     let memo2 = memo;
     if (p.st === 8) {
       const el = box.querySelector('.gsum[data-st="8"] .xthr');
-      if (el) memo2 = memo + ' [발추치료사' + el.value + ']';
+      const md = box.querySelector('.gsum[data-st="8"] .xmode');
+      const xc = box.querySelector('.gsum[data-st="8"] .xcnt');
+      if (el) memo2 += ' [발추치료사' + el.value + ']';
+      if (md) memo2 += ' [발추방식' + md.value + ']';
+      if (xc) memo2 += ' [회기' + numOf(xc.value) + ']';
+    } else if (p.st === 9) {
+      const es = box.querySelector('.evsel');
+      if (es && es.value) memo2 += ' [평가유형' + es.value + ']';
     } else {
-      const cs = [];
-      box.querySelectorAll('.line[data-st="' + p.st + '"] .cnt')
-         .forEach(el => cs.push(numOf(el.value)));
-      if (cs.length) memo2 = memo + ' [회기' + cs.join(',') + ']';
+      const cs = [], us = [];
+      box.querySelectorAll('.line[data-st="' + p.st + '"]').forEach(tr => {
+        cs.push(numOf(tr.querySelector('.cnt').value));
+        const a = tr.querySelector('.apu');
+        us.push(a ? numOf(a.value) : 0);
+      });
+      if (cs.length) memo2 += ' [회기' + cs.join(',') + ']';
+      if (us.some(x => x > 0)) memo2 += ' [적용단가' + us.join(',') + ']';
     }
     return {
       child_id: childId,
@@ -677,19 +847,41 @@ async function saveKid(childId, btn) {
 
 // 숫자 고치면 바로 다시 계산
 $('kids').addEventListener('input', e => {
-  if (e.target.classList.contains('cnt') || e.target.classList.contains('evamt')) {
-    const box = e.target.closest('.kid');
-    if (e.target.classList.contains('evamt')) {
-      const v = numOf(e.target.value);
-      e.target.value = v === 0 ? '' : v.toLocaleString();
+  const t = e.target;
+  if (t.classList.contains('cnt') || t.classList.contains('evamt')
+      || t.classList.contains('apu')) {
+    const box = t.closest('.kid');
+    if (t.classList.contains('evamt') || t.classList.contains('apu')) {
+      const v = numOf(t.value);
+      t.value = v === 0 ? '' : v.toLocaleString();
     }
     calcKid(Number(box.dataset.child));
     sumAll();
   }
 });
 $('kids').addEventListener('change', e => {
-  if (e.target.classList.contains('xthr')) {
-    const box = e.target.closest('.kid');
+  const t = e.target;
+  const box = t.closest('.kid');
+  if (!box) return;
+
+  // 평가 종류를 고르면 금액이 자동으로 채워진다
+  if (t.classList.contains('evsel')) {
+    const amtEl = box.querySelector('.evamt');
+    const opt = t.options[t.selectedIndex];
+    const amt = opt ? numOf(opt.dataset.amt) : 0;
+    if (amtEl) amtEl.value = amt ? amt.toLocaleString() : '';
+  }
+
+  // 발추 방식을 고치면 회수가 자동으로 바뀐다
+  if (t.classList.contains('xmode')) {
+    const row = box.querySelector('.gsum[data-st="8"]');
+    const xc  = row ? row.querySelector('.xcnt') : null;
+    const five = row && row.dataset.five === '1';
+    if (xc) xc.value = autoXcnt(t.value, five);
+  }
+
+  if (t.classList.contains('xthr') || t.classList.contains('evsel')
+      || t.classList.contains('xmode')) {
     calcKid(Number(box.dataset.child));
     sumAll();
   }
