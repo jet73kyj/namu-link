@@ -396,12 +396,15 @@ function drawKid(c) {
       ? '<span class="saved">저장됨</span>' : '';
 
     if (g.calc_type === '회기계산') {
+      const savedCnt = countsOf(sv[g.support_type_id]);
       g.items.forEach((it, i) => {
+        const cnt = (savedCnt && savedCnt[i] != null && !isNaN(savedCnt[i]))
+                    ? savedCnt[i] : it.count;
         b += '<div class="r line" data-st="' + g.support_type_id + '">'
           + '<span class="nm">' + (i === 0 ? esc(tn) + sd : '') + '</span>'
           + '<span class="de">' + esc(it.label)
           + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
-          + '<span class="ct"><input class="cnt" type="text" inputmode="numeric" value="' + it.count + '"></span>'
+          + '<span class="ct"><input class="cnt" type="text" inputmode="numeric" value="' + cnt + '"></span>'
           + '<span class="up">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</span>'
           + '<span class="am lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</span>'
           + '</div>';
@@ -492,9 +495,11 @@ function memoOf(p, isBank) {
     if (m === '계좌입금') return '';
     if (m.indexOf('계좌입금 ') === 0) return m.slice(5);
   } else {
-    if (m === '카드결제' || m === '자동계산' || m === '화면입력') return '';
     if (m.indexOf('2026-08-11 자동이관') === 0) return '';
   }
+  m = m.replace(/\s*\[회기[0-9,]+\]/g, '')
+       .replace(/\s*\[발추치료사\d+\]/g, '').trim();
+  if (m === '카드결제' || m === '자동계산' || m === '화면입력' || m === '계좌입금') return '';
   return m;
 }
 
@@ -518,6 +523,12 @@ function feeExtra(tid) {
   return f ? (f.fee_extra || 0) : 0;
 }
 // 저장된 발추 메모에서 치료사 번호를 꺼낸다
+// 저장된 메모에서 회기 목록을 꺼낸다  [회기2,4,3]
+function countsOf(p) {
+  const m = String((p && p.memo) || '').match(/\[회기([0-9,]+)\]/);
+  return m ? m[1].split(',').map(x => parseInt(x, 10)) : null;
+}
+
 function extraTherapistOf(p) {
   const m = String((p && p.memo) || '').match(/\[발추치료사(\d+)\]/);
   return m ? Number(m[1]) : null;
@@ -626,6 +637,11 @@ async function saveKid(childId, btn) {
     if (p.st === 8) {
       const el = box.querySelector('.gsum[data-st="8"] .xthr');
       if (el) memo2 = memo + ' [발추치료사' + el.value + ']';
+    } else {
+      const cs = [];
+      box.querySelectorAll('.line[data-st="' + p.st + '"] .cnt')
+         .forEach(el => cs.push(numOf(el.value)));
+      if (cs.length) memo2 = memo + ' [회기' + cs.join(',') + ']';
     }
     return {
       child_id: childId,
