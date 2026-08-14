@@ -434,12 +434,14 @@ const RULE = { 1:[1,2,3], 2:[4,6,7], 3:[4,6,7], 4:[4,6,7], 5:[5] };
 const CAN_SEE = [1,2,3,4,5,6,7,8,9];
 
 let ROWS = [];          // 수업(요일) 전체
-let THS  = [];          // 치료사 1~7
+let THS  = [];          // 화면에 보이는 치료사
+let THS_ALL = [];       // 치료사 1~7 전부
 let SESS = [];          // 그 달 회차 전체
 let BAL  = new Set();   // 그 달 발추 아동
 let wd = '월', mon = '';
 let mkSess = null;      // 지금 보강 잡는 결석 회차
 let CAN_EDIT = false;   // 수업을 넣고 고칠 수 있는 사람인가 (관리자 8 · 행정 9)
+let MY_TH    = null;    // 치료사로 로그인했으면 그 번호. 자기 칸만 보인다
 let KIDS = [];          // 아동 목록 (치료중 · 대기중)
 let addKey = null;      // 지금 넣으려는 빈 칸
 let edRow  = null;      // 지금 고치는 수업
@@ -1171,6 +1173,7 @@ async function loadMonth(){
     .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo')
     .eq('month_key', mon);
   SESS = error ? [] : (data || []);
+  if (MY_TH) SESS = SESS.filter(s => s.therapist_id === MY_TH);
   const nameOf = {}; ROWS.forEach(r => nameOf[r._cid] = r._name);
   SESS.forEach(s => s._name = nameOf[s.child_id] || '');
 }
@@ -1183,7 +1186,8 @@ async function afterLogin(user){
   if (CAN_SEE.indexOf(me.id) < 0) { show('이 화면을 볼 권한이 없습니다.', false); return; }
 
   const { data: ths } = await sb.from('nl_therapists').select('id, name').lte('id',7).order('id');
-  THS = ths || [];
+  THS_ALL = ths || [];
+  THS = THS_ALL;
 
   const { data: sc, error: e3 } = await sb.from('nl_therapy_schedules')
     .select('id, therapy_id, weekday, start_time, therapist_id, duration');
@@ -1204,6 +1208,12 @@ async function afterLogin(user){
     return r;
   }).filter(Boolean);
 
+  // 치료사면 자기 칸만
+  if (MY_TH) {
+    THS = THS_ALL.filter(t => t.id === MY_TH);
+    ROWS = ROWS.filter(r => r.therapist_id === MY_TH);
+  }
+
   // 달 목록
   const now = new Date();
   let opts='';
@@ -1221,6 +1231,8 @@ async function afterLogin(user){
 
   // 수업 넣기·고치기는 관리자(8)·행정(9)만
   CAN_EDIT = (me.id === 8 || me.id === 9);
+  // 치료사(1~7)는 자기 칸만 본다
+  MY_TH = (me.id >= 1 && me.id <= 7) ? me.id : null;
 
   // 아동 목록 (치료중 + 대기중)
   const { data: allKids } = await sb.from('nl_children')
@@ -1257,7 +1269,8 @@ async function afterLogin(user){
   wd = (nm==='일') ? '월' : nm;
   document.querySelectorAll('.tab[data-wd]').forEach(b=>b.classList.toggle('on', b.dataset.wd===wd));
 
-  $('who').textContent = me.name+' ('+me.role+') 님으로 로그인됨';
+  $('who').textContent = me.name+' ('+me.role+') 님으로 로그인됨'
+    + (MY_TH ? ' — 담당하시는 수업만 보입니다' : '');
   $('loginBox').style.display='none';
   $('mainBox').style.display='block';
   drawHead(); draw();
