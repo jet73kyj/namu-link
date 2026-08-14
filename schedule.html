@@ -110,6 +110,17 @@
   td.free:hover .plus { color:#558b2f; }
   .edbtn { width:auto; margin:2px 0 0; padding:1px 6px; font-size:10px;
            background:#546e7a; border-radius:9px; float:right; }
+  .hits { margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; }
+  .hit { background:#fff; border:1px solid #c5e1a5; border-radius:16px;
+         padding:5px 12px; font-size:13px; cursor:pointer; }
+  .hit:hover { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  .hit .sm { color:#8d6e63; font-size:11.5px; margin-left:4px; }
+  .hit:hover .sm { color:#dcedc8; }
+  .hitnone { color:#c62828; font-size:13px; padding:4px 0; }
+  .picked { margin-top:8px; font-size:14px; font-weight:bold; color:#1b5e20;
+            display:none; }
+  .picked .x { display:inline-block; margin-left:8px; color:#c62828;
+               cursor:pointer; font-weight:bold; }
 
   .legend { font-size:12px; color:#7a8a6a; margin-top:12px; line-height:2.2; }
   .lg { display:inline-block; padding:2px 9px; border-radius:10px; margin-right:6px; }
@@ -187,8 +198,11 @@
     <div class="panel-t" id="addTitle"></div>
     <div class="pgrid">
       <div style="grid-column:1 / -1;">
-        <label for="ad_child">아동</label>
-        <select id="ad_child"></select>
+        <label for="ad_name">아동 이름</label>
+        <input id="ad_name" type="text" autocomplete="off"
+               placeholder="이름을 치면 아래에 뜹니다">
+        <div id="ad_hits" class="hits"></div>
+        <div id="ad_pick" class="picked"></div>
       </div>
       <div>
         <label for="ad_tt">치료 종류</label>
@@ -491,13 +505,48 @@ $('gbody').addEventListener('click', async e => {
 function admsg(t, ok){ $('adMsg').textContent=t; $('adMsg').className='out '+(ok?'ok':'err'); }
 function edmsg(t, ok){ $('edMsg').textContent=t; $('edMsg').className='out '+(ok?'ok':'err'); }
 
+let pickKid = null;   // 고른 아동
+
+function clearPick(){
+  pickKid = null;
+  $('ad_pick').style.display = 'none';
+  $('ad_pick').innerHTML = '';
+}
+function showPick(k){
+  pickKid = k;
+  $('ad_name').value = '';
+  $('ad_hits').innerHTML = '';
+  $('ad_pick').style.display = 'block';
+  $('ad_pick').innerHTML = '고른 아동 — ' + esc(k.name) + ' (' + k.id + '번 · '
+    + esc(k.status) + ')<span class="x" id="ad_x">✕ 지우기</span>';
+  $('ad_x').onclick = clearPick;
+}
+$('ad_name').addEventListener('input', () => {
+  const q = $('ad_name').value.trim();
+  if (!q) { $('ad_hits').innerHTML = ''; return; }
+  const hit = KIDS.filter(k => (k.name||'').includes(q)).slice(0, 12);
+  if (!hit.length) {
+    $('ad_hits').innerHTML = '<div class="hitnone">그런 이름의 아동이 없습니다. '
+      + '아동 관리 화면에서 먼저 등록하세요.</div>';
+    return;
+  }
+  $('ad_hits').innerHTML = hit.map(k =>
+    '<span class="hit" data-kid="'+k.id+'">'+esc(k.name)
+    + '<span class="sm">'+k.id+'번 · '+esc(k.status)+'</span></span>').join('');
+  $('ad_hits').querySelectorAll('.hit').forEach(el => {
+    el.onclick = () => showPick(KIDS.find(k => k.id === Number(el.dataset.kid)));
+  });
+});
+
 function openAdd(key){
   addKey = key;
   const p = key.split('_');
   const slot = SLOTS.find(x => x.no === Number(p[0]));
   const th   = THS.find(x => x.id === Number(p[1]));
   $('addTitle').textContent = wd + '요일 ' + slot.t + ' · ' + (th ? th.name : '') + ' — 수업 넣기';
-  $('ad_child').value = '';
+  $('ad_name').value = '';
+  $('ad_hits').innerHTML = '';
+  clearPick();
   $('ad_dur').value = '40';
   $('ad_start').value = mon + '-01';
   admsg('', true); $('adMsg').className = 'out';
@@ -510,8 +559,8 @@ $('adClose').onclick = () => { $('addBox').style.display='none'; addKey=null; };
 
 $('adSave').onclick = async () => {
   if (!addKey) return;
-  const cid = Number($('ad_child').value);
-  if (!cid) { admsg('아동을 고르세요.', false); return; }
+  if (!pickKid) { admsg('아동 이름을 치고 아래에 뜬 이름을 눌러 고르세요.', false); return; }
+  const cid = pickKid.id;
   const p = addKey.split('_');
   const slot = SLOTS.find(x => x.no === Number(p[0]));
   const thId = Number(p[1]);
@@ -804,8 +853,6 @@ async function afterLogin(user){
   const { data: allKids } = await sb.from('nl_children')
     .select('id, name, status').in('status', ['치료중','대기중']).order('name');
   KIDS = allKids || [];
-  $('ad_child').innerHTML = '<option value="">-- 아동 고르기 --</option>'
-    + KIDS.map(k=>'<option value="'+k.id+'">'+esc(k.name)+' ('+k.id+'번 · '+esc(k.status)+')</option>').join('');
   $('ad_tt').innerHTML = Object.keys(TTYPE)
     .map(k=>'<option value="'+k+'">'+k+' '+TTYPE[k]+'치료</option>').join('');
   $('ad_st').innerHTML =
