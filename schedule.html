@@ -16,6 +16,11 @@
             vertical-align:-3px; margin-left:6px; }
   .nosess { background:#fff3e0; border:1px solid #ffcc80; color:#e65100;
             border-radius:8px; padding:12px 14px; font-size:13.5px; margin-bottom:12px; }
+  .shorttop { background:#ffebee; border:1px solid #ef9a9a; border-radius:8px;
+              padding:10px 14px; font-size:13.5px; color:#b71c1c; font-weight:bold;
+              margin-bottom:12px; cursor:pointer; }
+  .shorttop:hover { background:#ffcdd2; }
+  .shorttop .go { float:right; font-weight:normal; font-size:12.5px; }
   .shortbox { background:#ffebee; border:1px solid #ef9a9a; border-radius:10px;
               padding:14px 16px; margin-bottom:14px; }
   .short-t { font-size:15px; font-weight:bold; color:#b71c1c; margin-bottom:8px; }
@@ -240,8 +245,7 @@
 
   <div id="noSess" class="nosess" style="display:none;"></div>
   <div id="holi" class="holibox" style="display:none;"></div>
-  <div id="short" class="shortbox" style="display:none;"></div>
-  <div id="allok" class="allok" style="display:none;"></div>
+  <div id="shortTop" class="shorttop" style="display:none;"></div>
 
   <!-- 보강 잡기 창 -->
   <div id="mkBox" class="panel" style="display:none;">
@@ -366,6 +370,9 @@
     </table>
   </div>
 
+  <div id="short" class="shortbox" style="display:none;"></div>
+  <div id="allok" class="allok" style="display:none;"></div>
+
   <div class="legend">
     <span class="lg sp1">센터비용</span>
     <span class="lg sp2">발달재활</span>
@@ -472,8 +479,9 @@ function drawShort(byScd, mkOf){
 
   if (!bad.length) {
     $('short').style.display = 'none';
+    $('shortTop').style.display = 'none';
     $('allok').style.display = SESS.length ? 'block' : 'none';
-    $('allok').textContent = '✅ ' + monNo(mon) + '월 — 보강을 못 잡은 결석이 없습니다.';
+    $('allok').textContent = '✅ ' + monNo(mon) + '월 — 보강을 못 잡은 결석·휴무가 없습니다.';
     return;
   }
   $('allok').style.display = 'none';
@@ -488,6 +496,15 @@ function drawShort(byScd, mkOf){
 
   const nBal = bad.filter(b => b.row.support_type_id === 2).length;
   const nKid = new Set(bad.map(b => b.row._cid)).size;
+
+  $('shortTop').style.display = 'block';
+  $('shortTop').innerHTML = '⚠️ ' + monNo(mon) + '월 보강이 필요한 수업 '
+    + bad.length + '건 (아동 ' + nKid + '명)'
+    + (nBal ? ' · 발달재활 ' + nBal + '건' : '')
+    + '<span class="go">아래 목록 보기 ↓</span>';
+  $('shortTop').onclick = () =>
+    $('short').scrollIntoView({ behavior:'smooth', block:'start' });
+
   $('short').innerHTML = '<div class="short-t">⚠️ ' + monNo(mon)
     + '월 회수가 모자란 수업 ' + bad.length + '건 (아동 ' + nKid + '명)'
     + (nBal ? ' <span class="mustdo">— 발달재활 ' + nBal + '건은 반드시 4회</span>' : '')
