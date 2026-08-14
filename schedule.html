@@ -97,6 +97,14 @@
              padding:6px 13px; font-size:13px; cursor:pointer; color:#00695c; }
   .freeone:hover { background:#00695c; color:#fff; border-color:#00695c; }
   .freenone { color:#b71c1c; font-size:13px; }
+  .panel.grey-p { background:#eceff1; border-color:#b0bec5; }
+  .panel.grey-p .panel-t { color:#37474f; }
+  .offlist-t { font-size:13px; font-weight:bold; color:#37474f; margin:14px 0 8px; }
+  .offlist { display:flex; flex-wrap:wrap; gap:6px; }
+  .offone { background:#fff; border:1px solid #b0bec5; border-radius:16px;
+            padding:5px 12px; font-size:12.5px; color:#37474f; }
+  .offone .del { margin-left:8px; color:#c62828; cursor:pointer; font-weight:bold; }
+  .offnone { color:#78909c; font-size:13px; }
   .holibox { background:#eceff1; border:1px solid #b0bec5; border-radius:8px;
              padding:10px 14px; font-size:13.5px; color:#455a64; margin-bottom:12px; }
   .mkbtn  { width:auto; margin:0 0 0 5px; padding:2px 7px; font-size:10.5px;
@@ -190,7 +198,42 @@
     <button class="tab" data-wd="금">금</button>
     <button class="tab" data-wd="토">토</button>
     <select id="mon" class="sel"></select>
+    <button id="offBtn" class="tab" style="background:#546e7a;color:#fff;">🏖 휴무 관리</button>
     <span class="count" id="count"></span>
+  </div>
+
+  <!-- 휴무 관리 창 -->
+  <div id="offBox" class="panel grey-p" style="display:none;">
+    <div class="panel-t">🏖 휴무 관리</div>
+    <div class="pgrid">
+      <div>
+        <label for="of_date">날짜</label>
+        <input id="of_date" type="date">
+      </div>
+      <div>
+        <label for="of_kind">종류</label>
+        <select id="of_kind">
+          <option value="치료사휴무">치료사 휴무 (그 치료사만)</option>
+          <option value="센터휴무">센터 휴무 (그날 전체)</option>
+          <option value="공휴일">공휴일 (그날 전체)</option>
+        </select>
+      </div>
+      <div id="of_thwrap">
+        <label for="of_th">치료사</label>
+        <select id="of_th"></select>
+      </div>
+      <div>
+        <label for="of_reason">사유</label>
+        <input id="of_reason" type="text" placeholder="예: 연차, 교육">
+      </div>
+    </div>
+    <div class="pbtns">
+      <button id="offSave" class="pbtn ok-btn">휴무 넣기</button>
+      <button id="offClose" class="pbtn grey">닫기</button>
+    </div>
+    <div id="offMsg" class="out"></div>
+    <div class="offlist-t">이 달 휴무</div>
+    <div id="offList" class="offlist"></div>
   </div>
 
   <div id="noSess" class="nosess" style="display:none;"></div>
@@ -393,6 +436,7 @@ let addKey = null;      // 지금 넣으려는 빈 칸
 let edRow  = null;      // 지금 고치는 수업
 let OFF    = new Set(); // 쉬는 날. 날짜 또는 날짜#치료사번호
 let OFFTXT = {};        // 날짜 -> 사유
+let OFFTH  = {};        // 날짜#치료사 -> 사유
 
 function show(t, ok){ $('msg').textContent=t; $('msg').className='out '+(ok?'ok':'err'); }
 function mkmsg(t, ok){ $('mkMsg').textContent=t; $('mkMsg').className='out '+(ok?'ok':'err'); }
@@ -441,9 +485,10 @@ function drawShort(byScd, mkOf){
   });
 
   const nBal = bad.filter(b => b.row.support_type_id === 2).length;
+  const nKid = new Set(bad.map(b => b.row._cid)).size;
   $('short').innerHTML = '<div class="short-t">⚠️ ' + monNo(mon)
-    + '월 회수가 모자란 아동 ' + bad.length + '명'
-    + (nBal ? ' <span class="mustdo">(발달재활 ' + nBal + '명 — 반드시 4회)</span>' : '')
+    + '월 회수가 모자란 수업 ' + bad.length + '건 (아동 ' + nKid + '명)'
+    + (nBal ? ' <span class="mustdo">— 발달재활 ' + nBal + '건은 반드시 4회</span>' : '')
     + '</div>'
     + bad.map(b => {
         const r = b.row;
@@ -504,10 +549,17 @@ function draw(){
   // 이 요일에 걸린 쉬는 날 알려주기
   const holi = Object.keys(OFFTXT).filter(k => wdOf(k) === wd)
     .sort().map(k => dayNo(k) + '일 ' + OFFTXT[k]);
-  if (holi.length) {
+  const thOff = Object.keys(OFFTH).filter(k => wdOf(k.split('#')[0]) === wd)
+    .sort().map(k => {
+      const p = k.split('#');
+      const t = THS.find(x => x.id === Number(p[1]));
+      return dayNo(p[0]) + '일 ' + (t ? t.name : p[1]+'번') + ' ' + OFFTH[k];
+    });
+  const all = holi.concat(thOff);
+  if (all.length) {
     $('holi').style.display = 'block';
     $('holi').innerHTML = '🏖 ' + monNo(mon) + '월 ' + wd + '요일 중 쉬는 날 — '
-      + holi.join(' · ') + ' (그날 수업은 휴무로 표시됩니다)';
+      + all.join(' · ') + ' (그날 수업은 휴무로 표시됩니다)';
   } else {
     $('holi').style.display = 'none';
   }
@@ -847,6 +899,86 @@ $('edEnd').onclick = async () => {
   }
 };
 
+// ===== 휴무 관리 =====
+function offmsg(t, ok){ $('offMsg').textContent=t; $('offMsg').className='out '+(ok?'ok':'err'); }
+
+$('offBtn').onclick = () => {
+  const open = $('offBox').style.display !== 'none';
+  if (open) { $('offBox').style.display='none'; return; }
+  $('mkBox').style.display='none'; $('addBox').style.display='none';
+  $('edBox').style.display='none';
+  $('of_date').value = '';
+  $('of_reason').value = '';
+  offmsg('', true); $('offMsg').className='out';
+  drawOffList();
+  $('offBox').style.display = 'block';
+};
+$('offClose').onclick = () => { $('offBox').style.display='none'; };
+$('of_kind').onchange = () => {
+  $('of_thwrap').style.display = ($('of_kind').value === '치료사휴무') ? '' : 'none';
+};
+
+async function drawOffList(){
+  const { data } = await sb.from('nl_offdays')
+    .select('id, off_date, kind, therapist_id, reason')
+    .gte('off_date', mon + '-01').lte('off_date', mon + '-31')
+    .order('off_date');
+  if (!data || !data.length) {
+    $('offList').innerHTML = '<div class="offnone">이 달에 넣은 휴무가 없습니다.</div>';
+    return;
+  }
+  $('offList').innerHTML = data.map(o => {
+    const th = o.therapist_id ? THS.find(t => t.id === o.therapist_id) : null;
+    return '<span class="offone">' + dayNo(o.off_date) + '일(' + wdOf(o.off_date) + ') '
+      + esc(o.kind) + (th ? ' · ' + esc(th.name) : '')
+      + (o.reason ? ' · ' + esc(o.reason) : '')
+      + '<span class="del" data-off="' + o.id + '">✕</span></span>';
+  }).join('');
+  $('offList').querySelectorAll('.del').forEach(el => {
+    el.onclick = async () => {
+      if (!confirm('이 휴무를 지울까요?')) return;
+      const { error } = await sb.from('nl_offdays').delete().eq('id', Number(el.dataset.off));
+      if (error) { offmsg('❌ 지우지 못했습니다.\n' + error.message, false); return; }
+      offmsg('✅ 지웠습니다. 휴무였던 수업은 예정으로 돌리려면 회차를 눌러 주세요.', true);
+      await loadMonth(); drawOffList(); draw();
+    };
+  });
+}
+
+$('offSave').onclick = async () => {
+  const d = $('of_date').value;
+  if (!d) { offmsg('날짜를 고르세요.', false); return; }
+  const kind = $('of_kind').value;
+  const th   = (kind === '치료사휴무') ? Number($('of_th').value) : null;
+
+  $('offSave').disabled = true; $('offSave').textContent = '넣는 중...';
+  try {
+    const { error } = await sb.from('nl_offdays').insert({
+      off_date: d, kind: kind, therapist_id: th,
+      reason: $('of_reason').value.trim() || null
+    });
+    if (error) throw error;
+
+    // 그날 수업을 휴무로 바꾼다
+    let q = sb.from('nl_sessions')
+      .update({ status:'휴무', updated_at:new Date().toISOString() })
+      .eq('plan_date', d).eq('status', '예정');
+    if (th) q = q.eq('therapist_id', th);
+    await q;
+
+    offmsg('✅ 넣었습니다. 그날 수업이 휴무로 바뀌고, 맨 위 상자에 보강 대상으로 뜹니다.', true);
+    $('of_date').value = ''; $('of_reason').value = '';
+    await loadMonth(); drawOffList(); draw();
+  } catch (e) {
+    const m = String(e.message || '');
+    offmsg(m.includes('duplicate')
+      ? '❌ 그날은 이미 휴무로 넣어져 있습니다.'
+      : '❌ 넣지 못했습니다.\n' + m, false);
+  } finally {
+    $('offSave').disabled = false; $('offSave').textContent = '휴무 넣기';
+  }
+};
+
 // ===== 보강 잡기 =====
 function openMk(absId){
   const s = SESS.find(x => x.id === absId);
@@ -1000,8 +1132,10 @@ async function loadMonth(){
     .select('off_date, kind, therapist_id, reason')
     .gte('off_date', mon + '-01').lte('off_date', mon + '-31');
   (off || []).forEach(o => {
-    if (o.therapist_id) OFF.add(o.off_date + '#' + o.therapist_id);
-    else { OFF.add(o.off_date); OFFTXT[o.off_date] = o.reason || o.kind; }
+    if (o.therapist_id) {
+      OFF.add(o.off_date + '#' + o.therapist_id);
+      OFFTH[o.off_date + '#' + o.therapist_id] = o.reason || o.kind;
+    } else { OFF.add(o.off_date); OFFTXT[o.off_date] = o.reason || o.kind; }
   });
   const { data: pay } = await sb.from('nl_payments')
     .select('child_id').eq('support_type_id', 8).eq('month_key', mon);
@@ -1077,6 +1211,8 @@ async function afterLogin(user){
     .map(w=>'<option value="'+w+'">'+w+'요일</option>').join('');
   $('ed_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t+'</option>').join('');
   $('ed_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
+  $('of_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
+  if (!CAN_EDIT) $('offBtn').style.display = 'none';
 
   await loadMonth();
 
@@ -1103,7 +1239,7 @@ async function afterLogin(user){
 
 $('mon').onchange = async () => { mon=$('mon').value;
   $('mkBox').style.display='none'; $('addBox').style.display='none';
-  $('edBox').style.display='none';
+  $('edBox').style.display='none'; $('offBox').style.display='none';
   await loadMonth(); draw(); };
 document.querySelectorAll('.tab').forEach(b=>{
   b.onclick=()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
