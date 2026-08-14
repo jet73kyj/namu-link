@@ -70,9 +70,15 @@
   .r-done { background:#c8e6c9; color:#1b5e20; }
   .r-abs  { background:#ffcdd2; color:#b71c1c; }
   .r-mk   { background:#ffe0b2; color:#e65100; }
-  .mkbtn  { width:auto; margin:0; padding:1px 6px; font-size:10.5px; font-weight:bold;
-            background:#e65100; border-radius:3px; }
-  .mkinfo { font-size:10.5px; color:#e65100; font-weight:bold; }
+  .stabs  { margin-left:auto; font-weight:800; color:#b71c1c; font-size:11.5px;
+            white-space:nowrap; }
+  .mkbtn  { width:auto; margin:0 0 0 5px; padding:2px 7px; font-size:10.5px;
+            font-weight:bold; background:#ef6c00; border-radius:10px;
+            white-space:nowrap; }
+  .mkbtn:hover { background:#e65100; }
+  .mkinfo { margin-left:5px; font-size:10.5px; color:#e65100; font-weight:bold;
+            white-space:nowrap; }
+  .mkfrom { font-size:10.5px; color:#bf6000; margin-top:2px; }
 
   .sp1 { background:#e8f5e9; }
   .sp2 { background:#e3f2fd; }
@@ -143,7 +149,7 @@
         <input id="mk_date" type="date">
       </div>
       <div>
-        <label for="mk_slot">교시</label>
+        <label for="mk_slot">시간</label>
         <select id="mk_slot"></select>
       </div>
       <div>
@@ -182,8 +188,10 @@
     <span class="lg r-mk">보강</span>
   </div>
   <div class="note">
-    회차를 <b>누를 때마다</b> 예정 → 완료 → 결석 → 예정 순으로 바뀝니다.<br>
-    결석으로 바꾸면 옆에 <b>보강</b> 단추가 생깁니다. 눌러서 날짜와 교시를 정하세요.<br>
+    회차를 <b>누를 때마다</b> 예정 → 완료 → 결석 → 예정 순으로 바뀝니다.
+    결석은 <b>두 번</b> 눌러야 나옵니다.<br>
+    결석이 되면 옆에 주황색 <b>보강 잡기</b> 단추가 생깁니다.
+    눌러서 날짜·시간·치료사를 정하면, <b>그 날짜 칸에 보강 수업이 만들어집니다.</b><br>
     빈 칸이 그 치료사의 빈 시간입니다. 5교시는 주중 점심(보강 가능)입니다.<br>
     수업분은 50분·60분만 적습니다.
   </div>
@@ -320,9 +328,11 @@ function draw(){
               const mk = mkOf[x.id];
               let tail;
               if (x.status === '결석') {
-                tail = mk
-                  ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>'
-                  : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>';
+                tail = '<span class="stabs">🔴 결석</span>'
+                  + (mk
+                    ? '<span class="mkinfo">→ ' + dayNo(mk.plan_date) + '일 '
+                      + nearest(toMin(mk.start_time)).hm + '</span>'
+                    : '<button class="mkbtn" data-mk="'+x.id+'">보강 잡기</button>');
               } else {
                 tail = '<span class="st">'+x.status+'</span>';
               }
@@ -340,12 +350,19 @@ function draw(){
               + runs + warn + '</span>';
           });
           mks.forEach(x => {
+            const org = ROWS.find(r => r.id === x.schedule_id);
+            const nmtxt = (org ? (STYPE[org.support_type_id]||'?')
+                                 + (org._tt===3 ? '(전산)' : ' ') : '')
+                          + esc(x._name||'');
+            const from = SESS.find(y => y.id === x.makeup_for);
             html += '<span class="chip r-mk">'
-              + '<span class="nm">보강 '+esc(x._name||'')+'</span>'
+              + '<span class="nm">🔁 '+nmtxt+'</span>'
               + '<div class="run r-mk" data-sid="'+x.id+'">'
               + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
               + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
-              + '<span class="st">보강</span></div></span>';
+              + '<span class="st">보강</span></div>'
+              + (from ? '<div class="mkfrom">'+dayNo(from.plan_date)+'일 결석분</div>' : '')
+              + '</span>';
           });
           return '<td class="cell" style="'+colW+'">'+html+'</td>';
         }).join('')
@@ -399,6 +416,19 @@ $('mkSave').onclick = async () => {
   const slot = SLOTS.find(x => x.no === Number($('mk_slot').value));
   const th   = Number($('mk_th').value);
 
+  // 그 칸이 이미 찼는지 살펴본다
+  const dw = wdOf(d);
+  const taken = ROWS.filter(r => r.therapist_id === th && r.weekday === dw
+                  && nearest(toMin(r.start_time)).no === slot.no);
+  const takenMk = SESS.filter(s => s.status === '보강' && s.plan_date === d
+                  && s.therapist_id === th
+                  && nearest(toMin(s.start_time)).no === slot.no
+                  && s.makeup_for !== mkSess.id);
+  if (taken.length || takenMk.length) {
+    if (!confirm('그 시간에 이미 ' + (taken.length + takenMk.length)
+        + '건이 있습니다.\n그래도 보강을 넣을까요?')) return;
+  }
+
   const row = {
     child_id:   mkSess.child_id,
     therapy_id: mkSess.therapy_id,
@@ -428,7 +458,7 @@ $('mkSave').onclick = async () => {
       data._name = mkSess._name;
       SESS.push(data);
     }
-    mkmsg('✅ 보강을 ' + dayNo(d) + '일 ' + slot.no + '교시로 잡았습니다.', true);
+    mkmsg('✅ 보강을 ' + dayNo(d) + '일 ' + slot.hm + '으로 잡았습니다.', true);
     $('mkDel').style.display = '';
     draw();
   } catch (e) {
@@ -506,7 +536,7 @@ async function afterLogin(user){
   mon = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
   $('mon').value = mon;
 
-  $('mk_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.no+'교시 '+s.t+'</option>').join('');
+  $('mk_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t+'</option>').join('');
   $('mk_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
 
   await loadMonth();
