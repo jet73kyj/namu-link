@@ -26,6 +26,9 @@
   .short-line .sinfo { color:#7a5050; }
   .short-line .sgap { color:#b71c1c; font-weight:bold; }
   .short-line .sday { margin-left:auto; }
+  .short-line.must { background:#fff; border-left:4px solid #c62828;
+                     padding-left:8px; margin:2px 0; border-radius:3px; }
+  .mustdo { font-size:12.5px; font-weight:normal; color:#c62828; }
   .sbtn { width:auto; margin:0; padding:3px 10px; font-size:11.5px;
           background:#ef6c00; border-radius:12px; }
   .allok { background:#e8f5e9; border:1px solid #a5d6a7; border-radius:10px;
@@ -85,8 +88,17 @@
   .r-done { background:#c8e6c9; color:#1b5e20; }
   .r-abs  { background:#ffcdd2; color:#b71c1c; }
   .r-mk   { background:#ffe0b2; color:#e65100; }
+  .r-off  { background:#e0e0e0; color:#555; }
   .stabs  { margin-left:auto; font-weight:800; color:#b71c1c; font-size:11.5px;
             white-space:nowrap; }
+  .r-off .stabs { color:#555; }
+  .freewrap { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
+  .freeone { background:#fff; border:1px solid #80cbc4; border-radius:16px;
+             padding:6px 13px; font-size:13px; cursor:pointer; color:#00695c; }
+  .freeone:hover { background:#00695c; color:#fff; border-color:#00695c; }
+  .freenone { color:#b71c1c; font-size:13px; }
+  .holibox { background:#eceff1; border:1px solid #b0bec5; border-radius:8px;
+             padding:10px 14px; font-size:13.5px; color:#455a64; margin-bottom:12px; }
   .mkbtn  { width:auto; margin:0 0 0 5px; padding:2px 7px; font-size:10.5px;
             font-weight:bold; background:#ef6c00; border-radius:10px;
             white-space:nowrap; }
@@ -182,6 +194,7 @@
   </div>
 
   <div id="noSess" class="nosess" style="display:none;"></div>
+  <div id="holi" class="holibox" style="display:none;"></div>
   <div id="short" class="shortbox" style="display:none;"></div>
   <div id="allok" class="allok" style="display:none;"></div>
 
@@ -207,10 +220,12 @@
       </div>
     </div>
     <div class="pbtns">
+      <button id="mkFind" class="pbtn" style="background:#00695c;">빈 자리 찾기</button>
       <button id="mkSave" class="pbtn">보강 잡기</button>
       <button id="mkDel"  class="pbtn grey">보강 취소</button>
       <button id="mkClose" class="pbtn grey">닫기</button>
     </div>
+    <div id="mkFree" class="freewrap"></div>
     <div id="mkMsg" class="out"></div>
   </div>
 
@@ -320,8 +335,11 @@
   <div class="note">
     회차를 <b>누를 때마다</b> 예정 → 완료 → 결석 → 예정 순으로 바뀝니다.
     결석은 <b>두 번</b> 눌러야 나옵니다.<br>
-    결석이 되면 옆에 주황색 <b>보강 잡기</b> 단추가 생깁니다.
-    눌러서 날짜·시간·치료사를 정하면, <b>그 날짜 칸에 보강 수업이 만들어집니다.</b><br>
+    🏖 <b>휴무</b>는 공휴일이라 자동으로 붙습니다. 눌러도 상태는 안 바뀌고 보강 창이 열립니다.<br>
+    결석·휴무가 되면 옆에 주황색 <b>보강 잡기</b> 단추가 생깁니다.
+    창에서 <b>빈 자리 찾기</b>를 누르면 담당 치료사가 비는 자리를 가까운 날부터 찾아줍니다.<br>
+    맨 위 빨간 상자에 <b>그 달 회수가 모자란 아동</b>이 모입니다.
+    발달재활은 반드시 4회를 채워야 해서 맨 앞에 나옵니다.<br>
     빈 칸이 그 치료사의 빈 시간입니다. 5교시는 주중 점심(보강 가능)입니다.<br>
     빈 칸의 <b>＋</b> 를 누르면 그 자리에 새 수업을 넣습니다.
     수업의 <b>고치기</b> 를 누르면 요일·시간·치료사를 바꾸거나 수업을 끝냅니다.
@@ -373,6 +391,8 @@ let CAN_EDIT = false;   // 수업을 넣고 고칠 수 있는 사람인가 (관�
 let KIDS = [];          // 아동 목록 (치료중 · 대기중)
 let addKey = null;      // 지금 넣으려는 빈 칸
 let edRow  = null;      // 지금 고치는 수업
+let OFF    = new Set(); // 쉬는 날. 날짜 또는 날짜#치료사번호
+let OFFTXT = {};        // 날짜 -> 사유
 
 function show(t, ok){ $('msg').textContent=t; $('msg').className='out '+(ok?'ok':'err'); }
 function mkmsg(t, ok){ $('mkMsg').textContent=t; $('mkMsg').className='out '+(ok?'ok':'err'); }
@@ -397,8 +417,9 @@ function drawShort(byScd, mkOf){
     const runs = byScd[r.id] || [];
     if (!runs.length) return;
     const need = r._cnt || runs.length;
-    // 보강을 못 잡은 결석만 모자란 것으로 센다
-    const miss = runs.filter(x => x.status === '결석' && !mkOf[x.id]);
+    // 보강을 못 잡은 결석·휴무만 모자란 것으로 센다
+    const miss = runs.filter(x =>
+      (x.status === '결석' || x.status === '휴무') && !mkOf[x.id]);
     if (!miss.length) return;
     bad.push({ row:r, need:need, have:need - miss.length, miss:miss });
   });
@@ -411,20 +432,31 @@ function drawShort(byScd, mkOf){
   }
   $('allok').style.display = 'none';
   $('short').style.display = 'block';
-  bad.sort((a,b) => b.miss.length - a.miss.length);
+  // 발달재활(2번)을 맨 앞으로. 반드시 4회를 채워야 하므로
+  bad.sort((a,b) => {
+    const pa = (a.row.support_type_id === 2) ? 0 : 1;
+    const pb = (b.row.support_type_id === 2) ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return b.miss.length - a.miss.length;
+  });
 
+  const nBal = bad.filter(b => b.row.support_type_id === 2).length;
   $('short').innerHTML = '<div class="short-t">⚠️ ' + monNo(mon)
-    + '월 회수가 모자란 아동 ' + bad.length + '명</div>'
+    + '월 회수가 모자란 아동 ' + bad.length + '명'
+    + (nBal ? ' <span class="mustdo">(발달재활 ' + nBal + '명 — 반드시 4회)</span>' : '')
+    + '</div>'
     + bad.map(b => {
         const r = b.row;
-        const days = b.miss.map(x => dayNo(x.plan_date) + '일').join(', ');
-        return '<div class="short-line">'
+        const must = (r.support_type_id === 2);
+        const days = b.miss.map(x =>
+          dayNo(x.plan_date) + '일 ' + (x.status === '휴무' ? '휴무' : '결석')).join(', ');
+        return '<div class="short-line' + (must ? ' must' : '') + '">'
           + '<span class="snm">' + esc(r._name) + '</span>'
           + '<span class="sinfo">' + (STYPE[r.support_type_id]||'') + ' · '
             + (TTYPE[r._tt]||'') + ' · ' + r.weekday + '요일</span>'
           + '<span class="sgap">' + b.need + '회 중 ' + b.have + '회 · '
             + b.miss.length + '회 남음</span>'
-          + '<span class="sday">' + days + ' 결석 '
+          + '<span class="sday">' + days + ' '
           + b.miss.map(x => '<button class="sbtn" data-mk="'+x.id+'">보강 잡기</button>').join(' ')
           + '</span></div>';
       }).join('');
@@ -469,6 +501,17 @@ function draw(){
 
   drawShort(byScd, mkOf);
 
+  // 이 요일에 걸린 쉬는 날 알려주기
+  const holi = Object.keys(OFFTXT).filter(k => wdOf(k) === wd)
+    .sort().map(k => dayNo(k) + '일 ' + OFFTXT[k]);
+  if (holi.length) {
+    $('holi').style.display = 'block';
+    $('holi').innerHTML = '🏖 ' + monNo(mon) + '월 ' + wd + '요일 중 쉬는 날 — '
+      + holi.join(' · ') + ' (그날 수업은 휴무로 표시됩니다)';
+  } else {
+    $('holi').style.display = 'none';
+  }
+
   // 고정 수업을 칸에 담기
   const cell = {};
   day.forEach(r => {
@@ -511,11 +554,13 @@ function draw(){
                         ? ' <span class="dur">'+r.duration+'분</span>' : '';
             const runs = (byScd[r.id] || []).map(x => {
               const cls = x.status==='완료' ? 'r-done'
-                        : x.status==='결석' ? 'r-abs' : '';
+                        : x.status==='결석' ? 'r-abs'
+                        : x.status==='휴무' ? 'r-off' : '';
               const mk = mkOf[x.id];
               let tail;
-              if (x.status === '결석') {
-                tail = '<span class="stabs">🔴 결석</span>'
+              if (x.status === '결석' || x.status === '휴무') {
+                tail = '<span class="stabs">'
+                  + (x.status === '휴무' ? '🏖 휴무' : '🔴 결석') + '</span>'
                   + (mk
                     ? '<span class="mkinfo">→ ' + dayNo(mk.plan_date) + '일 '
                       + nearest(toMin(mk.start_time)).hm + '</span>'
@@ -572,6 +617,7 @@ $('gbody').addEventListener('click', async e => {
   const s  = SESS.find(x => x.id === id);
   if (!s) return;
   if (s.status === '보강') { openMk(s.makeup_for); return; }
+  if (s.status === '휴무') { openMk(s.id); return; }   // 휴무는 상태를 안 바꾸고 보강창을 연다
 
   const nx = NEXT[s.status] || '완료';
   const { error } = await sb.from('nl_sessions')
@@ -808,18 +854,71 @@ function openMk(absId){
   mkSess = s;
   const has = SESS.find(x => x.status==='보강' && x.makeup_for === absId);
   $('mkTitle').textContent = (s._name||'') + ' · ' + monNo(mon)+'-'+s.run_no
-    + ' (' + dayNo(s.plan_date) + '일 결석) 보강';
+    + ' (' + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? '휴무' : '결석')
+    + ') 보강';
   $('mk_date').value = has ? has.plan_date : '';
   $('mk_slot').value = has ? String(nearest(toMin(has.start_time)).no)
                            : String(nearest(toMin(s.start_time)).no);
   $('mk_th').value   = String(has ? has.therapist_id : s.therapist_id);
   $('mk_memo').value = has ? (has.memo || '') : '';
   $('mkDel').style.display = has ? '' : 'none';
+  $('mkFree').innerHTML = '';
   mkmsg('', true); $('mkMsg').className = 'out';
   $('mkBox').style.display = 'block';
   $('mkBox').scrollIntoView({ behavior:'smooth', block:'center' });
 }
-$('mkClose').onclick = () => { $('mkBox').style.display='none'; mkSess=null; };
+// 그 달에서 담당 치료사가 비는 자리 찾기
+$('mkFind').onclick = () => {
+  if (!mkSess) return;
+  const th = Number($('mk_th').value);
+  const base = mkSess.plan_date;
+  const p = String(base).split('-');
+  const y = Number(p[0]), m = Number(p[1]);
+
+  // 그 달 모든 날짜 (일요일·휴무일 뺀다)
+  const cand = [];
+  const d = new Date(y, m - 1, 1);
+  while (d.getMonth() === m - 1) {
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+              + '-' + String(d.getDate()).padStart(2,'0');
+    const dw = WDS[d.getDay()];
+    if (dw !== '일' && !OFF.has(key) && !OFF.has(key + '#' + th)) {
+      SLOTS.forEach(sl => {
+        const isSat = (dw === '토');
+        if (!isSat && sl.no === LUNCH_NO) return;          // 주중 점심은 뺀다
+        const busy = ROWS.some(r => r.therapist_id === th && r.weekday === dw
+                       && nearest(toMin(r.start_time)).no === sl.no)
+                  || SESS.some(s => s.status === '보강' && s.plan_date === key
+                       && s.therapist_id === th
+                       && nearest(toMin(s.start_time)).no === sl.no);
+        if (!busy) cand.push({ date:key, dw:dw, slot:sl,
+                     gap: Math.abs(new Date(key) - new Date(base)) });
+      });
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  cand.sort((a,b) => a.gap - b.gap);
+  const top = cand.slice(0, 12);
+
+  if (!top.length) {
+    $('mkFree').innerHTML = '<div class="freenone">이 달에 빈 자리가 없습니다. '
+      + '다른 치료사를 골라 보세요.</div>';
+    return;
+  }
+  $('mkFree').innerHTML = top.map(c =>
+    '<span class="freeone" data-d="'+c.date+'" data-s="'+c.slot.no+'">'
+    + dayNo(c.date) + '일(' + c.dw + ') ' + c.slot.hm + '</span>').join('');
+  $('mkFree').querySelectorAll('.freeone').forEach(el => {
+    el.onclick = () => {
+      $('mk_date').value = el.dataset.d;
+      $('mk_slot').value = el.dataset.s;
+      mkmsg('자리를 골랐습니다. 아래 보강 잡기를 누르세요.', true);
+    };
+  });
+};
+
+$('mkClose').onclick = () => { $('mkBox').style.display='none'; mkSess=null;
+  $('mkFree').innerHTML=''; };
 
 $('mkSave').onclick = async () => {
   if (!mkSess) return;
@@ -896,6 +995,14 @@ $('mkDel').onclick = async () => {
 // ===== 자료 불러오기 =====
 async function loadMonth(){
   BAL = new Set();
+  OFF = new Set(); OFFTXT = {};
+  const { data: off } = await sb.from('nl_offdays')
+    .select('off_date, kind, therapist_id, reason')
+    .gte('off_date', mon + '-01').lte('off_date', mon + '-31');
+  (off || []).forEach(o => {
+    if (o.therapist_id) OFF.add(o.off_date + '#' + o.therapist_id);
+    else { OFF.add(o.off_date); OFFTXT[o.off_date] = o.reason || o.kind; }
+  });
   const { data: pay } = await sb.from('nl_payments')
     .select('child_id').eq('support_type_id', 8).eq('month_key', mon);
   if (pay) pay.forEach(p => BAL.add(p.child_id));
