@@ -190,10 +190,23 @@ $('btn').onclick = async () => {
 $('out').onclick = async () => { await sb.auth.signOut(); location.reload(); };
 $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
 
-(async () => {
-  const { data } = await sb.auth.getSession();
-  if (data.session) await afterLogin(data.session.user);
-})();
+// 비밀번호 재설정 메일 링크로 들어오면 비밀번호 정하는 화면으로 보낸다
+function _isRecovery() {
+  const h = location.hash || '';
+  const q = location.search || '';
+  return /type=recovery/.test(h) || /type=recovery/.test(q);
+}
+if (_isRecovery()) {
+  location.replace('reset-password.html' + location.search + location.hash);
+} else {
+  sb.auth.onAuthStateChange(evt => {
+    if (evt === 'PASSWORD_RECOVERY') location.replace('reset-password.html');
+  });
+  (async () => {
+    const { data } = await sb.auth.getSession();
+    if (data.session) await afterLogin(data.session.user);
+  })();
+}
 </script>
 </body>
 </html>
