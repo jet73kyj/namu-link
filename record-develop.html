@@ -3,8 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>발달재활 서비스 기록지</title>
-<link rel="stylesheet" href="css/style.css"><script>if(localStorage.getItem("currentUserRole")==="guardian")location.href="guardian-home.html";</script>
-<script src="js/supabase-client.js"></script>
 <style>
   body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; background:#f5f7fa; margin:0; }
   header { background:#2e7d32; color:white; padding:12px 24px; display:flex; align-items:center; gap:12px; }
@@ -62,26 +60,58 @@
     .status-tbl { flex:1; }
     .status-tbl th, .status-tbl td { padding:4px; font-size:10px; vertical-align:top; }
   }
+
+  .loginbox { max-width:400px; margin:56px auto; background:#fff; border-radius:12px;
+              padding:32px; border:1px solid #e0e0e0; }
+  .loginbox input { border:1px solid #ddd; padding:11px; border-radius:7px; font-size:15px; }
+  .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
+         line-height:1.6; display:none; white-space:pre-wrap; }
+  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
+  .err { background:#ffebee; color:#b71c1c; display:block; }
+  .picker { max-width:1000px; margin:14px auto 0; padding:0 16px; display:flex;
+            gap:8px; align-items:center; flex-wrap:wrap; }
+  .picker select, .picker input { width:auto; font-size:13px; padding:7px 9px; }
+  .picker button { background:#2e7d32; color:#fff; border:none; border-radius:6px;
+                   padding:8px 16px; font-size:13px; font-weight:bold; cursor:pointer; }
+  .picker #pInfo { font-size:12.5px; color:#777; margin-left:4px; }
+  header { align-items:center; }
+  @media print { .picker { display:none !important; } }
 </style>
 </head>
 <body>
+
+<!-- 로그인 전 -->
+<div class="loginbox" id="loginBox">
+  <h1 style="font-size:19px;margin:0 0 4px;color:#2e7d32;">발달재활 서비스 기록지</h1>
+  <div style="font-size:13px;color:#888;margin-bottom:20px;">나무링크</div>
+  <label style="display:block;font-size:12px;color:#666;margin:12px 0 5px;">이메일</label>
+  <input id="em" type="email" autocomplete="username" placeholder="you@example.com" style="width:100%;">
+  <label style="display:block;font-size:12px;color:#666;margin:12px 0 5px;">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password" style="width:100%;">
+  <button id="btn" style="width:100%;padding:12px;margin-top:20px;background:#2e7d32;color:#fff;border:none;border-radius:7px;font-size:15px;font-weight:bold;cursor:pointer;">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<div id="mainBox" style="display:none;">
 <header>
   <span style="font-size:22px;">🌿</span>
   <h1 style="margin:0;font-size:20px;">나무링크 · 발달재활 서비스 기록지</h1>
+  <span style="margin-left:auto;font-size:13px;opacity:.9;" id="who"></span>
+  <button onclick="logout()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;">로그아웃</button>
 </header>
-<nav>
-  <a href="children.html">아동 관리</a>
-  <a href="records.html" class="active">치료 기록</a>
-  <a href="calendar.html">아동 스케줄</a>
-  <a href="payments.html">납부 관리</a>
-  <a href="therapists.html">치료사 관리</a>
-  <a href="#" onclick="logout()">로그아웃</a>
-</nav>
+
+<div class="picker no-print">
+  <select id="pChild" style="min-width:220px;"></select>
+  <input id="pMonth" type="month">
+  <button id="pLoad">불러오기</button>
+  <span id="pInfo"></span>
+</div>
 
 <div class="container">
+
   <div class="page-title" id="pageTitle">발달재활 서비스 기록지</div>
 
-  <div class="form-actions">
+  <div class="form-actions no-print">
     <button class="btn-save" onclick="saveRecord()">💾 저장</button>
     <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
     <button onclick="_shareRecordHelp()" style="background:#fee500;color:#3c1e1e;">💬 학부모 전달 안내</button>
@@ -237,31 +267,40 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-if (!localStorage.getItem('currentUser')) location.href = 'index.html';
-document.getElementById('userLabel')?.appendChild?.(document.createTextNode(''));
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_);
+const $  = id => document.getElementById(id);
 
-const params = new URLSearchParams(location.search);
-const childId = params.get('childId')||'';
-const category = params.get('category')||'발달';
-const year = parseInt(params.get('year'))||new Date().getFullYear();
-const month = parseInt(params.get('month'))||(new Date().getMonth()+1);
+const SESSIONS = 4;        // 발달재활 = 월 4회
+const UNIT     = 65000;    // 서비스 단가 (모든 아동 동일)
+const VOUCH_MIN = 50;      // 바우처 기준 제공시간(분)
 
-document.getElementById('pageTitle').textContent = `발달재활 서비스 기록지 — ${year}년 ${month}월`;
-document.getElementById('sheet1Title').textContent = `서비스 일정표, 제공기록지 (${month}월)`;
+// 나무링크 치료종류 -> 발달재활 서식 제공영역
+const AREA_MAP = { 1:'언어재활', 2:'감각발달재활', 3:'감각통합',
+                   4:'감각발달재활', 5:'음악재활', 6:'기타' };
 
-function logout() { localStorage.removeItem('currentUser'); location.href='index.html'; }
-function getChildren(){ return JSON.parse(localStorage.getItem('children')||'[]'); }
-function getRecords(){ return JSON.parse(localStorage.getItem('records')||'[]'); }
-function saveRecords(d){ localStorage.setItem('records', JSON.stringify(d)); }
-function _shareRecordHelp(){
-  alert('학부모님께 결과기록지 전달 방법:\n\n' +
-    '1) 🖨️ 인쇄 / PDF 저장 버튼 클릭\n' +
-    '2) 인쇄 대화상자에서 "대상"을 "PDF로 저장"으로 선택 → 저장\n' +
-    '3) 저장된 PDF 파일을 카카오톡·문자·이메일로 학부모님께 전송\n\n' +
-    '💬 카카오톡채널: http://pf.kakao.com/_AJtsG\n' +
-    '📞 문의: 042-488-6011');
+let ME = null, CHILDREN = [], THERAPISTS = {};
+let child = null, therapy = null, SCHED = [], GRADE = null;
+let VOUCHER = [], LOGID = null, ITEMS = [];
+let ABS = {};              // 날짜 -> {absent, reason, makeupDate, makeupTime, makeupMemo}
+let year = new Date().getFullYear();
+let month = new Date().getMonth() + 1;
+let childId = '';
+let LOADED = false;
+
+function show(el, text, ok) {
+  el.textContent = text;
+  el.className = 'out ' + (ok ? 'ok' : 'err');
 }
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function mkNow() { return year + '-' + String(month).padStart(2,'0'); }
+function thrName(id) { return THERAPISTS[id] || ''; }
 
 function fmtBirth(b){
   if (!b) return '';
@@ -271,117 +310,404 @@ function fmtBirth(b){
   if (d.length !== 8) return b;
   return `${d.slice(2,4)}.${d.slice(4,6)}.${d.slice(6,8)}`;
 }
-
-function getPayments() { return JSON.parse(localStorage.getItem('payments') || '[]'); }
-
-// 아동 정보로 기본값 채움
-let child = getChildren().find(c => c.id === childId);
-// 첫 번째 매칭 child에 managerId가 없으면 같은 이름+생년의 다른 sibling entry에서 찾기
-if (child && !child.managerId) {
-  const nm = (child.name||'').trim();
-  const bt = (child.birth||'').replace(/\D/g,'').slice(-6);
-  const withMid = getChildren().find(c =>
-    (c.name||'').trim() === nm &&
-    (c.birth||'').replace(/\D/g,'').slice(-6) === bt &&
-    !!c.managerId
-  );
-  if (withMid) child = { ...child, managerId: withMid.managerId };
+// from_month 가 기준달 이하인 것 중 가장 최근
+function pickLatest(rows, mk, keyName) {
+  const out = {};
+  (rows || []).forEach(r => {
+    if (r.from_month > mk) return;
+    const k = r[keyName];
+    if (!out[k] || r.from_month > out[k].from_month) out[k] = r;
+  });
+  return out;
 }
-if (child) {
-  document.getElementById('s1_childName').value = child.name || '';
-  document.getElementById('s1_childName2').value = child.name || '';
-  document.getElementById('s1_childBirth').value = fmtBirth(child.birth||'');
-  // 사회복지서비스 관리번호 = 아동 관리자번호 자동 입력
-  if (child.managerId) document.getElementById('s1_mgmtNo').value = child.managerId;
-  // 본인부담금 = 발본(발달재활) 해당 월 payment.amount → therapy.fee → child.feeType 순으로 fallback
-  const _FT_AMT = {가형:20000,나형:40000,다형:0,라형:60000,마형:80000};
-  const _mk = `${year}-${String(month).padStart(2,'0')}`;
-  const _basePay = getPayments().find(p =>
-    p.support === '발달재활서비스' &&
-    p.monthKey === _mk &&
-    (p.childId === child.id || (child.name && (p.childName||'').trim() === (child.name||'').trim()))
-  );
-  const _baseTherapyForCost = (child.therapies||[]).find(t => t.support === '발달재활서비스');
-  let _selfCost = 0;
-  if (_basePay && (parseInt(_basePay.amount)||0) > 0) _selfCost = parseInt(_basePay.amount);
-  else if (_baseTherapyForCost && (parseInt(_baseTherapyForCost.fee)||0) > 0) _selfCost = parseInt(_baseTherapyForCost.fee);
-  else if (child.feeType && _FT_AMT[child.feeType] !== undefined) _selfCost = _FT_AMT[child.feeType];
-  if (_selfCost > 0) document.getElementById('s1_costSelf').value = _selfCost.toLocaleString() + '원';
-  // 작성일자 = 전월 마지막 주 (발본 납부현황에 기재된 수업 요일) 자동 계산
-  // 우선순위:
-  //   1) 발본 payments (support='발달재활서비스') 의 cycle
-  //   2) therapies (support='발달재활서비스') 의 cycle (백업)
-  const _dayMap = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
-  function _extractDow(txt) {
-    const m = String(txt||'').match(/[일월화수목금토]/);
-    return m ? _dayMap[m[0]] : undefined;
-  }
-  // 발본 납부현황에서 해당 아동의 발달재활 결제 중 최신 cycle 값 찾기
-  const _allPays = JSON.parse(localStorage.getItem('payments')||'[]');
-  const _mkNow = `${year}-${String(month).padStart(2,'0')}`;
-  const _bonPays = _allPays.filter(p =>
-    p.support === '발달재활서비스' &&
-    (p.childId === child.id || (child.name && (p.childName||'').trim() === (child.name||'').trim()))
-  );
-  // 현재 월 우선 → 이후 이전 월 최신순
-  _bonPays.sort((a,b) => (b.monthKey||'').localeCompare(a.monthKey||''));
-  const _sameMonth = _bonPays.find(p => p.monthKey === _mkNow);
-  const _cycleSource = _sameMonth || _bonPays.find(p => (p.cycle||'').trim()) || null;
-  let targetDow = _cycleSource ? _extractDow(_cycleSource.cycle) : undefined;
-  // 백업: therapies 의 cycle
-  if (targetDow === undefined) {
-    const _therapyForCycle = (child.therapies||[]).find(t => t.support === '발달재활서비스');
-    if (_therapyForCycle) targetDow = _extractDow(_therapyForCycle.cycle);
-  }
-  if (targetDow !== undefined) {
-    let prevY = year, prevM = month - 1;
-    if (prevM < 1) { prevM = 12; prevY--; }
-    const lastDay = new Date(prevY, prevM, 0).getDate();
-    let lastMatchDay = 0;
-    for (let d = lastDay; d >= 1; d--) {
-      if (new Date(prevY, prevM-1, d).getDay() === targetDow) { lastMatchDay = d; break; }
+function logout() { sb.auth.signOut().then(() => location.reload()); }
+
+function _shareRecordHelp(){
+  alert('학부모님께 결과기록지 전달 방법:\n\n' +
+    '1) 인쇄 / PDF 저장 단추 누르기\n' +
+    '2) 인쇄 창에서 "대상"을 "PDF로 저장"으로 고른 뒤 저장\n' +
+    '3) 저장된 PDF를 카카오톡·문자·이메일로 보내기\n\n' +
+    '카카오톡채널: http://pf.kakao.com/_AJtsG\n' +
+    '문의: 042-488-6011');
+}
+
+// ─────────────────────────────────────────────
+// 로그인
+// ─────────────────────────────────────────────
+async function afterLogin(user) {
+  const { data: me, error: e1 } = await sb
+    .from('nl_therapists').select('id, name, role')
+    .eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+  ME = me;
+
+  const [th, ch] = await Promise.all([
+    sb.from('nl_therapists').select('id, name'),
+    sb.from('nl_therapies')
+      .select('child_id, nl_children!inner(id, name, birth, manager_no, status)')
+      .eq('support_type_id', 2)
+  ]);
+  (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
+
+  const seen = {};
+  (ch.data || []).forEach(r => {
+    const c = r.nl_children;
+    if (!c || seen[c.id]) return;
+    if (c.status === '종결') return;
+    seen[c.id] = true;
+    CHILDREN.push(c);
+  });
+  CHILDREN.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+  $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
+    + CHILDREN.map(c => '<option value="' + c.id + '">' + esc(c.name)
+        + ' · ' + fmtBirth(c.birth) + '</option>').join('');
+  $('pMonth').value = mkNow();
+  $('who').textContent = me.name + ' (' + me.role + ') 님 · 발달재활 ' + CHILDREN.length + '명';
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
+
+// ─────────────────────────────────────────────
+// 한 아동 · 한 달 불러오기
+// ─────────────────────────────────────────────
+async function loadOne() {
+  const cid = $('pChild').value;
+  const mv  = $('pMonth').value;
+  if (!cid) { alert('아동을 고르세요.'); return; }
+  if (!mv)  { alert('달을 고르세요.'); return; }
+
+  childId = cid;
+  year  = parseInt(mv.split('-')[0], 10);
+  month = parseInt(mv.split('-')[1], 10);
+  const mk = mkNow();
+
+  $('pLoad').disabled = true; $('pLoad').textContent = '불러오는 중...';
+  try {
+    const [t, g, v, lg] = await Promise.all([
+      sb.from('nl_therapies')
+        .select('id, therapy_type_id, nl_therapy_schedules(weekday, start_time, therapist_id, duration)')
+        .eq('child_id', cid).eq('support_type_id', 2),
+      sb.from('nl_child_grades').select('*').eq('child_id', cid),
+      sb.from('nl_voucher_rows').select('*').eq('child_id', cid).eq('month_key', mk)
+        .order('service_date'),
+      sb.from('nl_session_logs').select('*').eq('child_id', cid)
+        .eq('support_type_id', 2).eq('month_key', mk).maybeSingle()
+    ]);
+    if (t.error) throw t.error;
+
+    child   = CHILDREN.find(c => String(c.id) === String(cid));
+    therapy = (t.data || [])[0] || null;
+    SCHED   = therapy ? (therapy.nl_therapy_schedules || []) : [];
+    const gm = pickLatest(g.data, mk, 'child_id');
+    GRADE   = gm[cid] || null;
+    VOUCHER = (v.data || []).filter(r => (r.amount || 0) > 0);
+
+    LOGID = lg.data ? lg.data.id : null;
+    ITEMS = [];
+    if (LOGID) {
+      const it = await sb.from('nl_session_items').select('*')
+        .eq('log_id', LOGID).order('seq_no');
+      ITEMS = it.data || [];
     }
-    if (lastMatchDay) {
-      document.getElementById('s1_writeDate').value = `${prevY}.${prevM}.${lastMatchDay}`;
+
+    ABS = {};
+    ITEMS.forEach(r => {
+      if (r.status !== '결석' && !r.makeup_date) return;
+      const d = r.service_date ? parseInt(String(r.service_date).slice(8,10), 10) : null;
+      if (!d) return;
+      ABS[d] = { absent: r.status === '결석', reason: r.absent_reason || '',
+                 makeupDate: r.makeup_date || '', makeupTime: r.makeup_time || '',
+                 makeupMemo: r.makeup_memo || '' };
+    });
+
+    LOADED = true;
+    drawAll(lg.data);
+    $('pInfo').textContent = mk + ' · 바우처 ' + VOUCHER.length + '건'
+      + (LOGID ? ' · 저장된 기록 있음' : ' · 새로 작성');
+  } catch (e) {
+    alert('불러오지 못했습니다.\n' + e.message);
+  } finally {
+    $('pLoad').disabled = false; $('pLoad').textContent = '불러오기';
+  }
+}
+
+// 화면 전체 그리기
+function drawAll(saved) {
+  const mk = mkNow();
+  $('pageTitle').textContent = `발달재활 서비스 기록지 — ${year}년 ${month}월`;
+  $('sheet1Title').textContent = `서비스 일정표, 제공기록지 (${month}월)`;
+  $('sheet2Title').textContent = child ? esc(child.name) : '';
+
+  const area = _getServiceType();
+  const tname = SCHED.length ? thrName(SCHED[0].therapist_id) : '';
+
+  $('s1_childName').value  = child ? child.name : '';
+  $('s1_childName2').value = child ? child.name : '';
+  $('s1_childBirth').value = child ? fmtBirth(child.birth) : '';
+  $('s1_mgmtNo').value     = child ? (child.manager_no || '') : '';
+  $('s1_area').value       = area;
+  $('s1_svcType').value    = area;
+  $('s1_costType').value   = area;
+  $('s1_svcCharge').value  = tname;
+  for (let i = 1; i <= SESSIONS; i++) {
+    const el = $('s1_therapistName_' + i); if (el) el.value = tname;
+    const tt = $('s1_totalTime_' + i);     if (tt) tt.value = VOUCH_MIN + '분';
+    const tc = $('s1_totalCost_' + i);     if (tc) tc.value = UNIT.toLocaleString() + '원';
+  }
+  $('s1_costUnit').value  = UNIT.toLocaleString() + '원';
+  $('s1_costCount').value = SESSIONS;
+  $('s1_costTotal').value = (UNIT * SESSIONS).toLocaleString();
+  $('s1_costSelf').value  = _selfPay();
+
+  // 주기 · 작성일자
+  const dows = SCHED.map(s => s.weekday).filter(Boolean);
+  const tslot = _getTimeSlotForEvt();
+  $('s1_svcCycle').value = dows.length
+    ? ('매주 ' + [...new Set(dows)].join('·') + (tslot ? ' ' + tslot : '')) : '';
+  $('s1_writeDate').value = _prevMonthLastClassDay();
+
+  // 저장된 값이 있으면 덮어쓴다
+  if (saved) {
+    if (saved.sig_admin)    $('s1_adminSig').value    = saved.sig_admin;
+    if (saved.sig_guardian) $('s1_guardianSig').value = saved.sig_guardian;
+    if (saved.cycle_text)   $('s1_svcCycle').value    = saved.cycle_text;
+    if (saved.area_text)  { $('s1_area').value = saved.area_text;
+                            $('s1_svcType').value = saved.area_text;
+                            $('s1_costType').value = saved.area_text; }
+    if (saved.written_on)   $('s1_writeDate').value   = String(saved.written_on).replace(/-/g,'.');
+  }
+
+  buildCalendar();
+  for (let d = 1; d <= 31; d++) _applyAbsenceToCell(d);
+  _applyMakeupsToCalendar();
+  _updateSvcDays();
+  if (saved && saved.days_text) $('s1_svcDays').value = saved.days_text;
+
+  buildStatusRows(_statusRows());
+  _fillSheet1Times();
+}
+
+// 본인부담금 — 저장된 금액이 있으면 그대로, 없으면 등급 글자로 계산
+const GRADE_PAY = { '가':20000, '나':40000, '다':0, '라':60000, '마':80000 };
+function _selfPay() {
+  if (!GRADE) return '';
+  const v = Number(GRADE.self_pay);
+  if (!isNaN(v) && v > 0) return v.toLocaleString() + '원';
+  const g = String(GRADE.grade || '').replace(/형/g, '').trim();
+  if (GRADE_PAY[g] === undefined) return '';
+  return GRADE_PAY[g].toLocaleString() + '원';
+}
+
+// 전월 마지막 수업일 -> 작성일자
+function _prevMonthLastClassDay() {
+  const dows = _getScheduleDows();
+  if (!dows.length) return '';
+  let py = year, pm = month - 1;
+  if (pm < 1) { pm = 12; py--; }
+  const last = new Date(py, pm, 0).getDate();
+  for (let d = last; d >= 1; d--) {
+    if (dows.includes(new Date(py, pm - 1, d).getDay())) return `${py}.${pm}.${d}`;
+  }
+  return '';
+}
+
+// 수업 요일 번호
+function _getScheduleDows() {
+  const M = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
+  return [...new Set(SCHED.map(s => M[s.weekday]).filter(v => v !== undefined))];
+}
+// 제공영역
+function _getServiceType() {
+  const cur = $('s1_svcType') ? $('s1_svcType').value : '';
+  if (LOADED && therapy && AREA_MAP[therapy.therapy_type_id]) return AREA_MAP[therapy.therapy_type_id];
+  return cur || '감각발달재활';
+}
+// 4:00~4:50
+function _getTimeSlotForEvt() {
+  if (!SCHED.length || !SCHED[0].start_time) return '';
+  const p = String(SCHED[0].start_time).split(':');
+  let h = parseInt(p[0], 10), m = parseInt(p[1] || '0', 10);
+  const s = h + ':' + String(m).padStart(2,'0');
+  m += VOUCH_MIN; h += Math.floor(m / 60); m %= 60;
+  return s + '~' + h + ':' + String(m).padStart(2,'0');
+}
+// 그 달 수업일 (최대 4회, 공휴일 제외)
+function _getScheduledDaysCapped() {
+  const dows = _getScheduleDows();
+  if (!dows.length) return new Set();
+  const last = new Date(year, month, 0).getDate();
+  const all = [];
+  for (let d = 1; d <= last; d++) {
+    if (!dows.includes(new Date(year, month - 1, d).getDay())) continue;
+    if (_holidayFor(year, month, d)) continue;
+    all.push(d);
+  }
+  return new Set(all.slice(0, SESSIONS));
+}
+
+// 일정표 아래쪽 시작·종료시간 채우기
+function _fillSheet1Times() {
+  // 실제 수업일 = 예정일 중 결석 뺀 날 + 이 달로 잡힌 보강일
+  const days = [...(_getScheduledDaysCapped())].filter(d => !(ABS[d] && ABS[d].absent));
+  Object.keys(ABS).forEach(k => {
+    const md = ABS[k].makeupDate;
+    if (!md) return;
+    const p = String(md).split('-');
+    if (p.length !== 3) return;
+    if (parseInt(p[0],10) !== year || parseInt(p[1],10) !== month) return;
+    const d = parseInt(p[2],10);
+    if (!days.includes(d)) days.push(d);
+  });
+  days.sort((a,b)=>a-b);
+  const ts = _getTimeSlotForEvt().split('~');
+  for (let i = 1; i <= SESSIONS; i++) {
+    const st = $('s1_startTime_' + i), en = $('s1_endTime_' + i);
+    const has = days[i-1] !== undefined;
+    if (st) st.value = has ? (ts[0] || '') : '';
+    if (en) en.value = has ? (ts[1] || '') : '';
+  }
+}
+
+// 상태·결과 표에 넣을 줄 만들기 — 저장된 것 우선, 없으면 바우처에서
+function _statusRows() {
+  if (ITEMS.length) {
+    return ITEMS.slice(0, SESSIONS).map(r => ({
+      provDate: r.service_date ? String(r.service_date).replace(/-/g,'.') : '',
+      apprDate: r.voucher_date ? String(r.voucher_date).replace(/-/g,'.') : '',
+      apprNo:   r.voucher_no || '',
+      cloth: (r.state_json||{}).cloth || '', sock: (r.state_json||{}).sock || '',
+      wear:  (r.state_json||{}).wear  || '', face: (r.state_json||{}).face || '',
+      health:(r.state_json||{}).health|| '',
+      result: r.reaction || '', note: r.staff_memo || ''
+    }));
+  }
+  return _prefillStatusFromVoucher();
+}
+
+// 바우처 결제내역에서 승인일자·승인번호 자동 채움
+function _prefillStatusFromVoucher() {
+  const rows = VOUCHER.slice(0, SESSIONS).map(v => ({
+    provDate: v.service_date ? String(v.service_date).replace(/-/g,'.') : '',
+    apprDate: v.service_date ? String(v.service_date).replace(/-/g,'.') : '',
+    apprNo:   v.appr_no || '',
+    cloth:'', sock:'', wear:'', face:'', health:'', result:'', note:''
+  }));
+  while (rows.length < SESSIONS) rows.push({});
+  return rows;
+}
+
+// ─────────────────────────────────────────────
+// 저장
+// ─────────────────────────────────────────────
+async function saveRecord() {
+  if (!LOADED || !childId) { alert('먼저 아동과 달을 고르고 [불러오기]를 누르세요.'); return; }
+  const mk = mkNow();
+  const wd = ($('s1_writeDate').value || '').replace(/\./g,'-').replace(/-(\d)(?!\d)/g,'-0$1');
+
+  try {
+    // 1) 기록지 한 장
+    const logRow = {
+      child_id: Number(childId), support_type_id: 2, month_key: mk,
+      therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
+      sig_admin:    $('s1_adminSig').value || null,
+      sig_guardian: $('s1_guardianSig').value || null,
+      cycle_text:   $('s1_svcCycle').value || null,
+      days_text:    $('s1_svcDays').value || null,
+      area_text:    $('s1_svcType').value || null,
+      written_on:   /^\d{4}-\d{2}-\d{2}$/.test(wd) ? wd : null,
+      updated_at:   new Date().toISOString()
+    };
+    const { data: lg, error: e1 } = await sb.from('nl_session_logs')
+      .upsert(logRow, { onConflict: 'child_id,support_type_id,month_key' })
+      .select('id').single();
+    if (e1) throw e1;
+    LOGID = lg.id;
+
+    // 2) 회차별 — 지우고 다시 넣는다
+    const del = await sb.from('nl_session_items').delete().eq('log_id', LOGID);
+    if (del.error) throw del.error;
+
+    const days = [...(_getScheduledDaysCapped())].sort((a,b) => a - b);
+    const trs = document.querySelectorAll('#statusTbl tbody tr');
+    const sel = (tr, f) => {
+      const a = [];
+      tr.querySelectorAll('.opt[data-field="' + f + '"].selected')
+        .forEach(el => a.push(el.getAttribute('data-val')));
+      return a.join(',');
+    };
+    const d2iso = s => {
+      const m = String(s || '').replace(/[^0-9]/g,'');
+      return m.length === 8 ? m.slice(0,4)+'-'+m.slice(4,6)+'-'+m.slice(6,8) : null;
+    };
+
+    const items = [];
+    for (let i = 0; i < SESSIONS; i++) {
+      const tr = trs[i];
+      const day = days[i];
+      const ab  = day ? (ABS[day] || {}) : {};
+      const provIso = tr ? d2iso(tr.querySelector('.st_provDate').value) : null;
+      items.push({
+        log_id: LOGID, seq_no: i + 1,
+        service_date: provIso || (day ? `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}` : null),
+        start_time: $('s1_startTime_' + (i+1)).value ? _hm($('s1_startTime_' + (i+1)).value) : null,
+        end_time:   $('s1_endTime_'   + (i+1)).value ? _hm($('s1_endTime_'   + (i+1)).value) : null,
+        therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
+        reaction:   tr ? tr.querySelector('.st_result').value : null,
+        staff_memo: tr ? tr.querySelector('.st_note').value : null,
+        voucher_date: tr ? d2iso(tr.querySelector('.st_apprDate').value) : null,
+        voucher_no:   tr ? (tr.querySelector('.st_apprNo').value || null) : null,
+        state_json: tr ? { cloth:sel(tr,'cloth'), sock:sel(tr,'sock'), wear:sel(tr,'wear'),
+                           face:sel(tr,'face'), health:sel(tr,'health') } : null,
+        status: ab.absent ? '결석' : '출석',
+        absent_reason: ab.reason || null,
+        makeup_date: ab.makeupDate || null,
+        makeup_time: ab.makeupTime || null,
+        makeup_memo: ab.makeupMemo || null
+      });
     }
+    const ins = await sb.from('nl_session_items').insert(items);
+    if (ins.error) throw ins.error;
+
+    ITEMS = items;
+    alert('✅ 저장되었습니다.');
+    $('pInfo').textContent = mk + ' · 바우처 ' + VOUCHER.length + '건 · 저장됨';
+  } catch (e) {
+    alert('❌ 저장하지 못했습니다.\n' + e.message);
   }
-  const therapy = (child.therapies||[]).find(t => t.support === '발달재활서비스');
-  const mk = `${year}-${String(month).padStart(2,'0')}`;
-  let therapistName = '';
-  let cycleTxt = '';
-  let timeSlotTxt = '';
-  if (therapy) {
-    therapistName = therapy.therapist || '';
-    if (therapy.handoff?.date && therapy.handoff?.therapist) {
-      const hoMk = String(therapy.handoff.date).substring(0,7);
-      if (mk >= hoMk) therapistName = therapy.handoff.therapist;
-    }
-    cycleTxt = therapy.cycle || '';
-    timeSlotTxt = therapy.timeSlot || '';
-  }
-  // 발본 납부현황 (payments) 로 fallback / 보강
-  const _allPaysForCharge = JSON.parse(localStorage.getItem('payments')||'[]');
-  const _bonPaysForCharge = _allPaysForCharge.filter(p =>
-    p.support === '발달재활서비스' &&
-    (p.childId === child.id || (child.name && (p.childName||'').trim() === (child.name||'').trim()))
-  ).sort((a,b) => (b.monthKey||'').localeCompare(a.monthKey||''));
-  const _bonSrc = _bonPaysForCharge.find(pp => pp.monthKey === mk)
-              || _bonPaysForCharge.find(pp => (pp.therapist||'').trim())
-              || _bonPaysForCharge[0]
-              || null;
-  if (_bonSrc) {
-    if (!therapistName && _bonSrc.therapist) therapistName = _bonSrc.therapist;
-    if (!cycleTxt && _bonSrc.cycle) cycleTxt = _bonSrc.cycle;
-    if (!timeSlotTxt && _bonSrc.timeSlot) timeSlotTxt = _bonSrc.timeSlot;
-  }
-  document.getElementById('s1_svcCharge').value = therapistName;
-  // 담당재활사 4개 컬럼 모두 자동 채움
-  for (let i=1;i<=4;i++) { const el=document.getElementById('s1_therapistName_'+i); if (el) el.value = therapistName; }
-  if (cycleTxt) {
-    const cycleStr = `매주 ${cycleTxt.replace(/,/g,'·')}`;
-    const t = (timeSlotTxt||'').trim();
-    document.getElementById('s1_svcCycle').value = t ? `${cycleStr} ${t} /10분 상담` : `${cycleStr} /10분 상담`;
-  }
+}
+function _hm(v) {
+  const m = String(v || '').match(/(\d{1,2}):(\d{2})/);
+  return m ? m[1].padStart(2,'0') + ':' + m[2] : null;
+}
+
+// ─────────────────────────────────────────────
+// 결석·보강 (표에 저장, 저장 단추를 눌러야 남습니다)
+// ─────────────────────────────────────────────
+function _saveAbsence(day) {
+  ABS[day] = {
+    absent: $('_absCheck') ? $('_absCheck').checked : false,
+    reason: ($('_absReason') ? $('_absReason').value : '').trim(),
+    makeupDate: $('_absMakeupDate') ? $('_absMakeupDate').value : '',
+    makeupTime: ($('_absMakeupTime') ? $('_absMakeupTime').value : '').trim(),
+    makeupMemo: ($('_absMakeupMemo') ? $('_absMakeupMemo').value : '').trim()
+  };
+  const m = $('_absModal'); if (m) m.remove();
+  buildCalendar();
+  for (let d = 1; d <= 31; d++) _applyAbsenceToCell(d);
+  _applyMakeupsToCalendar();
+  _updateSvcDays();
+  _fillSheet1Times();
+}
+function _clearAbsence(day) {
+  delete ABS[day];
+  const m = $('_absModal'); if (m) m.remove();
+  buildCalendar();
+  for (let d = 1; d <= 31; d++) _applyAbsenceToCell(d);
+  _applyMakeupsToCalendar();
+  _updateSvcDays();
+  _fillSheet1Times();
 }
 
 // 공휴일 데이터 (연도별 - 지속 추가 가능)
@@ -401,103 +727,6 @@ const HOLIDAYS = {
 };
 const _holidayFor = (y, m, d) => (HOLIDAYS[y] || {})[`${m}-${d}`] || '';
 
-// 발본 납부현황 (payments) 우선 사용 · 없으면 therapies 사용
-function _getBonPayment() {
-  const allPays = JSON.parse(localStorage.getItem('payments')||'[]');
-  const mkNow = `${year}-${String(month).padStart(2,'0')}`;
-  const bonPays = allPays.filter(p =>
-    p.support === '발달재활서비스' &&
-    (p.childId === child?.id || (child?.name && (p.childName||'').trim() === (child?.name||'').trim()))
-  );
-  bonPays.sort((a,b) => (b.monthKey||'').localeCompare(a.monthKey||''));
-  return bonPays.find(p => p.monthKey === mkNow)
-      || bonPays.find(p => (p.cycle||'').trim())
-      || bonPays[0]
-      || null;
-}
-function _getBonTherapy() {
-  return (child?.therapies||[]).find(x=>x.support==='발달재활서비스') || null;
-}
-function _extractCycleDows(txt) {
-  const _dayMap = {일:0,월:1,화:2,수:3,목:4,금:5,토:6};
-  const matches = String(txt||'').match(/[일월화수목금토]/g) || [];
-  return [...new Set(matches.map(d=>_dayMap[d]).filter(v=>v!==undefined))];
-}
-function _getScheduleDows() {
-  const p = _getBonPayment();
-  const dowsFromPay = _extractCycleDows(p?.cycle);
-  if (dowsFromPay.length) return dowsFromPay;
-  const t = _getBonTherapy();
-  return _extractCycleDows(t?.cycle);
-}
-// 치료영역 자동 결정
-// 우선순위:
-//  1) 발본 납부현황(payment) 의 area (세부영역)
-//  2) therapy 의 area
-//  3) 담당 치료사의 areas[0]
-//  4) 입력 필드 값 (사용자 편집분)
-//  5) '감각발달재활' 기본값
-// 표기 통일: '전산화인지' → 기록지에서는 '감각통합' 으로 표기
-function _normalizeAreaForRecord(area) {
-  if (!area) return area;
-  const a = String(area).trim();
-  if (a === '전산화인지' || /감각통합\(전산\)/.test(a)) return '감각통합';
-  return a;
-}
-function _getServiceType() {
-  const p = _getBonPayment();
-  const t = _getBonTherapy();
-  const payArea = (p?.area || '').trim();
-  if (payArea) return _normalizeAreaForRecord(payArea);
-  const therapyArea = (t?.area || '').trim();
-  if (therapyArea) return _normalizeAreaForRecord(therapyArea);
-  const therapistName = (p?.therapist || t?.therapist || '').trim();
-  if (therapistName) {
-    const therapists = JSON.parse(localStorage.getItem('therapists')||'[]');
-    const tRec = therapists.find(x => (x.name||'').trim() === therapistName);
-    const areas = tRec?.areas || [];
-    if (areas.length) return _normalizeAreaForRecord(areas[0]);
-  }
-  const inputArea = document.getElementById('s1_svcType')?.value || document.getElementById('s1_area')?.value;
-  if (inputArea) return _normalizeAreaForRecord(inputArea);
-  return '감각발달재활';
-}
-// timeSlot 파싱 → 시작 시간에 50분 더한 종료 시간 반환 (예: 4:00~4:50)
-function _getTimeSlotForEvt() {
-  const p = _getBonPayment();
-  const t = _getBonTherapy();
-  const ts = ((p?.timeSlot || t?.timeSlot || '') + '').trim();
-  if (!ts) return '';
-  // 시작 시간 추출: "4:00", "4시", "16:00" 등
-  const m = ts.match(/(\d{1,2}):?(\d{0,2})/);
-  if (!m) return ts;
-  let h = parseInt(m[1]);
-  let mm = parseInt(m[2] || '0');
-  if (isNaN(h)) return ts;
-  const startStr = `${h}:${String(mm).padStart(2,'0')}`;
-  // 50분 후 종료
-  mm += 50;
-  h += Math.floor(mm/60);
-  mm = mm % 60;
-  const endStr = `${h}:${String(mm).padStart(2,'0')}`;
-  return `${startStr}~${endStr}`;
-}
-
-// 발본 발달재활 규칙: 월 4회 고정. 5주차 발생 시 첫주부터 4주까지만 스케줄로 잡음.
-// 공휴일에 스케줄이 걸리면 그 날은 제외하되 최대 4회 유지.
-function _getScheduledDaysCapped() {
-  const scheduleDows = _getScheduleDows();
-  if (!scheduleDows.length) return new Set();
-  const lastDay = new Date(year, month, 0).getDate();
-  const all = [];
-  for (let d = 1; d <= lastDay; d++) {
-    const dow = new Date(year, month-1, d).getDay();
-    if (!scheduleDows.includes(dow)) continue;
-    if (_holidayFor(year, month, d)) continue; // 공휴일 자동 제외
-    all.push(d);
-  }
-  return new Set(all.slice(0, 4)); // 최대 4회 (첫주부터 4번째까지)
-}
 
 // 달력 생성 (해당 월) — 공휴일 표기 + 주기 기반 서비스 자동 표기 (월 4회)
 function buildCalendar() {
@@ -546,14 +775,13 @@ function buildCalendar() {
     rowCount++;
   }
 }
-buildCalendar();
+
 
 // 결석/보강 팝업 — 특정 날짜 셀에 결석 처리 및 보강 일정 기입
 function _openAbsenceModal(day) {
   document.getElementById('_absModal')?.remove();
   // 기존 저장된 결석/보강 정보 로드
-  const key = `absence_${childId}_${year}_${month}_${day}`;
-  const saved = JSON.parse(localStorage.getItem(key)||'null') || {};
+  const saved = ABS[day] || {};
   const modal = document.createElement('div');
   modal.id = '_absModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:6000;display:flex;align-items:center;justify-content:center;';
@@ -591,32 +819,9 @@ function _openAbsenceModal(day) {
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
 }
 
-function _saveAbsence(day) {
-  const key = `absence_${childId}_${year}_${month}_${day}`;
-  const data = {
-    absent: document.getElementById('_absCheck')?.checked || false,
-    reason: (document.getElementById('_absReason')?.value||'').trim(),
-    makeupDate: document.getElementById('_absMakeupDate')?.value || '',
-    makeupTime: (document.getElementById('_absMakeupTime')?.value||'').trim(),
-    makeupMemo: (document.getElementById('_absMakeupMemo')?.value||'').trim(),
-  };
-  localStorage.setItem(key, JSON.stringify(data));
-  document.getElementById('_absModal')?.remove();
-  _applyAbsenceToCell(day);
-}
-function _clearAbsence(day) {
-  const key = `absence_${childId}_${year}_${month}_${day}`;
-  localStorage.removeItem(key);
-  document.getElementById('_absModal')?.remove();
-  _applyAbsenceToCell(day);
-  // 원래 자동 스케줄로 복원
-  buildCalendar();
-  loadRecord();
-}
 
 function _applyAbsenceToCell(day) {
-  const key = `absence_${childId}_${year}_${month}_${day}`;
-  const data = JSON.parse(localStorage.getItem(key)||'null');
+  const data = ABS[day];
   const evtEl = document.querySelector(`.evt[data-day="${day}"]`);
   if (!evtEl) return;
   if (!data || (!data.absent && !data.makeupDate)) return;
@@ -638,14 +843,14 @@ function _applyAbsenceToCell(day) {
   evtEl.innerHTML = html;
 }
 
+
 // 보강 일자 셀에 서비스 종류·시간 자동 표기 (다른 날짜의 결석에서 이월된 보강)
 function _applyMakeupsToCalendar() {
   // 이 월의 모든 저장된 결석 정보를 순회하며, makeupDate 가 이 월인 경우 해당 셀에 보강 정보 추가
   const svcType = _getServiceType();
   const timeStr = _getTimeSlotForEvt();
   for (let src=1; src<=31; src++) {
-    const key = `absence_${childId}_${year}_${month}_${src}`;
-    const data = JSON.parse(localStorage.getItem(key)||'null');
+    const data = ABS[src];
     if (!data || !data.makeupDate) continue;
     // makeupDate 파싱 (YYYY-MM-DD)
     const parts = data.makeupDate.split('-');
@@ -668,11 +873,6 @@ function _applyMakeupsToCalendar() {
   }
 }
 
-// 페이지 로드 시 저장된 결석/보강 정보 셀에 반영
-(function applyAllAbsences(){
-  for (let d=1; d<=31; d++) _applyAbsenceToCell(d);
-  _applyMakeupsToCalendar();
-})();
 
 // 제공일 자동 계산: 실제 수업이 진행된 날짜 (주기 요일 - 결석·공휴일 + 보강 일자)
 // 발본 4회 캡: scheduledSet(첫주부터 최대 4회) 기준으로 계산
@@ -682,15 +882,13 @@ function _updateSvcDays() {
   const provDays = [];
   // 1) 스케줄 4회 · 결석 아님 인 정규 수업일
   scheduledSet.forEach(d => {
-    const key = `absence_${childId}_${year}_${month}_${d}`;
-    const abs = JSON.parse(localStorage.getItem(key)||'null');
+    const abs = ABS[d];
     if (abs?.absent) return; // 결석 처리한 날짜 제외
     provDays.push(d);
   });
   // 2) 같은 달로 이월된 보강 일자 추가 (결석 대체분)
   for (let src=1; src<=lastDay; src++) {
-    const key = `absence_${childId}_${year}_${month}_${src}`;
-    const abs = JSON.parse(localStorage.getItem(key)||'null');
+    const abs = ABS[src];
     if (!abs?.makeupDate) continue;
     const parts = abs.makeupDate.split('-');
     if (parts.length !== 3) continue;
@@ -702,13 +900,6 @@ function _updateSvcDays() {
   const el = document.getElementById('s1_svcDays');
   if (el) el.value = provDays.join(', ');
 }
-_updateSvcDays();
-
-// 저장/초기화 후에도 재계산
-const _origSaveAbsence = _saveAbsence;
-_saveAbsence = function(day){ _origSaveAbsence(day); _updateSvcDays(); };
-const _origClearAbsence = _clearAbsence;
-_clearAbsence = function(day){ _origClearAbsence(day); _updateSvcDays(); };
 
 // 상태 및 결과기록 표 (기본 4행)
 function buildStatusRows(existing) {
@@ -756,81 +947,8 @@ function buildStatusRows(existing) {
     tbody.appendChild(tr);
   });
 }
-// 바우처 데이터에서 현재 아동·월에 매칭되는 항목 찾아 상태·결과기록 자동 채움
-function _prefillStatusFromVoucher() {
-  try {
-    const voucher = JSON.parse(localStorage.getItem('voucher_data')||'[]');
-    if (!voucher.length || !child) return [];
-    const targetName = (child.name||'').trim();
-    const targetBirth = (child.birth||'').replace(/\D/g,'').slice(-6);
-    const targetMk = `${year}-${String(month).padStart(2,'0')}`;
-    const _normDate = d => {
-      const digits = String(d||'').replace(/\D/g,'');
-      if (digits.length === 8) return `${digits.slice(0,4)}.${digits.slice(4,6)}.${digits.slice(6,8)}`;
-      if (digits.length === 6) return `20${digits.slice(0,2)}.${digits.slice(2,4)}.${digits.slice(4,6)}`;
-      return d||'';
-    };
-    const _normMk = d => {
-      const digits = String(d||'').replace(/\D/g,'');
-      if (digits.length >= 6) return `${digits.slice(0,4)}-${digits.slice(4,6)}`;
-      return '';
-    };
-    const matches = voucher.filter(v => {
-      const nm = (v.childName||'').trim();
-      const bt = (v.birth||'').replace(/\D/g,'').slice(-6);
-      if (nm !== targetName) return false;
-      if (targetBirth && bt && bt !== targetBirth) return false;
-      return _normMk(v.provDate) === targetMk;
-    }).sort((a,b) => (a.provDate||'').localeCompare(b.provDate||''));
-    // 승인일자·승인번호 조합 기준 중복 제거 (같은 결제내역이 여러 번 저장된 경우 대비)
-    const seen = new Set();
-    const deduped = [];
-    matches.forEach(v => {
-      const key = `${(v.apprDate||v.provDate||'').replace(/\D/g,'')}|${v.apprNo||''}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      deduped.push(v);
-    });
-    // 결제일(provDate) 기준 오름차순 정렬 → 순차적 배치
-    // 4건 이하: 앞행부터 채우고 뒤 빈 행 유지
-    // 4건 초과: 앞 4건만 채움
-    deduped.sort((a,b) => {
-      const da = String(a.provDate||'').replace(/\D/g,'');
-      const db = String(b.provDate||'').replace(/\D/g,'');
-      return da.localeCompare(db);
-    });
-    const rows = deduped.slice(0, 4);
-    return rows.map(v => {
-      const hasNo = !!(v.apprNo && String(v.apprNo).trim());
-      return {
-        provDate: _normDate(v.provDate),
-        // 예외지급인 경우 승인일자 공란
-        apprDate: hasNo ? _normDate(v.apprDate || v.provDate) : '',
-        apprNo: hasNo ? v.apprNo : '예외지급',
-        therapist: v.therapist || '',
-      };
-    });
-  } catch(e) { return []; }
-}
-const _prefilledRaw = _prefillStatusFromVoucher();
-// 서비스 제공일자는 공란 유지 (사용자 요청)
-_prefilledRaw.forEach(r => { if (r) r.provDate = ''; });
-// 결과기록지는 항상 4행 (부족하면 빈 행 채움, 넘치면 앞 4개만)
-const _prefilledRows = _prefilledRaw.slice(0, 4);
-while (_prefilledRows.length < 4) _prefilledRows.push({});
-buildStatusRows(_prefilledRows);
-// 바우처에 담당치료사 정보가 있으면 각 세션의 담당재활사 자동 채움 (1~4행)
-if (_prefilledRows.length) {
-  _prefilledRows.slice(0,4).forEach((r, idx) => {
-    if (r.therapist) {
-      const el = document.getElementById('s1_therapistName_'+(idx+1));
-      if (el) el.value = r.therapist;
-    }
-  });
-}
 
-// 상태 옵션 토글 (양호/미흡 등) — 클릭 시 빨간색으로 강조. 다중 선택 가능 (표정).
-// 이/부, 양호/미흡, 양호/컨디션난조/아픔 등 상호배타 그룹은 다른 옵션 자동 해제
+// 한 줄에서 하나만 고를 수 있는 항목 (아동표정은 여러 개 가능)
 const _EXCLUSIVE_FIELDS = new Set(['cloth','sock','wear','health']);
 function _toggleOpt(el) {
   const field = el.getAttribute('data-field');
@@ -858,88 +976,31 @@ function _toggleOpt(el) {
   }
 }
 
-// 저장·불러오기
-const recordKey = `record_develop_${childId}_${year}_${String(month).padStart(2,'0')}`;
-function loadRecord() {
-  const saved = JSON.parse(localStorage.getItem(recordKey)||'null');
-  if (!saved) return;
-  // sheet1 fields
-  Object.keys(saved.sheet1||{}).forEach(k => { const el=document.getElementById(k); if (el) el.value = saved.sheet1[k]; });
-  // calendar events
-  document.querySelectorAll('#calTbl .evt').forEach(el => {
-    const d = el.getAttribute('data-day');
-    if (saved.calendar && saved.calendar[d]) el.innerHTML = saved.calendar[d];
-  });
-  // status rows
-  if (saved.status) {
-    buildStatusRows(saved.status);
-    // 저장된 옵션 선택 상태 복원 (row 순서대로 매핑)
-    document.querySelectorAll('#statusTbl tbody tr').forEach((tr, idx) => {
-      const r = saved.status[idx];
-      if (!r) return;
-      ['cloth','sock','wear','face','health'].forEach(field => {
-        const vals = String(r[field]||'').split(',').map(s=>s.trim()).filter(Boolean);
-        vals.forEach(v => {
-          const el = tr.querySelector(`.opt[data-field="${field}"][data-val="${v}"]`);
-          if (el) {
-            el.classList.add('selected');
-            el.style.color = '#c62828';
-            el.style.background = '#ffebee';
-            el.style.fontWeight = 'bold';
-          }
-        });
-      });
-    });
-  }
-}
-loadRecord();
 
-function saveRecord() {
-  const sheet1 = {};
-  ['s1_org','s1_area','s1_childName','s1_childBirth','s1_adminSig','s1_guardianSig','s1_mgmtNo','s1_childName2','s1_writeDate','s1_provider',
-   's1_svcProviderName','s1_svcTel','s1_svcCharge','s1_svcType','s1_svcCycle','s1_svcDays',
-   's1_costType','s1_costUnit','s1_costCount','s1_costTotal','s1_costSelf',
-   's1_startTime_1','s1_startTime_2','s1_startTime_3','s1_startTime_4',
-   's1_endTime_1','s1_endTime_2','s1_endTime_3','s1_endTime_4',
-   's1_therapistName_1','s1_therapistName_2','s1_therapistName_3','s1_therapistName_4',
-   's1_totalTime_1','s1_totalTime_2','s1_totalTime_3','s1_totalTime_4',
-   's1_totalCost_1','s1_totalCost_2','s1_totalCost_3','s1_totalCost_4',
-   's1_userSign_1','s1_userSign_2','s1_userSign_3','s1_userSign_4'
-  ].forEach(id => { const el=document.getElementById(id); if (el) sheet1[id] = el.value; });
-  const calendar = {};
-  document.querySelectorAll('#calTbl .evt').forEach(el => {
-    const d = el.getAttribute('data-day');
-    calendar[d] = el.innerHTML;
-  });
-  const status = [];
-  document.querySelectorAll('#statusTbl tbody tr').forEach(tr => {
-    const _getSelected = (field) => {
-      const arr = [];
-      tr.querySelectorAll(`.opt[data-field="${field}"].selected`).forEach(el => arr.push(el.getAttribute('data-val')));
-      return arr.join(',');
-    };
-    status.push({
-      provDate: tr.querySelector('.st_provDate')?.value||'',
-      apprDate: tr.querySelector('.st_apprDate')?.value||'',
-      apprNo: tr.querySelector('.st_apprNo')?.value||'',
-      cloth: _getSelected('cloth'),
-      sock: _getSelected('sock'),
-      wear: _getSelected('wear'),
-      face: _getSelected('face'),
-      health: _getSelected('health'),
-      result: tr.querySelector('.st_result')?.value||'',
-      note: tr.querySelector('.st_note')?.value||'',
-    });
-  });
-  localStorage.setItem(recordKey, JSON.stringify({ sheet1, calendar, status, year, month, childId, category, savedAt:new Date().toISOString() }));
-  alert('✅ 저장되었습니다.');
-}
+
+$('pLoad').onclick = loadOne;
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '\u274c 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data.session) await afterLogin(data.session.user);
+})();
+
 </script>
-<script>
-  // 발달재활 결과보고서 · 치료기록지 자동 동기화
-  window._supaLiveKeys = ['records'];
-  window._supaLiveOnLoad = () => { try { renderStatusFromStorage && renderStatusFromStorage(); } catch(e) {} };
-</script>
-<script src="js/supabase-live.js"></script>
+</div>
 </body>
 </html>
