@@ -101,6 +101,11 @@ const $  = id => document.getElementById(id);
 
 // 화면 목록 — roles 에 적힌 역할만 볼 수 있다
 const MENU = [
+{ grp:'일정', items:[
+    { f:'schedule.html', nm:'시간표',
+      de:'요일별 수업표. 결석·보강·휴무 표시. 치료사는 담당 수업만 보임',
+      roles:['관리자','행정','치료사'] }
+  ]},
 { grp:'신규 아동', items:[
     { f:'inquiry.html', nm:'문의·상담 관리',
       de:'문의부터 치료 시작까지. 확인할 날짜가 지난 건은 맨 위에 뜸',
