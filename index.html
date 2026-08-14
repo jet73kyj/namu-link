@@ -1,185 +1,199 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>나무링크 - 자라는나무 아동발달센터</title>
-  <link rel="stylesheet" href="css/style.css">
-  <style>
-    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .login-box { background: white; border-radius: 12px; padding: 34px 40px; width: 380px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); text-align: center; }
-    .login-box h1 { color: #2e7d32; font-size: 24px; margin-bottom: 6px; }
-    .login-box .sub { color: #888; font-size: 13px; margin-bottom: 20px; }
-    .role-tabs { display:flex; gap:4px; border-bottom:2px solid #e0e0e0; margin-bottom:18px; }
-    .role-tab { flex:1; padding:10px 8px; font-size:14px; font-weight:bold; color:#888; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; user-select:none; }
-    .role-tab.active { color:#2e7d32; border-bottom-color:#2e7d32; }
-    .login-box .form-group { text-align: left; margin-bottom: 12px; }
-    .login-box label { display:block; font-size:12px; color:#555; margin-bottom:4px; font-weight:bold; }
-    .login-box input { width: 100%; padding:9px 11px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box; }
-    .login-box .btn { width: 100%; padding: 12px; font-size: 16px; margin-top: 8px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; }
-    .btn-staff { background:#2e7d32; color:white; }
-    .btn-guardian { background:#1565c0; color:white; }
-    .error-msg { color: #c62828; font-size: 13px; margin-top: 8px; display: none; }
-    .form-block { display:none; }
-    .form-block.active { display:block; }
-    .hint { font-size:11px; color:#888; margin-top:6px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>나무링크</title>
+<style>
+  :root {
+    --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
+    --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:var(--bg);
+         margin:0; padding:28px 20px; color:var(--ink); -webkit-font-smoothing:antialiased; }
+
+  .box { max-width:400px; margin:56px auto; background:#fff; border-radius:14px;
+         padding:32px; border:1px solid var(--line); }
+  .wide { max-width:760px; margin:0 auto; }
+
+  h1 { font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0; }
+  .sub { font-size:13px; color:var(--ink3); margin:6px 0 24px; }
+  label { display:block; font-size:12px; color:var(--ink2); margin:16px 0 6px; }
+  input { font:inherit; font-size:14px; padding:9px 11px; color:var(--ink);
+          border:1px solid var(--line); border-radius:8px; background:#fff; width:100%; }
+  input:focus { outline:2px solid var(--acc); outline-offset:-1px; border-color:transparent; }
+  button { font:inherit; font-size:14px; font-weight:500; padding:10px 16px;
+           background:var(--acc); color:#fff; border:none; border-radius:8px; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  button:disabled { background:#c3c8c0; cursor:default; }
+  .box button { width:100%; padding:12px; margin-top:24px; }
+  .ghost { background:none; color:var(--ink2); border:1px solid var(--line); }
+
+  .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
+         line-height:1.6; display:none; white-space:pre-wrap; }
+  .ok  { background:var(--acc-bg); color:#2c5c37; display:block; }
+  .err { background:#fdeeee; color:#9c2b2b; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:flex-start;
+         gap:12px; margin-bottom:6px; }
+  .who { font-size:13px; color:var(--ink3); margin-top:4px; }
+
+  .grp { margin-top:30px; }
+  .grp h2 { font-size:11.5px; font-weight:600; letter-spacing:.08em; color:var(--ink3);
+            margin:0 0 12px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(228px, 1fr)); gap:12px; }
+  a.card { display:block; background:#fff; border:1px solid var(--line); border-radius:12px;
+           padding:18px 20px; text-decoration:none; color:inherit; transition:.12s; }
+  a.card:hover { border-color:var(--acc); transform:translateY(-1px);
+                 box-shadow:0 3px 12px rgba(60,122,74,.09); }
+  a.card .nm { font-size:15px; font-weight:600; letter-spacing:-.01em; }
+  a.card .de { font-size:12.5px; color:var(--ink3); margin-top:5px; line-height:1.55; }
+  a.card .tag { display:inline-block; font-size:10.5px; font-weight:600; padding:2px 7px;
+                border-radius:20px; background:var(--acc-bg); color:#2c5c37; margin-left:6px;
+                vertical-align:2px; }
+  a.card .tag.adm { background:#fdf3e6; color:#a9701c; }
+
+  .none { padding:44px 20px; text-align:center; color:var(--ink3); font-size:14px;
+          background:#fff; border:1px solid var(--line); border-radius:12px; }
+  .foot { margin-top:34px; font-size:12px; color:var(--ink3); line-height:1.9;
+          border-top:1px solid var(--line); padding-top:16px; }
+</style>
 </head>
 <body>
-  <div class="login-box">
-    <h1>🌿 나무링크</h1>
-    <p class="sub">자라는나무 아동발달센터</p>
 
-    <div class="role-tabs">
-      <div class="role-tab active" data-role="staff"    onclick="switchRole('staff')">👩‍⚕️ 직원 로그인</div>
-      <div class="role-tab"        data-role="guardian" onclick="switchRole('guardian')">👨‍👩‍👧 학부모 로그인</div>
-    </div>
+<!-- 로그인 전 -->
+<div class="box" id="loginBox">
+  <h1>🌿 나무링크</h1>
+  <div class="sub">자라는나무 아동발달치료센터</div>
+  <label for="em">이메일</label>
+  <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="btn">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
 
-    <!-- 직원 로그인 -->
-    <div id="form-staff" class="form-block active">
-      <div class="form-group">
-        <label>아이디 (또는 이름)</label>
-        <input type="text" id="sName" placeholder="예: 박하은2607 · 관리자">
-      </div>
-      <div class="form-group">
-        <label>비밀번호</label>
-        <input type="password" id="sPw" placeholder="치료사: 생년월일 4자리 (MMDD)" onkeydown="if(event.key==='Enter')loginStaff()">
-      </div>
-      <p class="error-msg" id="sErr">아이디 또는 비밀번호가 올바르지 않습니다.</p>
-      <button class="btn btn-staff" onclick="loginStaff()">직원 로그인</button>
+<!-- 로그인 후 -->
+<div class="wide" id="mainBox" style="display:none;">
+  <div class="top">
+    <div>
+      <h1>🌿 나무링크</h1>
+      <div class="who" id="who"></div>
     </div>
-
-    <!-- 학부모 로그인 -->
-    <div id="form-guardian" class="form-block">
-      <div class="form-group">
-        <label>아동 이름</label>
-        <input type="text" id="gName" placeholder="예: 홍길동">
-      </div>
-      <div class="form-group">
-        <label>아동 생년월일</label>
-        <input type="text" id="gBirth" placeholder="예: 2022-03-15 또는 20220315" onkeydown="if(event.key==='Enter')loginGuardian()">
-        <p class="hint">YYYY-MM-DD · YYYYMMDD · YY.MM.DD 형식 지원</p>
-      </div>
-      <p class="error-msg" id="gErr">일치하는 아동 정보를 찾을 수 없습니다.<br>담당자에게 문의해 주세요.</p>
-      <button class="btn btn-guardian" onclick="loginGuardian()">학부모 로그인</button>
-    </div>
+    <button id="out" class="ghost">로그아웃</button>
   </div>
 
-  <script src="js/supabase-client.js"></script>
-  <script src="js/auth.js"></script>
-  <script>
-    const USERS = {
-      '관리자': '1234',
-      '이채린': '1234',
-    };
+  <div id="menu"></div>
 
-    function switchRole(role) {
-      document.querySelectorAll('.role-tab').forEach(t => t.classList.toggle('active', t.dataset.role===role));
-      document.querySelectorAll('.form-block').forEach(f => f.classList.remove('active'));
-      document.getElementById('form-'+role).classList.add('active');
-      document.getElementById('sErr').style.display = 'none';
-      document.getElementById('gErr').style.display = 'none';
-    }
+  <div class="foot">
+    자라는나무 · 042-488-6011<br>
+    화면이 예전 그대로 보이면 <b>Ctrl+Shift+R</b> 을 눌러 새로 고치세요.
+  </div>
+</div>
 
-    async function loginStaff() {
-      const input = document.getElementById('sName').value.trim();
-      const pw = document.getElementById('sPw').value;
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_);
+const $  = id => document.getElementById(id);
 
-      // 1) 관리자·행정 (하드코딩)
-      if (USERS[input] && USERS[input] === pw) {
-        localStorage.setItem('currentUser', input);
-        localStorage.setItem('currentUserRole', input === '관리자' ? 'admin' : 'staff');
-        localStorage.removeItem('guardianChildId');
-        localStorage.removeItem('currentTherapistId');
-        location.href = 'children.html';
-        return;
-      }
+// 화면 목록 — roles 에 적힌 역할만 볼 수 있다
+const MENU = [
+  { grp:'아동', items:[
+    { f:'children-new.html', nm:'아동 관리',
+      de:'아동 목록·검색, 신규 등록, 발달재활 등급',
+      roles:['관리자','행정'] }
+  ]},
+  { grp:'납부', items:[
+    { f:'billing-new.html', nm:'납부 계산',
+      de:'그 달 회기로 금액 자동 계산. 매달 쓰는 화면',
+      roles:['관리자','행정'] },
+    { f:'payments-new.html', nm:'납부 입력',
+      de:'금액을 손으로 직접 입력. 종결 아동도 나옴',
+      roles:['관리자','행정'] },
+    { f:'voucher-upload.html', nm:'바우처 올리기', tag:'관리자',
+      de:'전자바우처 결제내역 엑셀을 올리면 승인번호가 기록지에 들어감',
+      roles:['관리자'] }
+  ]},
+  { grp:'치료 기록지', items:[
+    { f:'record-develop.html', nm:'발달재활 기록지',
+      de:'서비스 일정표·제공기록지 · 월 4회',
+      roles:['관리자','행정','치료사'] },
+    { f:'record-support.html', nm:'치료지원 기록지',
+      de:'치료지원 누가기록서 · 월 3회',
+      roles:['관리자','행정','치료사'] },
+    { f:'record-center.html', nm:'센터 기록지',
+      de:'센터비용 아동 치료 기록 · 월 4회',
+      roles:['관리자','행정','치료사'] }
+  ]}
+];
 
-      // 2) 치료사 · 행정직원 로그인 (아이디 또는 이름)
-      try {
-        if (window.Supa) {
-          try { await window.Supa.pullKey('therapists'); } catch(e) {}
-          try { await window.Supa.pullKey('staff'); } catch(e) {}
-        }
-      } catch(e) {}
+function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
+function esc(s) { return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-      const therapists = JSON.parse(localStorage.getItem('therapists')||'[]');
-      const staff = JSON.parse(localStorage.getItem('staff')||'[]');
-      const t = therapists.find(x => x.loginId === input) || therapists.find(x => (x.name||'') === input && x.loginId);
-      const s = staff.find(x => x.loginId === input) || staff.find(x => (x.name||'') === input && x.loginId);
-      const account = t || s;
-      if (!account || !account.loginId) { document.getElementById('sErr').style.display='block'; return; }
+async function afterLogin(user) {
+  const { data: me, error } = await sb
+    .from('nl_therapists').select('name, role')
+    .eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (error) { show($('msg'), '❌ 직원 조회 실패\n' + error.message, false); return; }
+  if (!me)   { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
 
-      const ok = await window.NamuAuth.verifyTherapistPassword(account, pw);
-      if (!ok) { document.getElementById('sErr').style.display='block'; return; }
+  const role = String(me.role || '').trim();
+  $('who').textContent = me.name + ' (' + role + ') 님';
 
-      const isTherapist = !!t;
-      localStorage.setItem('currentUser', account.name || account.loginId);
-      localStorage.setItem('currentUserRole', isTherapist ? 'therapist' : 'staff');
-      if (isTherapist) {
-        localStorage.setItem('currentTherapistId', account.id);
-        localStorage.setItem('currentTherapistLoginId', account.loginId);
-        localStorage.removeItem('currentStaffId');
-      } else {
-        localStorage.setItem('currentStaffId', account.id);
-        localStorage.setItem('currentStaffLoginId', account.loginId);
-        localStorage.removeItem('currentTherapistId');
-        localStorage.removeItem('currentTherapistLoginId');
-      }
-      localStorage.removeItem('guardianChildId');
+  let html = '';
+  MENU.forEach(g => {
+    const list = g.items.filter(it => it.roles.includes(role));
+    if (!list.length) return;
+    html += '<div class="grp"><h2>' + esc(g.grp) + '</h2><div class="cards">'
+      + list.map(it =>
+          '<a class="card" href="' + it.f + '">'
+          + '<div class="nm">' + esc(it.nm)
+          + (it.tag ? '<span class="tag adm">' + esc(it.tag) + '</span>' : '') + '</div>'
+          + '<div class="de">' + esc(it.de) + '</div></a>').join('')
+      + '</div></div>';
+  });
 
-      // 첫 로그인 시 비밀번호 변경 페이지로
-      if (!account.passwordHash || account.mustChangePassword) {
-        location.href = 'change-password.html?first=1';
-      } else {
-        location.href = 'children.html';
-      }
-    }
+  if (!html) {
+    html = '<div class="grp"><div class="none">'
+      + '아직 사용할 수 있는 화면이 없습니다.<br>'
+      + '필요한 화면이 있으면 관리자에게 말씀해 주세요.</div></div>';
+  } else if (role === '치료사') {
+    html += '<div class="foot" style="border:none;padding-top:14px;margin-top:18px;">'
+      + '기록지에는 <b>담당하시는 아동만</b> 나옵니다. '
+      + '담당이 아닌 아동이 보이지 않으면 관리자에게 문의하세요.</div>';
+  }
+  $('menu').innerHTML = html;
 
-    // 생년월일 정규화 → YYYYMMDD
-    function normBirth(s) {
-      const d = String(s||'').replace(/\D/g,'');
-      if (d.length === 8) return d;
-      if (d.length === 6) return '20' + d;
-      return null;
-    }
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
 
-    function loginGuardian() {
-      const name = document.getElementById('gName').value.trim();
-      const birth = normBirth(document.getElementById('gBirth').value);
-      if (!name || !birth) { document.getElementById('gErr').style.display = 'block'; return; }
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+$('out').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
 
-      const children = JSON.parse(localStorage.getItem('children')||'[]');
-      const match = children.find(c => {
-        const cb = normBirth(c.birth);
-        return (c.name||'').trim() === name && cb === birth;
-      });
-      if (!match) { document.getElementById('gErr').style.display = 'block'; return; }
-
-      localStorage.setItem('currentUser', name + ' 보호자');
-      localStorage.setItem('currentUserRole', 'guardian');
-      localStorage.setItem('guardianChildId', match.id);
-      location.href = 'guardian-home.html';
-    }
-
-    // 이미 로그인 상태면 자동 이동
-    const role = localStorage.getItem('currentUserRole');
-    if (localStorage.getItem('currentUser')) {
-      if (role === 'guardian') location.href = 'guardian-home.html';
-      else if (role === 'therapist' || role === 'staff') {
-        // 치료사·행정직원 세션 복귀 시: 비번 변경 미완료면 변경 화면으로
-        const key = role === 'therapist' ? 'therapists' : 'staff';
-        const idKey = role === 'therapist' ? 'currentTherapistId' : 'currentStaffId';
-        const arr = JSON.parse(localStorage.getItem(key)||'[]');
-        const rec = arr.find(x => x.id === localStorage.getItem(idKey));
-        if (rec && (!rec.passwordHash || rec.mustChangePassword)) {
-          location.href = 'change-password.html?first=1';
-        } else {
-          location.href = 'children.html';
-        }
-      }
-      else location.href = 'children.html';
-    }
-  </script>
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data.session) await afterLogin(data.session.user);
+})();
+</script>
 </body>
 </html>
