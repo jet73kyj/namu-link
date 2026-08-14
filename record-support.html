@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>치료지원 누가기록서 - 나무링크</title>
+<style>
+  body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; background:#f5f7fa; margin:0; }
+  header { background:#2e7d32; color:white; padding:12px 24px; display:flex; align-items:center; gap:12px; }
+  .container { max-width:1000px; margin:16px auto; padding:0 16px; }
+  .page-title { font-size:18px; font-weight:bold; color:#2e7d32; margin:10px 0; }
+  .form-actions { display:flex; gap:8px; margin:12px 0; }
+  .form-actions button { padding:8px 18px; border:none; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; }
+  .btn-save { background:#2e7d32; color:white; }
+  .btn-print { background:#1565c0; color:white; }
+  .sheet { background:white; padding:26px 32px; border:1px solid #ddd;
+           box-shadow:0 1px 4px rgba(0,0,0,0.05); margin-bottom:22px; }
+  .sheet h2.title { text-align:center; font-size:16px; margin:0 0 14px; letter-spacing:2px; }
+  .rec-tbl { border-collapse:collapse; width:100%; font-size:12px; table-layout:fixed; }
+  .rec-tbl td, .rec-tbl th { border:1px solid #333; padding:5px 8px; vertical-align:top; }
+  .rec-tbl td.lbl { background:#f5f5f5; font-weight:bold; text-align:center; vertical-align:middle; }
+  .rec-tbl th { background:#f0f4c3; font-weight:bold; text-align:center; }
+  .side { background:#f5f5f5; font-weight:bold; text-align:center; vertical-align:middle;
+          width:56px; letter-spacing:2px; }
+  input[type=text], input[type=date], textarea, select {
+    border:1px solid #ccc; padding:3px 6px; font-size:12px;
+    font-family:inherit; box-sizing:border-box; width:100%; }
+  textarea { resize:vertical; min-height:46px; }
+  .sign { text-align:center; font-size:12.5px; line-height:2.4; margin-top:22px; }
+  .sign .line { margin-top:6px; }
+  .radio { font-size:12px; }
+  .radio span { cursor:pointer; padding:2px 8px; border-radius:4px; }
+  .radio span.on { color:#c62828; background:#ffebee; font-weight:bold; }
+
+  .loginbox { max-width:400px; margin:56px auto; background:#fff; border-radius:12px;
+              padding:32px; border:1px solid #e0e0e0; }
+  .loginbox input { border:1px solid #ddd; padding:11px; border-radius:7px; font-size:15px; }
+  .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
+         line-height:1.6; display:none; white-space:pre-wrap; }
+  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
+  .err { background:#ffebee; color:#b71c1c; display:block; }
+  .picker { max-width:1000px; margin:14px auto 0; padding:0 16px; display:flex;
+            gap:8px; align-items:center; flex-wrap:wrap; }
+  .picker select, .picker input { width:auto; font-size:13px; padding:7px 9px; }
+  .picker button { background:#2e7d32; color:#fff; border:none; border-radius:6px;
+                   padding:8px 16px; font-size:13px; font-weight:bold; cursor:pointer; }
+  .picker #pInfo { font-size:12.5px; color:#777; margin-left:4px; }
+
+  @media print {
+    @page { size: A4 portrait; margin: 8mm 8mm; }
+    header, .form-actions, .page-title, .picker, .no-print { display:none !important; }
+    body { background:white; }
+    .container { max-width:none; margin:0; padding:0; }
+    .sheet { border:none; box-shadow:none; padding:0; margin:0; }
+    .rec-tbl { font-size:10.5px; }
+    .rec-tbl td, .rec-tbl th { padding:4px 6px; }
+    input, textarea { border:none; padding:1px 3px; font-size:10.5px; background:transparent; }
+    textarea { min-height:38px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 로그인 전 -->
+<div class="loginbox" id="loginBox">
+  <h1 style="font-size:19px;margin:0 0 4px;color:#2e7d32;">치료지원 누가기록서</h1>
+  <div style="font-size:13px;color:#888;margin-bottom:20px;">나무링크</div>
+  <label style="display:block;font-size:12px;color:#666;margin:12px 0 5px;">이메일</label>
+  <input id="em" type="email" autocomplete="username" placeholder="you@example.com" style="width:100%;">
+  <label style="display:block;font-size:12px;color:#666;margin:12px 0 5px;">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password" style="width:100%;">
+  <button id="btn" style="width:100%;padding:12px;margin-top:20px;background:#2e7d32;color:#fff;border:none;border-radius:7px;font-size:15px;font-weight:bold;cursor:pointer;">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<div id="mainBox" style="display:none;">
+<header>
+  <span style="font-size:22px;">🌿</span>
+  <h1 style="margin:0;font-size:20px;">나무링크 · 치료지원 누가기록서</h1>
+  <span style="margin-left:auto;font-size:13px;opacity:.9;" id="who"></span>
+  <button onclick="logout()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;">로그아웃</button>
+</header>
+
+<div class="picker no-print">
+  <select id="pChild" style="min-width:280px;"></select>
+  <input id="pMonth" type="month">
+  <button id="pLoad">불러오기</button>
+  <span id="pInfo"></span>
+</div>
+
+<div class="container">
+  <div class="page-title" id="pageTitle">치료지원 누가기록서</div>
+
+  <div class="form-actions no-print">
+    <button class="btn-save" onclick="saveRecord()">💾 저장</button>
+    <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
+  </div>
+
+  <div class="sheet" id="sheet1">
+    <h2 class="title" id="sheetTitle">치료 [ ]월 치료지원 누가기록서</h2>
+
+    <table class="rec-tbl">
+      <colgroup>
+        <col style="width:56px;"><col style="width:15%;"><col style="width:26%;">
+        <col style="width:15%;"><col>
+      </colgroup>
+      <tr>
+        <td class="side" rowspan="4">학생<br>정보</td>
+        <td class="lbl">이름(성별)</td>
+        <td><input type="text" id="f_name"></td>
+        <td class="lbl">생년월일</td>
+        <td><input type="text" id="f_birth"></td>
+      </tr>
+      <tr>
+        <td class="lbl">장애유형</td>
+        <td><input type="text" id="f_disab"></td>
+        <td class="lbl">소속</td>
+        <td>
+          <div style="display:flex;gap:5px;">
+            <input type="text" id="f_school" placeholder="○○초등학교" style="flex:2;">
+            <input type="text" id="f_grade" placeholder="3학년" style="flex:1;">
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td class="lbl" rowspan="2" style="vertical-align:middle;">현재<br>수행 수준</td>
+        <td class="lbl" style="background:#fafafa;">소근육 및<br>일상생활동작</td>
+        <td colspan="2"><textarea id="f_fine"></textarea></td>
+      </tr>
+      <tr>
+        <td class="lbl" style="background:#fafafa;">인지 및<br>언어/학습</td>
+        <td colspan="2"><textarea id="f_cog"></textarea></td>
+      </tr>
+      <tr>
+        <td class="side" rowspan="2">치료<br>지원<br>내용</td>
+        <td class="lbl">장기목표</td>
+        <td colspan="3"><textarea id="f_goalL"></textarea></td>
+      </tr>
+      <tr>
+        <td class="lbl">단기목표</td>
+        <td colspan="3"><textarea id="f_goalS"></textarea></td>
+      </tr>
+    </table>
+
+    <table class="rec-tbl" style="margin-top:-1px;">
+      <colgroup>
+        <col style="width:15%;"><col style="width:42.5%;"><col style="width:42.5%;">
+      </colgroup>
+      <tr>
+        <th>회 기</th>
+        <th>치 료 내 용</th>
+        <th>학생 반응 및 평가내용</th>
+      </tr>
+      <tbody id="seqBody"></tbody>
+    </table>
+
+    <table class="rec-tbl" style="margin-top:-1px;">
+      <colgroup><col style="width:15%;"><col></colgroup>
+      <tr>
+        <td class="lbl">치료결과<br>지속 여부</td>
+        <td>
+          <div class="radio" id="contBox">
+            <span data-val="지속" onclick="_pickCont(this)">지속</span> /
+            <span data-val="중단" onclick="_pickCont(this)">중단</span>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="sign">
+      상기 내용이 이상 없음을 확인합니다.
+      <div class="line" id="signDate">20&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일</div>
+      <div class="line">담당치료사 <span id="signThr" style="display:inline-block;min-width:110px;border-bottom:1px solid #999;">&nbsp;</span> (인)</div>
+      <div class="line">치료지원담당(기관장) <span style="display:inline-block;min-width:110px;border-bottom:1px solid #999;">자라는나무</span> (인)</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_);
+const $  = id => document.getElementById(id);
+
+const SESSIONS = 3;                     // 치료지원 = 월 3회
+const SUPPORTS = [3, 4, 6, 7];          // 치료지원(언어/작업) · 방과후치료지원(언어/작업)
+const TTYPE = { 1:'언어', 2:'작업', 3:'전산화인지', 4:'감각통합', 5:'음악', 6:'일상자립' };
+
+let ME = null, PAIRS = [], THERAPISTS = {}, SUPNAME = {};
+let cur = null;                          // 고른 아동+지원유형
+let SCHED = [], LOGID = null, ITEMS = [], CONT = '', PREV = null, WRITTEN = null;
+let year = new Date().getFullYear();
+let month = new Date().getMonth() + 1;
+let LOADED = false;
+
+function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
+function esc(s) { return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function mkNow() { return year + '-' + String(month).padStart(2,'0'); }
+function logout() { sb.auth.signOut().then(() => location.reload()); }
+function fmtBirth(b) {
+  if (!b) return '';
+  const s = String(b).replace(/\D/g,'');
+  if (s.length < 8) return b;
+  return s.slice(0,4) + '.' + s.slice(4,6) + '.' + s.slice(6,8);
+}
+function _hm(v) { const m = String(v||'').match(/(\d{1,2}):(\d{2})/);
+  return m ? m[1].padStart(2,'0') + ':' + m[2] : null; }
+function d2iso(s) { const m = String(s||'').replace(/[^0-9]/g,'');
+  return m.length === 8 ? m.slice(0,4)+'-'+m.slice(4,6)+'-'+m.slice(6,8) : null; }
+
+function _pickCont(el) {
+  const on = el.classList.contains('on');
+  $('contBox').querySelectorAll('span').forEach(s => s.classList.remove('on'));
+  if (!on) { el.classList.add('on'); CONT = el.dataset.val; } else { CONT = ''; }
+}
+
+
+// ─────────────────────────────────────────────
+// 권한 — 관리자·행정은 전체, 치료사는 담당 아동만, 홍보는 못 들어옴
+// ─────────────────────────────────────────────
+function _roleOf(r) { return String(r || '').trim(); }
+function _isAllView(r) { const x = _roleOf(r); return x === '관리자' || x === '행정'; }
+function _isBlocked(r) { return _roleOf(r) === '홍보'; }
+function _blockScreen(role) {
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('mainBox').style.display = 'none';
+  const b = document.createElement('div');
+  b.style.cssText = 'max-width:420px;margin:80px auto;background:#fff;border-radius:12px;'
+    + 'padding:34px;border:1px solid #e0e0e0;text-align:center;font-family:inherit;';
+  b.innerHTML = '<div style="font-size:34px;margin-bottom:10px;">\uD83D\uDD12</div>'
+    + '<div style="font-size:16px;font-weight:bold;color:#2e7d32;margin-bottom:8px;">'
+    + '이 화면은 볼 수 없습니다</div>'
+    + '<div style="font-size:13px;color:#666;line-height:1.8;">'
+    + '치료 기록지는 관리자 · 행정 · 담당 치료사만 볼 수 있습니다.<br>'
+    + '현재 역할: <b>' + _roleOf(role) + '</b></div>'
+    + '<button onclick="logout()" style="margin-top:20px;background:#2e7d32;color:#fff;'
+    + 'border:none;border-radius:7px;padding:10px 20px;font-size:14px;cursor:pointer;">로그아웃</button>';
+  document.body.appendChild(b);
+}
+
+// ── 로그인 ──
+async function afterLogin(user) {
+  const { data: me, error: e1 } = await sb
+    .from('nl_therapists').select('id, name, role')
+    .eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+  ME = me;
+  if (_isBlocked(me.role)) { _blockScreen(me.role); return; }
+
+  const [th, st, tp] = await Promise.all([
+    sb.from('nl_therapists').select('id, name'),
+    sb.from('nl_support_types').select('id, name'),
+    sb.from('nl_therapies')
+      .select('id, child_id, therapy_type_id, support_type_id, nl_children!inner(id, name, birth, manager_no, status, disability, school, grade_year)')
+      .in('support_type_id', SUPPORTS)
+  ]);
+  (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
+  (st.data || []).forEach(s => SUPNAME[s.id] = s.name);
+
+  // 치료사면 자기가 담당인 치료만 (수업 시간표의 담당 기준)
+  let myTherapyIds = null;
+  if (!_isAllView(me.role)) {
+    const all = await sb.from('nl_therapy_schedules')
+      .select('therapy_id').eq('therapist_id', me.id);
+    myTherapyIds = new Set((all.data || []).map(r => r.therapy_id));
+  }
+
+  PAIRS = [];
+  const seen = {};
+  (tp.data || []).forEach(r => {
+    const c = r.nl_children;
+    if (!c || c.status === '종결') return;
+    if (myTherapyIds && !myTherapyIds.has(r.id)) return;
+    const k = c.id + '-' + r.support_type_id;
+    if (seen[k]) return;
+    seen[k] = true;
+    PAIRS.push({ child: c, support_type_id: r.support_type_id,
+                 therapy_id: r.id, therapy_type_id: r.therapy_type_id });
+  });
+  PAIRS.sort((a,b) => (a.child.name||'').localeCompare(b.child.name||'')
+                   || a.support_type_id - b.support_type_id);
+
+  $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
+    + PAIRS.map((p,i) => '<option value="' + i + '">' + esc(p.child.name)
+        + ' · ' + esc(SUPNAME[p.support_type_id] || '') + '</option>').join('');
+  $('pMonth').value = mkNow();
+  $('who').textContent = me.name + ' (' + me.role + ') 님 · 치료지원 ' + PAIRS.length + '건'
+    + (_isAllView(me.role) ? '' : ' (담당)');
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
+
+// ── 불러오기 ──
+async function loadOne() {
+  const idx = $('pChild').value;
+  const mv  = $('pMonth').value;
+  if (idx === '') { alert('아동을 고르세요.'); return; }
+  if (!mv) { alert('달을 고르세요.'); return; }
+
+  cur = PAIRS[Number(idx)];
+  year  = parseInt(mv.split('-')[0], 10);
+  month = parseInt(mv.split('-')[1], 10);
+  const mk = mkNow();
+
+  $('pLoad').disabled = true; $('pLoad').textContent = '불러오는 중...';
+  try {
+    const [sc, lg, pr] = await Promise.all([
+      sb.from('nl_therapy_schedules')
+        .select('weekday, start_time, therapist_id, duration')
+        .eq('therapy_id', cur.therapy_id),
+      sb.from('nl_session_logs').select('*')
+        .eq('child_id', cur.child.id)
+        .eq('support_type_id', cur.support_type_id)
+        .eq('month_key', mk).maybeSingle(),
+      // 지난 달들 중 가장 최근 기록 — 수행수준·목표를 이어받는다
+      sb.from('nl_session_logs').select('*')
+        .eq('child_id', cur.child.id)
+        .eq('support_type_id', cur.support_type_id)
+        .lt('month_key', mk)
+        .order('month_key', { ascending: false }).limit(1)
+    ]);
+    SCHED = sc.data || [];
+    PREV = (pr.data || [])[0] || null;
+
+    LOGID = lg.data ? lg.data.id : null;
+    ITEMS = [];
+    if (LOGID) {
+      const it = await sb.from('nl_session_items').select('*')
+        .eq('log_id', LOGID).order('seq_no');
+      ITEMS = it.data || [];
+    }
+    LOADED = true;
+    $('pInfo').textContent = mk + (LOGID ? ' · 저장된 기록 있음' : ' · 새로 작성');
+    drawAll(lg.data);
+  } catch (e) {
+    alert('불러오지 못했습니다.\n' + e.message);
+  } finally {
+    $('pLoad').disabled = false; $('pLoad').textContent = '불러오기';
+  }
+}
+
+// 그 달 수업일 (최대 3회)
+function _classDays() {
+  const M = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
+  const dows = [...new Set(SCHED.map(s => M[s.weekday]).filter(v => v !== undefined))];
+  if (!dows.length) return [];
+  const last = new Date(year, month, 0).getDate();
+  const out = [];
+  for (let d = 1; d <= last; d++) {
+    if (dows.includes(new Date(year, month - 1, d).getDay())) out.push(d);
+  }
+  return out.slice(0, SESSIONS);
+}
+function _timeText() {
+  if (!SCHED.length || !SCHED[0].start_time) return '';
+  const p = String(SCHED[0].start_time).split(':');
+  let h = parseInt(p[0],10), m = parseInt(p[1]||'0',10);
+  const s = h + ':' + String(m).padStart(2,'0');
+  const dur = SCHED[0].duration || 40;
+  m += dur; h += Math.floor(m/60); m %= 60;
+  return s + '-' + h + ':' + String(m).padStart(2,'0');
+}
+
+function drawAll(saved) {
+  const c = cur.child;
+  const areaName = TTYPE[cur.therapy_type_id] || '';
+  $('pageTitle').textContent = `치료지원 누가기록서 — ${c.name} · ${SUPNAME[cur.support_type_id]} · ${year}년 ${month}월`;
+  $('sheetTitle').textContent = `${areaName}치료 [ ${month} ]월 치료지원 누가기록서`;
+
+  $('f_name').value   = c.name || '';
+  $('f_birth').value  = fmtBirth(c.birth);
+  // 이번 달 저장분 → 없으면 지난 기록 → 없으면 아동 표
+  const pick = k => (saved && saved[k]) || (PREV && PREV[k]) || '';
+  $('f_disab').value  = pick('disability_text');
+  $('f_school').value = pick('school_text') || c.school || '';
+  $('f_grade').value  = pick('grade_text')  || c.grade_year || '';
+  $('f_fine').value   = pick('level_fine');
+  $('f_cog').value    = pick('level_cog');
+  $('f_goalL').value  = pick('goal_long');
+  $('f_goalS').value  = pick('goal_short');
+  const carried = !saved && PREV;
+
+  CONT = (saved && saved.continue_yn) || '';
+  $('contBox').querySelectorAll('span').forEach(s =>
+    s.classList.toggle('on', s.dataset.val === CONT));
+
+  const tname = SCHED.length ? (THERAPISTS[SCHED[0].therapist_id] || '') : '';
+  $('signThr').textContent = tname || '\u00a0';
+  // 작성일 = 그 달 마지막 수업일. 저장된 값이 있으면 그것을 쓴다
+  let wd = saved && saved.written_on ? String(saved.written_on) : '';
+  if (!wd) {
+    const ds = _classDays();
+    if (ds.length) {
+      wd = year + '-' + String(month).padStart(2,'0')
+         + '-' + String(ds[ds.length - 1]).padStart(2,'0');
+    }
+  }
+  WRITTEN = wd || null;
+  $('signDate').innerHTML = wd
+    ? `${wd.slice(0,4)}년 ${parseInt(wd.slice(5,7),10)}월 ${parseInt(wd.slice(8,10),10)}일`
+    : '20&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일';
+
+  if (carried) {
+    $('pInfo').textContent += ' · 지난 기록(' + PREV.month_key + ')에서 목표를 이어받았습니다';
+  }
+  buildSeq();
+}
+
+function buildSeq() {
+  const days = _classDays();
+  const tt = _timeText();
+  const tb = $('seqBody');
+  tb.innerHTML = '';
+  for (let i = 0; i < SESSIONS; i++) {
+    const it = ITEMS[i] || {};
+    const d  = it.service_date ? parseInt(String(it.service_date).slice(8,10),10) : days[i];
+    const st = it.start_time ? String(it.start_time).slice(0,5) : '';
+    const en = it.end_time   ? String(it.end_time).slice(0,5)   : '';
+    const timeVal = (st && en) ? (st + '-' + en) : tt;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+        '<td style="text-align:center;">'
+      + '<div style="font-weight:bold;margin-bottom:4px;">' + (i+1) + '회</div>'
+      + '<input type="text" class="q_date" value="' + (d ? month + '월 ' + d + '일' : '') + '" style="text-align:center;">'
+      + '<input type="text" class="q_time" value="' + esc(timeVal) + '" style="text-align:center;margin-top:3px;">'
+      + '</td>'
+      + '<td><textarea class="q_content" style="min-height:64px;">' + esc(it.content || '') + '</textarea></td>'
+      + '<td><textarea class="q_react" style="min-height:64px;">' + esc(it.reaction || '') + '</textarea></td>';
+    tb.appendChild(tr);
+  }
+}
+
+// ── 저장 ──
+async function saveRecord() {
+  if (!LOADED || !cur) { alert('먼저 아동과 달을 고르고 [불러오기]를 누르세요.'); return; }
+  const mk = mkNow();
+  try {
+    const logRow = {
+      child_id: cur.child.id, support_type_id: cur.support_type_id, month_key: mk,
+      therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
+      goal_long:  $('f_goalL').value || null,
+      goal_short: $('f_goalS').value || null,
+      level_fine: $('f_fine').value  || null,
+      level_cog:  $('f_cog').value   || null,
+      school_text: $('f_school').value || null,
+      grade_text:  $('f_grade').value  || null,
+      disability_text: $('f_disab').value || null,
+      continue_yn: CONT || null,
+      written_on: WRITTEN || null,
+      updated_at: new Date().toISOString()
+    };
+    const { data: lg, error: e1 } = await sb.from('nl_session_logs')
+      .upsert(logRow, { onConflict: 'child_id,support_type_id,month_key' })
+      .select('id').single();
+    if (e1) throw e1;
+    LOGID = lg.id;
+
+    const del = await sb.from('nl_session_items').delete().eq('log_id', LOGID);
+    if (del.error) throw del.error;
+
+    const trs = document.querySelectorAll('#seqBody tr');
+    const items = [];
+    trs.forEach((tr, i) => {
+      const dtxt = tr.querySelector('.q_date').value;
+      const dm = dtxt.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+      const iso = dm
+        ? year + '-' + String(dm[1]).padStart(2,'0') + '-' + String(dm[2]).padStart(2,'0')
+        : d2iso(dtxt);
+      const tv = tr.querySelector('.q_time').value.split(/[-~]/);
+      items.push({
+        log_id: LOGID, seq_no: i + 1,
+        service_date: iso,
+        start_time: _hm(tv[0] || ''),
+        end_time:   _hm(tv[1] || ''),
+        therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
+        content:  tr.querySelector('.q_content').value || null,
+        reaction: tr.querySelector('.q_react').value || null,
+        status: '출석'
+      });
+    });
+    const ins = await sb.from('nl_session_items').insert(items);
+    if (ins.error) throw ins.error;
+
+    // 학교·학년을 아동 표에도 남긴다 (다음부터 자동으로 채워짐)
+    const sc = $('f_school').value.trim(), gy = $('f_grade').value.trim();
+    if (sc || gy) {
+      await sb.from('nl_children')
+        .update({ school: sc || null, grade_year: gy || null })
+        .eq('id', cur.child.id);
+      cur.child.school = sc; cur.child.grade_year = gy;
+    }
+
+    ITEMS = items;
+    alert('✅ 저장되었습니다.');
+    $('pInfo').textContent = mk + ' · 저장됨';
+  } catch (e) {
+    alert('❌ 저장하지 못했습니다.\n' + e.message);
+  }
+}
+
+$('pLoad').onclick = loadOne;
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data.session) await afterLogin(data.session.user);
+})();
+</script>
+</div>
+</body>
+</html>

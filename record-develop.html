@@ -331,6 +331,30 @@ function _shareRecordHelp(){
     '문의: 042-488-6011');
 }
 
+
+// ─────────────────────────────────────────────
+// 권한 — 관리자·행정은 전체, 치료사는 담당 아동만, 홍보는 못 들어옴
+// ─────────────────────────────────────────────
+function _roleOf(r) { return String(r || '').trim(); }
+function _isAllView(r) { const x = _roleOf(r); return x === '관리자' || x === '행정'; }
+function _isBlocked(r) { return _roleOf(r) === '홍보'; }
+function _blockScreen(role) {
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('mainBox').style.display = 'none';
+  const b = document.createElement('div');
+  b.style.cssText = 'max-width:420px;margin:80px auto;background:#fff;border-radius:12px;'
+    + 'padding:34px;border:1px solid #e0e0e0;text-align:center;font-family:inherit;';
+  b.innerHTML = '<div style="font-size:34px;margin-bottom:10px;">\uD83D\uDD12</div>'
+    + '<div style="font-size:16px;font-weight:bold;color:#2e7d32;margin-bottom:8px;">'
+    + '이 화면은 볼 수 없습니다</div>'
+    + '<div style="font-size:13px;color:#666;line-height:1.8;">'
+    + '치료 기록지는 관리자 · 행정 · 담당 치료사만 볼 수 있습니다.<br>'
+    + '현재 역할: <b>' + _roleOf(role) + '</b></div>'
+    + '<button onclick="logout()" style="margin-top:20px;background:#2e7d32;color:#fff;'
+    + 'border:none;border-radius:7px;padding:10px 20px;font-size:14px;cursor:pointer;">로그아웃</button>';
+  document.body.appendChild(b);
+}
+
 // ─────────────────────────────────────────────
 // 로그인
 // ─────────────────────────────────────────────
@@ -341,20 +365,33 @@ async function afterLogin(user) {
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
   ME = me;
+  if (_isBlocked(me.role)) { _blockScreen(me.role); return; }
 
   const [th, ch] = await Promise.all([
     sb.from('nl_therapists').select('id, name'),
     sb.from('nl_therapies')
-      .select('child_id, nl_children!inner(id, name, birth, manager_no, status)')
+      .select('child_id, nl_children!inner(id, name, birth, manager_no, status), nl_therapy_schedules(therapist_id)')
       .eq('support_type_id', 2)
   ]);
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
 
+  // 치료사면 자기가 담당인 아동만 추린다 (수업 시간표의 담당 기준)
+  let myChildIds = null;
+  if (!_isAllView(me.role)) {
+    const all = await sb.from('nl_therapy_schedules')
+      .select('therapist_id, nl_therapies!inner(child_id)')
+      .eq('therapist_id', me.id);
+    myChildIds = new Set((all.data || []).map(r => r.nl_therapies && r.nl_therapies.child_id)
+                                          .filter(v => v != null));
+  }
+
   const seen = {};
+  const mine = _isAllView(me.role) ? null : (myChildIds || new Set());
   (ch.data || []).forEach(r => {
     const c = r.nl_children;
     if (!c || seen[c.id]) return;
     if (c.status === '종결') return;
+    if (mine && !mine.has(c.id)) return;      // 치료사는 담당 아동만
     seen[c.id] = true;
     CHILDREN.push(c);
   });
@@ -364,7 +401,8 @@ async function afterLogin(user) {
     + CHILDREN.map(c => '<option value="' + c.id + '">' + esc(c.name)
         + ' · ' + fmtBirth(c.birth) + '</option>').join('');
   $('pMonth').value = mkNow();
-  $('who').textContent = me.name + ' (' + me.role + ') 님 · 발달재활 ' + CHILDREN.length + '명';
+  $('who').textContent = me.name + ' (' + me.role + ') 님 · 발달재활 ' + CHILDREN.length + '명'
+    + (_isAllView(me.role) ? '' : ' (담당)');
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
 }
