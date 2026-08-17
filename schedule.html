@@ -354,9 +354,26 @@
           <option value="60">60분</option>
         </select>
       </div>
+      <div>
+        <label for="ed_tt">치료 종류</label>
+        <select id="ed_tt"></select>
+      </div>
+      <div>
+        <label for="ed_st2">지원 유형</label>
+        <select id="ed_st2"></select>
+      </div>
+      <div>
+        <label for="ed_cnt">월 회수</label>
+        <select id="ed_cnt">
+          <option value="4">월 4회</option>
+          <option value="3">월 3회</option>
+          <option value="2">월 2회</option>
+          <option value="5">월 5회 (발추)</option>
+        </select>
+      </div>
     </div>
     <div class="pbtns">
-      <button id="edSave" class="pbtn ok-btn">옮기기</button>
+      <button id="edSave" class="pbtn ok-btn">저장하기</button>
       <button id="edEnd"  class="pbtn red">이 수업 끝내기</button>
       <button id="edClose" class="pbtn grey">닫기</button>
     </div>
@@ -850,6 +867,9 @@ function openEd(scId){
   $('ed_slot').value = String(nearest(toMin(r.start_time)).no);
   $('ed_th').value   = String(r.therapist_id);
   $('ed_dur').value  = String(r.duration || 40);
+  $('ed_tt').value   = String(r._tt || 1);
+  $('ed_st2').value  = String(r.support_type_id || 1);
+  $('ed_cnt').value  = String(r._cnt || 4);
   edmsg('', true); $('edMsg').className = 'out';
   $('addBox').style.display = 'none';
   $('mkBox').style.display = 'none';
@@ -879,20 +899,31 @@ $('edSave').onclick = async () => {
     if (error) throw error;
     Object.assign(edRow, data);
 
+    // 치료 종류 · 지원 유형 · 월 회수도 함께 고친다
+    const ntt  = Number($('ed_tt').value);
+    const nst  = Number($('ed_st2').value);
+    const ncnt = Number($('ed_cnt').value);
+    const { error: e2 } = await sb.from('nl_therapies')
+      .update({ therapy_type_id: ntt, support_type_id: nst,
+                monthly_count: ncnt, duration_min: du })
+      .eq('id', edRow.therapy_id);
+    if (e2) throw e2;
+    edRow._tt = ntt; edRow.support_type_id = nst; edRow._cnt = ncnt;
+
     // 아직 안 지난 회차의 날짜·치료사·시각도 함께 고친다
     const today = new Date().toISOString().slice(0,10);
     await sb.from('nl_sessions')
       .update({ therapist_id: th, start_time: slot.hm + ':00' })
       .eq('schedule_id', edRow.id).gte('plan_date', today).neq('status','보강');
 
-    edmsg('✅ 옮겼습니다. 지난 회차는 그대로 두고 앞으로의 회차만 바꿨습니다.\n'
-      + '요일을 바꾸셨으면 회차 날짜는 다음 달부터 맞습니다.', true);
+    edmsg('✅ 저장했습니다. 지난 회차는 그대로 두고 앞으로의 회차만 바꿨습니다.\n'
+      + '지원유형이나 회수를 바꾸셨으면 납부 계산에 다음 달부터 반영됩니다.', true);
     await loadMonth();
     draw();
   } catch (e) {
     edmsg('❌ 옮기지 못했습니다.\n' + e.message, false);
   } finally {
-    $('edSave').disabled = false; $('edSave').textContent = '옮기기';
+    $('edSave').disabled = false; $('edSave').textContent = '저장하기';
   }
 };
 
@@ -1248,6 +1279,13 @@ async function afterLogin(user){
   $('ed_wd').innerHTML   = ['월','화','수','목','금','토']
     .map(w=>'<option value="'+w+'">'+w+'요일</option>').join('');
   $('ed_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t+'</option>').join('');
+  $('ed_tt').innerHTML   = Object.keys(TTYPE)
+    .map(k=>'<option value="'+k+'">'+k+' '+TTYPE[k]+'치료</option>').join('');
+  $('ed_st2').innerHTML  =
+    '<option value="1">1 센터비용</option><option value="2">2 발달재활서비스</option>'
+  + '<option value="3">3 치료지원(언어)</option><option value="4">4 치료지원(작업)</option>'
+  + '<option value="5">5 방과후활동비</option><option value="6">6 방과후치료지원(언어)</option>'
+  + '<option value="7">7 방과후치료지원(작업)</option>';
   $('ed_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
   $('of_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
   if (!CAN_EDIT) $('offBtn').style.display = 'none';
