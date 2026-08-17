@@ -102,6 +102,10 @@
              padding:6px 13px; font-size:13px; cursor:pointer; color:#00695c; }
   .freeone:hover { background:#00695c; color:#fff; border-color:#00695c; }
   .freenone { color:#b71c1c; font-size:13px; }
+  .vtab { width:auto; margin:0; padding:9px 16px; background:#fff; color:#2e7d32;
+          font-size:13.5px; border:1px solid #9ccc65; }
+  .vtab.on { background:#2e7d32; color:#fff; font-weight:bold; border-color:#2e7d32; }
+  .vgap { width:10px; display:inline-block; }
   .findbox { width:190px; padding:9px 12px; font-size:14px; border:1px solid #9ccc65;
              border-radius:20px; box-sizing:border-box; font-family:inherit; }
   .findbox:focus { outline:2px solid #2e7d32; outline-offset:-1px; }
@@ -217,12 +221,18 @@
   </div>
 
   <div class="tools">
+    <button class="vtab on" data-v="day">요일별</button>
+    <button class="vtab" data-v="week">치료사별 주간</button>
+    <span class="vgap"></span>
+    <span id="wdBtns">
     <button class="tab" data-wd="월">월</button>
     <button class="tab" data-wd="화">화</button>
     <button class="tab" data-wd="수">수</button>
     <button class="tab" data-wd="목">목</button>
     <button class="tab" data-wd="금">금</button>
     <button class="tab" data-wd="토">토</button>
+    </span>
+    <select id="wkTh" class="sel" style="display:none;"></select>
     <select id="mon" class="sel"></select>
     <input id="findName" class="findbox" type="text" placeholder="🔍 아동 이름으로 찾기">
     <button id="offBtn" class="offbtn-top">🏖 휴무 관리</button>
@@ -484,6 +494,7 @@ let THS_ALL = [];       // 치료사 1~7 전부
 let SESS = [];          // 그 달 회차 전체
 let BAL  = new Set();   // 그 달 발추 아동
 let wd = '월', mon = '';
+let VIEW = 'day';       // day = 요일별, week = 치료사별 주간
 let mkSess = null;      // 지금 보강 잡는 결석 회차
 let CAN_EDIT = false;   // 수업을 넣고 고칠 수 있는 사람인가 (관리자 8 · 행정 9)
 let MY_TH    = null;    // 치료사로 로그인했으면 그 번호. 자기 칸만 보인다
@@ -670,6 +681,95 @@ function drawFind(){
 
 $('findName').addEventListener('input', drawFind);
 
+// ===== 치료사별 주간 보기 =====
+function drawWeek(){
+  const th = Number($('wkTh').value) || (THS[0] ? THS[0].id : 0);
+  const t  = THS_ALL.find(x => x.id === th);
+  const mine = ROWS.filter(r => r.therapist_id === th);
+  $('count').textContent = (t ? t.name : '') + ' 수업 ' + mine.length + '건';
+
+  // 회차·보강 모으기
+  const byScd = {}, mkOf = {};
+  SESS.forEach(s => {
+    if (s.status === '보강') { if (s.makeup_for) mkOf[s.makeup_for] = s; return; }
+    (byScd[s.schedule_id] = byScd[s.schedule_id] || []).push(s);
+  });
+  Object.values(byScd).forEach(a => a.sort((x,y)=>x.run_no-y.run_no));
+
+  // 칸에 담기
+  const cell = {};
+  mine.forEach(r => {
+    const k = nearest(toMin(r.start_time)).no + '_' + r.weekday;
+    (cell[k] = cell[k] || []).push(r);
+  });
+  // 이 치료사의 보강도
+  const mkCell = {};
+  SESS.forEach(s => {
+    if (s.status !== '보강' || s.therapist_id !== th || !s.plan_date) return;
+    const k = nearest(toMin(s.start_time)).no + '_' + wdOf(s.plan_date);
+    (mkCell[k] = mkCell[k] || []).push(s);
+  });
+
+  const DAYS = ['월','화','수','목','금','토'];
+  $('ghead').innerHTML = '<tr><th class="hcol">교시</th>'
+    + DAYS.map(d => '<th><div class="thname">' + d + '요일</div>'
+        + '<div class="thkind">' + countWd(mon, d) + '번</div></th>').join('') + '</tr>';
+
+  $('gbody').innerHTML = SLOTS.map(s => {
+    return '<tr>'
+      + '<td class="hcol"><div class="hno">'+s.no+'교시</div>'
+        + '<div class="htime">'+s.t+'</div></td>'
+      + DAYS.map(d => {
+          const lunch = (d !== '토' && s.no === LUNCH_NO);
+          const list = cell[s.no+'_'+d] || [];
+          const mks  = mkCell[s.no+'_'+d] || [];
+          if (!list.length && !mks.length) {
+            return '<td class="cell '+(lunch?'lunch':'free')+'" style="width:14%;">'
+              + (lunch ? '<span class="lunchtxt">점심</span>' : '') + '</td>';
+          }
+          let html = '';
+          list.forEach(r => {
+            const sp  = 'sp' + (r.support_type_id || 0);
+            const dur = (r.duration && Number(r.duration)!==40)
+                        ? ' <span class="dur">'+r.duration+'분</span>' : '';
+            const runs = (byScd[r.id] || []).map(x => {
+              const cls = x.status==='완료' ? 'r-done'
+                        : x.status==='결석' ? 'r-abs'
+                        : x.status==='휴무' ? 'r-off' : '';
+              const mk = mkOf[x.id];
+              const tail = (x.status==='결석' || x.status==='휴무')
+                ? (mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>'
+                      : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
+                : '<span class="st">'+x.status+'</span>';
+              return '<div class="run '+cls+'" data-sid="'+x.id+'">'
+                + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
+                + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
+                + tail + '</div>';
+            }).join('');
+            html += '<span class="chip '+sp+'">'
+              + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'">고치기</button>' : '')
+              + '<span class="nm">'+(STYPE[r.support_type_id]||'?')
+              + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+'</span>'+dur
+              + runs + '</span>';
+          });
+          mks.forEach(x => {
+            html += '<span class="chip r-mk">'
+              + '<span class="nm">🔁 '+esc(x._name||'')+'</span>'
+              + '<div class="run r-mk" data-sid="'+x.id+'">'
+              + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
+              + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
+              + '<span class="st">보강</span></div></span>';
+          });
+          return '<td class="cell" style="width:14%;">'+html+'</td>';
+        }).join('')
+      + '</tr>';
+  }).join('');
+
+  $('holi').style.display = 'none';
+  drawShort(byScd, mkOf);
+  drawFind();
+}
+
 function drawHead(){
   $('ghead').innerHTML = '<tr><th class="hcol">교시</th>'
     + THS.map(t=>'<th><div class="thname">'+esc(t.name)+'</div>'
@@ -677,11 +777,7 @@ function drawHead(){
 }
 
 function draw(){
-  const day = ROWS.filter(r => r.weekday === wd);
   $('monBig').textContent = monNo(mon) + '월';
-  $('count').textContent = wd+'요일 수업 '+day.length+'건 · '
-    + monNo(mon)+'월에 '+countWd(mon,wd)+'번';
-
   if (!SESS.length) {
     $('noSess').style.display = 'block';
     $('noSess').innerHTML = '<b>' + monNo(mon) + '월은 회차가 아직 없습니다.</b> '
@@ -690,6 +786,14 @@ function draw(){
   } else {
     $('noSess').style.display = 'none';
   }
+  if (VIEW === 'week') { drawWeek(); return; }
+  drawDay();
+}
+
+function drawDay(){
+  const day = ROWS.filter(r => r.weekday === wd);
+  $('count').textContent = wd+'요일 수업 '+day.length+'건 · '
+    + monNo(mon)+'월에 '+countWd(mon,wd)+'번';
 
   // 회차를 수업별로 모으기
   const byScd = {};
@@ -1403,6 +1507,7 @@ async function afterLogin(user){
   + '<option value="7">7 방과후치료지원(작업)</option>';
   $('ed_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
   $('of_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
+  $('wkTh').innerHTML    = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+' 치료사</option>').join('');
   if (!CAN_EDIT) $('offBtn').style.display = 'none';
 
   await loadMonth();
@@ -1433,6 +1538,21 @@ $('mon').onchange = async () => { mon=$('mon').value;
   $('mkBox').style.display='none'; $('addBox').style.display='none';
   $('edBox').style.display='none'; $('offBox').style.display='none';
   await loadMonth(); draw(); };
+document.querySelectorAll('.vtab').forEach(b=>{
+  b.onclick = () => {
+    document.querySelectorAll('.vtab').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    VIEW = b.dataset.v;
+    $('wdBtns').style.display = (VIEW==='day') ? '' : 'none';
+    $('wkTh').style.display   = (VIEW==='week') ? '' : 'none';
+    $('addBox').style.display='none'; $('edBox').style.display='none';
+    $('offBox').style.display='none';
+    if (VIEW === 'day') drawHead();
+    draw();
+  };
+});
+$('wkTh').onchange = () => draw();
+
 document.querySelectorAll('.tab[data-wd]').forEach(b=>{
   b.onclick=()=>{ document.querySelectorAll('.tab[data-wd]').forEach(x=>x.classList.remove('on'));
     b.classList.add('on'); wd=b.dataset.wd;
