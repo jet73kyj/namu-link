@@ -102,6 +102,25 @@
              padding:6px 13px; font-size:13px; cursor:pointer; color:#00695c; }
   .freeone:hover { background:#00695c; color:#fff; border-color:#00695c; }
   .freenone { color:#b71c1c; font-size:13px; }
+  .findbox { width:190px; padding:9px 12px; font-size:14px; border:1px solid #9ccc65;
+             border-radius:20px; box-sizing:border-box; font-family:inherit; }
+  .findbox:focus { outline:2px solid #2e7d32; outline-offset:-1px; }
+  .findres { background:#f1f8e9; border:1px solid #c5e1a5; border-radius:10px;
+             padding:14px 16px; margin-bottom:14px; }
+  .findres-t { font-size:15px; font-weight:bold; color:#33691e; margin-bottom:10px; }
+  .findrow { background:#fff; border:1px solid #dcedc8; border-radius:8px;
+             padding:10px 12px; margin-bottom:8px; }
+  .findrow:last-child { margin-bottom:0; }
+  .fr-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+            font-size:13.5px; margin-bottom:6px; }
+  .fr-nm { font-weight:bold; font-size:14px; }
+  .fr-when { background:#e8f5e9; color:#1b5e20; border-radius:12px;
+             padding:2px 10px; font-weight:bold; }
+  .fr-th { color:#5a6156; }
+  .fr-runs { display:flex; flex-wrap:wrap; gap:5px; }
+  .fr-btn { width:auto; margin:0 0 0 auto; padding:3px 12px; font-size:11.5px;
+            background:#546e7a; border-radius:12px; }
+  .findnone { color:#c62828; font-size:13.5px; }
   .offbtn-top { width:auto; margin:0; padding:9px 16px; background:#546e7a;
                 color:#fff; font-size:13.5px; font-weight:bold; }
   .panel.grey-p { background:#eceff1; border-color:#b0bec5; }
@@ -205,8 +224,15 @@
     <button class="tab" data-wd="금">금</button>
     <button class="tab" data-wd="토">토</button>
     <select id="mon" class="sel"></select>
+    <input id="findName" class="findbox" type="text" placeholder="🔍 아동 이름으로 찾기">
     <button id="offBtn" class="offbtn-top">🏖 휴무 관리</button>
     <span class="count" id="count"></span>
+  </div>
+
+  <!-- 이름 검색 결과 -->
+  <div id="findBox" class="findres" style="display:none;">
+    <div class="findres-t" id="findTitle"></div>
+    <div id="findRows"></div>
   </div>
 
   <!-- 휴무 관리 창 -->
@@ -409,6 +435,8 @@
     창에서 <b>빈 자리 찾기</b>를 누르면 담당 치료사가 비는 자리를 가까운 날부터 찾아줍니다.<br>
     맨 위 빨간 상자에 <b>그 달 회수가 모자란 아동</b>이 모입니다.
     발달재활은 반드시 4회를 채워야 해서 맨 앞에 나옵니다.<br>
+    위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
+    요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 고치기가 됩니다.<br>
     빈 칸이 그 치료사의 빈 시간입니다. 5교시는 주중 점심(보강 가능)입니다.<br>
     빈 칸의 <b>＋</b> 를 누르면 그 자리에 새 수업을 넣습니다.
     수업의 <b>고치기</b> 를 누르면 요일·시간·치료사를 바꾸거나 수업을 끝냅니다.
@@ -556,6 +584,92 @@ function monEnd(k){
   return k + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+// ===== 이름으로 아동 수업 찾기 =====
+function drawFind(){
+  const q = $('findName').value.trim();
+  if (!q) { $('findBox').style.display = 'none'; return; }
+
+  const hit = ROWS.filter(r => (r._name || '').includes(q));
+  $('findBox').style.display = 'block';
+
+  if (!hit.length) {
+    $('findTitle').textContent = '🔍 "' + q + '" 찾기';
+    $('findRows').innerHTML = '<div class="findnone">그 이름의 수업이 없습니다. '
+      + '종결한 아동이거나 수업이 아직 없는 아동입니다.</div>';
+    return;
+  }
+
+  // 회차를 수업별로 모으기
+  const byScd = {}, mkOf = {};
+  SESS.forEach(s => {
+    if (s.status === '보강') { if (s.makeup_for) mkOf[s.makeup_for] = s; return; }
+    (byScd[s.schedule_id] = byScd[s.schedule_id] || []).push(s);
+  });
+  Object.values(byScd).forEach(a => a.sort((x,y)=>x.run_no-y.run_no));
+
+  const names = Array.from(new Set(hit.map(r => r._name)));
+  $('findTitle').textContent = '🔍 ' + names.join(' · ') + ' — 수업 ' + hit.length + '건';
+
+  const ord = { '월':1,'화':2,'수':3,'목':4,'금':5,'토':6 };
+  hit.sort((a,b) => (ord[a.weekday]-ord[b.weekday]) || (toMin(a.start_time)-toMin(b.start_time)));
+
+  $('findRows').innerHTML = hit.map(r => {
+    const th = THS_ALL.find(t => t.id === r.therapist_id);
+    const sl = nearest(toMin(r.start_time));
+    const runs = (byScd[r.id] || []).map(x => {
+      const cls = x.status==='완료' ? 'r-done'
+                : x.status==='결석' ? 'r-abs'
+                : x.status==='휴무' ? 'r-off' : '';
+      const mk = mkOf[x.id];
+      const tail = (x.status==='결석' || x.status==='휴무')
+        ? (mk ? '→' + dayNo(mk.plan_date) + '일'
+              : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
+        : x.status;
+      return '<span class="run ' + cls + '" data-sid="'+x.id+'" style="display:inline-flex;">'
+        + '<span class="no">' + monNo(mon) + '-' + x.run_no + '</span>'
+        + '<span class="dt">' + dayNo(x.plan_date) + '일</span>'
+        + '<span class="st">' + tail + '</span></span>';
+    }).join('');
+
+    return '<div class="findrow">'
+      + '<div class="fr-top">'
+        + '<span class="fr-nm">' + esc(r._name) + '</span>'
+        + '<span class="fr-when">' + r.weekday + ' ' + sl.hm + '</span>'
+        + '<span class="fr-th">' + (STYPE[r.support_type_id]||'') + ' · '
+          + (TTYPE[r._tt]||'') + ' · ' + (th ? esc(th.name) : '') + ' · '
+          + (r.duration||'') + '분</span>'
+        + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'">고치기</button>' : '')
+      + '</div>'
+      + '<div class="fr-runs">' + (runs || '<span class="findnone">이 달 회차 없음</span>') + '</div>'
+      + '</div>';
+  }).join('');
+
+  // 찾은 결과에서도 회차 누르기·보강·고치기가 되게
+  $('findRows').querySelectorAll('.fr-btn').forEach(el => {
+    el.onclick = () => openEd(Number(el.dataset.ed));
+  });
+  $('findRows').querySelectorAll('.mkbtn').forEach(el => {
+    el.onclick = (e) => { e.stopPropagation(); openMk(Number(el.dataset.mk)); };
+  });
+  $('findRows').querySelectorAll('.run').forEach(el => {
+    el.onclick = async (e) => {
+      if (e.target.closest('.mkbtn')) return;
+      const id = Number(el.dataset.sid);
+      const s = SESS.find(x => x.id === id);
+      if (!s) return;
+      if (s.status === '휴무') { openMk(s.id); return; }
+      const nx = NEXT[s.status] || '완료';
+      const { error } = await sb.from('nl_sessions')
+        .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
+      s.status = nx;
+      draw();
+    };
+  });
+}
+
+$('findName').addEventListener('input', drawFind);
+
 function drawHead(){
   $('ghead').innerHTML = '<tr><th class="hcol">교시</th>'
     + THS.map(t=>'<th><div class="thname">'+esc(t.name)+'</div>'
@@ -590,6 +704,7 @@ function draw(){
   SESS.forEach(s => { if (s.status === '보강' && s.makeup_for) mkOf[s.makeup_for] = s; });
 
   drawShort(byScd, mkOf);
+  drawFind();
 
   // 이 요일에 걸린 쉬는 날 알려주기
   const holi = Object.keys(OFFTXT).filter(k => wdOf(k) === wd)
