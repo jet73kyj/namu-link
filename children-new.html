@@ -57,6 +57,11 @@
   .addgrid input, .addgrid select { width:100%; padding:8px 10px; font-size:14px;
              border:1px solid #ddd; border-radius:6px; box-sizing:border-box; }
   .addbtns { margin-top:14px; display:flex; gap:8px; }
+  .editbox { background:#e8f0fe; border:1px solid #a8c7fa; border-radius:10px;
+             padding:18px; margin-bottom:18px; }
+  .edittitle { font-size:15px; font-weight:bold; color:#1a468f; margin-bottom:12px; }
+  tbody tr { cursor:pointer; }
+  .edmark { color:#1565c0; font-size:11.5px; font-weight:bold; }
 </style>
 </head>
 <body>
@@ -144,6 +149,14 @@
         <label for="f_disability">장애구분</label>
         <input id="f_disability" type="text">
       </div>
+      <div>
+        <label for="f_school">학교</label>
+        <input id="f_school" type="text">
+      </div>
+      <div>
+        <label for="f_grade">학년</label>
+        <input id="f_grade" type="text">
+      </div>
       <div style="grid-column:1 / -1;">
         <label for="f_memo">메모</label>
         <input id="f_memo" type="text">
@@ -154,6 +167,74 @@
       <button id="cancelNew" class="tab">취소</button>
     </div>
     <div id="msg3" class="out"></div>
+  </div>
+
+  <!-- 고치기 창 -->
+  <div id="edBox" class="editbox" style="display:none;">
+    <div class="edittitle" id="edTitle"></div>
+    <div class="addgrid">
+      <div>
+        <label for="e_no">관리번호</label>
+        <input id="e_no" type="text">
+      </div>
+      <div>
+        <label for="e_name">이름 <span style="color:#c62828;">*</span></label>
+        <input id="e_name" type="text">
+      </div>
+      <div>
+        <label for="e_birth">생년월일</label>
+        <input id="e_birth" type="date">
+      </div>
+      <div>
+        <label for="e_status">상태 <span style="color:#c62828;">*</span></label>
+        <select id="e_status">
+          <option value="치료중">치료중</option>
+          <option value="대기중">대기중</option>
+          <option value="종결">종결</option>
+        </select>
+      </div>
+      <div>
+        <label for="e_gender">성별</label>
+        <select id="e_gender">
+          <option value="">-- 선택 --</option>
+          <option value="남">남</option>
+          <option value="여">여</option>
+        </select>
+      </div>
+      <div>
+        <label for="e_phone">연락처</label>
+        <input id="e_phone" type="text">
+      </div>
+      <div>
+        <label for="e_guardian">보호자</label>
+        <input id="e_guardian" type="text">
+      </div>
+      <div>
+        <label for="e_diagnosis">진단명</label>
+        <input id="e_diagnosis" type="text">
+      </div>
+      <div>
+        <label for="e_disability">장애구분</label>
+        <input id="e_disability" type="text">
+      </div>
+      <div>
+        <label for="e_school">학교</label>
+        <input id="e_school" type="text">
+      </div>
+      <div>
+        <label for="e_grade">학년</label>
+        <input id="e_grade" type="text">
+      </div>
+      <div style="grid-column:1 / -1;">
+        <label for="e_memo">메모</label>
+        <input id="e_memo" type="text">
+      </div>
+    </div>
+    <div class="addbtns">
+      <button id="saveEdit" class="tab" style="background:#1565c0;color:#fff;font-weight:bold;">저장하기</button>
+      <button id="cancelEdit" class="tab">닫기</button>
+    </div>
+    <div id="msg4" class="out"></div>
   </div>
 
   <table>
@@ -167,6 +248,7 @@
         <th>성별</th>
         <th>상태</th>
         <th>메모</th>
+        <th></th>
       </tr>
     </thead>
     <tbody id="rows"></tbody>
@@ -230,7 +312,7 @@ function draw() {
   $('rows').innerHTML = list.map(c => {
     const flag = (c.memo || '').includes('[확인필요]')
       ? ' <span class="flag">[확인필요]</span>' : '';
-    return '<tr>'
+    return '<tr data-ed="' + c.id + '">'
       + '<td class="idcell">' + c.id + '</td>'
       + '<td>' + esc(c.manager_no) + '</td>'
       + '<td>' + esc(c.name) + '</td>'
@@ -239,8 +321,13 @@ function draw() {
       + '<td>' + esc(c.gender) + '</td>'
       + '<td>' + badge(c.status) + '</td>'
       + '<td>' + esc(c.memo).slice(0, 30) + flag + '</td>'
+      + '<td class="edmark">고치기</td>'
       + '</tr>';
   }).join('');
+
+  document.querySelectorAll('tr[data-ed]').forEach(tr => {
+    tr.onclick = () => openEdit(Number(tr.dataset.ed));
+  });
 }
 
 async function afterLogin(user) {
@@ -257,7 +344,7 @@ async function afterLogin(user) {
   // 2) 아동 불러오기
   const { data, error } = await sb
     .from('nl_children')
-    .select('id, manager_no, name, birth, gender, status, memo')
+    .select('id, manager_no, name, birth, gender, status, memo, phone, guardian, diagnosis, disability, school, grade_year')
     .order('name');
 
   if (error) { show('❌ 아동 목록 조회 실패\n' + error.message, false); return; }
@@ -294,9 +381,9 @@ $('out').onclick = async () => {
 };
 
 // 상태 단추
-document.querySelectorAll('.tab').forEach(b => {
+document.querySelectorAll('.tab[data-st]').forEach(b => {
   b.onclick = () => {
-    document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('.tab[data-st]').forEach(x => x.classList.remove('on'));
     b.classList.add('on');
     stFilter = b.dataset.st;
     draw();
@@ -326,7 +413,8 @@ function show3(text, ok) {
 }
 
 function clearForm() {
-  ['f_name','f_birth','f_phone','f_guardian','f_diagnosis','f_disability','f_memo']
+  ['f_name','f_birth','f_phone','f_guardian','f_diagnosis','f_disability',
+   'f_school','f_grade','f_memo']
     .forEach(k => $(k).value = '');
   $('f_gender').value = '';
   $('f_status').value = '대기중';
@@ -372,6 +460,8 @@ $('saveNew').onclick = async () => {
     guardian:   $('f_guardian').value.trim() || null,
     diagnosis:  $('f_diagnosis').value.trim() || null,
     disability: $('f_disability').value.trim() || null,
+    school:     $('f_school').value.trim() || null,
+    grade_year: $('f_grade').value.trim() || null,
     memo:       $('f_memo').value.trim() || null
   };
 
@@ -380,7 +470,7 @@ $('saveNew').onclick = async () => {
   try {
     const { data, error } = await sb.from('nl_children')
       .insert(row)
-      .select('id, manager_no, name, birth, gender, status, memo')
+      .select('id, manager_no, name, birth, gender, status, memo, phone, guardian, diagnosis, disability, school, grade_year')
       .single();
     if (error) throw error;
 
@@ -396,6 +486,91 @@ $('saveNew').onclick = async () => {
   } finally {
     $('saveNew').disabled = false;
     $('saveNew').textContent = '저장하기';
+  }
+};
+
+// ===== 아동 정보 고치기 =====
+let edId = null;
+
+function show4(text, ok) {
+  $('msg4').textContent = text;
+  $('msg4').className = 'out ' + (ok ? 'ok' : 'err');
+}
+
+function openEdit(id) {
+  const c = ALL.find(x => x.id === id);
+  if (!c) return;
+  edId = id;
+  $('addBox').style.display = 'none';
+  $('edTitle').textContent = '아동 ' + c.id + '번 고치기';
+  $('e_no').value         = c.manager_no || '';
+  $('e_name').value       = c.name || '';
+  $('e_birth').value      = c.birth || '';
+  $('e_status').value     = c.status || '치료중';
+  $('e_gender').value     = c.gender || '';
+  $('e_phone').value      = c.phone || '';
+  $('e_guardian').value   = c.guardian || '';
+  $('e_diagnosis').value  = c.diagnosis || '';
+  $('e_disability').value = c.disability || '';
+  $('e_school').value     = c.school || '';
+  $('e_grade').value      = c.grade_year || '';
+  $('e_memo').value       = c.memo || '';
+  $('msg4').className = 'out';
+  $('msg4').textContent = '';
+  $('edBox').style.display = 'block';
+  $('edBox').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+$('cancelEdit').onclick = () => { $('edBox').style.display = 'none'; edId = null; };
+
+$('saveEdit').onclick = async () => {
+  if (!edId) return;
+  const name = $('e_name').value.trim();
+  if (!name) { show4('이름을 입력하세요.', false); return; }
+
+  const before = ALL.find(x => x.id === edId);
+  const newSt  = $('e_status').value;
+  if (before && before.status !== newSt) {
+    if (!confirm('상태를 ' + before.status + ' → ' + newSt + ' 로 바꿉니다.\n계속할까요?')) return;
+  }
+
+  const up = {
+    manager_no: $('e_no').value.trim() || null,
+    name:       name,
+    birth:      $('e_birth').value || null,
+    status:     newSt,
+    gender:     $('e_gender').value || null,
+    phone:      $('e_phone').value.trim() || null,
+    guardian:   $('e_guardian').value.trim() || null,
+    diagnosis:  $('e_diagnosis').value.trim() || null,
+    disability: $('e_disability').value.trim() || null,
+    school:     $('e_school').value.trim() || null,
+    grade_year: $('e_grade').value.trim() || null,
+    memo:       $('e_memo').value.trim() || null,
+    updated_at: new Date().toISOString()
+  };
+
+  $('saveEdit').disabled = true;
+  $('saveEdit').textContent = '저장 중...';
+  try {
+    const { data, error } = await sb.from('nl_children')
+      .update(up).eq('id', edId)
+      .select('id, manager_no, name, birth, gender, status, memo, phone, guardian, diagnosis, disability, school, grade_year')
+      .single();
+    if (error) throw error;
+
+    const i = ALL.findIndex(x => x.id === edId);
+    if (i >= 0) ALL[i] = data;
+    ALL.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+    draw();
+    show4('✅ 저장했습니다.'
+      + (before && before.status !== newSt
+         ? '\n상태를 ' + newSt + ' 로 바꿨습니다. 시간표와 납부 계산에도 반영됩니다.' : ''), true);
+  } catch (e) {
+    show4('❌ 저장하지 못했습니다.\n' + e.message, false);
+  } finally {
+    $('saveEdit').disabled = false;
+    $('saveEdit').textContent = '저장하기';
   }
 };
 
