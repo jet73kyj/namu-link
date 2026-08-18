@@ -1211,6 +1211,20 @@ async function makeRuns(){
   await loadMonth();
 }
 
+// 한 수업의 그 달 회차를 새로 맞춘다
+// 예정인 것만 지우고 다시 깐다. 완료·결석·휴무·보강은 그대로 둔다
+async function refreshRuns(scheduleId){
+  try {
+    await sb.from('nl_sessions').delete()
+      .eq('schedule_id', scheduleId).eq('month_key', mon).eq('status', '예정');
+    await sb.rpc('nl_make_sessions', { p_month: mon });
+    await loadMonth();
+    return true;
+  } catch (e) {
+    return String(e.message || e);
+  }
+}
+
 // ===== 수업 고치기 =====
 let edWk = [true,true,true,true];   // 고치기 창의 오는 주차
 
@@ -1289,15 +1303,18 @@ $('edSave').onclick = async () => {
     edRow._w3 = edWk[2]; edRow._w4 = edWk[3];
     edRow._wks = wkCnt;
 
-    // 아직 안 지난 회차의 날짜·치료사·시각도 함께 고친다
+    // 아직 안 지난 회차의 치료사·시각도 함께 고친다
     const today = new Date().toISOString().slice(0,10);
     await sb.from('nl_sessions')
       .update({ therapist_id: th, start_time: slot.hm + ':00' })
       .eq('schedule_id', edRow.id).gte('plan_date', today).neq('status','보강');
 
-    edmsg('✅ 저장했습니다. 지난 회차는 그대로 두고 앞으로의 회차만 바꿨습니다.\n'
-      + '지원유형이나 회수를 바꾸셨으면 납부 계산에 다음 달부터 반영됩니다.', true);
-    await loadMonth();
+    // 회차를 새로 맞춘다 (예정만 다시 깔고 완료·결석·휴무·보강은 그대로)
+    const rr = await refreshRuns(edRow.id);
+    edmsg(rr === true
+      ? '✅ 저장했습니다. 이 달 회차도 새로 맞췄습니다.\n'
+        + '완료·결석·휴무·보강으로 표시한 것은 그대로 뒀습니다.'
+      : '✅ 저장했습니다. 다만 회차를 새로 맞추지 못했습니다.\n' + rr, true);
     draw();
   } catch (e) {
     edmsg('❌ 옮기지 못했습니다.\n' + e.message, false);
