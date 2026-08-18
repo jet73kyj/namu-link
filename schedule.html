@@ -108,6 +108,8 @@
   .w5one .sm2 { color:#7a5050; font-size:12.5px; }
   .w5one:hover .sm2 { color:#ffe0b2; }
   .w5none { color:#7a5050; font-size:13.5px; }
+  .spdif { background:#2e7d32; color:#fff; border-radius:8px; padding:0 6px;
+           font-size:10.5px; font-weight:bold; margin-right:3px; }
   .w5btn  { width:auto; margin:0 0 0 auto; padding:2px 10px; font-size:10.5px;
             font-weight:bold; background:#ef6c00; border-radius:10px; }
   .w5btn:hover { background:#e65100; }
@@ -380,7 +382,7 @@
           <option value="4회만">4회만 — 5주차여도 4회</option>
           <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
           <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
-          <option value="발4+센1">발4+센1 — 5주차 1회는 센터비용</option>
+          <option value="발4+센1">발4+센1 — 1~4주차는 그대로, 5주차 1회만 센터비용</option>
         </select>
       </div>
       <div style="grid-column:1 / -1;">
@@ -433,7 +435,7 @@
           <option value="4회만">4회만 — 5주차여도 4회</option>
           <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
           <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
-          <option value="발4+센1">발4+센1 — 5주차 1회는 센터비용</option>
+          <option value="발4+센1">발4+센1 — 1~4주차는 그대로, 5주차 1회만 센터비용</option>
         </select>
       </div>
     </div>
@@ -476,7 +478,8 @@
     발달재활은 반드시 4회를 채워야 해서 맨 앞에 나옵니다.<br>
     <b>회수 방식</b> — 4회만(5주차여도 4회) · <b>5/5 (발추)</b>(5주 있는 달만 5회) ·
     <b>매월 5회 (발추)</b>(4주뿐인 달엔 1회 모자람으로 뜨니 보강을 잡으세요) ·
-    <b>발4+센1</b>(발달재활 4회를 다른 자리에서 받고, 5주차 1회만 센터비용으로 받는 아동)<br>
+    <b>발4+센1</b> — 1~4주차는 원래 지원유형(발달재활) 그대로, 5주 있는 달은 5주차 1회가
+    센터비용으로 들어갑니다. 그 회차에 <b>초록 「센」</b> 표시가 붙습니다.<br>
     위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
     요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 고치기가 됩니다.<br>
     5주차가 있는 달에 그 아동이 수업이 없으면 <b>초록 빈 자리</b>가 보입니다.
@@ -659,7 +662,7 @@ function drawFind(){
     if (s.status === '보강') { if (s.makeup_for) mkOf[s.makeup_for] = s; return; }
     (byScd[s.schedule_id] = byScd[s.schedule_id] || []).push(s);
   });
-  Object.values(byScd).forEach(a => a.sort((x,y)=>x.run_no-y.run_no));
+  Object.values(byScd).forEach(a => a.sort((x,y)=>String(x.plan_date).localeCompare(String(y.plan_date))));
 
   const names = Array.from(new Set(hit.map(r => r._name)));
   $('findTitle').textContent = '🔍 ' + names.join(' · ') + ' — 수업 ' + hit.length + '건';
@@ -679,7 +682,10 @@ function drawFind(){
         ? (mk ? '→' + dayNo(mk.plan_date) + '일'
               : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
         : x.status;
+      const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
+        ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>' : '';
       return '<span class="run ' + cls + '" data-sid="'+x.id+'" style="display:inline-flex;">'
+        + dif
         + '<span class="no">' + monNo(mon) + '-' + x.run_no + '</span>'
         + '<span class="dt">' + dayNo(x.plan_date) + '일</span>'
         + '<span class="st">' + tail + '</span></span>';
@@ -742,7 +748,7 @@ function drawWeek(){
     if (s.status === '보강') { if (s.makeup_for) mkOf[s.makeup_for] = s; return; }
     (byScd[s.schedule_id] = byScd[s.schedule_id] || []).push(s);
   });
-  Object.values(byScd).forEach(a => a.sort((x,y)=>x.run_no-y.run_no));
+  Object.values(byScd).forEach(a => a.sort((x,y)=>String(x.plan_date).localeCompare(String(y.plan_date))));
 
   // 칸에 담기
   const cell = {};
@@ -789,7 +795,10 @@ function drawWeek(){
                 ? (mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>'
                       : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
                 : '<span class="st">'+x.status+'</span>';
+              const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
+                ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>' : '';
               return '<div class="run '+cls+'" data-sid="'+x.id+'">'
+                + dif
                 + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
                 + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
                 + tail + '</div>';
@@ -883,7 +892,7 @@ function drawDay(){
     if (s.status === '보강') return;
     (byScd[s.schedule_id] = byScd[s.schedule_id] || []).push(s);
   });
-  Object.values(byScd).forEach(a => a.sort((x,y)=>x.run_no-y.run_no));
+  Object.values(byScd).forEach(a => a.sort((x,y)=>String(x.plan_date).localeCompare(String(y.plan_date))));
 
   // 결석 -> 보강 잇기
   const mkOf = {};
@@ -966,7 +975,10 @@ function drawDay(){
               } else {
                 tail = '<span class="st">'+x.status+'</span>';
               }
+              const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
+                ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>' : '';
               return '<div class="run '+cls+'" data-sid="'+x.id+'">'
+                + dif
                 + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
                 + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
                 + tail + '</div>';
@@ -1033,13 +1045,6 @@ let pickKid = null;   // 고른 아동
 let wkOn = [true,true,true,true];   // 오는 주차 (1~4주)
 
 function drawWks(){
-  const only5 = ($('ad_cnt') && $('ad_cnt').value === '발4+센1');
-  if (only5) {
-    $('ad_st').value = '1';                 // 센터비용으로 맞춘다
-    $('ad_wks').innerHTML = '<span class="wkoff">5주차 1회만 들어갑니다. '
-      + '지원 유형은 센터비용으로 맞췄습니다. (회차는 9-5)</span>';
-    return;
-  }
   $('ad_wks').innerHTML = [1,2,3,4].map(n =>
     '<span class="wk'+(wkOn[n-1]?' on':'')+'" data-wk="'+n+'">'+n+'주차</span>').join('');
   $('ad_wks').querySelectorAll('.wk').forEach(el => {
@@ -1113,8 +1118,7 @@ $('adSave').onclick = async () => {
   const slot = SLOTS.find(x => x.no === Number(p[0]));
   const thId = Number(p[1]);
   const tt   = Number($('ad_tt').value) || null;
-  const only5 = ($('ad_cnt').value === '발4+센1');
-  const st   = only5 ? 1 : (Number($('ad_st').value) || null);
+  const st   = Number($('ad_st').value) || null;
 
   // 담당 규칙 살펴보기
   const rule = RULE[tt];
@@ -1128,14 +1132,10 @@ $('adSave').onclick = async () => {
       child_id: cid, therapy_type_id: tt, support_type_id: st,
       duration_min: Number($('ad_dur').value),
       started_on: $('ad_start').value || null,
-      monthly_count: ($('ad_cnt').value === '발4+센1') ? 1
-                     : wkOn.filter(Boolean).length
-                       + (($('ad_cnt').value !== '4회만') ? 1 : 0),
+      monthly_count: wkOn.filter(Boolean).length
+                     + (($('ad_cnt').value !== '4회만') ? 1 : 0),
       count_mode: $('ad_cnt').value,
-      week1: ($('ad_cnt').value === '발4+센1') ? false : wkOn[0],
-      week2: ($('ad_cnt').value === '발4+센1') ? false : wkOn[1],
-      week3: ($('ad_cnt').value === '발4+센1') ? false : wkOn[2],
-      week4: ($('ad_cnt').value === '발4+센1') ? false : wkOn[3],
+      week1: wkOn[0], week2: wkOn[1], week3: wkOn[2], week4: wkOn[3],
       week5: ($('ad_cnt').value !== '4회만')
     }).select().single();
     if (e1) throw e1;
@@ -1188,13 +1188,6 @@ function openEd(scId){
 }
 $('edClose').onclick = () => { $('edBox').style.display='none'; edRow=null; };
 
-$('ed_cnt').onchange = () => {
-  if ($('ed_cnt').value === '발4+센1') {
-    $('ed_st2').value = '1';
-    edmsg('발4+센1은 센터비용으로 맞췄습니다. 5주차 1회만 들어가고 회차는 9-5가 됩니다.', true);
-  }
-};
-
 $('edSave').onclick = async () => {
   if (!edRow) return;
   const slot = SLOTS.find(x => x.no === Number($('ed_slot').value));
@@ -1219,20 +1212,17 @@ $('edSave').onclick = async () => {
     // 치료 종류 · 지원 유형 · 월 회수도 함께 고친다
     const ntt  = Number($('ed_tt').value);
     const nmode= $('ed_cnt').value;
-    const only5 = (nmode === '발4+센1');
-    const nst  = only5 ? 1 : Number($('ed_st2').value);
+    const nst  = Number($('ed_st2').value);
     const base = (edRow._wks != null) ? edRow._wks : 4;
-    const ncnt = only5 ? 1 : base + ((nmode !== '4회만') ? 1 : 0);
+    const ncnt = base + ((nmode !== '4회만') ? 1 : 0);
     const up2 = { therapy_type_id: ntt, support_type_id: nst,
                   count_mode: nmode, monthly_count: ncnt,
                   week5: (nmode !== '4회만'), duration_min: du };
-    if (only5) { up2.week1=false; up2.week2=false; up2.week3=false; up2.week4=false; }
     const { error: e2 } = await sb.from('nl_therapies')
       .update(up2).eq('id', edRow.therapy_id);
     if (e2) throw e2;
     edRow._tt = ntt; edRow.support_type_id = nst;
     edRow._mode = nmode; edRow._cnt = ncnt;
-    if (only5) edRow._wks = 0;
 
     // 아직 안 지난 회차의 날짜·치료사·시각도 함께 고친다
     const today = new Date().toISOString().slice(0,10);
@@ -1602,7 +1592,7 @@ async function loadMonth(){
   if (pay) pay.forEach(p => BAL.add(p.child_id));
 
   const { data, error } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id')
     .eq('month_key', mon);
   SESS = error ? [] : (data || []);
   if (MY_TH) SESS = SESS.filter(s => s.therapist_id === MY_TH);
