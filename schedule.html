@@ -110,6 +110,8 @@
   .w5none { color:#7a5050; font-size:13.5px; }
   .spdif { background:#2e7d32; color:#fff; border-radius:8px; padding:0 6px;
            font-size:10.5px; font-weight:bold; margin-right:3px; }
+  .spadd { background:#1565c0; color:#fff; border-radius:8px; padding:0 6px;
+           font-size:10.5px; font-weight:bold; margin-right:3px; }
   .w5btn  { width:auto; margin:0 0 0 auto; padding:2px 10px; font-size:10.5px;
             font-weight:bold; background:#ef6c00; border-radius:10px; }
   .w5btn:hover { background:#e65100; }
@@ -379,8 +381,8 @@
       <div>
         <label for="ad_cnt">회수 방식</label>
         <select id="ad_cnt">
+          <option value="매주">매주 — 5주면 5회, 4주면 4회</option>
           <option value="4회만">4회만 — 5주차여도 4회</option>
-          <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
           <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
           <option value="발4+센1">발4+센1 — 1~4주차는 그대로, 5주차 1회만 센터비용</option>
         </select>
@@ -432,8 +434,8 @@
       <div>
         <label for="ed_cnt">회수 방식</label>
         <select id="ed_cnt">
+          <option value="매주">매주 — 5주면 5회, 4주면 4회</option>
           <option value="4회만">4회만 — 5주차여도 4회</option>
-          <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
           <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
           <option value="발4+센1">발4+센1 — 1~4주차는 그대로, 5주차 1회만 센터비용</option>
         </select>
@@ -467,6 +469,8 @@
     <span class="lg r-done">완료</span>
     <span class="lg r-abs">결석</span>
     <span class="lg r-mk">보강</span>
+    &nbsp;&nbsp;<span class="spadd">이</span> 발달재활 추가 5회차
+    <span class="spdif">센</span> 5주차만 다른 사업
   </div>
   <div class="note">
     회차를 <b>누를 때마다</b> 예정 → 완료 → 결석 → 예정 순으로 바뀝니다.
@@ -476,7 +480,8 @@
     창에서 <b>빈 자리 찾기</b>를 누르면 담당 치료사가 비는 자리를 가까운 날부터 찾아줍니다.<br>
     맨 위 빨간 상자에 <b>그 달 회수가 모자란 아동</b>이 모입니다.
     발달재활은 반드시 4회를 채워야 해서 맨 앞에 나옵니다.<br>
-    <b>회수 방식</b> — 4회만(5주차여도 4회) · <b>5/5 (발추)</b>(5주 있는 달만 5회) ·
+    <b>회수 방식</b> — <b>매주</b>(5주면 5회, 4주면 4회. 대부분 이것) ·
+    4회만(5주차여도 4회) ·
     <b>매월 5회 (발추)</b>(4주뿐인 달엔 1회 모자람으로 뜨니 보강을 잡으세요) ·
     <b>발4+센1</b> — 1~4주차는 원래 지원유형(발달재활) 그대로, 5주 있는 달은 5주차 1회가
     센터비용으로 들어갑니다. 그 회차에 <b>초록 「센」</b> 표시가 붙습니다.<br>
@@ -683,7 +688,9 @@ function drawFind(){
               : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
         : x.status;
       const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
-        ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>' : '';
+        ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
+        : ((r.support_type_id === 2 && x.run_no === 5)
+           ? '<span class="spadd">이</span>' : '');
       return '<span class="run ' + cls + '" data-sid="'+x.id+'" style="display:inline-flex;">'
         + dif
         + '<span class="no">' + monNo(mon) + '-' + x.run_no + '</span>'
@@ -796,7 +803,9 @@ function drawWeek(){
                       : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
                 : '<span class="st">'+x.status+'</span>';
               const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
-                ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>' : '';
+                ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
+                : ((r.support_type_id === 2 && x.run_no === 5)
+                   ? '<span class="spadd">이</span>' : '');
               return '<div class="run '+cls+'" data-sid="'+x.id+'">'
                 + dif
                 + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
@@ -976,7 +985,9 @@ function drawDay(){
                 tail = '<span class="st">'+x.status+'</span>';
               }
               const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
-                ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>' : '';
+                ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
+                : ((r.support_type_id === 2 && x.run_no === 5)
+                   ? '<span class="spadd">이</span>' : '');
               return '<div class="run '+cls+'" data-sid="'+x.id+'">'
                 + dif
                 + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
@@ -1098,7 +1109,7 @@ function openAdd(key){
   $('ad_hits').innerHTML = '';
   clearPick();
   $('ad_dur').value = '40';
-  $('ad_cnt').value = '4회만';
+  $('ad_cnt').value = '매주';
   wkOn = [true,true,true,true];
   drawWks();
   $('ad_start').value = mon + '-01';
