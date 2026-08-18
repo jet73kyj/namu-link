@@ -61,7 +61,10 @@
              padding:18px; margin-bottom:18px; }
   .edittitle { font-size:15px; font-weight:bold; color:#1a468f; margin-bottom:12px; }
   tbody tr { cursor:pointer; }
+  table.readonly tbody tr { cursor:default; }
   .edmark { color:#1565c0; font-size:11.5px; font-weight:bold; }
+  .tel { font-size:12.5px; color:#00695c; margin-top:3px; white-space:nowrap; }
+  .notel { color:#bbb; }
 </style>
 </head>
 <body>
@@ -267,6 +270,7 @@ const msg = $('msg');
 
 let ALL = [];        // 불러온 아동 전체
 let stFilter = '전체';  // 지금 고른 상태
+let CAN_EDIT = false;   // 8번 관리자 · 9번 행정만 true
 
 function show(text, ok) {
   msg.textContent = text;
@@ -312,7 +316,20 @@ function draw() {
   $('rows').innerHTML = list.map(c => {
     const flag = (c.memo || '').includes('[확인필요]')
       ? ' <span class="flag">[확인필요]</span>' : '';
-    return '<tr data-ed="' + c.id + '">'
+
+    // 메모 밑에 붙는 연락처 줄 (8번 관리자 · 9번 행정만 보임)
+    let tel = '';
+    if (CAN_EDIT) {
+      if (c.phone) {
+        tel = '<div class="tel">📞 '
+            + (c.guardian ? esc(c.guardian) + ' ' : '')
+            + esc(c.phone) + '</div>';
+      } else {
+        tel = '<div class="tel"><span class="notel">연락처 없음</span></div>';
+      }
+    }
+
+    return '<tr' + (CAN_EDIT ? ' data-ed="' + c.id + '"' : '') + '>'
       + '<td class="idcell">' + c.id + '</td>'
       + '<td>' + esc(c.manager_no) + '</td>'
       + '<td>' + esc(c.name) + '</td>'
@@ -320,8 +337,8 @@ function draw() {
       + '<td>' + age(c.birth) + '</td>'
       + '<td>' + esc(c.gender) + '</td>'
       + '<td>' + badge(c.status) + '</td>'
-      + '<td>' + esc(c.memo).slice(0, 30) + flag + '</td>'
-      + '<td class="edmark">고치기</td>'
+      + '<td>' + esc(String(c.memo == null ? '' : c.memo).slice(0, 30)) + flag + tel + '</td>'
+      + '<td class="edmark">' + (CAN_EDIT ? '고치기' : '') + '</td>'
       + '</tr>';
   }).join('');
 
@@ -334,7 +351,7 @@ async function afterLogin(user) {
   // 1) 직원 확인
   const { data: me, error: e1 } = await sb
     .from('nl_therapists')
-    .select('name, role, active')
+    .select('id, name, role, active')
     .eq('login_email', user.email.toLowerCase())
     .maybeSingle();
 
@@ -350,7 +367,19 @@ async function afterLogin(user) {
   if (error) { show('❌ 아동 목록 조회 실패\n' + error.message, false); return; }
 
   ALL = data || [];
-  $('who').textContent = me.name + ' (' + me.role + ') 님으로 로그인됨';
+
+  // 3) 권한 정하기 — 8번 관리자, 9번 행정만 고치기·등록·연락처 보기
+  CAN_EDIT = [8, 9].includes(Number(me.id)) || /관리자|행정/.test(me.role || '');
+
+  if (!CAN_EDIT) {
+    $('addBtn').style.display = 'none';          // ＋ 신규 등록 감추기
+    $('addBox').style.display = 'none';
+    $('edBox').style.display  = 'none';
+    document.querySelector('table').classList.add('readonly');
+  }
+
+  $('who').textContent = me.name + ' (' + me.role + ') 님으로 로그인됨'
+                       + (CAN_EDIT ? '' : ' · 보기 전용');
   $('loginBox').style.display = 'none';
   $('listBox').style.display  = 'block';
   draw();
@@ -498,6 +527,7 @@ function show4(text, ok) {
 }
 
 function openEdit(id) {
+  if (!CAN_EDIT) return;
   const c = ALL.find(x => x.id === id);
   if (!c) return;
   edId = id;
