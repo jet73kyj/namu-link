@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>급여명세서 - 나무링크</title>
+<style>
+  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:#f5f9f0;
+         margin:0; padding:20px; color:#333; }
+  .box { max-width:460px; margin:40px auto; background:#fff; border-radius:12px;
+         padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  .wide { max-width:840px; margin:16px auto; background:#fff; border-radius:12px;
+          padding:24px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  h1 { font-size:20px; color:#2e7d32; margin:0 0 4px; }
+  .sub { font-size:13px; color:#888; margin-bottom:22px; }
+  label { display:block; font-size:13px; font-weight:bold; margin:14px 0 5px; }
+  input { width:100%; padding:11px; border:1px solid #ddd; border-radius:7px;
+          font-size:15px; box-sizing:border-box; }
+  button { width:100%; padding:13px; margin-top:20px; background:#2e7d32; color:#fff;
+           border:none; border-radius:7px; font-size:15px; font-weight:bold; cursor:pointer; }
+  button:disabled { background:#bbb; cursor:default; }
+  .out { margin-top:16px; padding:13px; border-radius:8px; font-size:14px;
+         line-height:1.7; display:none; white-space:pre-wrap; }
+  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
+  .err { background:#ffebee; color:#b71c1c; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:center;
+         flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+  .who { font-size:13px; color:#666; }
+  .btn-out { width:auto; margin:0; padding:8px 16px; background:#757575; font-size:13px; }
+  .tools { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px; }
+  .sel { width:auto; padding:9px 12px; font-size:14px; border:1px solid #ddd;
+         border-radius:7px; font-family:inherit; }
+  .prtbtn { width:auto; margin:0; padding:9px 16px; background:#546e7a; font-size:13.5px; }
+
+  /* 입력 칸 */
+  .editbox { background:#f1f8e9; border:1px solid #c5e1a5; border-radius:10px;
+             padding:16px 18px; margin-bottom:18px; }
+  .editbox .t { font-size:15px; font-weight:bold; color:#33691e; margin-bottom:12px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr));
+          gap:10px 14px; }
+  .grid label { font-size:12.5px; font-weight:normal; margin:0 0 4px; color:#555; }
+  .grid input { padding:8px 10px; font-size:14px; }
+  .grid input.n { text-align:right; }
+  .btns { margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+  .btn2 { width:auto; margin:0; padding:9px 18px; font-size:13.5px; }
+  .grey { background:#9e9e9e; }
+  .hint { font-size:12px; color:#7cb342; margin-top:6px; }
+
+  /* 명세서 */
+  .paper { border:2px solid #333; padding:26px 30px; max-width:640px; margin:0 auto; }
+  .ptitle { text-align:center; font-size:20px; font-weight:bold; margin-bottom:20px;
+            letter-spacing:2px; }
+  .pinfo { font-size:13.5px; line-height:2; margin-bottom:18px; }
+  .pinfo b { display:inline-block; width:76px; color:#555; font-weight:normal; }
+  .ptab { width:100%; border-collapse:collapse; font-size:14px; }
+  .ptab th { background:#eceff1; border:1px solid #999; padding:8px;
+             text-align:center; font-size:13.5px; }
+  .ptab td { border:1px solid #999; padding:7px 10px; }
+  .ptab td.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .ptab .sum td { font-weight:bold; background:#f5f5f5; }
+  .pfinal { margin-top:16px; border:2px solid #333; padding:12px 14px;
+            display:flex; justify-content:space-between; align-items:center;
+            font-size:17px; font-weight:bold; }
+  .pfoot { margin-top:22px; text-align:center; font-size:13px; color:#666; }
+  .vac { color:#c62828; }
+
+  @media print {
+    body { background:#fff; padding:0; }
+    .wide { box-shadow:none; max-width:none; margin:0; padding:0; }
+    .noprint { display:none !important; }
+    .paper { border:2px solid #000; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 로그인 전 -->
+<div class="box" id="loginBox">
+  <h1>🌿 나무링크</h1>
+  <div class="sub">급여명세서 — 관리자 전용</div>
+  <label for="em">이메일</label>
+  <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="btn">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<!-- 로그인 후 -->
+<div class="wide" id="mainBox" style="display:none;">
+  <div class="top noprint">
+    <div>
+      <h1>🌿 급여명세서</h1>
+      <div class="who" id="who"></div>
+    </div>
+    <button id="out" class="btn-out">로그아웃</button>
+  </div>
+
+  <div class="tools noprint">
+    <select id="mon" class="sel"></select>
+    <select id="staff" class="sel"></select>
+    <button id="prt" class="prtbtn">인쇄 / PDF 저장</button>
+  </div>
+
+  <!-- 넣기 -->
+  <div class="editbox noprint">
+    <div class="t">금액 넣기 <span style="font-weight:normal;font-size:12.5px;color:#7cb342;">
+      세무사에게 받은 금액을 그대로 넣으세요</span></div>
+    <div class="grid">
+      <div><label for="f_base">기본급</label><input id="f_base" class="n" type="text"></div>
+      <div><label for="f_pen">국민연금</label><input id="f_pen" class="n" type="text"></div>
+      <div><label for="f_hea">건강보험</label><input id="f_hea" class="n" type="text"></div>
+      <div><label for="f_car">장기요양보험</label><input id="f_car" class="n" type="text"></div>
+      <div><label for="f_emp">고용보험</label><input id="f_emp" class="n" type="text"></div>
+      <div><label for="f_tax">소득세</label><input id="f_tax" class="n" type="text"></div>
+      <div><label for="f_loc">농특세</label><input id="f_loc" class="n" type="text"></div>
+      <div><label for="f_pd">지급일</label><input id="f_pd" type="date"></div>
+      <div style="grid-column:1 / -1;">
+        <label for="f_vac">휴가 <span style="color:#7cb342;">(예: 7/21,7/22)</span></label>
+        <input id="f_vac" type="text" placeholder="쉰 날짜를 적으세요">
+      </div>
+    </div>
+    <div class="btns">
+      <button id="save" class="btn2">저장하기</button>
+      <button id="prev" class="btn2 grey">지난 달 금액 가져오기</button>
+    </div>
+    <div class="hint" id="hint"></div>
+    <div id="msg2" class="out"></div>
+  </div>
+
+  <!-- 명세서 -->
+  <div class="paper" id="paper"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_);
+const $  = id => document.getElementById(id);
+
+// 관리자(8)만 볼 수 있다
+const CAN_SEE = [8];
+// 급여명세서를 만드는 직원 — 9 행정 / 10 홍보
+const STAFF = [9, 10];
+
+let PEOPLE = [], ROW = null;
+let mon = '', sid = 0;
+
+function show(t, ok){ $('msg').textContent=t; $('msg').className='out '+(ok?'ok':'err'); }
+function msg2(t, ok){ $('msg2').textContent=t; $('msg2').className='out '+(ok?'ok':'err'); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function won(n){ return Number(n||0).toLocaleString('ko-KR'); }
+function num(s){ return Number(String(s||'').replace(/[^0-9-]/g,'')) || 0; }
+function monNo(k){ return Number(String(k).split('-')[1]); }
+function yrNo(k){ return Number(String(k).split('-')[0]); }
+function fmtDate(d){
+  if (!d) return '';
+  const p = String(d).split('-');
+  return p[0] + '.' + p[1] + '.' + p[2] + '.';
+}
+// 지난 달 (2026-08 -> 2026-07)
+function prevMon(k){
+  const p = String(k).split('-');
+  const d = new Date(Number(p[0]), Number(p[1]) - 2, 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+// 그 달 다음 달 8일 (지급일 기본값)
+function payDay(k){
+  const p = String(k).split('-');
+  const d = new Date(Number(p[0]), Number(p[1]), 8);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-08';
+}
+
+// 입력칸에 숫자를 넣을 때 쉼표 붙이기
+['f_base','f_pen','f_hea','f_car','f_emp','f_tax','f_loc'].forEach(k => {
+  document.addEventListener('DOMContentLoaded', () => {});
+});
+
+function fillForm(r){
+  $('f_base').value = r ? won(r.base_pay)   : '';
+  $('f_pen').value  = r ? won(r.pension)    : '';
+  $('f_hea').value  = r ? won(r.health)     : '';
+  $('f_car').value  = r ? won(r.care)       : '';
+  $('f_emp').value  = r ? won(r.employ)     : '';
+  $('f_tax').value  = r ? won(r.income_tax) : '';
+  $('f_loc').value  = r ? won(r.local_tax)  : '';
+  $('f_pd').value   = (r && r.pay_date) ? r.pay_date : payDay(mon);
+  $('f_vac').value  = r ? (r.vacation || '') : '';
+  $('hint').textContent = r
+    ? '이 달 자료가 있습니다. 고치고 저장하시면 됩니다.'
+    : '이 달 자료가 아직 없습니다. 금액을 넣고 저장하세요. '
+      + '지난 달과 같으면 「지난 달 금액 가져오기」를 누르세요.';
+}
+
+function drawPaper(){
+  const p = PEOPLE.find(x => x.id === sid);
+  if (!ROW) {
+    $('paper').innerHTML = '<div style="text-align:center;color:#999;padding:40px 0;">'
+      + monNo(mon) + '월 자료가 없습니다. 위에서 금액을 넣고 저장하세요.</div>';
+    return;
+  }
+  const r = ROW;
+  const cut = (r.pension||0)+(r.health||0)+(r.care||0)+(r.employ||0)
+            + (r.income_tax||0)+(r.local_tax||0);
+  const net = (r.base_pay||0) - cut;
+
+  const cl = (lab, amt) => '<tr><td>' + lab + '</td><td class="n">' + won(amt) + '</td></tr>';
+
+  $('paper').innerHTML =
+      '<div class="ptitle">' + yrNo(mon) + '년 ' + String(monNo(mon)).padStart(2,'0')
+      + '월분 급여명세서</div>'
+    + '<div class="pinfo">'
+      + '<b>회사명</b> 자라는나무<br>'
+      + '<b>성명</b> ' + esc(p ? p.name : '') + '<br>'
+      + '<b>생년월일</b> ' + esc(p ? (p.birth || '') : '') + '<br>'
+      + '<b>입사일</b> ' + (p && p.hired_on ? fmtDate(p.hired_on) : '') + '<br>'
+      + '<b>지급일</b> ' + fmtDate(r.pay_date) + '<br>'
+      + '<b>휴가</b> <span class="vac">' + esc(r.vacation || '') + '</span>'
+    + '</div>'
+    + '<div style="font-size:13.5px;margin-bottom:6px;">세부내역</div>'
+    + '<table class="ptab">'
+      + '<tr><th style="width:50%;">지급</th><th>공제</th></tr>'
+      + '<tr><td style="padding:0;vertical-align:top;">'
+        + '<table class="ptab" style="border:none;">'
+          + '<tr><td style="border:none;border-bottom:1px solid #999;">임금항목</td>'
+          + '<td class="n" style="border:none;border-bottom:1px solid #999;">지급금액</td></tr>'
+          + '<tr><td style="border:none;">기본급</td>'
+          + '<td class="n" style="border:none;">' + won(r.base_pay) + '</td></tr>'
+        + '</table></td>'
+      + '<td style="padding:0;vertical-align:top;">'
+        + '<table class="ptab" style="border:none;">'
+          + cl('국민연금',   r.pension)
+          + cl('건강보험',   r.health)
+          + cl('장기요양보험', r.care)
+          + cl('고용보험',   r.employ)
+          + cl('소득세',     r.income_tax)
+          + cl('농특세',     r.local_tax)
+          + '<tr class="sum"><td>공제액계</td><td class="n">' + won(cut) + '</td></tr>'
+        + '</table></td></tr>'
+    + '</table>'
+    + '<div class="pfinal"><span>실수령액</span><span>' + won(net) + ' 원</span></div>'
+    + '<div class="pfoot">자라는나무</div>';
+}
+
+async function loadRow(){
+  const { data } = await sb.from('nl_salary')
+    .select('*').eq('staff_id', sid).eq('month_key', mon).maybeSingle();
+  ROW = data || null;
+  fillForm(ROW);
+  drawPaper();
+}
+
+$('save').onclick = async () => {
+  const row = {
+    staff_id: sid, month_key: mon,
+    base_pay:   num($('f_base').value),
+    pension:    num($('f_pen').value),
+    health:     num($('f_hea').value),
+    care:       num($('f_car').value),
+    employ:     num($('f_emp').value),
+    income_tax: num($('f_tax').value),
+    local_tax:  num($('f_loc').value),
+    pay_date:   $('f_pd').value || null,
+    vacation:   $('f_vac').value.trim() || null,
+    updated_at: new Date().toISOString()
+  };
+  if (!row.base_pay) { msg2('기본급을 넣으세요.', false); return; }
+
+  $('save').disabled = true; $('save').textContent = '저장 중...';
+  try {
+    const { error } = await sb.from('nl_salary')
+      .upsert(row, { onConflict: 'staff_id,month_key' });
+    if (error) throw error;
+    msg2('✅ 저장했습니다.', true);
+    await loadRow();
+  } catch (e) {
+    msg2('❌ 저장하지 못했습니다.\n' + e.message, false);
+  } finally {
+    $('save').disabled = false; $('save').textContent = '저장하기';
+  }
+};
+
+$('prev').onclick = async () => {
+  const pm = prevMon(mon);
+  const { data } = await sb.from('nl_salary')
+    .select('*').eq('staff_id', sid).eq('month_key', pm).maybeSingle();
+  if (!data) { msg2(monNo(pm) + '월 자료가 없습니다.', false); return; }
+  $('f_base').value = won(data.base_pay);
+  $('f_pen').value  = won(data.pension);
+  $('f_hea').value  = won(data.health);
+  $('f_car').value  = won(data.care);
+  $('f_emp').value  = won(data.employ);
+  $('f_tax').value  = won(data.income_tax);
+  $('f_loc').value  = won(data.local_tax);
+  $('f_pd').value   = payDay(mon);
+  msg2('✅ ' + monNo(pm) + '월 금액을 가져왔습니다. 휴가는 새로 적으세요.\n'
+     + '확인하고 「저장하기」를 눌러야 저장됩니다.', true);
+};
+
+$('prt').onclick = () => window.print();
+
+async function afterLogin(user){
+  const { data: me, error: e1 } = await sb.from('nl_therapists')
+    .select('id, name, role').eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (e1)  { show('❌ 직원 조회 실패\n'+e1.message, false); return; }
+  if (!me) { show('⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+  if (CAN_SEE.indexOf(me.id) < 0) {
+    show('이 화면은 관리자만 볼 수 있습니다.', false); return;
+  }
+
+  const { data: ps } = await sb.from('nl_therapists')
+    .select('id, name, role, birth, hired_on').in('id', STAFF).order('id');
+  PEOPLE = ps || [];
+  $('staff').innerHTML = PEOPLE.map(p =>
+    '<option value="'+p.id+'">'+esc(p.name)+' ('+esc(p.role)+')</option>').join('');
+  sid = PEOPLE.length ? PEOPLE[0].id : 0;
+
+  const now = new Date();
+  let opts = '';
+  for (let k = 11; k >= 0; k--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    opts += '<option value="'+key+'">'+key+'</option>';
+  }
+  $('mon').innerHTML = opts;
+  mon = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  $('mon').value = mon;
+
+  $('who').textContent = me.name + ' (' + me.role + ') 님으로 로그인됨';
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+  await loadRow();
+}
+
+$('mon').onchange   = async () => { mon = $('mon').value; await loadRow(); };
+$('staff').onchange = async () => { sid = Number($('staff').value); await loadRow(); };
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase(), pw = $('pw').value;
+  if (!email || !pw) { show('이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) { show('❌ 로그인 실패\n'+e.message, false); }
+  finally { $('btn').disabled = false; $('btn').textContent = '로그인'; }
+};
+$('out').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data.session) await afterLogin(data.session.user);
+})();
+</script>
+</body>
+</html>
