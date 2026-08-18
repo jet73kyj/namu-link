@@ -181,6 +181,8 @@
   .wk { background:#fff; border:1px solid #ccc; border-radius:16px;
         padding:6px 14px; font-size:13px; cursor:pointer; color:#888; }
   .wk.on { background:#2e7d32; border-color:#2e7d32; color:#fff; font-weight:bold; }
+  .wkoff { color:#e65100; font-size:13px; background:#fff3e0;
+           border-radius:8px; padding:8px 12px; display:inline-block; }
   .hits { margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; }
   .hit { background:#fff; border:1px solid #c5e1a5; border-radius:16px;
          padding:5px 12px; font-size:13px; cursor:pointer; }
@@ -351,8 +353,9 @@
         <label for="ad_cnt">회수 방식</label>
         <select id="ad_cnt">
           <option value="4회만">4회만 — 5주차여도 4회</option>
-          <option value="5/5">5/5 — 5주 있는 달만 5회</option>
-          <option value="매월 5회">매월 5회 — 4주여도 5회 (보강)</option>
+          <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
+          <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
+          <option value="5주차만">5주차만 — 5주 있는 달에 1회만</option>
         </select>
       </div>
       <div style="grid-column:1 / -1;">
@@ -403,8 +406,9 @@
         <label for="ed_cnt">회수 방식</label>
         <select id="ed_cnt">
           <option value="4회만">4회만 — 5주차여도 4회</option>
-          <option value="5/5">5/5 — 5주 있는 달만 5회</option>
-          <option value="매월 5회">매월 5회 — 4주여도 5회 (보강)</option>
+          <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
+          <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
+          <option value="5주차만">5주차만 — 5주 있는 달에 1회만</option>
         </select>
       </div>
     </div>
@@ -445,8 +449,9 @@
     창에서 <b>빈 자리 찾기</b>를 누르면 담당 치료사가 비는 자리를 가까운 날부터 찾아줍니다.<br>
     맨 위 빨간 상자에 <b>그 달 회수가 모자란 아동</b>이 모입니다.
     발달재활은 반드시 4회를 채워야 해서 맨 앞에 나옵니다.<br>
-    <b>회수 방식</b> — 4회만(5주차여도 4회) · 5/5(5주 있는 달만 5회) ·
-    매월 5회(4주뿐인 달엔 1회 모자람으로 뜨니 보강을 잡으세요)<br>
+    <b>회수 방식</b> — 4회만(5주차여도 4회) · <b>5/5 (발추)</b>(5주 있는 달만 5회) ·
+    <b>매월 5회 (발추)</b>(4주뿐인 달엔 1회 모자람으로 뜨니 보강을 잡으세요) ·
+    5주차만(5주 있는 달에 1회만. 5주차만 지원유형이 다른 아동에 쓰세요)<br>
     위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
     요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 고치기가 됩니다.<br>
     빈 칸이 그 치료사의 빈 시간입니다. 5교시는 주중 점심(보강 가능)입니다.<br>
@@ -535,6 +540,7 @@ function drawShort(byScd, mkOf){
     // 「매월 5회」인데 그 달에 5주차가 없어 회차가 하나 모자란 경우
     const short5 = (r._mode === '매월 5회' && runs.length < (r._wks + 1)) ? 1 : 0;
     if (!miss.length && !short5) return;
+    if (r._mode === '5주차만' && !miss.length) return;
     const need = r._cnt || (runs.length + short5);
     bad.push({ row:r, need:need,
                have:need - miss.length - short5,
@@ -959,6 +965,12 @@ let pickKid = null;   // 고른 아동
 let wkOn = [true,true,true,true];   // 오는 주차 (1~4주)
 
 function drawWks(){
+  const only5 = ($('ad_cnt') && $('ad_cnt').value === '5주차만');
+  if (only5) {
+    $('ad_wks').innerHTML = '<span class="wkoff">5주차에만 수업이 들어갑니다. '
+      + '1~4주차는 안 깔립니다.</span>';
+    return;
+  }
   $('ad_wks').innerHTML = [1,2,3,4].map(n =>
     '<span class="wk'+(wkOn[n-1]?' on':'')+'" data-wk="'+n+'">'+n+'주차</span>').join('');
   $('ad_wks').querySelectorAll('.wk').forEach(el => {
@@ -969,6 +981,7 @@ function drawWks(){
     };
   });
 }
+$('ad_cnt').onchange = drawWks;
 
 function clearPick(){
   pickKid = null;
@@ -1045,11 +1058,15 @@ $('adSave').onclick = async () => {
       child_id: cid, therapy_type_id: tt, support_type_id: st,
       duration_min: Number($('ad_dur').value),
       started_on: $('ad_start').value || null,
-      monthly_count: wkOn.filter(Boolean).length
-                     + (($('ad_cnt').value !== '4회만') ? 1 : 0),
+      monthly_count: ($('ad_cnt').value === '5주차만') ? 1
+                     : wkOn.filter(Boolean).length
+                       + (($('ad_cnt').value !== '4회만') ? 1 : 0),
       count_mode: $('ad_cnt').value,
-      week1: wkOn[0], week2: wkOn[1], week3: wkOn[2],
-      week4: wkOn[3], week5: ($('ad_cnt').value !== '4회만')
+      week1: ($('ad_cnt').value === '5주차만') ? false : wkOn[0],
+      week2: ($('ad_cnt').value === '5주차만') ? false : wkOn[1],
+      week3: ($('ad_cnt').value === '5주차만') ? false : wkOn[2],
+      week4: ($('ad_cnt').value === '5주차만') ? false : wkOn[3],
+      week5: ($('ad_cnt').value !== '4회만')
     }).select().single();
     if (e1) throw e1;
 
@@ -1127,15 +1144,18 @@ $('edSave').onclick = async () => {
     const nst  = Number($('ed_st2').value);
     const nmode= $('ed_cnt').value;
     const base = (edRow._wks != null) ? edRow._wks : 4;
-    const ncnt = base + ((nmode !== '4회만') ? 1 : 0);
+    const only5 = (nmode === '5주차만');
+    const ncnt = only5 ? 1 : base + ((nmode !== '4회만') ? 1 : 0);
+    const up2 = { therapy_type_id: ntt, support_type_id: nst,
+                  count_mode: nmode, monthly_count: ncnt,
+                  week5: (nmode !== '4회만'), duration_min: du };
+    if (only5) { up2.week1=false; up2.week2=false; up2.week3=false; up2.week4=false; }
     const { error: e2 } = await sb.from('nl_therapies')
-      .update({ therapy_type_id: ntt, support_type_id: nst,
-                count_mode: nmode, monthly_count: ncnt,
-                week5: (nmode !== '4회만'), duration_min: du })
-      .eq('id', edRow.therapy_id);
+      .update(up2).eq('id', edRow.therapy_id);
     if (e2) throw e2;
     edRow._tt = ntt; edRow.support_type_id = nst;
     edRow._mode = nmode; edRow._cnt = ncnt;
+    if (only5) edRow._wks = 0;
 
     // 아직 안 지난 회차의 날짜·치료사·시각도 함께 고친다
     const today = new Date().toISOString().slice(0,10);
