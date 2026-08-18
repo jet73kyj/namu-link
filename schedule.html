@@ -380,7 +380,7 @@
           <option value="4회만">4회만 — 5주차여도 4회</option>
           <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
           <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
-          <option value="5주차만">5주차만 — 5주 있는 달에 1회만</option>
+          <option value="5주차만">5주차만 (센) — 5주 있는 달에 1회만, 센터비용</option>
         </select>
       </div>
       <div style="grid-column:1 / -1;">
@@ -433,7 +433,7 @@
           <option value="4회만">4회만 — 5주차여도 4회</option>
           <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
           <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
-          <option value="5주차만">5주차만 — 5주 있는 달에 1회만</option>
+          <option value="5주차만">5주차만 (센) — 5주 있는 달에 1회만, 센터비용</option>
         </select>
       </div>
     </div>
@@ -476,7 +476,8 @@
     발달재활은 반드시 4회를 채워야 해서 맨 앞에 나옵니다.<br>
     <b>회수 방식</b> — 4회만(5주차여도 4회) · <b>5/5 (발추)</b>(5주 있는 달만 5회) ·
     <b>매월 5회 (발추)</b>(4주뿐인 달엔 1회 모자람으로 뜨니 보강을 잡으세요) ·
-    5주차만(5주 있는 달에 1회만. 5주차만 지원유형이 다른 아동에 쓰세요)<br>
+    5주차만 (센)(5주 있는 달에 1회만. 지원유형은 센터비용으로 자동)<br>
+    회차 번호는 <b>아동+지원유형</b>으로 이어집니다. 월요일 센 4회 뒤 화요일 5주차 센이면 9-5가 됩니다.<br>
     위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
     요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 고치기가 됩니다.<br>
     5주차가 있는 달에 그 아동이 수업이 없으면 <b>초록 빈 자리</b>가 보입니다.
@@ -1035,8 +1036,9 @@ let wkOn = [true,true,true,true];   // 오는 주차 (1~4주)
 function drawWks(){
   const only5 = ($('ad_cnt') && $('ad_cnt').value === '5주차만');
   if (only5) {
+    $('ad_st').value = '1';                 // 센터비용으로 맞춘다
     $('ad_wks').innerHTML = '<span class="wkoff">5주차에만 수업이 들어갑니다. '
-      + '1~4주차는 안 깔립니다.</span>';
+      + '지원 유형은 센터비용으로 맞췄습니다.</span>';
     return;
   }
   $('ad_wks').innerHTML = [1,2,3,4].map(n =>
@@ -1112,7 +1114,8 @@ $('adSave').onclick = async () => {
   const slot = SLOTS.find(x => x.no === Number(p[0]));
   const thId = Number(p[1]);
   const tt   = Number($('ad_tt').value) || null;
-  const st   = Number($('ad_st').value) || null;
+  const only5 = ($('ad_cnt').value === '5주차만');
+  const st   = only5 ? 1 : (Number($('ad_st').value) || null);
 
   // 담당 규칙 살펴보기
   const rule = RULE[tt];
@@ -1186,6 +1189,13 @@ function openEd(scId){
 }
 $('edClose').onclick = () => { $('edBox').style.display='none'; edRow=null; };
 
+$('ed_cnt').onchange = () => {
+  if ($('ed_cnt').value === '5주차만') {
+    $('ed_st2').value = '1';
+    edmsg('5주차만은 센터비용으로 맞췄습니다.', true);
+  }
+};
+
 $('edSave').onclick = async () => {
   if (!edRow) return;
   const slot = SLOTS.find(x => x.no === Number($('ed_slot').value));
@@ -1209,10 +1219,10 @@ $('edSave').onclick = async () => {
 
     // 치료 종류 · 지원 유형 · 월 회수도 함께 고친다
     const ntt  = Number($('ed_tt').value);
-    const nst  = Number($('ed_st2').value);
     const nmode= $('ed_cnt').value;
-    const base = (edRow._wks != null) ? edRow._wks : 4;
     const only5 = (nmode === '5주차만');
+    const nst  = only5 ? 1 : Number($('ed_st2').value);
+    const base = (edRow._wks != null) ? edRow._wks : 4;
     const ncnt = only5 ? 1 : base + ((nmode !== '4회만') ? 1 : 0);
     const up2 = { therapy_type_id: ntt, support_type_id: nst,
                   count_mode: nmode, monthly_count: ncnt,
