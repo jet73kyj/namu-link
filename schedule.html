@@ -380,7 +380,7 @@
           <option value="4회만">4회만 — 5주차여도 4회</option>
           <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
           <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
-          <option value="5주차만">5주차만 (센) — 5주 있는 달에 1회만, 센터비용</option>
+          <option value="발4+센1">발4+센1 — 5주차 1회는 센터비용</option>
         </select>
       </div>
       <div style="grid-column:1 / -1;">
@@ -433,7 +433,7 @@
           <option value="4회만">4회만 — 5주차여도 4회</option>
           <option value="5/5">5/5 (발추) — 5주 있는 달만 5회</option>
           <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
-          <option value="5주차만">5주차만 (센) — 5주 있는 달에 1회만, 센터비용</option>
+          <option value="발4+센1">발4+센1 — 5주차 1회는 센터비용</option>
         </select>
       </div>
     </div>
@@ -476,8 +476,7 @@
     발달재활은 반드시 4회를 채워야 해서 맨 앞에 나옵니다.<br>
     <b>회수 방식</b> — 4회만(5주차여도 4회) · <b>5/5 (발추)</b>(5주 있는 달만 5회) ·
     <b>매월 5회 (발추)</b>(4주뿐인 달엔 1회 모자람으로 뜨니 보강을 잡으세요) ·
-    5주차만 (센)(5주 있는 달에 1회만. 지원유형은 센터비용으로 자동)<br>
-    회차 번호는 <b>아동+지원유형</b>으로 이어집니다. 월요일 센 4회 뒤 화요일 5주차 센이면 9-5가 됩니다.<br>
+    <b>발4+센1</b>(발달재활 4회를 다른 자리에서 받고, 5주차 1회만 센터비용으로 받는 아동)<br>
     위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
     요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 고치기가 됩니다.<br>
     5주차가 있는 달에 그 아동이 수업이 없으면 <b>초록 빈 자리</b>가 보입니다.
@@ -570,7 +569,7 @@ function drawShort(byScd, mkOf){
     // 「매월 5회」인데 그 달에 5주차가 없어 회차가 하나 모자란 경우
     const short5 = (r._mode === '매월 5회' && runs.length < (r._wks + 1)) ? 1 : 0;
     if (!miss.length && !short5) return;
-    if (r._mode === '5주차만' && !miss.length) return;
+    if (r._mode === '발4+센1' && !miss.length) return;
     const need = r._cnt || (runs.length + short5);
     bad.push({ row:r, need:need,
                have:need - miss.length - short5,
@@ -1034,11 +1033,11 @@ let pickKid = null;   // 고른 아동
 let wkOn = [true,true,true,true];   // 오는 주차 (1~4주)
 
 function drawWks(){
-  const only5 = ($('ad_cnt') && $('ad_cnt').value === '5주차만');
+  const only5 = ($('ad_cnt') && $('ad_cnt').value === '발4+센1');
   if (only5) {
     $('ad_st').value = '1';                 // 센터비용으로 맞춘다
-    $('ad_wks').innerHTML = '<span class="wkoff">5주차에만 수업이 들어갑니다. '
-      + '지원 유형은 센터비용으로 맞췄습니다.</span>';
+    $('ad_wks').innerHTML = '<span class="wkoff">5주차 1회만 들어갑니다. '
+      + '지원 유형은 센터비용으로 맞췄습니다. (회차는 9-5)</span>';
     return;
   }
   $('ad_wks').innerHTML = [1,2,3,4].map(n =>
@@ -1114,7 +1113,7 @@ $('adSave').onclick = async () => {
   const slot = SLOTS.find(x => x.no === Number(p[0]));
   const thId = Number(p[1]);
   const tt   = Number($('ad_tt').value) || null;
-  const only5 = ($('ad_cnt').value === '5주차만');
+  const only5 = ($('ad_cnt').value === '발4+센1');
   const st   = only5 ? 1 : (Number($('ad_st').value) || null);
 
   // 담당 규칙 살펴보기
@@ -1129,14 +1128,14 @@ $('adSave').onclick = async () => {
       child_id: cid, therapy_type_id: tt, support_type_id: st,
       duration_min: Number($('ad_dur').value),
       started_on: $('ad_start').value || null,
-      monthly_count: ($('ad_cnt').value === '5주차만') ? 1
+      monthly_count: ($('ad_cnt').value === '발4+센1') ? 1
                      : wkOn.filter(Boolean).length
                        + (($('ad_cnt').value !== '4회만') ? 1 : 0),
       count_mode: $('ad_cnt').value,
-      week1: ($('ad_cnt').value === '5주차만') ? false : wkOn[0],
-      week2: ($('ad_cnt').value === '5주차만') ? false : wkOn[1],
-      week3: ($('ad_cnt').value === '5주차만') ? false : wkOn[2],
-      week4: ($('ad_cnt').value === '5주차만') ? false : wkOn[3],
+      week1: ($('ad_cnt').value === '발4+센1') ? false : wkOn[0],
+      week2: ($('ad_cnt').value === '발4+센1') ? false : wkOn[1],
+      week3: ($('ad_cnt').value === '발4+센1') ? false : wkOn[2],
+      week4: ($('ad_cnt').value === '발4+센1') ? false : wkOn[3],
       week5: ($('ad_cnt').value !== '4회만')
     }).select().single();
     if (e1) throw e1;
@@ -1190,9 +1189,9 @@ function openEd(scId){
 $('edClose').onclick = () => { $('edBox').style.display='none'; edRow=null; };
 
 $('ed_cnt').onchange = () => {
-  if ($('ed_cnt').value === '5주차만') {
+  if ($('ed_cnt').value === '발4+센1') {
     $('ed_st2').value = '1';
-    edmsg('5주차만은 센터비용으로 맞췄습니다.', true);
+    edmsg('발4+센1은 센터비용으로 맞췄습니다. 5주차 1회만 들어가고 회차는 9-5가 됩니다.', true);
   }
 };
 
@@ -1220,7 +1219,7 @@ $('edSave').onclick = async () => {
     // 치료 종류 · 지원 유형 · 월 회수도 함께 고친다
     const ntt  = Number($('ed_tt').value);
     const nmode= $('ed_cnt').value;
-    const only5 = (nmode === '5주차만');
+    const only5 = (nmode === '발4+센1');
     const nst  = only5 ? 1 : Number($('ed_st2').value);
     const base = (edRow._wks != null) ? edRow._wks : 4;
     const ncnt = only5 ? 1 : base + ((nmode !== '4회만') ? 1 : 0);
