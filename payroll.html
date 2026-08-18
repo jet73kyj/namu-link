@@ -142,7 +142,7 @@
     <table id="t1">
       <thead>
         <tr>
-          <th>아동명</th>
+          <th>아동명 · 사업</th>
           <th class="n">40분</th>
           <th class="n">60분</th>
           <th class="n">특수</th>
@@ -194,6 +194,7 @@ const INS = {
   accident: { emp:0,       own:0.0153 }
 };
 const TAX = 0.033;
+const STYPE = {1:'센',2:'발',3:'치',4:'치',5:'방',6:'방치',7:'방치',8:'발추',9:'평가'};
 
 let RATES = {};   // 치료사 번호 -> 단가
 let EVFEE = {};   // 평가 개수 -> 수수료
@@ -251,7 +252,9 @@ function calc(){
     const sc = ROWS.find(x => x.id === s.schedule_id);
     const dur = sc ? Number(sc.duration || 40) : 40;
     const tt  = sc ? sc._tt : null;
-    const nm  = KIDS[s.child_id] || ('아동 ' + s.child_id + '번');
+    const stid = s.support_type_id || (sc ? sc.support_type_id : null);
+    const nm  = (KIDS[s.child_id] || ('아동 ' + s.child_id + '번'))
+              + (stid ? ' · ' + (STYPE[stid] || ('유형'+stid)) : '');
     const k = byKid[nm] = byKid[nm] || { m40:0, m60:0, sp:0, days:[], fee:0 };
     // 심리치료(특수 단가)는 치료종류가 아니라 메모로 구분해야 하므로
     // 지금은 특수 단가가 있는 치료사의 60분 아닌 수업 중
@@ -280,7 +283,8 @@ function calc(){
       + '<td class="n">' + won(k.fee) + '</td>'
       + '<td class="small">' + k.days.join(', ') + '</td></tr>';
   }).join('');
-  $('foot1').innerHTML = '<tr><td>세션 소계 ' + names.length + '명</td>'
+  const nKid = new Set(done.map(x => x.child_id)).size;
+  $('foot1').innerHTML = '<tr><td>세션 소계 아동 ' + nKid + '명 · ' + names.length + '줄</td>'
     + '<td class="n">' + t40 + '</td><td class="n">' + t60 + '</td>'
     + '<td class="n">' + tsp + '</td><td class="n">' + tcnt + '</td>'
     + '<td class="n">' + won(tfee) + '</td><td></td></tr>';
@@ -392,7 +396,7 @@ async function loadEvals(){
 
 async function loadMonth(){
   const { data } = await sb.from('nl_sessions')
-    .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo')
+    .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id')
     .eq('month_key', mon);
   SESS = data || [];
   await loadEvals();
@@ -428,13 +432,14 @@ async function afterLogin(user){
   const { data: sc } = await sb.from('nl_therapy_schedules')
     .select('id, therapy_id, duration, therapist_id');
   const { data: tp } = await sb.from('nl_therapies')
-    .select('id, child_id, therapy_type_id');
+    .select('id, child_id, therapy_type_id, support_type_id');
   const { data: kids } = await sb.from('nl_children').select('id, name');
   const tpMap = {}; (tp||[]).forEach(x => tpMap[x.id] = x);
   (kids||[]).forEach(k => KIDS[k.id] = k.name);
   ROWS = (sc||[]).map(r => {
     const t = tpMap[r.therapy_id];
     r._tt = t ? t.therapy_type_id : null;
+    r.support_type_id = t ? t.support_type_id : null;
     return r;
   });
 

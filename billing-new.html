@@ -154,7 +154,8 @@
   </div>
 
   <div class="note">
-    <b>회기</b>는 그 달의 수업 요일 수로 채워집니다. 결석이 있으면 숫자를 고치세요.<br>
+    <b>회기</b>는 시간표의 회차 표에서 가져옵니다. 휴무·보강은 빼고 셉니다.<br>
+    회차가 아직 없는 달이면 요일 수로 채워집니다. 다르면 숫자를 고치세요.<br>
     <b>적용단가</b>를 넣으면 치료사 단가 대신 그 값으로 계산합니다 (할인 등). 다음 달에도 이어집니다.
     할인을 끝낼 때는 칸을 비우세요.<br>
     <b>리뷰</b>는 1건 5,000원, 월 4건까지. 발달재활 본인부담금에서는 빠지지 않습니다.<br>
@@ -181,6 +182,7 @@ const REVIEW_MAX  = 4;      // 월 최대 건수
 let CHILDREN = [], TYPES = {}, TTYPES = {}, THERAPISTS = [];
 let FEES = {}, RULES = {}, GRADES = {};
 let SCHED = {};             // child_id -> 수업 목록
+let SESSCNT = {};           // 수업번호 -> { 지원유형: 회차수 }
 let SAVED = {};             // child_id -> 저장된 납부 (이번 달)
 let PREV  = {};             // child_id -> 지난달 납부 (적용단가·발추방식 이어받기용)
 let LASTX = {};             // child_id -> 지난 발추 담당 치료사
@@ -299,9 +301,9 @@ async function load() {
 
     const pmk = prevMonth(mk);
 
-    const [th, fe, ru, gr, pay, px, pv] = await Promise.all([
+    const [th, fe, ru, gr, pay, px, pv, ss] = await Promise.all([
       sb.from('nl_therapies')
-        .select('id, child_id, therapy_type_id, support_type_id, nl_therapy_schedules(weekday, start_time, therapist_id, duration)')
+        .select('id, child_id, therapy_type_id, support_type_id, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration)')
         .in('child_id', ids),
       sb.from('nl_therapist_fees').select('*'),
       sb.from('nl_support_rules').select('*'),
@@ -312,7 +314,10 @@ async function load() {
         .eq('support_type_id', 8).lt('month_key', mk)
         .order('month_key', { ascending: false }),
       sb.from('nl_payments').select('child_id, support_type_id, memo')
-        .eq('month_key', pmk)
+        .eq('month_key', pmk),
+      sb.from('nl_sessions')
+        .select('schedule_id, support_type_id, status')
+        .eq('month_key', mk)
     ]);
     if (th.error)  throw th.error;
     if (fe.error)  throw fe.error;
@@ -326,10 +331,21 @@ async function load() {
     RULES  = pickLatest(ru.data, mk, 'support_type_id');
     GRADES = pickLatest(gr.data, mk, 'child_id');
 
+    // 그 달 회차 수를 수업+지원유형별로 세어둔다 (휴무·보강은 뺀다)
+    SESSCNT = {};
+    (ss && ss.data ? ss.data : []).forEach(x => {
+      if (x.status === '휴무' || x.status === '보강') return;
+      const k = x.schedule_id;
+      const sp = x.support_type_id || 0;
+      (SESSCNT[k] = SESSCNT[k] || {});
+      SESSCNT[k][sp] = (SESSCNT[k][sp] || 0) + 1;
+    });
+
     SCHED = {};
     (th.data || []).forEach(t => {
       (t.nl_therapy_schedules || []).forEach(s => {
         (SCHED[t.child_id] = SCHED[t.child_id] || []).push({
+          sched_id: s.id,
           therapy_type_id: t.therapy_type_id,
           support_type_id: t.support_type_id,
           weekday: s.weekday,
@@ -381,15 +397,27 @@ function buildRows(childId, mk) {
       : s.duration === 60 ? fee.fee_60
       : s.duration === 50 ? fee.fee_50
       : fee.fee_40;
-    (groups[s.support_type_id] = groups[s.support_type_id] || []).push({
+    const base = {
       kind: '회기',
       label: (TTYPES[s.therapy_type_id] || '치료') + ' ' + s.weekday + ' '
              + String(s.start_time).slice(0,5) + ' (' + s.duration + '분)',
       therapist_name: thrName(s.therapist_id),
       therapist_id: s.therapist_id,
-      unit: unit,
-      count: countWeekday(mk, s.weekday)
-    });
+      unit: unit
+    };
+    // 회차 표가 있으면 그것으로, 없으면 요일 수로 센다
+    const cnt = SESSCNT[s.sched_id];
+    if (cnt && Object.keys(cnt).length) {
+      Object.keys(cnt).forEach(sp => {
+        const stid = Number(sp) || s.support_type_id;
+        const row = Object.assign({}, base, { count: cnt[sp] });
+        if (stid !== s.support_type_id) row.label += ' · 5주차';
+        (groups[stid] = groups[stid] || []).push(row);
+      });
+    } else {
+      (groups[s.support_type_id] = groups[s.support_type_id] || []).push(
+        Object.assign({}, base, { count: countWeekday(mk, s.weekday) }));
+    }
   });
 
   const out = [];
