@@ -96,6 +96,9 @@
   .r-abs  { background:#ffcdd2; color:#b71c1c; }
   .r-mk   { background:#ffe0b2; color:#e65100; }
   .r-off  { background:#e0e0e0; color:#555; }
+  .wk5    { background:#c8e6c9; color:#33691e; opacity:.75; cursor:default; }
+  .wk5:hover { outline:none; }
+  .wk5 .st { font-weight:normal; font-size:10.5px; }
   .stabs  { margin-left:auto; font-weight:800; color:#b71c1c; font-size:11.5px;
             white-space:nowrap; }
   .r-off .stabs { color:#555; }
@@ -454,6 +457,9 @@
     5주차만(5주 있는 달에 1회만. 5주차만 지원유형이 다른 아동에 쓰세요)<br>
     위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
     요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 고치기가 됩니다.<br>
+    5주차가 있는 달이면 <b>초록색 「수업 없음」</b> 자리가 보입니다.
+    그 아동은 5주차에 안 오는 것이라 보강 목록에도 안 뜹니다.
+    발추 아동은 그 자리에 <b>9-5</b> 회차가 들어갑니다.<br>
     빈 칸이 그 치료사의 빈 시간입니다. 5교시는 주중 점심(보강 가능)입니다.<br>
     빈 칸의 <b>＋</b> 를 누르면 그 자리에 새 수업을 넣습니다.
     수업의 <b>고치기</b> 를 누르면 요일·시간·치료사를 바꾸거나 수업을 끝냅니다.
@@ -665,7 +671,8 @@ function drawFind(){
           + (r.duration||'') + '분</span>'
         + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'">고치기</button>' : '')
       + '</div>'
-      + '<div class="fr-runs">' + (runs || '<span class="findnone">이 달 회차 없음</span>') + '</div>'
+      + '<div class="fr-runs">' + (runs || '<span class="findnone">이 달 회차 없음</span>')
+        + wk5Slot(r, byScd, r.weekday) + '</div>'
       + '</div>';
   }).join('');
 
@@ -764,7 +771,7 @@ function drawWeek(){
               + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'">고치기</button>' : '')
               + '<span class="nm">'+(STYPE[r.support_type_id]||'?')
               + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+'</span>'+dur
-              + runs + '</span>';
+              + runs + wk5Slot(r, byScd, d) + '</span>';
           });
           mks.forEach(x => {
             html += '<span class="chip r-mk">'
@@ -782,6 +789,35 @@ function drawWeek(){
   $('holi').style.display = 'none';
   drawShort(byScd, mkOf);
   drawFind();
+}
+
+// 그 달 그 요일의 5번째 날짜. 5주차가 없으면 null
+function wk5Date(monthKey, wdName){
+  const p = String(monthKey).split('-');
+  const y = Number(p[0]), m = Number(p[1]);
+  const i = WDS.indexOf(wdName);
+  let n = 0;
+  const d = new Date(y, m - 1, 1);
+  while (d.getMonth() === m - 1) {
+    if (d.getDay() === i) {
+      n++;
+      if (n === 5) return y + '-' + String(m).padStart(2,'0')
+                        + '-' + String(d.getDate()).padStart(2,'0');
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
+}
+
+// 5주차에 수업이 없으면 초록 빈 자리를 보여준다
+function wk5Slot(r, byScd, wdName){
+  const d5 = wk5Date(mon, wdName);
+  if (!d5) return '';                       // 그 달에 5주차가 없음
+  const runs = byScd[r.id] || [];
+  if (runs.some(x => x.plan_date === d5)) return '';   // 이미 수업이 있음
+  return '<div class="run wk5"><span class="no">' + monNo(mon) + '-5</span>'
+       + '<span class="dt">' + dayNo(d5) + '일</span>'
+       + '<span class="st">수업 없음</span></div>';
 }
 
 function drawHead(){
@@ -903,14 +939,11 @@ function drawDay(){
                 + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
                 + tail + '</div>';
             }).join('');
-            const need5 = BAL.has(r._cid) && r.support_type_id === 2;
-            const warn = (need5 && (byScd[r.id]||[]).length < 5)
-              ? '<div class="warn">발추 5회차 보강 필요</div>' : '';
             html += '<span class="chip '+sp+'">'
               + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'">고치기</button>' : '')
               + '<span class="nm">'+(STYPE[r.support_type_id]||'?')
               + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+'</span>'+dur
-              + runs + warn + '</span>';
+              + runs + wk5Slot(r, byScd, wd) + '</span>';
           });
           mks.forEach(x => {
             const org = ROWS.find(r => r.id === x.schedule_id);
