@@ -440,6 +440,10 @@
           <option value="발4+센1">발4+센1 — 1~4주차는 그대로, 5주차 1회만 센터비용</option>
         </select>
       </div>
+      <div style="grid-column:1 / -1;">
+        <label>오는 주차 <span style="color:#7cb342;">(2·3회 아동만 손대세요)</span></label>
+        <div id="ed_wks" class="wks"></div>
+      </div>
     </div>
     <div class="pbtns">
       <button id="edSave" class="pbtn ok-btn">저장하기</button>
@@ -1178,10 +1182,26 @@ async function makeRuns(){
 }
 
 // ===== 수업 고치기 =====
+let edWk = [true,true,true,true];   // 고치기 창의 오는 주차
+
+function drawEdWks(){
+  $('ed_wks').innerHTML = [1,2,3,4].map(n =>
+    '<span class="wk'+(edWk[n-1]?' on':'')+'" data-wk="'+n+'">'+n+'주차</span>').join('');
+  $('ed_wks').querySelectorAll('.wk').forEach(el => {
+    el.onclick = () => {
+      const n = Number(el.dataset.wk);
+      edWk[n-1] = !edWk[n-1];
+      drawEdWks();
+    };
+  });
+}
+
 function openEd(scId){
   const r = ROWS.find(x => x.id === scId);
   if (!r) return;
   edRow = r;
+  edWk = [r._w1 !== false, r._w2 !== false, r._w3 !== false, r._w4 !== false];
+  drawEdWks();
   $('edTitle').textContent = (STYPE[r.support_type_id]||'') + ' ' + (r._name||'')
     + ' — 요일·시간·치료사 바꾸기';
   $('ed_wd').value   = r.weekday;
@@ -1224,16 +1244,20 @@ $('edSave').onclick = async () => {
     const ntt  = Number($('ed_tt').value);
     const nmode= $('ed_cnt').value;
     const nst  = Number($('ed_st2').value);
-    const base = (edRow._wks != null) ? edRow._wks : 4;
-    const ncnt = base + ((nmode !== '4회만') ? 1 : 0);
+    const wkCnt = edWk.filter(Boolean).length || 4;
     const up2 = { therapy_type_id: ntt, support_type_id: nst,
-                  count_mode: nmode, monthly_count: ncnt,
+                  count_mode: nmode,
+                  monthly_count: wkCnt + ((nmode !== '4회만') ? 1 : 0),
+                  week1: edWk[0], week2: edWk[1], week3: edWk[2], week4: edWk[3],
                   week5: (nmode !== '4회만'), duration_min: du };
     const { error: e2 } = await sb.from('nl_therapies')
       .update(up2).eq('id', edRow.therapy_id);
     if (e2) throw e2;
     edRow._tt = ntt; edRow.support_type_id = nst;
-    edRow._mode = nmode; edRow._cnt = ncnt;
+    edRow._mode = nmode; edRow._cnt = up2.monthly_count;
+    edRow._w1 = edWk[0]; edRow._w2 = edWk[1];
+    edRow._w3 = edWk[2]; edRow._w4 = edWk[3];
+    edRow._wks = wkCnt;
 
     // 아직 안 지난 회차의 날짜·치료사·시각도 함께 고친다
     const today = new Date().toISOString().slice(0,10);
@@ -1640,6 +1664,7 @@ async function afterLogin(user){
     r.therapy_id = t.id; r._cnt = t.monthly_count || 4;
     r._mode = t.count_mode || '4회만';
     r._wks = (t.week1?1:0)+(t.week2?1:0)+(t.week3?1:0)+(t.week4?1:0);
+    r._w1 = t.week1; r._w2 = t.week2; r._w3 = t.week3; r._w4 = t.week4;
     return r;
   }).filter(Boolean);
 
