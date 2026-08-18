@@ -99,6 +99,18 @@
   .wk5    { background:#c8e6c9; color:#33691e; opacity:.75; cursor:default; }
   .wk5:hover { outline:none; }
   .wk5 .st { font-weight:normal; font-size:10.5px; }
+  .w5list { display:flex; flex-direction:column; gap:6px; margin-bottom:4px; }
+  .w5one { background:#fff; border:1px solid #ffcc80; border-radius:8px;
+           padding:9px 12px; font-size:13.5px; cursor:pointer;
+           display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .w5one:hover { background:#ef6c00; color:#fff; border-color:#ef6c00; }
+  .w5one .nm2 { font-weight:bold; min-width:80px; }
+  .w5one .sm2 { color:#7a5050; font-size:12.5px; }
+  .w5one:hover .sm2 { color:#ffe0b2; }
+  .w5none { color:#7a5050; font-size:13.5px; }
+  .w5btn  { width:auto; margin:0 0 0 auto; padding:2px 10px; font-size:10.5px;
+            font-weight:bold; background:#ef6c00; border-radius:10px; }
+  .w5btn:hover { background:#e65100; }
   .stabs  { margin-left:auto; font-weight:800; color:#b71c1c; font-size:11.5px;
             white-space:nowrap; }
   .r-off .stabs { color:#555; }
@@ -290,6 +302,16 @@
   <div id="holi" class="holibox" style="display:none;"></div>
   <div id="shortTop" class="shorttop" style="display:none;"></div>
 
+  <!-- 빈 자리에 보강 넣기 창 -->
+  <div id="w5Box" class="panel" style="display:none;">
+    <div class="panel-t" id="w5Title"></div>
+    <div id="w5List" class="w5list"></div>
+    <div class="pbtns">
+      <button id="w5Close" class="pbtn grey">닫기</button>
+    </div>
+    <div id="w5Msg" class="out"></div>
+  </div>
+
   <!-- 보강 잡기 창 -->
   <div id="mkBox" class="panel" style="display:none;">
     <div class="panel-t" id="mkTitle"></div>
@@ -457,8 +479,9 @@
     5주차만(5주 있는 달에 1회만. 5주차만 지원유형이 다른 아동에 쓰세요)<br>
     위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
     요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 고치기가 됩니다.<br>
-    5주차가 있는 달이면 <b>초록색 「수업 없음」</b> 자리가 보입니다.
-    그 아동은 5주차에 안 오는 것이라 보강 목록에도 안 뜹니다.
+    5주차가 있는 달에 그 아동이 수업이 없으면 <b>초록 빈 자리</b>가 보입니다.
+    그 자리의 <b>보강</b> 단추를 누르면 보강이 필요한 아동 목록이 뜨고,
+    하나 고르면 그 시간으로 보강이 잡힙니다.
     발추 아동은 그 자리에 <b>9-5</b> 회차가 들어갑니다.<br>
     빈 칸이 그 치료사의 빈 시간입니다. 5교시는 주중 점심(보강 가능)입니다.<br>
     빈 칸의 <b>＋</b> 를 누르면 그 자리에 새 수업을 넣습니다.
@@ -677,6 +700,10 @@ function drawFind(){
   }).join('');
 
   // 찾은 결과에서도 회차 누르기·보강·고치기가 되게
+  $('findRows').querySelectorAll('.w5btn').forEach(el => {
+    el.onclick = (e) => { e.stopPropagation();
+      openW5(el.dataset.d5, Number(el.dataset.th), el.dataset.hm); };
+  });
   $('findRows').querySelectorAll('.fr-btn').forEach(el => {
     el.onclick = () => openEd(Number(el.dataset.ed));
   });
@@ -815,9 +842,14 @@ function wk5Slot(r, byScd, wdName){
   if (!d5) return '';                       // 그 달에 5주차가 없음
   const runs = byScd[r.id] || [];
   if (runs.some(x => x.plan_date === d5)) return '';   // 이미 수업이 있음
-  return '<div class="run wk5"><span class="no">' + monNo(mon) + '-5</span>'
+  return '<div class="run wk5">'
        + '<span class="dt">' + dayNo(d5) + '일</span>'
-       + '<span class="st">수업 없음</span></div>';
+       + (CAN_EDIT
+          ? '<button class="w5btn" data-d5="' + d5 + '" data-th="'
+            + r.therapist_id + '" data-hm="'
+            + nearest(toMin(r.start_time)).hm + '">보강</button>'
+          : '')
+       + '</div>';
 }
 
 function drawHead(){
@@ -968,6 +1000,9 @@ function drawDay(){
 
 // ===== 회차 누르기 =====
 $('gbody').addEventListener('click', async e => {
+  const w5b = e.target.closest('.w5btn');
+  if (w5b) { e.stopPropagation();
+    openW5(w5b.dataset.d5, Number(w5b.dataset.th), w5b.dataset.hm); return; }
   const edb = e.target.closest('.edbtn');
   if (edb) { e.stopPropagation(); openEd(Number(edb.dataset.ed)); return; }
   const mkb = e.target.closest('.mkbtn');
@@ -1317,6 +1352,83 @@ $('offSave').onclick = async () => {
     $('offSave').disabled = false; $('offSave').textContent = '휴무 넣기';
   }
 };
+
+// ===== 빈 자리에 보강 넣기 =====
+let w5Slot = null;   // { date, th, hm }
+
+function w5msg(t, ok){ $('w5Msg').textContent=t; $('w5Msg').className='out '+(ok?'ok':'err'); }
+
+function openW5(d5, th, hm){
+  w5Slot = { date:d5, th:th, hm:hm };
+  const t = THS_ALL.find(x => x.id === th);
+  $('w5Title').textContent = dayNo(d5) + '일(' + wdOf(d5) + ') ' + hm + ' · '
+    + (t ? t.name : '') + ' — 이 자리에 보강 넣기';
+
+  // 보강을 못 잡은 결석·휴무 모으기
+  const mkOf = {};
+  SESS.forEach(s => { if (s.status === '보강' && s.makeup_for) mkOf[s.makeup_for] = s; });
+  const need = SESS.filter(s =>
+    (s.status === '결석' || s.status === '휴무') && !mkOf[s.id]);
+
+  if (!need.length) {
+    $('w5List').innerHTML = '<div class="w5none">보강이 필요한 아동이 없습니다.</div>';
+  } else {
+    // 같은 치료사 것을 먼저 보여준다
+    need.sort((a,b) => {
+      const pa = (a.therapist_id === th) ? 0 : 1;
+      const pb = (b.therapist_id === th) ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return String(a.plan_date).localeCompare(String(b.plan_date));
+    });
+    $('w5List').innerHTML = need.map(s => {
+      const sc = ROWS.find(x => x.id === s.schedule_id);
+      const t2 = THS_ALL.find(x => x.id === s.therapist_id);
+      const same = (s.therapist_id === th);
+      return '<div class="w5one" data-mk="' + s.id + '">'
+        + '<span class="nm2">' + esc(s._name || '') + '</span>'
+        + '<span class="sm2">'
+          + (sc ? (STYPE[sc.support_type_id]||'') + ' · ' + (TTYPE[sc._tt]||'') + ' · ' : '')
+          + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? '휴무' : '결석')
+          + ' · ' + (t2 ? t2.name : '') + (same ? ' (같은 치료사)' : '')
+        + '</span></div>';
+    }).join('');
+    $('w5List').querySelectorAll('.w5one').forEach(el => {
+      el.onclick = () => putW5(Number(el.dataset.mk));
+    });
+  }
+  w5msg('', true); $('w5Msg').className = 'out';
+  $('mkBox').style.display='none'; $('addBox').style.display='none';
+  $('edBox').style.display='none'; $('offBox').style.display='none';
+  $('w5Box').style.display = 'block';
+  $('w5Box').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+$('w5Close').onclick = () => { $('w5Box').style.display='none'; w5Slot=null; };
+
+async function putW5(absId){
+  if (!w5Slot) return;
+  const s = SESS.find(x => x.id === absId);
+  if (!s) return;
+  if (!confirm((s._name||'') + ' 아동의 ' + dayNo(s.plan_date) + '일 '
+      + (s.status==='휴무'?'휴무':'결석') + ' 보강을\n'
+      + dayNo(w5Slot.date) + '일 ' + w5Slot.hm + ' 로 잡을까요?')) return;
+
+  const row = {
+    child_id: s.child_id, therapy_id: s.therapy_id, schedule_id: s.schedule_id,
+    month_key: mon, run_no: s.run_no, plan_date: w5Slot.date, status: '보강',
+    therapist_id: w5Slot.th, start_time: w5Slot.hm + ':00', makeup_for: s.id
+  };
+  try {
+    const { data, error } = await sb.from('nl_sessions').insert(row).select().single();
+    if (error) throw error;
+    data._name = s._name;
+    SESS.push(data);
+    w5msg('✅ ' + (s._name||'') + ' 아동 보강을 ' + dayNo(w5Slot.date) + '일 '
+      + w5Slot.hm + ' 로 잡았습니다.', true);
+    draw();
+  } catch (e) {
+    w5msg('❌ 넣지 못했습니다.\n' + e.message, false);
+  }
+}
 
 // ===== 보강 잡기 =====
 function openMk(absId){
