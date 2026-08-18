@@ -491,10 +491,9 @@
     센터비용으로 들어갑니다. 그 회차에 <b>초록 「센」</b> 표시가 붙습니다.<br>
     위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
     요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 고치기가 됩니다.<br>
-    5주차가 있는 달에 그 아동이 수업이 없으면 <b>초록 빈 자리</b>가 보입니다.
+그 아동이 안 오는 날은 <b>초록 빈 자리</b>로 보입니다.
     그 자리의 <b>보강</b> 단추를 누르면 보강이 필요한 아동 목록이 뜨고,
-    하나 고르면 그 시간으로 보강이 잡힙니다.
-    발추 아동은 그 자리에 <b>9-5</b> 회차가 들어갑니다.<br>
+    하나 고르면 그 시간으로 보강이 잡힙니다.<br>
     빈 칸이 그 치료사의 빈 시간입니다. 5교시는 주중 점심(보강 가능)입니다.<br>
     빈 칸의 <b>＋</b> 를 누르면 그 자리에 새 수업을 넣습니다.
     수업의 <b>고치기</b> 를 누르면 요일·시간·치료사를 바꾸거나 수업을 끝냅니다.
@@ -682,7 +681,8 @@ function drawFind(){
   $('findRows').innerHTML = hit.map(r => {
     const th = THS_ALL.find(t => t.id === r.therapist_id);
     const sl = nearest(toMin(r.start_time));
-    const runs = (byScd[r.id] || []).map(x => {
+    const _rl = (byScd[r.id] || []);
+    const _rh = _rl.map(x => {
       const cls = x.status==='완료' ? 'r-done'
                 : x.status==='결석' ? 'r-abs'
                 : x.status==='휴무' ? 'r-off' : '';
@@ -700,7 +700,8 @@ function drawFind(){
         + '<span class="no">' + monNo(mon) + '-' + x.run_no + '</span>'
         + '<span class="dt">' + dayNo(x.plan_date) + '일</span>'
         + '<span class="st">' + tail + '</span></span>';
-    }).join('');
+    });
+    const runs = mergeRuns(_rl, _rh, wk5Pairs(r, byScd, r.weekday));
 
     return '<div class="findrow">'
       + '<div class="fr-top">'
@@ -712,7 +713,7 @@ function drawFind(){
         + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'">고치기</button>' : '')
       + '</div>'
       + '<div class="fr-runs">' + (runs || '<span class="findnone">이 달 회차 없음</span>')
-        + wk5Slot(r, byScd, r.weekday) + '</div>'
+        + '</div>'
       + '</div>';
   }).join('');
 
@@ -797,7 +798,8 @@ function drawWeek(){
             const sp  = 'sp' + (r.support_type_id || 0);
             const dur = (r.duration && Number(r.duration)!==40)
                         ? ' <span class="dur">'+r.duration+'분</span>' : '';
-            const runs = (byScd[r.id] || []).map(x => {
+            const _rl = (byScd[r.id] || []);
+            const _rh = _rl.map(x => {
               const cls = x.status==='완료' ? 'r-done'
                         : x.status==='결석' ? 'r-abs'
                         : x.status==='휴무' ? 'r-off' : '';
@@ -815,12 +817,12 @@ function drawWeek(){
                 + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
                 + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
                 + tail + '</div>';
-            }).join('');
+            });
             html += '<span class="chip '+sp+'">'
               + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'">고치기</button>' : '')
               + '<span class="nm">'+(STYPE[r.support_type_id]||'?')
               + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+'</span>'+dur
-              + runs + wk5Slot(r, byScd, d) + '</span>';
+              + mergeRuns(_rl, _rh, wk5Pairs(r, byScd, d)) + '</span>';
           });
           mks.forEach(x => {
             html += '<span class="chip r-mk">'
@@ -858,20 +860,47 @@ function wk5Date(monthKey, wdName){
   return null;
 }
 
-// 5주차에 수업이 없으면 초록 빈 자리를 보여준다
-function wk5Slot(r, byScd, wdName){
-  const d5 = wk5Date(mon, wdName);
-  if (!d5) return '';                       // 그 달에 5주차가 없음
+// 그 달 그 요일의 모든 날짜
+function wdDates(monthKey, wdName){
+  const p = String(monthKey).split('-');
+  const y = Number(p[0]), m = Number(p[1]);
+  const i = WDS.indexOf(wdName);
+  const out = [];
+  const d = new Date(y, m - 1, 1);
+  while (d.getMonth() === m - 1) {
+    if (d.getDay() === i) {
+      out.push(y + '-' + String(m).padStart(2,'0')
+             + '-' + String(d.getDate()).padStart(2,'0'));
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+// 수업이 없는 날마다 초록 빈 자리를 만든다
+function wk5Pairs(r, byScd, wdName){
   const runs = byScd[r.id] || [];
-  if (runs.some(x => x.plan_date === d5)) return '';   // 이미 수업이 있음
-  return '<div class="run wk5">'
-       + '<span class="dt">' + dayNo(d5) + '일</span>'
+  const has = {};
+  runs.forEach(x => has[String(x.plan_date)] = true);
+  return wdDates(mon, wdName).filter(d => !has[d]).map(d => ({
+    d: d,
+    h: '<div class="run wk5">'
+       + '<span class="dt">' + dayNo(d) + '일</span>'
        + (CAN_EDIT
-          ? '<button class="w5btn" data-d5="' + d5 + '" data-th="'
+          ? '<button class="w5btn" data-d5="' + d + '" data-th="'
             + r.therapist_id + '" data-hm="'
             + nearest(toMin(r.start_time)).hm + '">보강</button>'
           : '')
-       + '</div>';
+       + '</div>'
+  }));
+}
+
+// 회차와 빈 자리를 날짜 순서로 섞는다
+function mergeRuns(list, htmls, pairs){
+  const a = list.map((x, i) => ({ d: String(x.plan_date), h: htmls[i] }))
+                .concat(pairs || []);
+  a.sort((p, q) => p.d.localeCompare(q.d));
+  return a.map(x => x.h).join('');
 }
 
 function drawHead(){
@@ -972,7 +1001,8 @@ function drawDay(){
             const sp  = 'sp' + (r.support_type_id || 0);
             const dur = (r.duration && Number(r.duration)!==40)
                         ? ' <span class="dur">'+r.duration+'분</span>' : '';
-            const runs = (byScd[r.id] || []).map(x => {
+            const _rl = (byScd[r.id] || []);
+            const _rh = _rl.map(x => {
               const cls = x.status==='완료' ? 'r-done'
                         : x.status==='결석' ? 'r-abs'
                         : x.status==='휴무' ? 'r-off' : '';
@@ -997,12 +1027,12 @@ function drawDay(){
                 + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
                 + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
                 + tail + '</div>';
-            }).join('');
+            });
             html += '<span class="chip '+sp+'">'
               + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'">고치기</button>' : '')
               + '<span class="nm">'+(STYPE[r.support_type_id]||'?')
               + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+'</span>'+dur
-              + runs + wk5Slot(r, byScd, wd) + '</span>';
+              + mergeRuns(_rl, _rh, wk5Pairs(r, byScd, wd)) + '</span>';
           });
           mks.forEach(x => {
             const org = ROWS.find(r => r.id === x.schedule_id);
