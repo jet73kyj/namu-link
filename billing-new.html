@@ -983,7 +983,11 @@ $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click
 
 (async () => {
   const { data } = await sb.auth.getSession();
-  if (data.session) await afterLogin(data.session.user);
+  if (data && data.session) { await afterLogin(data.session.user); }
+  else {
+    // 로그인이 없으면 첫 화면으로 보낸다 (빈 화면이 열리는 것을 막기 위함)
+    location.replace('index.html');
+  }
 })();
 </script>
 </body>
