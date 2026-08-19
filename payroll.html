@@ -147,7 +147,7 @@
         </select>
       </div>
       <div>
-        <label for="rt_dec">신고 금액</label>
+        <label for="rt_dec">4대보험 신고 금액</label>
         <input id="rt_dec" type="text" inputmode="numeric" placeholder="가입일 때만">
       </div>
       <button id="rtSave" class="addb">저장</button>
@@ -400,7 +400,7 @@ function calc(){
     const emp = d * (INS.employ.emp + INS.employ.own);
     const acc = d * (INS.accident.emp + INS.accident.own);
     ins = Math.round(pen + hea + car + emp + acc);
-    insTxt = '신고금액 ' + won(d) + '원 · 국민연금 ' + won(Math.round(pen))
+    insTxt = '4대보험 신고금액 ' + won(d) + '원 · 국민연금 ' + won(Math.round(pen))
            + ' / 건강 ' + won(Math.round(hea)) + ' / 장기요양 ' + won(Math.round(car))
            + ' / 고용 ' + won(Math.round(emp)) + ' / 산재 ' + won(Math.round(acc));
   }
@@ -482,7 +482,7 @@ $('rtSave').onclick = async () => {
 
   const ins = ($('rt_ins').value === 'yes');
   const dec = numOf($('rt_dec').value);
-  if (ins && !dec) { rtMsg('4대보험 가입이면 신고 금액도 넣으세요.', false); return; }
+  if (ins && !dec) { rtMsg('4대보험 가입이면 신고 금액도 함께 넣으세요.', false); return; }
 
   const row = {
     therapist_id: thId,
