@@ -113,6 +113,14 @@
   .evrow .amt { margin-left:auto; font-weight:bold; }
   .evedit { width:auto; margin:0; padding:3px 10px; font-size:11.5px;
             background:#5c6bc0; color:#fff; border:none; border-radius:5px; cursor:pointer; }
+  .evtools { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .evtools input[type=month] { width:auto; padding:6px 9px; font-size:13px; }
+  .evtab { width:auto; margin:0; padding:6px 12px; font-size:12.5px; background:#fff;
+           color:#5a6156; border:1px solid #cfd8dc; border-radius:7px; cursor:pointer; }
+  .evtab.on { background:#5c6bc0; color:#fff; border-color:#5c6bc0; }
+  .evsum { margin-left:auto; font-size:13px; color:#666; }
+  .evrow .kn { font-weight:bold; min-width:70px; }
+  .evrow .unpaid { color:#c62828; font-weight:bold; }
 </style>
 </head>
 <body>
@@ -290,6 +298,15 @@
 
     <div class="logbox">
       <div class="logbox-t">평가 목록</div>
+      <div class="evtools">
+        <input id="e_mon" type="month">
+        <button class="evtab on" data-ev="all">전체</button>
+        <button class="evtab" data-ev="예정">예정</button>
+        <button class="evtab" data-ev="완료">완료</button>
+        <button class="evtab" data-ev="unpaid">미납만</button>
+        <button class="evtab" data-ev="kid">고른 아동만</button>
+        <span class="evsum" id="evSum"></span>
+      </div>
       <div id="evRows"></div>
     </div>
   </div>
@@ -441,6 +458,7 @@ let THRS    = [];    // 치료사 목록
 let EVALS   = [];    // 평가 기록
 let evKid   = null;  // 지금 고른 아동
 let evEditId = null; // 고치는 중인 평가 번호
+let evFilter = 'all'; // 목록 걸러내기 (전체·예정·완료·미납만·고른아동)
 
 function show(text, ok) {
   msg.textContent = text;
@@ -701,6 +719,10 @@ function pickKid(cid) {
   $('e_kidpick').innerHTML = '고른 아동: <b>' + esc(k.name) + '</b> ('
     + k.id + '번 · ' + esc(k.status) + ')'
     + (isRe ? '<span class="re">재평가</span>' : '');
+  // 고른 아동의 평가 기록을 바로 보여준다
+  evFilter = 'kid';
+  document.querySelectorAll('.evtab').forEach(x =>
+    x.classList.toggle('on', x.dataset.ev === 'kid'));
   drawEvalList();
 }
 
@@ -722,28 +744,56 @@ function autoFee() {
 $('e_type').addEventListener('change', autoFee);
 $('e_cnt').addEventListener('change', autoFee);
 
-// 평가 목록 그리기 (고른 아동 것만)
+// 평가 목록 그리기
 function drawEvalList() {
-  if (!evKid) { $('evRows').innerHTML =
-    '<div class="kidnone">아동을 고르면 그 아동의 평가 기록이 나옵니다.</div>'; return; }
-  const list = EVALS.filter(e => e.child_id === evKid.id)
-                    .sort((a, b) => String(b.eval_date).localeCompare(String(a.eval_date)));
+  const mk  = $('e_mon').value;
+  const fil = evFilter;
+
+  let list = EVALS.slice();
+
+  if (fil === 'kid') {
+    if (!evKid) {
+      $('evRows').innerHTML = '<div class="kidnone">아동을 먼저 고르세요.</div>';
+      $('evSum').textContent = '';
+      return;
+    }
+    list = list.filter(e => e.child_id === evKid.id);
+  } else {
+    if (mk) list = list.filter(e => String(e.eval_date || '').slice(0, 7) === mk);
+    if (fil === '예정' || fil === '완료') list = list.filter(e => e.status === fil);
+    else if (fil === 'unpaid') list = list.filter(e => !e.paid_on && e.status !== '취소');
+  }
+
+  list.sort((a, b) => String(b.eval_date).localeCompare(String(a.eval_date)));
+
+  const total = list.reduce((s, e) => s + Number(e.fee || 0), 0);
+  const nUnpaid = list.filter(e => !e.paid_on && e.status !== '취소').length;
+  $('evSum').textContent = list.length + '건 · ' + total.toLocaleString() + '원'
+    + (nUnpaid ? ' · 미납 ' + nUnpaid + '건' : '');
+
   if (!list.length) {
-    $('evRows').innerHTML = '<div class="kidnone">아직 평가 기록이 없습니다.</div>';
+    $('evRows').innerHTML = '<div class="kidnone">해당하는 평가 기록이 없습니다.</div>';
     return;
   }
+
   $('evRows').innerHTML = list.map(e => {
-    const t = EVTYPES.find(x => x.id === e.eval_type_id);
+    const t  = EVTYPES.find(x => x.id === e.eval_type_id);
     const th = THRS.find(x => x.id === e.therapist_id);
+    const pay = e.paid_on
+      ? '납부 ' + e.paid_on
+      : (e.status === '취소' ? '—' : '<span class="unpaid">미납</span>');
     return '<div class="evrow">'
-      + '<span class="d">' + esc(e.eval_date) + (e.eval_time ? ' ' + String(e.eval_time).slice(0,5) : '') + '</span>'
-      + '<span>' + esc(t ? t.name : '') + ' · ' + e.item_cnt + '개</span>'
+      + '<span class="d">' + esc(e.eval_date)
+        + (e.eval_time ? ' ' + String(e.eval_time).slice(0,5) : '') + '</span>'
+      + '<span class="kn">' + esc(kidName(e.child_id)) + '</span>'
+      + '<span>' + esc(t ? t.name : '') + ' ' + e.item_cnt + '개</span>'
       + '<span class="d">' + esc(th ? th.name : '') + '</span>'
-      + '<span class="d">' + esc(e.status) + (e.paid_on ? ' · 납부 ' + e.paid_on : ' · 미납') + '</span>'
+      + '<span class="d">' + esc(e.status) + ' · ' + pay + '</span>'
       + '<span class="amt">' + Number(e.fee || 0).toLocaleString() + '원</span>'
       + '<button class="evedit" data-ev="' + e.id + '">고치기</button>'
       + '</div>';
   }).join('');
+
   $('evRows').querySelectorAll('.evedit').forEach(el => {
     el.onclick = () => loadEval(Number(el.dataset.ev));
   });
@@ -785,10 +835,24 @@ $('evBtn').onclick = () => {
   $('addBox').style.display = 'none';
   $('detBox').style.display = 'none';
   $('evBox').style.display = 'block';
+  if (!$('e_mon').value) $('e_mon').value = today().slice(0, 7);
   clearEvalForm();
   drawEvalList();
   $('evBox').scrollIntoView({ behavior:'smooth', block:'start' });
 };
+
+// 달을 바꾸면 다시 그린다
+$('e_mon').addEventListener('change', () => { drawEvalList(); });
+
+// 전체 / 예정 / 완료 / 미납만 / 고른 아동만
+document.querySelectorAll('.evtab').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.evtab').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    evFilter = b.dataset.ev;
+    drawEvalList();
+  };
+});
 $('evClose').onclick = () => { $('evBox').style.display = 'none'; };
 $('evNew').onclick   = () => { clearEvalForm(); };
 
