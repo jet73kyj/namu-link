@@ -148,7 +148,7 @@
 
   <div class="tools">
     <input id="mk" type="month" value="2026-08">
-    <input id="q" type="search" placeholder="아동 이름" style="width:150px;">
+    <input id="q" type="search" placeholder="아동 이름 · 입금자명" style="width:190px;">
     <button id="load">불러오기</button>
     <span class="allsum" id="allsum"></span>
   </div>
@@ -454,9 +454,20 @@ function buildRows(childId, mk) {
   return out;
 }
 
+// 아동의 입금자명 — 이번 달에 없으면 지난달 것을 이어받는다
+function payerOf(childId) {
+  const cur = memoOf((SAVED[childId] || {})[2], true);
+  if (cur) return cur;
+  return memoOf((PREV[childId] || {})[2], true);
+}
+
 function drawAll() {
   const q = $('q').value.trim().toLowerCase();
-  const list = CHILDREN.filter(c => !q || (c.name || '').toLowerCase().includes(q));
+  const list = CHILDREN.filter(c => {
+    if (!q) return true;
+    if ((c.name || '').toLowerCase().includes(q)) return true;
+    return payerOf(c.id).toLowerCase().includes(q);   // 입금자명으로도 찾기
+  });
 
   $('empty').style.display = list.length ? 'none' : 'block';
   if (!list.length) { $('kids').innerHTML = ''; $('allsum').textContent = ''; return; }
@@ -604,7 +615,7 @@ function drawKid(c) {
       + '<div class="pay">'
       + '<input class="dt bday" type="date" value="' + (ds && ds.paid_on ? ds.paid_on : '') + '">'
       + '<input class="tx bmemo" type="text" placeholder="입금자명" value="'
-      + esc(memoOf(ds, true)) + '"></div>'
+      + esc(payerOf(c.id)) + '"></div>'
       + '</div>';
   }
 
