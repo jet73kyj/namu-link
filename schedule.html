@@ -1225,6 +1225,17 @@ function drawDay(){
     (mnCell[k] = mnCell[k] || []).push(s);
   });
 
+  // 이 달·이 요일의 결석·휴무를 칸별로 모은다 (빈 자리 단추용)
+  const absCell = {};
+  SESS.forEach(x => {
+    if (x.status !== '결석' && x.status !== '휴무') return;
+    if (!x.plan_date) return;
+    if (String(x.plan_date).slice(0,7) !== mon) return;
+    if (wdOf(x.plan_date) !== wd) return;
+    const k = nearest(toMin(x.start_time)).no + '_' + x.therapist_id;
+    (absCell[k] = absCell[k] || []).push(x);
+  });
+
   const isSat = (wd === '토');
   const colW = 'width:' + Math.floor(88/Math.max(THS.length,1)) + '%';
 
@@ -1239,7 +1250,8 @@ function drawDay(){
           const list = cell[key] || [];
           const mks  = mkCell[key] || [];
           const mns  = mnCell[key] || [];
-          if (!list.length && !mks.length && !mns.length) {
+          const abs  = absCell[key] || [];
+          if (!list.length && !mks.length && !mns.length && !abs.length) {
             return '<td class="cell '+(lunch?'lunch':'free')+'" style="'+colW+'"'
               + (CAN_EDIT ? ' data-add="'+s.no+'_'+t.id+'"' : '') + '>'
               + (lunch ? '<span class="lunchtxt">점심 / 보강</span>'
@@ -1259,15 +1271,16 @@ function drawDay(){
           mks.forEach(x => lines.push({ d: String(x.plan_date), kind: 'mk', x: x }));
           mns.forEach(x => lines.push({ d: String(x.plan_date), kind: 'mn', x: x }));
 
-          list.forEach(r => {
-            (byScd[r.id] || []).forEach(x => {
-              if (x.status !== '결석' && x.status !== '휴무') return;
-              if (mkOf[x.id]) return;              // 보강을 이미 잡았으면 빈 자리가 아니다
-              const dd = String(x.plan_date);
-              const used = lines.some(function(L2){
-                return (L2.kind === 'mk' || L2.kind === 'mn') && L2.d === dd; });
-              if (!used) lines.push({ d: dd, kind: 'open', x: x });
-            });
+          // 이 칸·이 날짜에 결석·휴무가 있으면 빈 자리로 본다
+          // (수업요일 줄이 없는 회차도 빠짐없이 훑는다)
+          abs.forEach(function(x){
+            const dd = String(x.plan_date);
+            const used = lines.some(function(L2){
+              return (L2.kind === 'mk' || L2.kind === 'mn') && L2.d === dd; });
+            if (used) return;
+            const dup = lines.some(function(L2){
+              return L2.kind === 'open' && L2.d === dd; });
+            if (!dup) lines.push({ d: dd, kind: 'open', x: x });
           });
 
           lines.sort(function(a, b){
