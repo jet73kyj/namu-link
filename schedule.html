@@ -893,11 +893,9 @@ function wk5Pairs(r, byScd, wdName){
     d: d,
     h: '<div class="run wk5">'
        + '<span class="dt">' + dayNo(d) + '일</span>'
-       + (CAN_EDIT
-          ? '<button class="w5btn" data-d5="' + d + '" data-th="'
-            + r.therapist_id + '" data-hm="'
-            + nearest(toMin(r.start_time)).hm + '">보강</button>'
-          : '')
+       + '<button class="w5btn" data-d5="' + d + '" data-th="'
+         + r.therapist_id + '" data-hm="'
+         + nearest(toMin(r.start_time)).hm + '">보강</button>'
        + '</div>'
   }));
 }
