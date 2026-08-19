@@ -508,6 +508,32 @@ function tab(head, rows) {
 function drawAudit() {
   if (!ROWS.length) return;
   const MK = ROWS[0].month_key || '';
+  // --- 0. 승인번호 없음·이상 (가장 급한 오류) ---
+  // 결제취소나 미결제라 다시 결제해야 하는 줄
+  const lens = {};
+  ROWS.forEach(r => { const n = String(r.appr_no||'').trim();
+    if (n) lens[n.length] = (lens[n.length]||0) + 1; });
+  let normLen = 0, best = 0;
+  Object.keys(lens).forEach(L => { if (lens[L] > best) { best = lens[L]; normLen = Number(L); } });
+
+  const dup = {};
+  ROWS.forEach(r => { const n = String(r.appr_no||'').trim();
+    if (n) dup[n] = (dup[n]||0) + 1; });
+
+  const e0 = [];
+  ROWS.forEach(r => {
+    const n = String(r.appr_no || '').trim();
+    let why = '';
+    if (!n)                          why = '승인번호 없음 — 결제취소·미결제. 다시 결제해야 함';
+    else if (!/^[0-9]+$/.test(n))    why = '숫자가 아닌 글자가 섞임';
+    else if (normLen && n.length !== normLen)
+                                     why = '자릿수 이상 (' + n.length + '자리 · 보통 ' + normLen + '자리)';
+    else if (dup[n] > 1)             why = '같은 승인번호가 ' + dup[n] + '번 나옴';
+    if (!r.service_date)             why = (why ? why + ' / ' : '') + '결제일시 없음';
+    if (why) e0.push({ v:[ nameOf(r.target_id), r.service_date || '-',
+                           r.start_time || '', n || '(비어 있음)', why ] });
+  });
+
   const live = ROWS.filter(r => r.service_date && r.appr_no);
   // 엑셀에 치료사 칸이 없으면 시스템에서 가져와 채운다
   live.forEach(r => { if (!r.therapist_name) r.therapist_name = thOf(r.target_id); });
@@ -664,6 +690,8 @@ function drawAudit() {
 
   // ===== 그리기 =====
   const S = [
+    ['1. 승인번호 없음·이상 — 다시 결제 필요',
+      ['아동','날짜','시간','승인번호','무엇이 문제인가'], e0, true],
     ['2-1. 중복 결제 — 치료사 기준 (40분 미만)',
       ['치료사','날짜','아동A · 시간','아동B · 시간','간격'], e1, true],
     ['2-2. 중복 결제 — 아동 기준 (40분 미만)',
@@ -690,7 +718,7 @@ function drawAudit() {
       ['아동','결제 건수'], e10, false]
   ];
 
-  const errN = e1.length + e2.length + e3.length + e4.length + e5.length
+  const errN = e0.length + e1.length + e2.length + e3.length + e4.length + e5.length
              + e6.length + e7.length + e8.length + e11.length + e12.length;
 
   let sum = '<div class="asum">'
