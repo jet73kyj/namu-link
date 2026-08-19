@@ -116,6 +116,46 @@
 
   <div id="warnBox" class="warn" style="display:none;"></div>
 
+  <!-- 지급 단가 넣기 -->
+  <div class="evalbox noprint">
+    <div class="sec-t" style="border:none;padding:0;margin-bottom:8px;">
+      지급 단가 넣기 <span style="font-weight:normal;font-size:12px;color:#888;">
+      — 넣은 달부터 계속 적용됩니다. 바뀌면 그 달에 새로 넣으세요.</span>
+    </div>
+    <div class="evalrow">
+      <div>
+        <label for="rt_from">적용 시작 달</label>
+        <input id="rt_from" type="month">
+      </div>
+      <div>
+        <label for="rt_fee">회기 단가</label>
+        <input id="rt_fee" type="text" inputmode="numeric" placeholder="예: 31000">
+      </div>
+      <div>
+        <label for="rt_sp">심리치료 단가</label>
+        <input id="rt_sp" type="text" inputmode="numeric" placeholder="없으면 비움">
+      </div>
+      <div>
+        <label for="rt_fuel">주유비 (하루)</label>
+        <input id="rt_fuel" type="text" inputmode="numeric" placeholder="없으면 비움">
+      </div>
+      <div>
+        <label for="rt_ins">4대보험</label>
+        <select id="rt_ins" class="sel">
+          <option value="no">미가입</option>
+          <option value="yes">가입</option>
+        </select>
+      </div>
+      <div>
+        <label for="rt_dec">신고 금액</label>
+        <input id="rt_dec" type="text" inputmode="numeric" placeholder="가입일 때만">
+      </div>
+      <button id="rtSave" class="addb">저장</button>
+    </div>
+    <div id="rtNow" style="font-size:12.5px;color:#666;margin-top:8px;"></div>
+    <div id="rtMsg" class="out" style="display:none;"></div>
+  </div>
+
   <!-- 평가 손입력 -->
   <div class="evalbox noprint">
     <div class="sec-t" style="border:none;padding:0;margin-bottom:8px;">평가 넣기</div>
@@ -210,7 +250,23 @@ const INS = {
 const TAX = 0.033;
 const STYPE = {1:'센',2:'발',3:'치',4:'치',5:'방',6:'방치',7:'방치',8:'발추',9:'평가'};
 
+let RATES_ALL = [];   // 단가 기록 전부 (여러 시점)
 let RATES = {};   // 치료사 번호 -> 단가
+
+// 그 달에 적용되는 단가를 고른다.
+// 시작일이 그 달 말일보다 앞선 것 중 가장 최근 것.
+function pickRates(mk) {
+  const end = monEnd(mk);
+  const out = {};
+  RATES_ALL.forEach(r => {
+    const from = r.started_on || '1900-01-01';
+    if (from > end) return;                       // 아직 시작 안 한 단가
+    if (r.ended_on && r.ended_on < mk + '-01') return;  // 이미 끝난 단가
+    const cur = out[r.therapist_id];
+    if (!cur || from > (cur.started_on || '1900-01-01')) out[r.therapist_id] = r;
+  });
+  return out;
+}
 let EVFEE = {};   // 평가 개수 -> 수수료
 let THS   = [];
 let SESS  = [], ROWS = [], KIDS = {};
@@ -231,8 +287,10 @@ function monEnd(k){
 
 // ===== 계산 =====
 function calc(){
+  RATES = pickRates(mon);          // 그 달에 맞는 단가를 고른다
   const r = RATES[thId];
   $('monBig').textContent = monNo(mon) + '월';
+  drawRateBox();
 
   if (!r) {
     $('warnBox').style.display = 'block';
@@ -380,6 +438,81 @@ function calc(){
 }
 
 // ===== 평가 넣기 =====
+// ===== 지급 단가 =====
+// 지금 고른 달·치료사의 단가를 칸에 채워 보여준다
+function drawRateBox(){
+  const r = RATES[thId];
+  if (r) {
+    $('rtNow').innerHTML = '지금 적용 중: <b>' + won(r.session_fee) + '원</b>'
+      + ' · ' + (r.started_on ? r.started_on.slice(0,7) + '부터' : '시작일 없음')
+      + (r.special_fee ? ' · 심리 ' + won(r.special_fee) + '원' : '')
+      + (r.daily_fuel ? ' · 주유비 ' + won(r.daily_fuel) + '원' : '')
+      + ' · 4대보험 ' + (r.insured ? '가입' : '미가입');
+    $('rt_fee').value  = r.session_fee || '';
+    $('rt_sp').value   = r.special_fee || '';
+    $('rt_fuel').value = r.daily_fuel  || '';
+    $('rt_ins').value  = r.insured ? 'yes' : 'no';
+    $('rt_dec').value  = r.declared_amt || '';
+  } else {
+    $('rtNow').innerHTML = '<b style="color:#c62828;">이 달에 적용되는 단가가 없습니다.</b>'
+      + ' 아래에 넣어주세요.';
+    $('rt_fee').value = ''; $('rt_sp').value = '';
+    $('rt_fuel').value = ''; $('rt_dec').value = ''; $('rt_ins').value = 'no';
+  }
+  $('rt_from').value = mon;
+}
+
+function rtMsg(t, ok){
+  const e = $('rtMsg');
+  e.textContent = t;
+  e.className = 'out ' + (ok ? 'ok' : 'err');
+  e.style.display = t ? 'block' : 'none';
+}
+
+const numOf = v => {
+  const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
+  return isNaN(n) ? null : n;
+};
+
+$('rtSave').onclick = async () => {
+  const from = $('rt_from').value;
+  const fee  = numOf($('rt_fee').value);
+  if (!from) { rtMsg('적용 시작 달을 고르세요.', false); return; }
+  if (!fee)  { rtMsg('회기 단가를 넣으세요.', false); return; }
+
+  const ins = ($('rt_ins').value === 'yes');
+  const dec = numOf($('rt_dec').value);
+  if (ins && !dec) { rtMsg('4대보험 가입이면 신고 금액도 넣으세요.', false); return; }
+
+  const row = {
+    therapist_id: thId,
+    started_on:   from + '-01',
+    session_fee:  fee,
+    special_fee:  numOf($('rt_sp').value),
+    daily_fuel:   numOf($('rt_fuel').value),
+    insured:      ins,
+    declared_amt: dec
+  };
+
+  $('rtSave').disabled = true;
+  try {
+    // 같은 치료사·같은 시작달 기록이 있으면 고치고, 없으면 새로 넣는다
+    const old = RATES_ALL.find(x => x.therapist_id === thId
+                                 && x.started_on === row.started_on);
+    let res;
+    if (old) res = await sb.from('nl_pay_rates').update(row).eq('id', old.id);
+    else     res = await sb.from('nl_pay_rates').insert(row);
+    if (res.error) throw res.error;
+
+    const { data: rates } = await sb.from('nl_pay_rates').select('*');
+    RATES_ALL = rates || [];
+    calc();
+    rtMsg('✅ 저장했습니다. ' + from + '부터 적용됩니다.', true);
+  } catch (e) {
+    rtMsg('❌ 저장하지 못했습니다.\n' + e.message, false);
+  } finally { $('rtSave').disabled = false; }
+};
+
 $('evAdd').onclick = async () => {
   const d = $('ev_date').value;
   const nm = $('ev_kid').value.trim();
@@ -435,7 +568,7 @@ async function afterLogin(user){
   thId = THS.length ? THS[0].id : 0;
 
   const { data: rates } = await sb.from('nl_pay_rates').select('*');
-  (rates || []).forEach(r => RATES[r.therapist_id] = r);
+  RATES_ALL = rates || [];
 
   const { data: ef } = await sb.from('nl_eval_pay').select('cnt, fee').order('cnt');
   (ef || []).forEach(x => EVFEE[x.cnt] = x.fee);
