@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>로그인 테스트 - 나무링크</title>
+<title>로그인 - 나무링크</title>
 <style>
   body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:#f5f9f0;
          margin:0; padding:24px; color:#333; }
@@ -22,20 +22,25 @@
   .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
   .err { background:#ffebee; color:#b71c1c; display:block; }
   .logout { background:#757575; margin-top:10px; }
+  .gobtn  { background:#2e7d32; margin-top:16px; }
 </style>
 </head>
 <body>
 <div class="box">
-  <h1>🌿 나무링크 로그인 테스트</h1>
-  <div class="sub">새 로그인 방식과 새 표 읽기를 확인하는 페이지입니다.</div>
+  <h1>🌿 나무링크</h1>
+  <div class="sub">자라는나무 아동발달치료센터</div>
 
-  <label for="em">이메일</label>
-  <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
+  <div id="formBox">
+    <label for="em">이메일</label>
+    <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
 
-  <label for="pw">비밀번호</label>
-  <input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
+    <label for="pw">비밀번호</label>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
 
-  <button id="btn">로그인</button>
+    <button id="btn">로그인</button>
+  </div>
+
+  <button id="go" class="gobtn" style="display:none;">들어가기</button>
   <button id="out" class="logout" style="display:none;">로그아웃</button>
 
   <div id="msg" class="out"></div>
@@ -56,42 +61,32 @@ function show(text, ok) {
 }
 
 async function afterLogin(user) {
-  let lines = ['✅ 로그인 성공', '이메일: ' + user.email, ''];
-
-  // 1) 직원 정보 조회
+  // 직원 정보 조회
   const { data: me, error: e1 } = await sb
     .from('nl_therapists')
     .select('name, role, active')
     .eq('login_email', user.email.toLowerCase())
     .maybeSingle();
 
-  if (e1) {
-    lines.push('❌ 직원 조회 실패: ' + e1.message);
-  } else if (!me) {
-    lines.push('⚠️ 직원 표에서 이 이메일을 못 찾았습니다.');
-  } else {
-    lines.push('이름: ' + me.name);
-    lines.push('역할: ' + me.role);
-    lines.push('재직: ' + (me.active ? '예' : '아니오'));
-  }
-  lines.push('');
-
-  // 2) 새 표 읽기 확인
-  const counts = [
-    ['아동',     'nl_children'],
-    ['치료',     'nl_therapies'],
-    ['수업요일', 'nl_therapy_schedules'],
-  ];
-  for (const [label, table] of counts) {
-    const { count, error } = await sb.from(table)
-      .select('*', { count: 'exact', head: true });
-    lines.push(error ? `❌ ${label}: ${error.message}`
-                     : `📋 ${label}: ${count}건`);
-  }
-
-  show(lines.join('\n'), true);
-  $('btn').style.display = 'none';
+  // 로그인했으면 입력칸은 감춘다
+  $('formBox').style.display = 'none';
   $('out').style.display = 'block';
+
+  if (e1) {
+    show('❌ 직원 조회 실패: ' + e1.message, false);
+    return;
+  }
+  if (!me) {
+    show('⚠️ 직원 표에서 이 이메일을 못 찾았습니다.\n관리자에게 문의하세요.', false);
+    return;
+  }
+  if (me.active === false) {
+    show('⚠️ 사용이 중지된 계정입니다.\n관리자에게 문의하세요.', false);
+    return;
+  }
+
+  show(me.name + ' (' + me.role + ') 님, 안녕하세요.', true);
+  $('go').style.display = 'block';
 }
 
 $('btn').onclick = async () => {
@@ -113,9 +108,14 @@ $('btn').onclick = async () => {
   }
 };
 
+$('go').onclick = () => { location.href = 'index.html'; };
+
 $('out').onclick = async () => {
-  await sb.auth.signOut();
-  location.reload();
+  $('out').disabled = true;
+  $('out').textContent = '로그아웃 중...';
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('login-new.html');
 };
 
 // 이미 로그인되어 있으면 바로 결과 표시
