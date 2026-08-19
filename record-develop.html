@@ -207,12 +207,19 @@
         <td colspan="6" class="lbl">1. 발달재활서비스</td>
       </tr>
       <tr>
-        <td rowspan="3" style="text-align:center;font-weight:bold;background:#fafafa;width:15%;">감각발달재활<br>제공시간</td>
-        <td class="lbl" style="width:12%;">시작시간</td>
-        <td style="width:18.25%;"><input type="text" id="s1_startTime_1"></td>
-        <td style="width:18.25%;"><input type="text" id="s1_startTime_2"></td>
-        <td style="width:18.25%;"><input type="text" id="s1_startTime_3"></td>
-        <td style="width:18.25%;"><input type="text" id="s1_startTime_4"></td>
+        <td rowspan="4" style="text-align:center;font-weight:bold;background:#fafafa;width:15%;">감각발달재활<br>제공시간</td>
+        <td class="lbl" style="width:12%;">제공날짜</td>
+        <td style="width:18.25%;"><input type="text" id="s1_provDate_1"></td>
+        <td style="width:18.25%;"><input type="text" id="s1_provDate_2"></td>
+        <td style="width:18.25%;"><input type="text" id="s1_provDate_3"></td>
+        <td style="width:18.25%;"><input type="text" id="s1_provDate_4"></td>
+      </tr>
+      <tr>
+        <td class="lbl">시작시간</td>
+        <td><input type="text" id="s1_startTime_1"></td>
+        <td><input type="text" id="s1_startTime_2"></td>
+        <td><input type="text" id="s1_startTime_3"></td>
+        <td><input type="text" id="s1_startTime_4"></td>
       </tr>
       <tr>
         <td class="lbl">종료시간</td>
@@ -598,26 +605,16 @@ function _getScheduledDaysCapped() {
   return new Set(all.slice(0, SESSIONS));
 }
 
-// 일정표 아래쪽 시작·종료시간 채우기
+// 제공날짜·시작시간·종료시간은 손으로 적는 칸이다.
+// 불러오기 할 때 지난 아동 값이 남지 않도록 비워만 준다.
 function _fillSheet1Times() {
-  // 실제 수업일 = 예정일 중 결석 뺀 날 + 이 달로 잡힌 보강일
-  const days = [...(_getScheduledDaysCapped())].filter(d => !(ABS[d] && ABS[d].absent));
-  Object.keys(ABS).forEach(k => {
-    const md = ABS[k].makeupDate;
-    if (!md) return;
-    const p = String(md).split('-');
-    if (p.length !== 3) return;
-    if (parseInt(p[0],10) !== year || parseInt(p[1],10) !== month) return;
-    const d = parseInt(p[2],10);
-    if (!days.includes(d)) days.push(d);
-  });
-  days.sort((a,b)=>a-b);
-  const ts = _getTimeSlotForEvt().split('~');
   for (let i = 1; i <= SESSIONS; i++) {
-    const st = $('s1_startTime_' + i), en = $('s1_endTime_' + i);
-    const has = days[i-1] !== undefined;
-    if (st) st.value = has ? (ts[0] || '') : '';
-    if (en) en.value = has ? (ts[1] || '') : '';
+    const dt = $('s1_provDate_'  + i);
+    const st = $('s1_startTime_' + i);
+    const en = $('s1_endTime_'   + i);
+    if (dt) dt.value = '';
+    if (st) st.value = '';
+    if (en) en.value = '';
   }
 }
 
