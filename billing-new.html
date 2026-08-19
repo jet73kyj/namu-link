@@ -47,6 +47,10 @@
 
   .tools { display:flex; gap:10px; flex-wrap:wrap; align-items:center;
            padding-bottom:18px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+  .paytabs { display:inline-flex; gap:4px; }
+  .ptab { padding:8px 14px; font-size:13px; background:#fff; color:#5a6156;
+          border:1px solid #e8ebe4; border-radius:8px; cursor:pointer; }
+  .ptab.on { background:#3c7a4a; color:#fff; border-color:#3c7a4a; }
   .tools label { margin:0; }
   .allsum { margin-left:auto; font-size:14px; color:var(--ink2); }
 
@@ -156,6 +160,11 @@
     <input id="mk" type="month" value="2026-08">
     <input id="q" type="search" placeholder="아동 이름 · 입금자명" style="width:190px;">
     <button id="load">불러오기</button>
+    <span class="paytabs">
+      <button class="ptab on" data-pay="all">전체</button>
+      <button class="ptab" data-pay="unpaid">미납만</button>
+      <button class="ptab" data-pay="paid">완납만</button>
+    </span>
     <span class="allsum" id="allsum"></span>
   </div>
 
@@ -201,6 +210,7 @@ let SAVED = {};             // child_id -> 저장된 납부 (이번 달)
 let PREV  = {};             // child_id -> 지난달 납부 (적용단가·발추방식 이어받기용)
 let LASTX = {};             // child_id -> 지난 발추 담당 치료사
 let LOADED_MK = null;
+let PAYFILTER = 'all';      // 전체 / unpaid 미납만 / paid 완납만
 
 // 평가비 기준 — nl_eval_fees 표를 읽어오고, 못 읽으면 아래 기본값을 쓴다
 const EVAL_FALLBACK = [
@@ -475,13 +485,26 @@ function payerOf(childId) {
   return memoOf((PREV[childId] || {})[2], true);
 }
 
+// 이 아동이 미납인가 — 저장된 줄 중 하나라도 납부일이 비어 있으면 미납
+// (한 줄도 저장이 안 된 아동도 미납으로 본다)
+function isUnpaid(childId) {
+  const sv = SAVED[childId] || {};
+  const keys = Object.keys(sv);
+  if (!keys.length) return true;                  // 아예 저장 안 됨
+  return keys.some(k => !sv[k].paid_on);          // 하나라도 날짜 없음
+}
+
 function drawAll() {
   const q = $('q').value.trim().toLowerCase();
-  const list = CHILDREN.filter(c => {
+  let list = CHILDREN.filter(c => {
     if (!q) return true;
     if ((c.name || '').toLowerCase().includes(q)) return true;
     return payerOf(c.id).toLowerCase().includes(q);   // 입금자명으로도 찾기
   });
+
+  // 미납만 / 완납만 걸러내기
+  if (PAYFILTER === 'unpaid')    list = list.filter(c => isUnpaid(c.id));
+  else if (PAYFILTER === 'paid') list = list.filter(c => !isUnpaid(c.id));
 
   $('empty').style.display = list.length ? 'none' : 'block';
   if (!list.length) { $('kids').innerHTML = ''; $('allsum').textContent = ''; return; }
@@ -827,7 +850,10 @@ function sumAll() {
     const v = Number(b.dataset.total || 0);
     if (v > 0) { t += v; n++; }
   });
-  $('allsum').textContent = n + '명 · ' + won(t);
+  // 이 달 전체 미납 인원도 함께 보여준다
+  const nUnpaid = CHILDREN.filter(c => isUnpaid(c.id)).length;
+  $('allsum').textContent = n + '명 · ' + won(t)
+    + (nUnpaid ? '   ·   미납 ' + nUnpaid + '명' : '   ·   미납 없음');
 }
 
 async function saveKid(childId, btn) {
@@ -945,6 +971,16 @@ $('kids').addEventListener('click', e => {
   }
 });
 $('q').addEventListener('input', () => { if (LOADED_MK) drawAll(); });
+
+// 전체 / 미납만 / 완납만 단추
+document.querySelectorAll('.ptab').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.ptab').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    PAYFILTER = b.dataset.pay;
+    if (LOADED_MK) drawAll();
+  };
+});
 $('mk').addEventListener('change', () => {
   $('kids').innerHTML = ''; $('allsum').textContent = '';
   LOADED_MK = null; $('empty').style.display = 'block';
