@@ -24,9 +24,12 @@
   .shortbox { background:#ffebee; border:1px solid #ef9a9a; border-radius:10px;
               padding:14px 16px; margin-bottom:14px; }
   .short-t { font-size:15px; font-weight:bold; color:#b71c1c; margin-bottom:8px; }
-  .short-line { font-size:13.5px; padding:6px 0; border-bottom:1px dashed #ef9a9a;
-                display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .short-line { font-size:13.5px; padding:8px 0; border-bottom:1px dashed #ef9a9a; }
   .short-line:last-child { border-bottom:none; }
+  .sline1 { display:flex; align-items:center; gap:8px; margin-bottom:3px; }
+  .sline1 .stxt { font-size:14px; color:#7a1f1f; }
+  .sline1 .sbtn { margin-left:auto; flex:none; }
+  .sline2 { font-size:12.5px; color:#7a5050; padding-left:2px; }
   .short-line .snm { font-weight:bold; min-width:96px; }
   .short-line .sinfo { color:#7a5050; }
   .short-line .sgap { color:#b71c1c; font-weight:bold; }
@@ -575,6 +578,12 @@ function countWd(k, w){
   return n;
 }
 
+// 치료사 번호로 이름 찾기
+function thName(tid){
+  const t = THS_ALL.find(x => x.id === tid);
+  return t ? t.name : (tid == null ? '담당없음' : ('치료사' + tid));
+}
+
 // ===== 그 달 회수가 모자란 아동 =====
 function drawShort(byScd, mkOf){
   const bad = [];
@@ -629,19 +638,36 @@ function drawShort(byScd, mkOf){
     + bad.map(b => {
         const r = b.row;
         const must = (r.support_type_id === 2);
-        const days = b.miss.map(x =>
-          dayNo(x.plan_date) + '일 ' + (x.status === '휴무' ? '휴무' : '결석')).join(', ');
+        const thn = esc(thName(r.therapist_id));
+        const left = b.miss.length + b.short5;
+
+        // 첫 줄: 결석·휴무를 하나씩 문장으로. 각자 보강 잡기 단추를 가진다
+        let head = b.miss.map(x =>
+            '<div class="sline1">'
+          + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
+          + monNo(mon) + '월 ' + dayNo(x.plan_date) + '일 '
+          + (x.status === '휴무' ? '휴무' : '결석') + '입니다.</span>'
+          + '<button class="sbtn" data-mk="' + x.id + '">보강 잡기</button>'
+          + '</div>').join('');
+
+        // 결석은 없는데 회수만 모자란 경우 (5주차 없는 달 등)
+        if (!b.miss.length) {
+          head = '<div class="sline1">'
+               + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
+               + monNo(mon) + '월 회수가 모자랍니다.</span></div>';
+        }
+
+        // 둘째 줄: 어떤 수업인지와 남은 회수
         const s5 = b.short5
-          ? '<span class="s5">이 달은 5주차가 없어 1회 모자람</span>' : '';
+          ? ' <span class="s5">이 달은 5주차가 없어 1회 모자람</span>' : '';
+
         return '<div class="short-line' + (must ? ' must' : '') + '">'
-          + '<span class="snm">' + esc(r._name) + '</span>'
-          + '<span class="sinfo">' + (STYPE[r.support_type_id]||'') + ' · '
-            + (TTYPE[r._tt]||'') + ' · ' + r.weekday + '요일</span>'
-          + '<span class="sgap">' + b.need + '회 중 ' + b.have + '회 · '
-            + (b.miss.length + b.short5) + '회 남음</span>'
-          + '<span class="sday">' + days + ' ' + s5 + ' '
-          + b.miss.map(x => '<button class="sbtn" data-mk="'+x.id+'">보강 잡기</button>').join(' ')
-          + '</span></div>';
+          + head
+          + '<div class="sline2">'
+            + (STYPE[r.support_type_id]||'') + ' · ' + (TTYPE[r._tt]||'')
+            + ' · ' + r.weekday + '요일 · ' + b.need + '회 중 ' + b.have + '회 · '
+            + '<b class="sgap">' + left + '회 더 잡아야 합니다</b>' + s5
+          + '</div></div>';
       }).join('');
 
   $('short').querySelectorAll('.sbtn').forEach(el => {
