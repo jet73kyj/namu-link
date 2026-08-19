@@ -97,7 +97,8 @@
   <span style="font-size:22px;">🌿</span>
   <h1 style="margin:0;font-size:20px;">나무링크 · 발달재활 서비스 기록지</h1>
   <span style="margin-left:auto;font-size:13px;opacity:.9;" id="who"></span>
-  <button onclick="logout()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;">로그아웃</button>
+  <a href="index.html" class="no-print" style="background:rgba(255,255,255,.15);color:#fff;text-decoration:none;border-radius:6px;padding:6px 12px;font-size:13px;">🌿 처음으로</a>
+  <button onclick="logout()" class="no-print" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;">로그아웃</button>
 </header>
 
 <div class="picker no-print">
@@ -271,7 +272,15 @@
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
-const sb = window.supabase.createClient(URL_, KEY_);
+// 로그인을 창(탭) 안에서만 유지한다. 창을 닫으면 자동으로 끊긴다.
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: {
+    storage: window.sessionStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false
+  }
+});
 const $  = id => document.getElementById(id);
 
 const SESSIONS = 4;        // 발달재활 = 월 4회
@@ -320,7 +329,11 @@ function pickLatest(rows, mk, keyName) {
   });
   return out;
 }
-function logout() { sb.auth.signOut().then(() => location.reload()); }
+async function logout() {
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+}
 
 function _shareRecordHelp(){
   alert('학부모님께 결과기록지 전달 방법:\n\n' +

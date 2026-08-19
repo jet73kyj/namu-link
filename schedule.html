@@ -60,6 +60,10 @@
          flex-wrap:wrap; gap:10px; margin-bottom:14px; }
   .who { font-size:13px; color:#666; }
   .btn-out { width:auto; margin:0; padding:8px 16px; background:#757575; font-size:13px; }
+  .topbtns { display:flex; gap:8px; align-items:center; flex:none; }
+  .btn-home { display:inline-block; padding:8px 16px; background:#2e7d32; color:#fff;
+              font-size:13px; border-radius:8px; text-decoration:none; white-space:nowrap; }
+  .btn-home:hover { filter:brightness(1.08); }
   .tools { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
   .tab { width:auto; margin:0; padding:9px 18px; background:#eee; color:#555;
          font-size:14px; font-weight:normal; }
@@ -243,7 +247,10 @@
       <h1>🌿 시간표 <span id="monBig">　</span></h1>
       <div class="who" id="who"></div>
     </div>
-    <button id="out" class="btn-out">로그아웃</button>
+    <div class="topbtns">
+      <a href="index.html" class="btn-home">🌿 처음으로</a>
+      <button id="out" class="btn-out">로그아웃</button>
+    </div>
   </div>
 
   <div class="tools">
