@@ -161,9 +161,9 @@
     <input id="q" type="search" placeholder="아동 이름 · 입금자명" style="width:190px;">
     <button id="load">불러오기</button>
     <span class="paytabs">
-      <button class="ptab on" data-pay="all">전체</button>
-      <button class="ptab" data-pay="unpaid">미납만</button>
-      <button class="ptab" data-pay="paid">완납만</button>
+      <button class="ptab on" data-pay="all" id="tabAll">전체</button>
+      <button class="ptab" data-pay="unpaid" id="tabUn">미납만</button>
+      <button class="ptab" data-pay="paid" id="tabPd">완납만</button>
     </span>
     <span class="allsum" id="allsum"></span>
   </div>
@@ -485,13 +485,45 @@ function payerOf(childId) {
   return memoOf((PREV[childId] || {})[2], true);
 }
 
-// 이 아동이 미납인가 — 저장된 줄 중 하나라도 납부일이 비어 있으면 미납
-// (한 줄도 저장이 안 된 아동도 미납으로 본다)
+// 이 달에 실제로 낼 돈이 있는 아동인가
+//   · 저장된 줄에 0원보다 큰 금액이 있으면 낼 것이 있다
+//   · 아직 저장 전이면 수업이 있는지로 본다
+//     - 발달재활만 있는 아동은 등급 본인부담금이 0원이면(다형) 낼 것이 없다
+//     - 대기중처럼 수업이 아예 없으면 낼 것이 없다
+function hasBill(childId) {
+  const sv = SAVED[childId] || {};
+  if (Object.keys(sv).some(k => Number(sv[k].amount) > 0)) return true;
+
+  const gs = buildRows(childId, LOADED_MK) || [];
+  const withItems = gs.filter(g => g.items && g.items.length);
+  if (!withItems.length) return false;              // 수업이 없음 (대기중 등)
+
+  // 발달재활(2번) 말고 다른 유형이 하나라도 있으면 낼 것이 있다
+  if (withItems.some(g => g.support_type_id !== 2)) return true;
+
+  // 발달재활만 있는 경우 — 본인부담금이 0원보다 커야 낼 것이 있다
+  const gr = GRADES[childId];
+  return !!(gr && Number(gr.self_pay) > 0);
+}
+
+// 미납 — 낼 것이 있는데 아직 안 낸 아동
+//   · 저장된 줄 중 납부일이 비어 있는 것이 있거나
+//   · 아예 저장이 안 된 경우
 function isUnpaid(childId) {
+  if (!hasBill(childId)) return false;            // 낼 것이 없으면 미납이 아니다
   const sv = SAVED[childId] || {};
   const keys = Object.keys(sv);
-  if (!keys.length) return true;                  // 아예 저장 안 됨
+  if (!keys.length) return true;                  // 낼 것은 있는데 저장 안 됨
   return keys.some(k => !sv[k].paid_on);          // 하나라도 날짜 없음
+}
+
+// 완납 — 낼 것이 있고 모두 납부일이 채워진 아동
+function isPaid(childId) {
+  if (!hasBill(childId)) return false;
+  const sv = SAVED[childId] || {};
+  const keys = Object.keys(sv);
+  if (!keys.length) return false;
+  return keys.every(k => !!sv[k].paid_on);
 }
 
 function drawAll() {
@@ -504,10 +536,24 @@ function drawAll() {
 
   // 미납만 / 완납만 걸러내기
   if (PAYFILTER === 'unpaid')    list = list.filter(c => isUnpaid(c.id));
-  else if (PAYFILTER === 'paid') list = list.filter(c => !isUnpaid(c.id));
+  else if (PAYFILTER === 'paid') list = list.filter(c => isPaid(c.id));
+
+  // 단추에 인원수를 붙여 준다
+  const nUn = CHILDREN.filter(c => isUnpaid(c.id)).length;
+  const nPd = CHILDREN.filter(c => isPaid(c.id)).length;
+  $('tabAll').textContent = '전체 ' + CHILDREN.length;
+  $('tabUn').textContent  = '미납만 ' + nUn;
+  $('tabPd').textContent  = '완납만 ' + nPd;
 
   $('empty').style.display = list.length ? 'none' : 'block';
-  if (!list.length) { $('kids').innerHTML = ''; $('allsum').textContent = ''; return; }
+  if (!list.length) {
+    $('kids').innerHTML = ''; $('allsum').textContent = '';
+    $('empty').textContent =
+      PAYFILTER === 'unpaid' ? '미납인 아동이 없습니다.'
+    : PAYFILTER === 'paid'   ? '완납한 아동이 없습니다.'
+    : '해당하는 아동이 없습니다.';
+    return;
+  }
 
   $('kids').innerHTML = list.map(c => drawKid(c)).join('');
   list.forEach(c => calcKid(c.id));
@@ -979,6 +1025,7 @@ document.querySelectorAll('.ptab').forEach(b => {
     b.classList.add('on');
     PAYFILTER = b.dataset.pay;
     if (LOADED_MK) drawAll();
+    else show($('msg2'), '먼저 [불러오기] 를 눌러주세요.', false);
   };
 });
 $('mk').addEventListener('change', () => {
