@@ -1262,6 +1262,7 @@ function drawDay(){
           list.forEach(r => {
             (byScd[r.id] || []).forEach(x => {
               if (x.status !== '결석' && x.status !== '휴무') return;
+              if (mkOf[x.id]) return;              // 보강을 이미 잡았으면 빈 자리가 아니다
               const dd = String(x.plan_date);
               const used = lines.some(function(L2){
                 return (L2.kind === 'mk' || L2.kind === 'mn') && L2.d === dd; });
@@ -2133,10 +2134,12 @@ $('mkSave').onclick = async () => {
   const slot = SLOTS.find(x => x.no === Number($('mk_slot').value));
   const th   = Number($('mk_th').value);
 
-  // 그 칸이 이미 찼는지 살펴본다
-  const dw = wdOf(d);
-  const taken = ROWS.filter(r => r.therapist_id === th && r.weekday === dw
-                  && nearest(toMin(r.start_time)).no === slot.no);
+  // 그 칸이 이미 찼는지 살펴본다 (결석·휴무로 비는 자리는 빈 것으로 본다)
+  const taken = SESS.filter(s => s.plan_date === d
+                  && s.therapist_id === th
+                  && s.status !== '보강'
+                  && s.status !== '결석' && s.status !== '휴무'
+                  && nearest(toMin(s.start_time)).no === slot.no);
   const takenMk = SESS.filter(s => s.status === '보강' && s.plan_date === d
                   && s.therapist_id === th
                   && nearest(toMin(s.start_time)).no === slot.no
