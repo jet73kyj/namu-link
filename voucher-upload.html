@@ -56,6 +56,34 @@
           background:#fcfdfb; }
   .drop:hover { border-color:var(--acc); color:var(--ink2); }
   .drop b { color:var(--acc); font-weight:600; }
+  .drop2 { padding:24px 16px; font-size:13px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .lbl { font-size:13px; font-weight:600; color:var(--ink2); margin:0 0 6px; }
+  .prevstat { font-size:12px; color:var(--ink3); margin:8px 0 0; }
+
+  .asum { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 16px; }
+  .apill { border:1px solid var(--line); border-radius:8px; padding:6px 10px;
+           font-size:12.5px; background:#fafafa; }
+  .apill b { font-size:14px; }
+  .apill.hit { background:#fff4f2; border-color:#f0b3a6; color:#b03a20; }
+  .asec { margin:0 0 20px; }
+  .asec h3 { font-size:14px; margin:0 0 8px; color:var(--ink1);
+             border-left:3px solid var(--acc); padding-left:8px; }
+  .anone { font-size:13px; color:var(--ink3); padding:6px 0 0; }
+  .atab { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .atab th { background:#f4f6f2; text-align:left; padding:6px 8px;
+             border-bottom:1px solid var(--line); white-space:nowrap; }
+  .atab td { padding:6px 8px; border-bottom:1px solid #eee; }
+  .atab tr.bad td { background:#fff4f2; }
+  .atab tr.warn td { background:#fffaf0; }
+
+  @media print {
+    .noprint, .top, #loginBox, .drop, .drop2, .two, #empty,
+    #unmatchCard, .foot, .out { display:none !important; }
+    body { background:#fff; }
+    .card { border:none; box-shadow:none; padding:0 0 10px; page-break-inside:avoid; }
+    .asec { page-break-inside:avoid; }
+  }
 
   .stat { display:flex; gap:10px; flex-wrap:wrap; margin:16px 0 4px; }
   .st { flex:1; min-width:120px; background:var(--acc-bg); border-radius:10px;
@@ -121,11 +149,25 @@
 
   <div class="card">
     <h2>1. 엑셀 고르기</h2>
-    <div class="drop" id="drop">
-      여기를 눌러 엑셀 파일을 고르세요<br>
-      <b>.xlsx</b> 파일
+    <div class="two">
+      <div>
+        <div class="lbl">당월 (점검할 달)</div>
+        <div class="drop" id="drop">
+          여기를 눌러 엑셀 파일을 고르세요<br>
+          <b>.xlsx</b> 파일
+        </div>
+        <input id="file" type="file" accept=".xlsx,.xls" style="display:none;">
+      </div>
+      <div>
+        <div class="lbl">전월 (비교용 · 안 올려도 됨)</div>
+        <div class="drop drop2" id="drop0">
+          여기를 눌러 전월 엑셀을 고르세요<br>
+          <span style="font-size:12px;">한 번 올리면 계속 보관됩니다</span>
+        </div>
+        <input id="file0" type="file" accept=".xlsx,.xls" style="display:none;">
+        <div class="prevstat" id="prevstat">전월 자료를 확인하는 중...</div>
+      </div>
     </div>
-    <input id="file" type="file" accept=".xlsx,.xls" style="display:none;">
     <div id="msg2" class="out"></div>
   </div>
 
@@ -155,6 +197,22 @@
       </div>
       <div id="msg3" class="out"></div>
     </div>
+
+    <div class="card" id="auditCard">
+      <h2>5. 결제 오류 점검</h2>
+      <div class="note" style="margin:0 0 12px;">
+        전자바우처 결제 규칙에 어긋나는 줄을 찾아 모았습니다.
+        오류가 없는 항목은 「해당 없음」으로 둡니다.
+      </div>
+      <div id="auditSum"></div>
+      <div id="auditBody"></div>
+      <div class="foot noprint">
+        <button id="pdfBtn" class="ghost">🖨 PDF로 저장 · 인쇄</button>
+        <span class="grow" style="font-size:12px;color:#777;">
+          인쇄 창에서 「대상」을 <b>PDF로 저장</b> 으로 고르세요
+        </span>
+      </div>
+    </div>
   </div>
 
   <div class="empty" id="empty">엑셀을 고르면 내용이 여기에 나옵니다.</div>
@@ -181,6 +239,9 @@ let CHILDREN = [];      // 나무링크 아동
 let MAPPED   = {};      // 대상자ID -> 아동번호 (지난번에 이어둔 것)
 let ROWS     = [];      // 엑셀에서 읽은 줄
 let GROUPS   = [];      // 대상자ID별로 묶은 것
+let PREV     = [];      // 전월 줄 (파일이나 시스템에서)
+let PREVMK   = '';      // 전월 달
+let THBYKID  = {};      // 아동번호 -> 발달재활 담당 치료사
 
 function show(el, text, ok) {
   el.textContent = text;
@@ -246,15 +307,28 @@ async function afterLogin(user) {
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
 
-  const [c, v] = await Promise.all([
+  const [c, v, tp, sc, th] = await Promise.all([
     sb.from('nl_children').select('id, name, birth, manager_no, status').order('name'),
-    sb.from('nl_voucher_rows').select('target_id, child_id').not('child_id', 'is', null)
+    sb.from('nl_voucher_rows').select('target_id, child_id').not('child_id', 'is', null),
+    sb.from('nl_therapies').select('id, child_id, support_type_id, ended_on').eq('support_type_id', 2),
+    sb.from('nl_therapy_schedules').select('therapy_id, therapist_id'),
+    sb.from('nl_therapists').select('id, name').lte('id', 7)
   ]);
   if (c.error) { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
 
   CHILDREN = c.data || [];
   MAPPED = {};
   (v.data || []).forEach(r => { if (r.child_id) MAPPED[r.target_id] = r.child_id; });
+
+  // 아동번호 -> 발달재활 담당 치료사 이름 (엑셀에 치료사 칸이 없어서 시스템에서 가져온다)
+  const thNm = {}; (th.data || []).forEach(t => thNm[t.id] = t.name);
+  const tpOf = {}; (tp.data || []).forEach(t => { if (!t.ended_on) tpOf[t.id] = t.child_id; });
+  THBYKID = {};
+  (sc.data || []).forEach(s => {
+    const cid = tpOf[s.therapy_id];
+    if (!cid || !thNm[s.therapist_id]) return;
+    (THBYKID[cid] = THBYKID[cid] || {})[thNm[s.therapist_id]] = 1;
+  });
 
   $('who').textContent = me.name + ' (' + me.role + ') 님 · 아동 ' + CHILDREN.length + '명'
     + ' · 이어둔 대상자ID ' + Object.keys(MAPPED).length + '개';
@@ -273,14 +347,14 @@ function childOptions(sel) {
 }
 
 // 엑셀 읽기
-function readExcel(file) {
+function readExcel(file, which) {
   const fr = new FileReader();
   fr.onload = e => {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:true });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, cellDates:true });
-      parseRows(aoa);
+      if (which === 'prev') parsePrev(aoa); else parseRows(aoa);
     } catch (err) {
       show($('msg2'), '❌ 엑셀을 읽지 못했습니다.\n' + err.message, false);
     }
@@ -288,21 +362,13 @@ function readExcel(file) {
   fr.readAsArrayBuffer(file);
 }
 
-function parseRows(aoa) {
-  if (!aoa.length) { show($('msg2'), '내용이 없는 파일입니다.', false); return; }
-
-  // 머리글 줄 찾기 (대상자ID 가 있는 줄)
+// 엑셀 한 장을 줄 목록으로 (당월·전월 공통)
+function toRows(aoa) {
   let hr = -1;
   for (let i = 0; i < Math.min(aoa.length, 10); i++) {
     if ((aoa[i] || []).some(x => String(x || '').replace(/\s/g,'') === '대상자ID')) { hr = i; break; }
   }
-  if (hr < 0) {
-    show($('msg2'), '❌ 이 파일에는 「대상자ID」 칸이 없습니다.\n'
-      + '사회서비스 전자바우처에서 내려받은 결제내역 엑셀이 맞는지 확인해 주세요.', false);
-    return;
-  }
-
-  // 같은 이름이 두 번 나오면 앞엣것을 쓴다 (생년월일이 아동·치료사 둘 다 있음)
+  if (hr < 0) return null;
   const H = {};
   (aoa[hr] || []).forEach((h, i) => {
     const k = String(h || '').replace(/\s/g,'');
@@ -312,14 +378,13 @@ function parseRows(aoa) {
     for (const n of names) if (H[n] !== undefined) return row[H[n]];
     return null;
   };
-
-  ROWS = [];
+  const out = [];
   for (let i = hr + 1; i < aoa.length; i++) {
     const r = aoa[i] || [];
     const tid = String(pick(r, '대상자ID') || '').trim();
     if (!tid) continue;
     const paid = pick(r, '결제일시');
-    ROWS.push({
+    out.push({
       target_id: tid,
       name:  String(pick(r, '대상자명') || '').trim(),
       birth: birth6(pick(r, '생년월일')),
@@ -334,12 +399,318 @@ function parseRows(aoa) {
       amount:     numOf(pick(r, '승인금액(C=A+B)', '승인금액')),
       gov_amount: numOf(pick(r, '정부지원금합계(A=D+F)', '정부지원금합계', '정부지원금')),
       self_amount:numOf(pick(r, '본인부담금합계(B=E+G)', '본인부담금합계', '본인부담금')),
-      pay_kind: String(pick(r, '결제구분') || '').trim()
+      pay_kind: String(pick(r, '결제구분') || '').trim(),
+      back_kind: String(pick(r, '반납구분') || '').trim(),
+      hold_txt:  String(pick(r, '지급보류내역') || '').trim()
+    });
+  }
+  return out;
+}
+
+// 전월 파일 읽기
+function parsePrev(aoa) {
+  const rows = toRows(aoa);
+  if (!rows) { show($('msg2'), '❌ 전월 파일에 「대상자ID」 칸이 없습니다.', false); return; }
+  if (!rows.length) { show($('msg2'), '전월 파일에 읽을 줄이 없습니다.', false); return; }
+  PREV = rows;
+  PREVMK = rows[0].month_key || '';
+  $('prevstat').textContent = '✅ 전월 ' + (PREVMK || '') + ' · ' + rows.length + '줄 읽었습니다.';
+  if (ROWS.length) drawAudit();
+}
+
+function parseRows(aoa) {
+  if (!aoa.length) { show($('msg2'), '내용이 없는 파일입니다.', false); return; }
+  const rows = toRows(aoa);
+  if (!rows) {
+    show($('msg2'), '❌ 이 파일에는 「대상자ID」 칸이 없습니다.\n'
+      + '사회서비스 전자바우처에서 내려받은 결제내역 엑셀이 맞는지 확인해 주세요.', false);
+    return;
+  }
+  ROWS = rows;
+  if (!ROWS.length) { show($('msg2'), '읽을 줄이 없습니다.', false); return; }
+  matchAndDraw();
+  loadPrevIfNeeded();
+}
+
+// ===== 결제 오류 점검 =====
+const GAP_MIN   = 40;   // 최소 결제 간격 (분)
+const WEEK_MAX  = 2;    // 주간 최대 결제 횟수
+const MONTH_NEED= 4;    // 아동별 월 기준 결제 횟수
+
+function thOf(tid) {
+  const g = GROUPS.find(x => x.target_id === tid);
+  if (g && g.child_id && THBYKID[g.child_id])
+    return Object.keys(THBYKID[g.child_id]).join(', ');
+  return '';
+}
+function nameOf(tid) {
+  const g = GROUPS.find(x => x.target_id === tid);
+  if (g && g.child_id) {
+    const c = CHILDREN.find(k => k.id === g.child_id);
+    if (c) return c.name;
+  }
+  if (g && g.name) return g.name;
+  return tid;
+}
+function minOf(hm) {
+  const p = String(hm || '').split(':');
+  if (p.length < 2) return null;
+  return Number(p[0]) * 60 + Number(p[1]);
+}
+function timeOf(r) {
+  if (r.start_time) return minOf(r.start_time);
+  const t = String(r.paid_at || '').slice(11, 16);
+  return minOf(t);
+}
+function weekKey(ymd) {
+  const dt = new Date(ymd + 'T00:00:00');
+  const dow = (dt.getDay() + 6) % 7;          // 월=0
+  const mon = new Date(dt); mon.setDate(dt.getDate() - dow);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const f = x => (x.getMonth()+1) + '/' + x.getDate();
+  return { key: mon.toISOString().slice(0,10), txt: f(mon) + '~' + f(sun) };
+}
+
+// 전월 자료를 시스템에서 꺼내 온다 (파일을 안 올렸을 때)
+async function loadPrevIfNeeded() {
+  if (PREV.length) { drawAudit(); return; }
+  const mk = (ROWS[0] && ROWS[0].month_key) || '';
+  if (!mk) { drawAudit(); return; }
+  const y = Number(mk.slice(0,4)), m = Number(mk.slice(5,7));
+  const dt = new Date(y, m - 2, 1);
+  const pk = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0');
+  try {
+    const { data } = await sb.from('nl_voucher_rows')
+      .select('target_id, grade, therapist_name, month_key, service_date, start_time, appr_no, amount, pay_kind')
+      .eq('month_key', pk);
+    if (data && data.length) {
+      PREV = data; PREVMK = pk;
+      $('prevstat').textContent = '✅ 전월 ' + pk + ' 자료 ' + data.length + '줄이 시스템에 있습니다.';
+    } else {
+      $('prevstat').textContent = 'ℹ 전월(' + pk + ') 자료가 없습니다. 비교 항목은 건너뜁니다.';
+    }
+  } catch (e) {
+    $('prevstat').textContent = 'ℹ 전월 자료를 불러오지 못했습니다.';
+  }
+  drawAudit();
+}
+
+function tab(head, rows) {
+  if (!rows.length) return '<div class="anone">해당 없음</div>';
+  return '<table class="atab"><tr>'
+    + head.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>'
+    + rows.map(r => '<tr class="' + (r.cls || 'bad') + '">'
+        + r.v.map(c => '<td>' + (c == null ? '' : esc(String(c))) + '</td>').join('')
+      + '</tr>').join('')
+    + '</table>';
+}
+
+function drawAudit() {
+  if (!ROWS.length) return;
+  const MK = ROWS[0].month_key || '';
+  const live = ROWS.filter(r => r.service_date && r.appr_no);
+  // 엑셀에 치료사 칸이 없으면 시스템에서 가져와 채운다
+  live.forEach(r => { if (!r.therapist_name) r.therapist_name = thOf(r.target_id); });
+
+  // --- 1. 치료사 기준 40분 미만 ---
+  const e1 = [];
+  const byTh = {};
+  live.forEach(r => {
+    if (!r.therapist_name) return;
+    const k = r.therapist_name + '|' + r.service_date;
+    (byTh[k] = byTh[k] || []).push(r);
+  });
+  Object.keys(byTh).forEach(k => {
+    const a = byTh[k].slice().sort((x,y) => (timeOf(x)||0) - (timeOf(y)||0));
+    for (let i = 1; i < a.length; i++) {
+      const t1 = timeOf(a[i-1]), t2 = timeOf(a[i]);
+      if (t1 == null || t2 == null) continue;
+      if (a[i-1].target_id === a[i].target_id) continue;
+      const gap = t2 - t1;
+      if (gap < GAP_MIN) e1.push({ v:[ a[i].therapist_name, a[i].service_date,
+        nameOf(a[i-1].target_id) + ' ' + (a[i-1].start_time || ''),
+        nameOf(a[i].target_id)   + ' ' + (a[i].start_time   || ''),
+        gap + '분' ] });
+    }
+  });
+
+  // --- 2. 아동 기준 40분 미만 ---
+  const e2 = [];
+  const byKid = {};
+  live.forEach(r => {
+    const k = r.target_id + '|' + r.service_date;
+    (byKid[k] = byKid[k] || []).push(r);
+  });
+  Object.keys(byKid).forEach(k => {
+    const a = byKid[k].slice().sort((x,y) => (timeOf(x)||0) - (timeOf(y)||0));
+    for (let i = 1; i < a.length; i++) {
+      const t1 = timeOf(a[i-1]), t2 = timeOf(a[i]);
+      if (t1 == null || t2 == null) continue;
+      if (a[i-1].therapist_name === a[i].therapist_name) continue;
+      const gap = t2 - t1;
+      if (gap < GAP_MIN) e2.push({ v:[ nameOf(a[i].target_id), a[i].service_date,
+        (a[i-1].therapist_name || '?') + ' ' + (a[i-1].start_time || ''),
+        (a[i].therapist_name   || '?') + ' ' + (a[i].start_time   || ''),
+        gap + '분' ] });
+    }
+  });
+
+  // --- 3. 주 3회 이상 ---
+  const e3 = [];
+  const byWk = {};
+  live.forEach(r => {
+    const w = weekKey(r.service_date);
+    const k = r.target_id + '|' + w.key;
+    (byWk[k] = byWk[k] || { txt:w.txt, tid:r.target_id, ds:[] }).ds.push(r.service_date);
+  });
+  Object.values(byWk).forEach(g => {
+    if (g.ds.length > WEEK_MAX)
+      e3.push({ v:[ nameOf(g.tid), g.txt, g.ds.sort().join(', '), g.ds.length + '회' ] });
+  });
+
+  // --- 4. 월 4회 미달 ---
+  const e4 = [];
+  const cnt = {};
+  live.forEach(r => {
+    (cnt[r.target_id] = cnt[r.target_id] || { ds:[], th:{} }).ds.push(r.service_date);
+    if (r.therapist_name) cnt[r.target_id].th[r.therapist_name] = 1;
+  });
+  Object.keys(cnt).forEach(tid => {
+    const g = cnt[tid];
+    if (g.ds.length < MONTH_NEED)
+      e4.push({ cls:'warn', v:[ nameOf(tid), Object.keys(g.th).join(', ') || thOf(tid) || '확인 불가',
+        g.ds.length + '회', g.ds.sort().join(', '),
+        (MONTH_NEED - g.ds.length) + '회 부족' ] });
+  });
+  e4.sort((a,b) => Number(b.v[4].replace(/\D/g,'')) - Number(a.v[4].replace(/\D/g,'')));
+
+  // --- 5·7·8. 전월 대비 ---
+  const e5 = [], e7 = [], e8 = [];
+  if (PREV.length) {
+    const pv = {};
+    PREV.forEach(r => {
+      const g = pv[r.target_id] = pv[r.target_id] || { th:{}, grade:r.grade, amt:{} };
+      if (r.therapist_name) g.th[r.therapist_name] = (g.th[r.therapist_name]||0) + 1;
+      if (r.grade) g.grade = r.grade;
+      if (r.amount) g.amt[r.amount] = (g.amt[r.amount]||0) + 1;
+    });
+    const top = o => Object.keys(o).sort((a,b) => o[b]-o[a])[0] || '';
+    const cu = {};
+    live.forEach(r => {
+      const g = cu[r.target_id] = cu[r.target_id] || { th:{}, grade:r.grade, amt:{} };
+      if (r.therapist_name) g.th[r.therapist_name] = (g.th[r.therapist_name]||0) + 1;
+      if (r.grade) g.grade = r.grade;
+      if (r.amount) g.amt[r.amount] = (g.amt[r.amount]||0) + 1;
+    });
+    Object.keys(cu).forEach(tid => {
+      const P = pv[tid]; if (!P) return;
+      const C = cu[tid];
+      const pt = top(P.th), ct = top(C.th);
+      if (pt && ct && pt !== ct) e5.push({ v:[ nameOf(tid), pt, ct ] });
+      if (P.grade && C.grade && P.grade !== C.grade)
+        e7.push({ v:[ nameOf(tid), P.grade, C.grade ] });
+      const pa = Number(top(P.amt)), ca = Number(top(C.amt));
+      if (pa && ca && pa !== ca && P.grade === C.grade)
+        e8.push({ v:[ nameOf(tid), C.grade, '발달재활',
+          won(pa) + '원', won(ca) + '원', won(ca - pa) + '원' ] });
     });
   }
 
-  if (!ROWS.length) { show($('msg2'), '읽을 줄이 없습니다.', false); return; }
-  matchAndDraw();
+  // --- 6. 당월 내 치료사 변경 ---
+  const e6 = [];
+  Object.keys(byKid).length;
+  const perKid = {};
+  live.forEach(r => (perKid[r.target_id] = perKid[r.target_id] || []).push(r));
+  Object.keys(perKid).forEach(tid => {
+    const a = perKid[tid].slice()
+      .sort((x,y) => String(x.service_date).localeCompare(String(y.service_date)));
+    const seq = a.map((r,i) => (i+1) + '회 ' + r.service_date + ' ' + (r.therapist_name || '?'));
+    let at = '';
+    for (let i = 1; i < a.length; i++) {
+      if (a[i].therapist_name && a[i-1].therapist_name
+          && a[i].therapist_name !== a[i-1].therapist_name) {
+        at = (i+1) + '회차 (' + a[i].service_date + ') 부터 ' + a[i].therapist_name;
+        break;
+      }
+    }
+    if (at) e6.push({ v:[ nameOf(tid), seq.join(' / '), at ] });
+  });
+
+  // --- 9. 치료사별 월 실적 ---
+  const st = {};
+  live.forEach(r => {
+    const n = r.therapist_name || '(없음)';
+    const g = st[n] = st[n] || { c:0, d:{} };
+    g.c++; g.d[r.service_date] = 1;
+  });
+  const e9 = Object.keys(st).sort().map(n =>
+    ({ cls:'', v:[ n, st[n].c + '건', Object.keys(st[n].d).length + '일' ] }));
+
+  // --- 10. 월별 총괄 ---
+  const e10 = Object.keys(cnt)
+    .map(tid => ({ nm: nameOf(tid), c: cnt[tid].ds.length }))
+    .sort((a,b) => a.nm.localeCompare(b.nm, 'ko'))
+    .map(x => ({ cls: (x.c < MONTH_NEED ? 'warn' : ''), v:[ x.nm, x.c + '회' ] }));
+
+  // --- 11. 예외·일괄결제 ---
+  const e11 = live.filter(r => r.pay_kind && r.pay_kind !== '정상결제')
+    .map(r => ({ cls:'warn', v:[ nameOf(r.target_id), r.service_date,
+      r.start_time || '', r.pay_kind, r.appr_no ] }));
+
+  // --- 12. 반납·지급보류 ---
+  const e12 = live.filter(r => r.back_kind || r.hold_txt)
+    .map(r => ({ v:[ nameOf(r.target_id), r.service_date,
+      r.back_kind || '', r.hold_txt || '', r.appr_no ] }));
+
+  // ===== 그리기 =====
+  const S = [
+    ['2-1. 중복 결제 — 치료사 기준 (40분 미만)',
+      ['치료사','날짜','아동A · 시간','아동B · 시간','간격'], e1, true],
+    ['2-2. 중복 결제 — 아동 기준 (40분 미만)',
+      ['아동','날짜','치료사A · 시간','치료사B · 시간','간격'], e2, true],
+    ['3. 주 3회 이상 초과 결제',
+      ['아동','주차','결제일','횟수'], e3, true],
+    ['4. 월 ' + MONTH_NEED + '회 미달 아동',
+      ['아동','담당 치료사','현재','결제일','부족'], e4, true],
+    ['5-1. 담당 치료사 변경 (전월 → 당월)',
+      ['아동','전월','당월'], e5, true],
+    ['5-2. 당월 내 담당 치료사 변경',
+      ['아동','회차별','변경 시점'], e6, true],
+    ['6. 등급 변경 (전월 → 당월)',
+      ['아동','전월 등급','당월 등급'], e7, true],
+    ['7. 결제금액 불일치',
+      ['아동','등급','서비스','전월','당월','차액'], e8, true],
+    ['8. 예외·일괄결제',
+      ['아동','날짜','시간','결제구분','승인번호'], e11, true],
+    ['9. 반납·지급보류',
+      ['아동','날짜','반납구분','지급보류','승인번호'], e12, true],
+    ['10. 치료사별 월 실적',
+      ['치료사','수업 건수','근무일수'], e9, false],
+    ['11. 월별 결제 총괄',
+      ['아동','결제 건수'], e10, false]
+  ];
+
+  const errN = e1.length + e2.length + e3.length + e4.length + e5.length
+             + e6.length + e7.length + e8.length + e11.length + e12.length;
+
+  let sum = '<div class="asum">'
+    + '<span class="apill"><b>' + MK + '</b> 점검</span>'
+    + '<span class="apill">결제 <b>' + live.length + '</b>건</span>'
+    + '<span class="apill">아동 <b>' + Object.keys(cnt).length + '</b>명</span>'
+    + '<span class="apill' + (errN ? ' hit' : '') + '">조치 필요 <b>' + errN + '</b>건</span>'
+    + (PREV.length ? '<span class="apill">전월 ' + PREVMK + ' 비교</span>'
+                   : '<span class="apill">전월 자료 없음</span>')
+    + '</div>';
+
+  sum += '<table class="atab" style="margin:0 0 18px;"><tr><th>항목</th><th>건수</th></tr>'
+    + S.filter(x => x[3]).map(x =>
+        '<tr class="' + (x[2].length ? 'bad' : '') + '"><td>' + esc(x[0])
+        + '</td><td>' + x[2].length + '건</td></tr>').join('')
+    + '</table>';
+
+  $('auditSum').innerHTML = sum;
+  $('auditBody').innerHTML = S.map(x =>
+    '<div class="asec"><h3>' + esc(x[0]) + '</h3>' + tab(x[1], x[2]) + '</div>').join('');
 }
 
 // 아동 짝맞추기
@@ -503,12 +874,20 @@ $('save').onclick = async () => {
 };
 
 $('drop').onclick = () => $('file').click();
+$('drop0').onclick = () => $('file0').click();
+$('file0').onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  $('drop0').innerHTML = '고른 전월 파일<br><b>' + esc(f.name) + '</b>';
+  readExcel(f, 'prev');
+};
+$('pdfBtn').onclick = () => window.print();
 $('file').onchange = e => {
   const f = e.target.files[0];
   if (!f) return;
   $('drop').innerHTML = '고른 파일<br><b>' + esc(f.name) + '</b><br>'
     + '<span style="font-size:12px;">다시 고르려면 여기를 누르세요</span>';
-  readExcel(f);
+  readExcel(f, 'cur');
 };
 
 $('btn').onclick = async () => {
