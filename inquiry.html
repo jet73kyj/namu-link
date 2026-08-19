@@ -92,6 +92,27 @@
               font-size:13px; border-radius:8px; text-decoration:none;
               white-space:nowrap; margin-right:8px; }
   .btn-home:hover { filter:brightness(1.08); }
+
+  /* 평가 관리 — 아동 이름 고르기 */
+  .kidlist { position:absolute; z-index:30; left:0; right:0; top:100%;
+             background:#fff; border:1px solid #cfd8dc; border-radius:8px;
+             max-height:220px; overflow-y:auto; box-shadow:0 4px 14px rgba(0,0,0,.12); }
+  .kidone { padding:9px 12px; font-size:14px; cursor:pointer; border-bottom:1px solid #f0f0f0; }
+  .kidone:last-child { border-bottom:none; }
+  .kidone:hover { background:#eef3ec; }
+  .kidone .st { font-size:12px; color:#888; margin-left:6px; }
+  .kidnone { padding:10px 12px; font-size:13px; color:#999; }
+  .kidpick { margin-top:6px; font-size:13.5px; color:#2e7d32; min-height:20px; }
+  .kidpick b { font-size:14.5px; }
+  .re { display:inline-block; background:#fff3e0; color:#e65100; border-radius:10px;
+        padding:1px 8px; font-size:11.5px; font-weight:bold; margin-left:6px; }
+  .evrow { display:flex; gap:10px; align-items:center; font-size:13.5px;
+           padding:7px 0; border-bottom:1px dashed #e0e0e0; flex-wrap:wrap; }
+  .evrow:last-child { border-bottom:none; }
+  .evrow .d { color:#555; }
+  .evrow .amt { margin-left:auto; font-weight:bold; }
+  .evedit { width:auto; margin:0; padding:3px 10px; font-size:11.5px;
+            background:#5c6bc0; color:#fff; border:none; border-radius:5px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -140,6 +161,7 @@
     <button class="tab" data-st="치료 시작">치료 시작</button>
     <button class="tab" data-st="종료">종료</button>
     <button id="addBtn" class="tab" style="background:#8bc34a;color:#fff;font-weight:bold;">＋ 새 문의</button>
+    <button id="evBtn" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">📋 평가 관리</button>
     <span class="count" id="count"></span>
   </div>
 
@@ -194,6 +216,82 @@
       <button id="cancelNew" class="tab">취소</button>
     </div>
     <div id="msgA" class="out"></div>
+  </div>
+
+  <!-- 평가 관리 창 -->
+  <div id="evBox" class="panel" style="display:none;">
+    <div class="panel-t">평가 예약 · 기록</div>
+
+    <div class="grid">
+      <div style="grid-column:1 / -1; position:relative;">
+        <label for="e_kidq">아동 <span style="color:#c62828;">*</span>
+          <span style="font-weight:normal;color:#888;">— 이름을 치면 목록이 뜹니다</span></label>
+        <input id="e_kidq" type="text" placeholder="이름 두 글자만 쳐도 됩니다" autocomplete="off">
+        <div id="e_kidlist" class="kidlist" style="display:none;"></div>
+        <div id="e_kidpick" class="kidpick"></div>
+      </div>
+
+      <div>
+        <label for="e_date">평가 날짜 <span style="color:#c62828;">*</span></label>
+        <input id="e_date" type="date">
+      </div>
+      <div>
+        <label for="e_time">평가 시간</label>
+        <input id="e_time" type="time">
+      </div>
+      <div>
+        <label for="e_type">평가 종류</label>
+        <select id="e_type"></select>
+      </div>
+      <div>
+        <label for="e_cnt">평가 개수</label>
+        <select id="e_cnt">
+          <option value="1">1개</option>
+          <option value="2">2개</option>
+          <option value="3">3개</option>
+        </select>
+      </div>
+      <div>
+        <label for="e_thr">담당 치료사</label>
+        <select id="e_thr"></select>
+      </div>
+      <div>
+        <label for="e_fee">평가비 <span style="font-weight:normal;color:#888;">— 자동, 고칠 수 있음</span></label>
+        <input id="e_fee" type="text" inputmode="numeric" placeholder="0">
+      </div>
+      <div>
+        <label for="e_status">상태</label>
+        <select id="e_status">
+          <option value="예정">예정</option>
+          <option value="완료">완료</option>
+          <option value="취소">취소</option>
+        </select>
+      </div>
+      <div>
+        <label for="e_paid">납부일</label>
+        <input id="e_paid" type="date">
+      </div>
+      <div>
+        <label for="e_card">카드 승인번호</label>
+        <input id="e_card" type="text" placeholder="평가일에 받으면 기재">
+      </div>
+      <div style="grid-column:1 / -1;">
+        <label for="e_memo">메모</label>
+        <input id="e_memo" type="text" placeholder="예: 타기관 보고서 제출">
+      </div>
+    </div>
+
+    <div class="btns">
+      <button id="evSave" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">저장하기</button>
+      <button id="evNew"  class="tab">새로 넣기</button>
+      <button id="evClose" class="tab">닫기</button>
+    </div>
+    <div id="msgE" class="out"></div>
+
+    <div class="logbox">
+      <div class="logbox-t">평가 목록</div>
+      <div id="evRows"></div>
+    </div>
   </div>
 
   <!-- 상세 · 수정 창 -->
@@ -335,6 +433,14 @@ let KIDS = [];       // 아동 이름표 (번호 -> 이름)
 let ME = null;       // 로그인한 직원
 let stFilter = '진행중';
 let openId = null;   // 지금 열어본 문의 번호
+
+// ===== 평가 관리 =====
+let EVTYPES = [];    // 평가 종류 (심리·발달·언어)
+let EVFEES  = [];    // 평가비 기준 (nl_eval_fees)
+let THRS    = [];    // 치료사 목록
+let EVALS   = [];    // 평가 기록
+let evKid   = null;  // 지금 고른 아동
+let evEditId = null; // 고치는 중인 평가 번호
 
 function show(text, ok) {
   msg.textContent = text;
@@ -555,6 +661,173 @@ $('addLog').onclick = async () => {
 };
 
 // ===== 새 문의 등록 =====
+// ===== 평가 관리 =====
+function evMsg(t, ok) {
+  const e = $('msgE');
+  e.textContent = t;
+  e.className = 'out ' + (ok ? 'ok' : 'err');
+  e.style.display = t ? 'block' : 'none';
+}
+
+// 아동 이름을 치면 목록을 보여준다
+$('e_kidq').addEventListener('input', () => {
+  const q = $('e_kidq').value.trim().toLowerCase();
+  const box = $('e_kidlist');
+  if (!q) { box.style.display = 'none'; return; }
+
+  const hit = KIDS.filter(k => (k.name || '').toLowerCase().includes(q)).slice(0, 20);
+  if (!hit.length) {
+    box.innerHTML = '<div class="kidnone">그런 이름의 아동이 없습니다.</div>';
+  } else {
+    box.innerHTML = hit.map(k =>
+      '<div class="kidone" data-kid="' + k.id + '">' + esc(k.name)
+      + '<span class="st">' + k.id + '번 · ' + esc(k.status) + '</span></div>').join('');
+    box.querySelectorAll('.kidone').forEach(el => {
+      el.onclick = () => pickKid(Number(el.dataset.kid));
+    });
+  }
+  box.style.display = 'block';
+});
+
+// 아동을 고른다
+function pickKid(cid) {
+  const k = KIDS.find(x => x.id === cid);
+  if (!k) return;
+  evKid = k;
+  $('e_kidq').value = '';
+  $('e_kidlist').style.display = 'none';
+  // 이미 다니는 아동이면 재평가로 본다
+  const isRe = (k.status === '치료중');
+  $('e_kidpick').innerHTML = '고른 아동: <b>' + esc(k.name) + '</b> ('
+    + k.id + '번 · ' + esc(k.status) + ')'
+    + (isRe ? '<span class="re">재평가</span>' : '');
+  drawEvalList();
+}
+
+// 평가 종류·개수를 고르면 평가비를 자동으로 채운다
+function autoFee() {
+  const tid = Number($('e_type').value);
+  const cnt = Number($('e_cnt').value);
+  const t = EVTYPES.find(x => x.id === tid);
+  const tn = t ? t.name : '';
+  // nl_eval_fees 에서 이름이 맞는 것을 찾는다
+  let hit = EVFEES.find(f => {
+    const n = String(f.name || '');
+    if (!n.includes(tn.replace('평가', ''))) return false;
+    return n.includes(cnt + '개') || (cnt === 1 && !/[123]개/.test(n));
+  });
+  if (!hit) hit = EVFEES.find(f => String(f.name || '').includes(tn.replace('평가', '')));
+  $('e_fee').value = hit ? Number(hit.amount).toLocaleString() : '';
+}
+$('e_type').addEventListener('change', autoFee);
+$('e_cnt').addEventListener('change', autoFee);
+
+// 평가 목록 그리기 (고른 아동 것만)
+function drawEvalList() {
+  if (!evKid) { $('evRows').innerHTML =
+    '<div class="kidnone">아동을 고르면 그 아동의 평가 기록이 나옵니다.</div>'; return; }
+  const list = EVALS.filter(e => e.child_id === evKid.id)
+                    .sort((a, b) => String(b.eval_date).localeCompare(String(a.eval_date)));
+  if (!list.length) {
+    $('evRows').innerHTML = '<div class="kidnone">아직 평가 기록이 없습니다.</div>';
+    return;
+  }
+  $('evRows').innerHTML = list.map(e => {
+    const t = EVTYPES.find(x => x.id === e.eval_type_id);
+    const th = THRS.find(x => x.id === e.therapist_id);
+    return '<div class="evrow">'
+      + '<span class="d">' + esc(e.eval_date) + (e.eval_time ? ' ' + String(e.eval_time).slice(0,5) : '') + '</span>'
+      + '<span>' + esc(t ? t.name : '') + ' · ' + e.item_cnt + '개</span>'
+      + '<span class="d">' + esc(th ? th.name : '') + '</span>'
+      + '<span class="d">' + esc(e.status) + (e.paid_on ? ' · 납부 ' + e.paid_on : ' · 미납') + '</span>'
+      + '<span class="amt">' + Number(e.fee || 0).toLocaleString() + '원</span>'
+      + '<button class="evedit" data-ev="' + e.id + '">고치기</button>'
+      + '</div>';
+  }).join('');
+  $('evRows').querySelectorAll('.evedit').forEach(el => {
+    el.onclick = () => loadEval(Number(el.dataset.ev));
+  });
+}
+
+// 기존 평가를 칸에 불러온다
+function loadEval(id) {
+  const e = EVALS.find(x => x.id === id);
+  if (!e) return;
+  evEditId = id;
+  $('e_date').value   = e.eval_date || '';
+  $('e_time').value   = e.eval_time ? String(e.eval_time).slice(0,5) : '';
+  $('e_type').value   = e.eval_type_id || '';
+  $('e_cnt').value    = e.item_cnt || 1;
+  $('e_thr').value    = e.therapist_id || '';
+  $('e_fee').value    = e.fee ? Number(e.fee).toLocaleString() : '';
+  $('e_status').value = e.status || '예정';
+  $('e_paid').value   = e.paid_on || '';
+  $('e_card').value   = e.card_no || '';
+  $('e_memo').value   = e.memo || '';
+  evMsg('고치는 중입니다. 저장하면 이 기록이 바뀝니다.', true);
+}
+
+// 칸 비우기
+function clearEvalForm() {
+  evEditId = null;
+  $('e_date').value = today();
+  $('e_time').value = '';
+  $('e_cnt').value  = '1';
+  $('e_status').value = '예정';
+  $('e_paid').value = '';
+  $('e_card').value = '';
+  $('e_memo').value = '';
+  autoFee();
+  evMsg('', true);
+}
+
+$('evBtn').onclick = () => {
+  $('addBox').style.display = 'none';
+  $('detBox').style.display = 'none';
+  $('evBox').style.display = 'block';
+  clearEvalForm();
+  drawEvalList();
+  $('evBox').scrollIntoView({ behavior:'smooth', block:'start' });
+};
+$('evClose').onclick = () => { $('evBox').style.display = 'none'; };
+$('evNew').onclick   = () => { clearEvalForm(); };
+
+$('evSave').onclick = async () => {
+  if (!evKid)             { evMsg('아동을 먼저 고르세요.', false); return; }
+  if (!$('e_date').value) { evMsg('평가 날짜를 넣으세요.', false); return; }
+
+  const feeNum = parseInt(String($('e_fee').value).replace(/[^0-9]/g, ''), 10);
+  const row = {
+    child_id:     evKid.id,
+    eval_type_id: Number($('e_type').value) || null,
+    eval_date:    $('e_date').value,
+    eval_time:    $('e_time').value || null,
+    therapist_id: Number($('e_thr').value) || null,
+    item_cnt:     Number($('e_cnt').value) || 1,
+    fee:          isNaN(feeNum) ? 0 : feeNum,
+    status:       $('e_status').value,
+    paid_on:      $('e_paid').value || null,
+    card_no:      $('e_card').value.trim() || null,
+    memo:         $('e_memo').value.trim() || null
+  };
+
+  $('evSave').disabled = true;
+  try {
+    let res;
+    if (evEditId) res = await sb.from('nl_evaluations').update(row).eq('id', evEditId);
+    else          res = await sb.from('nl_evaluations').insert(row);
+    if (res.error) throw res.error;
+
+    const { data } = await sb.from('nl_evaluations').select('*');
+    EVALS = data || [];
+    drawEvalList();
+    clearEvalForm();
+    evMsg('✅ 저장했습니다.', true);
+  } catch (e) {
+    evMsg('❌ 저장하지 못했습니다.\n' + e.message, false);
+  } finally { $('evSave').disabled = false; }
+};
+
 $('addBtn').onclick = () => {
   const open = $('addBox').style.display !== 'none';
   if (open) { $('addBox').style.display = 'none'; return; }
@@ -649,6 +922,24 @@ async function afterLogin(user) {
     .order('inquiry_date', { ascending: false });
   if (error) { show('❌ 문의 목록 조회 실패\n' + error.message, false); return; }
   ALL = data || [];
+
+  // 평가 관리에 쓰는 자료들
+  const [et, ef, th, ev] = await Promise.all([
+    sb.from('nl_eval_types').select('id, name').order('id'),
+    sb.from('nl_eval_fees').select('*').order('id'),
+    sb.from('nl_therapists').select('id, name, active').order('id'),
+    sb.from('nl_evaluations').select('*')
+  ]);
+  EVTYPES = et.data || [];
+  EVFEES  = (ef.data || []).filter(x => x.active !== false);
+  THRS    = (th.data || []).filter(x => x.active !== false);
+  EVALS   = ev.data || [];
+
+  $('e_type').innerHTML = EVTYPES.map(t =>
+    '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
+  $('e_thr').innerHTML = '<option value="">— 담당 고르기 —</option>'
+    + THRS.filter(t => t.id <= 7).map(t =>
+        '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
 
   $('who').textContent = me.name + ' (' + me.role + ') 님으로 로그인됨';
   $('loginBox').style.display = 'none';
