@@ -337,7 +337,11 @@ function calc(){
     else if (dur >= 60){ k.m60++; fee = Math.round(r.session_fee * 1.5); }
     else               { k.m40++; fee = r.session_fee; }
     k.fee += fee;
-    k.days.push(dayNo(s.plan_date) + (s.status==='보강' ? '(보강)' : ''));
+    k.days.push(dayNo(s.plan_date)
+      + (s.status==='보강'
+          ? ((s.month_key && s.month_key !== mon)
+              ? '(' + monNo(s.month_key) + '월분 보강)' : '(보강)')
+          : ''));
   });
 
   const names = Object.keys(byKid).sort((a,b)=>a.localeCompare(b,'ko'));
@@ -542,9 +546,12 @@ async function loadEvals(){
 }
 
 async function loadMonth(){
+  // 급여는 「실제로 수업한 날」 기준으로 센다.
+  // 전월 결석분을 이번 달에 보강한 줄도 이번 달 급여에 들어온다.
+  // (납부는 billing 화면에서 month_key = 원래 달 기준으로 그대로 센다)
   const { data } = await sb.from('nl_sessions')
-    .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id')
-    .eq('month_key', mon);
+    .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id, month_key')
+    .gte('plan_date', mon + '-01').lte('plan_date', monEnd(mon));
   SESS = data || [];
   await loadEvals();
 }
