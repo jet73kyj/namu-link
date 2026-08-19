@@ -96,7 +96,15 @@
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
-const sb = window.supabase.createClient(URL_, KEY_);
+// 로그인을 창(탭) 안에서만 유지한다.
+// 창을 닫으면 자동으로 끊긴다. 공용 PC에 로그인이 남지 않게 하기 위함.
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: {
+    storage: window.sessionStorage,
+    persistSession: true,
+    autoRefreshToken: true
+  }
+});
 const $  = id => document.getElementById(id);
 
 // 화면 목록 — roles 에 적힌 역할만 볼 수 있다
@@ -190,6 +198,8 @@ $('btn').onclick = async () => {
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
     if (error) throw error;
+    // 이메일만 기억해 둔다 (비밀번호는 저장하지 않는다)
+    try { localStorage.setItem('nl_last_email', email); } catch (e) {}
     await afterLogin(data.user);
   } catch (e) {
     show($('msg'), '❌ 로그인 실패\n' + e.message, false);
@@ -197,8 +207,20 @@ $('btn').onclick = async () => {
     $('btn').disabled = false; $('btn').textContent = '로그인';
   }
 };
-$('out').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('out').onclick = async () => {
+  $('out').disabled = true;
+  $('out').textContent = '로그아웃 중...';
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+};
 $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+
+// 화면을 열면 지난번 이메일을 채워둔다 (비밀번호는 매번 입력)
+try {
+  const _last = localStorage.getItem('nl_last_email');
+  if (_last) { $('em').value = _last; }
+} catch (e) {}
 
 // 비밀번호 재설정 메일 링크로 들어오면 비밀번호 정하는 화면으로 보낸다
 function _isRecovery() {
