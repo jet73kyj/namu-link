@@ -86,28 +86,6 @@
   td.lunch { background:#f0f0ec; }
   .lunchtxt { color:#9aa294; font-size:11.5px; text-align:center; display:block; padding:16px 0; }
 
-  .ln { display:flex; align-items:center; gap:6px; font-size:12px;
-        padding:4px 6px; border-radius:4px; margin:2px 0; cursor:pointer; }
-  .ln:hover { outline:1px solid #9ccc65; }
-  .ln .d { min-width:30px; text-align:right; font-weight:bold; }
-  .ln .n { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .ln .s { margin-left:auto; font-weight:bold; font-size:11px; }
-  .ln-done { background:#e8f5e9; color:#1b5e20; }
-  .ln-abs  { background:#fdecea; color:#b71c1c; }
-  .ln-off  { background:#f1f1f1; color:#555; }
-  .ln-mk   { background:#e8f5e9; color:#1b5e20; }
-  .ln-plan { border:1px solid #e0e0e0; color:#444; }
-  .ln-open { border:1px dashed #90a4ae; color:#607d8b; cursor:default; }
-  .ln-cut  { text-decoration:line-through; }
-  .ln .go  { font-size:10.5px; font-weight:bold; color:#2e7d32; }
-  .lnedit  { width:auto; margin:0; padding:1px 6px; font-size:10px;
-             background:#eceff1; color:#455a64; border:1px solid #cfd8dc;
-             border-radius:3px; cursor:pointer; }
-  .lnedit:hover { background:#cfd8dc; }
-  .lnadd   { width:auto; margin:0; padding:1px 8px; font-size:10.5px;
-             background:#fff; color:#546e7a; border:1px dashed #90a4ae;
-             border-radius:3px; cursor:pointer; }
-  .lnadd:hover { background:#eceff1; }
   .chip { display:block; padding:5px 6px; line-height:1.4; border-radius:4px; margin:2px; }
   .chip .nm { font-weight:bold; font-size:12.5px; }
   .chip .dur { font-size:11px; color:#5a6156; }
@@ -954,112 +932,358 @@ function drawWeek(){
                   + s.no+'_'+th+'_'+d+'">보강</button>' : '')
               + '</td>';
           }
-          const lines = [];
-          const seenSc = {};
-
-          list.forEach(r => {
-            (byScd[r.id] || []).forEach(x => {
-              lines.push({ d: String(x.plan_date), kind: 'run', r: r, x: x });
-            });
-          });
-          mks.forEach(x => lines.push({ d: String(x.plan_date), kind: 'mk', x: x }));
-          mns.forEach(x => lines.push({ d: String(x.plan_date), kind: 'mn', x: x }));
-
-          // 결석·휴무로 비는 시간 — 다른 아동 보강을 넣을 수 있는 빈 자리
-          list.forEach(r => {
-            (byScd[r.id] || []).forEach(x => {
-              if (x.status !== '결석' && x.status !== '휴무') return;
-              const dd = String(x.plan_date);
-              const used = lines.some(L =>
-                (L.kind === 'mk' || L.kind === 'mn') && L.d === dd);
-              if (!used) lines.push({ d: dd, kind: 'open', x: x });
-            });
-          });
-
-          lines.sort((a, b) => a.d.localeCompare(b.d)
-            || (a.kind === 'open' ? 1 : 0) - (b.kind === 'open' ? 1 : 0));
-
           let html = '';
-          lines.forEach(L => {
-            const x = L.x;
-            const day = dayNo(L.d) + '일';
-
-            if (L.kind === 'open') {
-              html += '<div class="ln ln-open">'
-                + '<span class="d">' + day + '</span>'
-                + '<span class="n">빈 자리</span>'
-                + (CAN_EDIT ? '<button class="lnadd" data-mn="'
-                    + s.no + '_' + t.id + '_' + wd + '_' + L.d + '">＋ 보강</button>' : '')
-                + '</div>';
-              return;
-            }
-
-            if (L.kind === 'mk' || L.kind === 'mn') {
-              const org = L.kind === 'mk' ? ROWS_ALL.find(r => r.id === x.schedule_id) : null;
-              const nm = (org ? (STYPE[org.support_type_id] || '?') + ' ' : '')
-                       + esc(x._name || '');
-              const from = (L.kind === 'mk') ? findSess(x.makeup_for) : null;
-              const tag = (L.kind === 'mk')
-                ? (from ? ((from.month_key && from.month_key !== mon)
-                            ? monNo(from.month_key) + '월 ' : '')
-                          + dayNo(from.plan_date) + '일분' : '보강')
-                : '직접';
-              html += '<div class="ln ln-mk" data-sid="' + x.id + '">'
-                + '<span class="d">' + day + '</span>'
-                + '<span class="n">🔁 ' + nm + '</span>'
-                + '<span class="go">' + tag + '</span>'
-                + '<span class="s">' + x.status + '</span>'
-                + (L.kind === 'mn' && CAN_EDIT
-                    ? '<button class="lnedit" data-mndel="' + x.id + '">✕</button>' : '')
-                + '</div>';
-              return;
-            }
-
-            const r = L.r;
-            const cls = x.status === '완료' ? 'ln-done'
-                      : x.status === '결석' ? 'ln-abs'
-                      : x.status === '휴무' ? 'ln-off' : 'ln-plan';
-            const cut = (x.status === '결석' || x.status === '휴무') ? ' ln-cut' : '';
-            const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
-              ? (STYPE[x.support_type_id] || '') : (STYPE[r.support_type_id] || '?');
-            const nm = dif + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name);
-            const dur = (r.duration && Number(r.duration) !== 40)
-                        ? ' <span class="dur">' + r.duration + '분</span>' : '';
-
-            let tail;
-            if (x.status === '결석' || x.status === '휴무') {
-              const mk = mkOf[x.id];
-              tail = mk
-                ? '<span class="go">→ ' + dayNo(mk.plan_date) + '일 '
-                  + nearest(toMin(mk.start_time)).hm + '</span>'
-                : (CAN_EDIT ? '<button class="mkbtn" data-mk="' + x.id + '">보강 잡기</button>' : '');
-              tail += '<span class="s">' + x.status + '</span>';
-            } else {
-              tail = '<span class="s">' + x.status + '</span>';
-            }
-
-            const ed = (CAN_EDIT && !seenSc[r.id])
-              ? '<button class="lnedit" data-ed="' + r.id + '">고치기</button>' : '';
-            seenSc[r.id] = true;
-
-            html += '<div class="ln ' + cls + '" data-sid="' + x.id + '">'
-              + '<span class="d">' + day + '</span>'
-              + '<span class="n' + cut + '">' + nm + dur + '</span>'
-              + tail + ed + '</div>';
-          });
-
-          // 회차가 아직 안 깔린 수업은 이름만이라도 보여 준다
           list.forEach(r => {
-            if (seenSc[r.id]) return;
-            html += '<div class="ln ln-plan">'
-              + '<span class="d">—</span>'
-              + '<span class="n">' + (STYPE[r.support_type_id] || '?')
-              + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name) + '</span>'
-              + (CAN_EDIT ? '<button class="lnedit" data-ed="' + r.id + '">고치기</button>' : '')
-              + '</div>';
+            const sp  = 'sp' + (r.support_type_id || 0);
+            const dur = (r.duration && Number(r.duration)!==40)
+                        ? ' <span class="dur">'+r.duration+'분</span>' : '';
+            const _rl = (byScd[r.id] || []);
+            const _rh = _rl.map(x => {
+              const cls = x.status==='완료' ? 'r-done'
+                        : x.status==='결석' ? 'r-abs'
+                        : x.status==='휴무' ? 'r-off' : '';
+              const mk = mkOf[x.id];
+              const tail = (x.status==='결석' || x.status==='휴무')
+                ? (mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>'
+                      : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
+                : '<span class="st">'+x.status+'</span>';
+              const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
+                ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
+                : ((r.support_type_id === 2 && x.run_no === 5)
+                   ? '<span class="spadd">이</span>' : '');
+              return '<div class="run '+cls+'" data-sid="'+x.id+'">'
+                + dif
+                + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
+                + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
+                + tail + '</div>';
+            });
+            html += '<span class="chip '+sp+'">'
+              + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'">고치기</button>' : '')
+              + '<span class="nm">'+(STYPE[r.support_type_id]||'?')
+              + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+'</span>'+dur
+              + mergeRuns(_rl, _rh, wk5Pairs(r, byScd, d)) + '</span>';
           });
+          mks.forEach(x => {
+            html += '<span class="chip r-mk">'
+              + '<span class="nm">🔁 '+esc(x._name||'')+'</span>'
+              + '<div class="run r-mk" data-sid="'+x.id+'">'
+              + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
+              + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
+              + '<span class="st">보강</span></div></span>';
+          });
+          mns.forEach(x => html += mnChip(x));
+          return '<td class="cell" style="width:14%;">'+html+'</td>';
+        }).join('')
+      + '</tr>';
+  }).join('');
 
-          return '<td class="cell" style="' + colW + '">' + html + '</td>';
+  $('holi').style.display = 'none';
+  drawShort(byScd, mkOf);
+  drawFind();
+}
+
+// 그 달 그 요일의 5번째 날짜. 5주차가 없으면 null
+function wk5Date(monthKey, wdName){
+  const p = String(monthKey).split('-');
+  const y = Number(p[0]), m = Number(p[1]);
+  const i = WDS.indexOf(wdName);
+  let n = 0;
+  const d = new Date(y, m - 1, 1);
+  while (d.getMonth() === m - 1) {
+    if (d.getDay() === i) {
+      n++;
+      if (n === 5) return y + '-' + String(m).padStart(2,'0')
+                        + '-' + String(d.getDate()).padStart(2,'0');
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
+}
+
+// 그 달 그 요일의 모든 날짜
+function wdDates(monthKey, wdName){
+  const p = String(monthKey).split('-');
+  const y = Number(p[0]), m = Number(p[1]);
+  const i = WDS.indexOf(wdName);
+  const out = [];
+  const d = new Date(y, m - 1, 1);
+  while (d.getMonth() === m - 1) {
+    if (d.getDay() === i) {
+      out.push(y + '-' + String(m).padStart(2,'0')
+             + '-' + String(d.getDate()).padStart(2,'0'));
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+// 수업이 없는 날마다 초록 빈 자리를 만든다
+function wk5Pairs(r, byScd, wdName){
+  const runs = byScd[r.id] || [];
+  const has = {};
+  runs.forEach(x => has[String(x.plan_date)] = true);
+  return wdDates(mon, wdName).filter(d => !has[d]).map(d => ({
+    d: d,
+    h: '<div class="run wk5">'
+       + '<span class="dt">' + dayNo(d) + '일</span>'
+       + '<button class="w5btn" data-d5="' + d + '" data-th="'
+         + r.therapist_id + '" data-hm="'
+         + nearest(toMin(r.start_time)).hm + '">보강</button>'
+       + '</div>'
+  }));
+}
+
+// 회차와 빈 자리를 날짜 순서로 섞는다
+function mergeRuns(list, htmls, pairs){
+  const a = list.map((x, i) => ({ d: String(x.plan_date), h: htmls[i] }))
+                .concat(pairs || []);
+  a.sort((p, q) => p.d.localeCompare(q.d));
+  return a.map(x => x.h).join('');
+}
+
+// ===== 지난 달에서 넘어온 보강 =====
+function drawPrev(){
+  const need = prevNeed();
+  if (!need.length) { $('prevBox').style.display = 'none'; return; }
+  const pm = prevMon(mon);
+
+  $('prevBox').style.display = 'block';
+  $('prevBox').innerHTML = '<div class="prev-t">⏪ ' + monNo(pm)
+    + '월에서 넘어온 보강 ' + need.length + '건 — ' + monNo(mon) + '월에 잡을 수 있습니다</div>'
+    + need.map(s => {
+        const sc = ROWS.find(x => x.id === s.schedule_id);
+        const t2 = THS_ALL.find(x => x.id === s.therapist_id);
+        return '<div class="prevone">'
+          + '<span class="pnm">' + esc(s._name || '') + '</span>'
+          + '<span class="psm">'
+            + (sc ? (STYPE[sc.support_type_id]||'') + ' · ' + (TTYPE[sc._tt]||'') + ' · ' : '')
+            + monNo(pm) + '월 ' + dayNo(s.plan_date) + '일 '
+            + (s.status === '휴무' ? '휴무' : '결석')
+            + (t2 ? ' · ' + esc(t2.name) : '')
+          + '</span>'
+          + (CAN_EDIT || MY_TH
+              ? '<button class="prevbtn" data-pmk="' + s.id + '">보강 잡기</button>' : '')
+          + '</div>';
+      }).join('')
+    + '<div class="prevnote">※ 여기서 잡은 보강은 <b>납부는 ' + monNo(pm)
+      + '월</b>, <b>급여는 ' + monNo(mon) + '월</b>로 셉니다.</div>';
+
+  $('prevBox').querySelectorAll('.prevbtn').forEach(el => {
+    el.onclick = () => openMk(Number(el.dataset.pmk));
+  });
+}
+
+// 직접 넣은 보강 한 칸 (수업요일 없이 홀로 선 줄)
+function mnChip(x){
+  const cls = x.status==='완료' ? 'r-done'
+            : x.status==='결석' ? 'r-abs' : '';
+  const rs = String(x.memo || '').replace(/^직접 보강 · ?/, '');
+  return '<span class="chip r-mk">'
+    + '<span class="nm"><span class="mntag">보강</span>'
+    + (STYPE[x.support_type_id] || '') + ' ' + esc(x._name || '') + '</span>'
+    + '<div class="run ' + cls + '" data-sid="' + x.id + '">'
+    + '<span class="no">직접</span>'
+    + '<span class="dt">' + dayNo(x.plan_date) + '일</span>'
+    + '<span class="st">' + esc(x.status) + '</span></div>'
+    + '<div class="mnown">' + (rs ? esc(rs) : '직접 넣은 보강')
+    + (CAN_EDIT ? ' <span class="del" data-mndel="' + x.id + '">✕</span>' : '')
+    + '</div></span>';
+}
+
+function drawHead(){
+  $('ghead').innerHTML = '<tr><th class="hcol">교시</th>'
+    + THS.map(t=>'<th><div class="thname">'+esc(t.name)+'</div>'
+        + '<div class="thkind">'+t.id+'번</div></th>').join('') + '</tr>';
+}
+
+function draw(){
+  $('monBig').textContent = monNo(mon) + '월';
+  if (!SESS.length) {
+    $('noSess').style.display = 'block';
+    $('noSess').innerHTML = '<b>' + monNo(mon) + '월은 회차가 아직 없습니다.</b> '
+      + '그래서 9-1 같은 회차 번호가 안 나옵니다. '
+      + '위 달 고르는 칸에서 회차를 깔아둔 달을 고르세요.';
+  } else {
+    $('noSess').style.display = 'none';
+  }
+  drawPrev();
+  if (VIEW === 'week') { drawWeek(); return; }
+  drawDay();
+}
+
+function drawDay(){
+  // 회차를 수업별로 모으기 (전체 — 모자란 회차 계산용)
+  const byScdAll = {};
+  SESS.forEach(s => {
+    if (s.status === '보강') return;
+    if (!s.schedule_id) return;          // 직접 넣은 보강은 따로 그린다
+    (byScdAll[s.schedule_id] = byScdAll[s.schedule_id] || []).push(s);
+  });
+  Object.values(byScdAll).forEach(a => a.sort((x,y)=>String(x.plan_date).localeCompare(String(y.plan_date))));
+
+  // 이 요일 칸에 그릴 회차만 (회차의 실제 날짜가 이 요일인 것)
+  const byScd = {};
+  SESS.forEach(s => {
+    if (s.status === '보강') return;
+    if (!s.schedule_id || !s.plan_date) return;
+    if (wdOf(s.plan_date) !== wd) return;
+    (byScd[s.schedule_id] = byScd[s.schedule_id] || []).push(s);
+  });
+  Object.values(byScd).forEach(a => a.sort((x,y)=>String(x.plan_date).localeCompare(String(y.plan_date))));
+
+  // 이 요일에 그릴 수업 —
+  // ① 요일이 이 요일인 수업 ② 요일은 다르지만 회차가 이 요일에 놓인 수업
+  const day = ROWS_ALL.filter(r => {
+    if (r.weekday === wd) {
+      return (!r.from_month || r.from_month <= mon) &&
+             (!r.to_month   || r.to_month   >= mon);
+    }
+    return !!(byScd[r.id] && byScd[r.id].length);
+  });
+
+  $('count').textContent = wd+'요일 수업 '+day.length+'건 · '
+    + monNo(mon)+'월에 '+countWd(mon,wd)+'번';
+
+  // 결석 -> 보강 잇기
+  const mkOf = {};
+  SESS.forEach(s => { if (s.status === '보강' && s.makeup_for) mkOf[s.makeup_for] = s; });
+
+  drawShort(byScdAll, mkOf);
+  drawFind();
+
+  // 이 요일에 걸린 쉬는 날 알려주기
+  const holi = Object.keys(OFFTXT).filter(k => wdOf(k) === wd)
+    .sort().map(k => dayNo(k) + '일 ' + OFFTXT[k]);
+  const thOff = Object.keys(OFFTH).filter(k => wdOf(k.split('#')[0]) === wd)
+    .sort().map(k => {
+      const p = k.split('#');
+      const t = THS.find(x => x.id === Number(p[1]));
+      return dayNo(p[0]) + '일 ' + (t ? t.name : p[1]+'번') + ' ' + OFFTH[k];
+    });
+  const all = holi.concat(thOff);
+  if (all.length) {
+    $('holi').style.display = 'block';
+    $('holi').innerHTML = '🏖 ' + monNo(mon) + '월 ' + wd + '요일 중 쉬는 날 — '
+      + all.join(' · ') + ' (그날 수업은 휴무로 표시됩니다)';
+  } else {
+    $('holi').style.display = 'none';
+  }
+
+  // 고정 수업을 칸에 담기
+  const cell = {};
+  day.forEach(r => {
+    let hm = r.start_time, th = r.therapist_id;
+    // 요일이 다른데 이 요일에 놓인 수업은 회차 자신의 시간·치료사를 따른다
+    if (r.weekday !== wd && byScd[r.id] && byScd[r.id].length) {
+      hm = byScd[r.id][0].start_time || hm;
+      th = byScd[r.id][0].therapist_id || th;
+    }
+    const k = nearest(toMin(hm)).no + '_' + th;
+    (cell[k] = cell[k] || []).push(r);
+  });
+
+  // 이 요일에 놓인 보강을 칸에 담기
+  const mkCell = {};
+  SESS.forEach(s => {
+    if (s.status !== '보강' || !s.plan_date) return;
+    if (String(s.plan_date).slice(0,7) !== mon) return;
+    if (wdOf(s.plan_date) !== wd) return;
+    const k = nearest(toMin(s.start_time)).no + '_' + s.therapist_id;
+    (mkCell[k] = mkCell[k] || []).push(s);
+  });
+
+  // 직접 넣은 보강 (수업요일 없이 홀로 선 줄)
+  const mnCell = {};
+  SESS.forEach(s => {
+    if (s.schedule_id || s.status === '보강' || !s.plan_date) return;
+    if (String(s.plan_date).slice(0,7) !== mon) return;
+    if (wdOf(s.plan_date) !== wd) return;
+    const k = nearest(toMin(s.start_time)).no + '_' + s.therapist_id;
+    (mnCell[k] = mnCell[k] || []).push(s);
+  });
+
+  const isSat = (wd === '토');
+  const colW = 'width:' + Math.floor(88/Math.max(THS.length,1)) + '%';
+
+  $('gbody').innerHTML = SLOTS.map(s => {
+    const lunch = (!isSat && s.no === LUNCH_NO);
+    return '<tr>'
+      + '<td class="hcol"><div class="hno">'+s.no+'교시</div>'
+        + '<div class="htime">'+s.t+'</div>'
+        + (lunch ? '<div class="thkind">점심</div>' : '') + '</td>'
+      + THS.map(t => {
+          const key  = s.no+'_'+t.id;
+          const list = cell[key] || [];
+          const mks  = mkCell[key] || [];
+          const mns  = mnCell[key] || [];
+          if (!list.length && !mks.length && !mns.length) {
+            return '<td class="cell '+(lunch?'lunch':'free')+'" style="'+colW+'"'
+              + (CAN_EDIT ? ' data-add="'+s.no+'_'+t.id+'"' : '') + '>'
+              + (lunch ? '<span class="lunchtxt">점심 / 보강</span>'
+                       : (CAN_EDIT ? '<span class="plus">＋</span>' : ''))
+              + (CAN_EDIT ? '<button class="mnbtn" data-mn="'
+                  + s.no+'_'+t.id+'_'+wd+'">보강</button>' : '')
+              + '</td>';
+          }
+          let html = '';
+          list.forEach(r => {
+            const sp  = 'sp' + (r.support_type_id || 0);
+            const dur = (r.duration && Number(r.duration)!==40)
+                        ? ' <span class="dur">'+r.duration+'분</span>' : '';
+            const _rl = (byScd[r.id] || []);
+            const _rh = _rl.map(x => {
+              const cls = x.status==='완료' ? 'r-done'
+                        : x.status==='결석' ? 'r-abs'
+                        : x.status==='휴무' ? 'r-off' : '';
+              const mk = mkOf[x.id];
+              let tail;
+              if (x.status === '결석' || x.status === '휴무') {
+                tail = '<span class="stabs">'
+                  + (x.status === '휴무' ? '🏖 휴무' : '🔴 결석') + '</span>'
+                  + (mk
+                    ? '<span class="mkinfo">→ ' + dayNo(mk.plan_date) + '일 '
+                      + nearest(toMin(mk.start_time)).hm + '</span>'
+                    : '<button class="mkbtn" data-mk="'+x.id+'">보강 잡기</button>');
+              } else {
+                tail = '<span class="st">'+x.status+'</span>';
+              }
+              const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
+                ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
+                : ((r.support_type_id === 2 && x.run_no === 5)
+                   ? '<span class="spadd">이</span>' : '');
+              return '<div class="run '+cls+'" data-sid="'+x.id+'">'
+                + dif
+                + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
+                + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
+                + tail + '</div>';
+            });
+            html += '<span class="chip '+sp+'">'
+              + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'">고치기</button>' : '')
+              + '<span class="nm">'+(STYPE[r.support_type_id]||'?')
+              + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+'</span>'+dur
+              + mergeRuns(_rl, _rh,
+                  (r.weekday === wd) ? wk5Pairs(r, byScd, wd) : []) + '</span>';
+          });
+          mks.forEach(x => {
+            const org = ROWS.find(r => r.id === x.schedule_id);
+            const nmtxt = (org ? (STYPE[org.support_type_id]||'?')
+                                 + (org._tt===3 ? '(전산)' : ' ') : '')
+                          + esc(x._name||'');
+            const from = findSess(x.makeup_for);
+            html += '<span class="chip r-mk">'
+              + '<span class="nm">🔁 '+nmtxt+'</span>'
+              + '<div class="run r-mk" data-sid="'+x.id+'">'
+              + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
+              + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
+              + '<span class="st">보강</span></div>'
+              + (from ? '<div class="mkfrom">'
+                        + ((from.month_key && from.month_key !== mon)
+                            ? monNo(from.month_key) + '월 ' : '')
+                        + dayNo(from.plan_date)+'일 결석분</div>' : '')
+              + '</span>';
+          });
+          mns.forEach(x => html += mnChip(x));
+          return '<td class="cell" style="'+colW+'">'+html+'</td>';
         }).join('')
       + '</tr>';
   }).join('');
@@ -1067,7 +1291,7 @@ function drawWeek(){
 
 // ===== 회차 누르기 =====
 $('gbody').addEventListener('click', async e => {
-  const mnb = e.target.closest('.mnbtn, .lnadd');
+  const mnb = e.target.closest('.mnbtn');
   if (mnb) { e.stopPropagation(); openMn(mnb.dataset.mn); return; }
   const mnd = e.target.closest('[data-mndel]');
   if (mnd) {
@@ -1083,13 +1307,13 @@ $('gbody').addEventListener('click', async e => {
   const w5b = e.target.closest('.w5btn');
   if (w5b) { e.stopPropagation();
     openW5(w5b.dataset.d5, Number(w5b.dataset.th), w5b.dataset.hm); return; }
-  const edb = e.target.closest('.edbtn, .lnedit[data-ed]');
+  const edb = e.target.closest('.edbtn');
   if (edb) { e.stopPropagation(); openEd(Number(edb.dataset.ed)); return; }
   const mkb = e.target.closest('.mkbtn');
   if (mkb) { e.stopPropagation(); openMk(Number(mkb.dataset.mk)); return; }
   const free = e.target.closest('td[data-add]');
   if (free) { openAdd(free.dataset.add); return; }
-  const el = e.target.closest('.run, .ln[data-sid]');
+  const el = e.target.closest('.run');
   if (!el) return;
   const id = Number(el.dataset.sid);
   const s  = SESS.find(x => x.id === id);
@@ -1507,7 +1731,6 @@ function openMn(key){
     ? ds.map(d => '<option value="'+d+'">' + dayNo(d) + '일(' + wdn + ')'
         + (OFF.has(d) || OFF.has(d + '#' + thId) ? ' — 쉬는 날' : '') + '</option>').join('')
     : '<option value="">이 달에 그 요일이 없습니다</option>';
-  if (p[3]) $('mn_date').value = p[3];   // 빈 자리에서 누르면 그 날짜로 맞춰 둔다
 
   $('mn_name').value = '';
   $('mn_hits').innerHTML = '';
