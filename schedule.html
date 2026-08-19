@@ -1689,6 +1689,10 @@ async function afterLogin(user){
   if (!me) { show('⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
   if (CAN_SEE.indexOf(me.id) < 0) { show('이 화면을 볼 권한이 없습니다.', false); return; }
 
+  // 권한을 먼저 정한다 (아래에서 걸러낼 때 쓰이므로 순서가 중요)
+  CAN_EDIT = (me.id === 8 || me.id === 9);   // 넣기·고치기·휴무는 관리자·행정만
+  MY_TH = (me.id >= 1 && me.id <= 7) ? me.id : null;  // 치료사는 자기 것만
+
   const { data: ths } = await sb.from('nl_therapists').select('id, name').lte('id',7).order('id');
   THS_ALL = ths || [];
   THS = THS_ALL;
@@ -1736,10 +1740,7 @@ async function afterLogin(user){
   $('mk_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t+'</option>').join('');
   $('mk_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
 
-  // 수업 넣기·고치기는 관리자(8)·행정(9)만
-  CAN_EDIT = (me.id === 8 || me.id === 9);
-  // 치료사(1~7)는 자기 칸만 본다
-  MY_TH = (me.id >= 1 && me.id <= 7) ? me.id : null;
+  // 수업 넣기·고치기 권한은 위에서 이미 정했다
 
   // 아동 목록 (치료중 + 대기중)
   const { data: allKids } = await sb.from('nl_children')
