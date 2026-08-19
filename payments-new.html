@@ -53,6 +53,11 @@
            font-size:12px; display:inline-block; margin-bottom:5px; }
   .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
   .note { font-size:12.5px; color:#888; margin:10px 0 16px; line-height:1.7; }
+
+  .btn-home { display:inline-block; padding:8px 16px; background:#2e7d32; color:#fff;
+              font-size:13px; border-radius:8px; text-decoration:none;
+              white-space:nowrap; margin-right:8px; }
+  .btn-home:hover { filter:brightness(1.08); }
 </style>
 </head>
 <body>
@@ -76,6 +81,7 @@
       <h1>🌿 납부 입력</h1>
       <div class="who" id="who"></div>
     </div>
+    <a href="index.html" class="btn-home">🌿 처음으로</a>
     <button id="out" class="btn-out">로그아웃</button>
   </div>
 
@@ -127,7 +133,15 @@
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
 
-const sb  = window.supabase.createClient(URL_, KEY_);
+// 로그인을 창(탭) 안에서만 유지한다. 창을 닫으면 자동으로 끊긴다.
+const sb  = window.supabase.createClient(URL_, KEY_, {
+  auth: {
+    storage: window.sessionStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false
+  }
+});
 const $   = id => document.getElementById(id);
 
 let CHILDREN = [];   // 치료중 아동
@@ -404,7 +418,11 @@ $('btn').onclick = async () => {
   }
 };
 
-$('out').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('out').onclick = async () => {
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+};
 $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
 
 (async () => {
