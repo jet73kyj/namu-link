@@ -751,7 +751,9 @@ function drawShort(byScd, mkOf){
         if (!b.miss.length) {
           head = '<div class="sline1">'
                + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
-               + monNo(mon) + '월 회수가 모자랍니다.</span></div>';
+               + monNo(mon) + '월 회수가 모자랍니다.</span>'
+               + '<button class="sbtn" data-plan="' + r.id + '">일정 잡기</button>'
+               + '</div>';
         }
 
         // 둘째 줄: 어떤 수업인지와 남은 회수
@@ -767,8 +769,11 @@ function drawShort(byScd, mkOf){
           + '</div></div>';
       }).join('');
 
-  $('short').querySelectorAll('.sbtn').forEach(el => {
+  $('short').querySelectorAll('.sbtn[data-mk]').forEach(el => {
     el.onclick = () => openMk(Number(el.dataset.mk));
+  });
+  $('short').querySelectorAll('.sbtn[data-plan]').forEach(el => {
+    el.onclick = () => openPlan(Number(el.dataset.plan));
   });
 }
 
@@ -1775,6 +1780,17 @@ $('edEnd').onclick = async () => {
     $('edEnd').disabled = false;
   }
 };
+
+// ===== 회수가 모자란 수업에 한 자리 더 잡기 =====
+function openPlan(scId){
+  const r = ROWS_ALL.find(x => x.id === scId);
+  if (!r) return;
+  const slot = nearest(toMin(r.start_time));
+  openMn(slot.no + '_' + r.therapist_id + '_' + r.weekday);
+  $('mnTitle').textContent = monNo(mon) + '월 ' + r.weekday + '요일 ' + slot.hm
+    + ' — 회수가 모자라 한 자리 더 잡기';
+  if (r._cid) pickMnKid(r._cid);
+}
 
 // ===== 보강 직접 넣기 =====
 let mnKey = null;      // { slot, th, wd }
