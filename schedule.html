@@ -1449,6 +1449,24 @@ function drawDay(){
 
           // 이 칸·이 날짜에 결석·휴무가 있으면 빈 자리로 본다
           // (수업요일 줄이 없는 회차도 빠짐없이 훑는다)
+          // 이 요일인데 회차가 없는 날 (5주차 등) — 다른 아동 보강을 넣을 수 있다
+          list.forEach(function(r){
+            if (r.weekday !== wd) return;
+            if (r.from_month && r.from_month > mon) return;
+            if (r.to_month   && r.to_month   < mon) return;
+            const has = {};
+            (byScd[r.id] || []).forEach(x => has[String(x.plan_date)] = true);
+            wdDates(mon, wd).forEach(function(dd){
+              if (has[dd]) return;
+              const used = lines.some(function(L2){
+                return (L2.kind === 'mk' || L2.kind === 'mn') && L2.d === dd; });
+              if (used) return;
+              const dup = lines.some(function(L2){
+                return L2.kind === 'open' && L2.d === dd; });
+              if (!dup) lines.push({ d: dd, kind: 'open', x: { plan_date: dd } });
+            });
+          });
+
           abs.forEach(function(x){
             const dd = String(x.plan_date);
             const used = lines.some(function(L2){
