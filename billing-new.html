@@ -110,6 +110,14 @@
            font-size:15px; font-weight:600; }
   .cut { color:var(--ink3); font-size:12px; font-weight:400; }
   .warn { color:#b5651d; font-size:12.5px; }
+  .nmk { border:1px solid #e3e6e0; background:#fafbf9; border-radius:8px;
+         padding:9px 12px; margin:8px 0 4px; font-size:12.5px; color:#4a5148; }
+  .nmk-hot { border-color:#e8b4a4; background:#fdf5f2; }
+  .nmk b { font-size:13px; color:#333; }
+  .nmkline { margin:6px 0 0; line-height:1.55; }
+  .nmk-must { color:#b03a20; }
+  .nmk-can  { color:#8a6d1f; }
+  .nmkwhy { font-size:11.5px; color:#7a7a7a; margin:2px 0 0; }
 
   .pay { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px; }
   .pay input.dt { width:150px; }
@@ -204,6 +212,29 @@ const REVIEW_MAX  = 4;      // 월 최대 건수
 
 let CHILDREN = [], TYPES = {}, TTYPES = {}, THERAPISTS = [];
 let FEES = {}, RULES = {}, GRADES = {};
+let NOMAKEUP = {};          // 아동번호 -> 보강 못 잡은 결석 목록
+
+// 다음 달로 이월 보강이 되는가
+//   2 발달재활        — 월 4회 당월 필수. 이월 안 됨
+//   3·4 치료지원      — 1~3회차 당월 필수, 4회차부터 이월 가능
+//   5 방과후활동비    — 1~3회차 당월 필수, 4회차부터 이월 가능
+//   6·7 방과후치료지원— 1~3회차 당월 필수, 4회차부터 이월 가능
+//   1 센터비용        — 언제든 이월 가능
+//   8 발추(이)        — 언제든 이월 가능
+function canCarry(supportTypeId, seq) {
+  const st = Number(supportTypeId);
+  if (st === 2) return false;
+  if (st === 1 || st === 8) return true;
+  if ([3,4,5,6,7].indexOf(st) >= 0) return Number(seq) >= 4;
+  return true;
+}
+function carryWhy(supportTypeId, seq) {
+  const st = Number(supportTypeId);
+  if (st === 2) return '발달재활은 월 4회를 당월에 채워야 합니다';
+  if ([3,4,5,6,7].indexOf(st) >= 0 && Number(seq) < 4)
+    return (seq || '?') + '회차라 당월에 보강해야 합니다 (4회차부터 이월 가능)';
+  return '';
+}
 let SCHED = {};             // child_id -> 수업 목록
 let SESSCNT = {};           // 수업번호 -> { 지원유형: 회차수 }
 let SAVED = {};             // child_id -> 저장된 납부 (이번 달)
@@ -340,7 +371,7 @@ async function load() {
       sb.from('nl_payments').select('child_id, support_type_id, memo')
         .eq('month_key', pmk),
       sb.from('nl_sessions')
-        .select('schedule_id, support_type_id, status')
+        .select('id, child_id, schedule_id, support_type_id, status, plan_date, makeup_for')
         .eq('month_key', mk)
     ]);
     if (th.error)  throw th.error;
@@ -356,13 +387,41 @@ async function load() {
     GRADES = pickLatest(gr.data, mk, 'child_id');
 
     // 그 달 회차 수를 수업+지원유형별로 세어둔다 (휴무·보강은 뺀다)
+    const sess = (ss && ss.data) ? ss.data : [];
     SESSCNT = {};
-    (ss && ss.data ? ss.data : []).forEach(x => {
+    sess.forEach(x => {
       if (x.status === '휴무' || x.status === '보강') return;
       const k = x.schedule_id;
       const sp = x.support_type_id || 0;
       (SESSCNT[k] = SESSCNT[k] || {});
       SESSCNT[k][sp] = (SESSCNT[k][sp] || 0) + 1;
+    });
+
+    // 보강을 이미 잡은 결석 모으기
+    const covered = {};
+    sess.forEach(x => { if (x.status === '보강' && x.makeup_for) covered[x.makeup_for] = 1; });
+
+    // 아동·지원유형별 회차 순번 매기기 (날짜 순)
+    const ord = {};
+    sess.slice()
+      .filter(x => x.status !== '보강')
+      .sort((a,b) => String(a.plan_date).localeCompare(String(b.plan_date)))
+      .forEach(x => {
+        const k = x.child_id + '|' + (x.support_type_id || 0);
+        ord[k] = (ord[k] || 0) + 1;
+        x._seq = ord[k];
+      });
+
+    // 보강 못 잡은 결석 — 아동별로 모아둔다
+    NOMAKEUP = {};
+    sess.forEach(x => {
+      if (x.status !== '결석') return;
+      if (covered[x.id]) return;                 // 보강을 이미 잡았음
+      const st = x.support_type_id || 0;
+      (NOMAKEUP[x.child_id] = NOMAKEUP[x.child_id] || []).push({
+        st: st, date: x.plan_date, seq: x._seq || 0,
+        ok: canCarry(st, x._seq || 0)
+      });
     });
 
     SCHED = {};
@@ -560,6 +619,8 @@ function drawAll() {
   sumAll();
 }
 
+function dayOnly(v) { return Number(String(v || '').slice(8, 10)) || ''; }
+
 function drawKid(c) {
   const mk = LOADED_MK;
   const groups = buildRows(c.id, mk);
@@ -578,6 +639,29 @@ function drawKid(c) {
   if (noClass) {
     b += '<div class="warn">수업이 등록되어 있지 않습니다. 평가비만 넣을 수 있습니다.</div>';
   }
+
+  // 보강을 아직 못 잡은 결석 알려주기
+  const nm = NOMAKEUP[c.id] || [];
+  if (nm.length) {
+    const must = nm.filter(x => !x.ok);
+    const can  = nm.filter(x => x.ok);
+    b += '<div class="nmk' + (must.length ? ' nmk-hot' : '') + '">'
+      + '<b>보강을 아직 못 잡은 결석 ' + nm.length + '건</b>'
+      + (must.length
+          ? '<div class="nmkline nmk-must">🔴 당월에 꼭 보강해야 함 ' + must.length + '건 — '
+            + must.map(x => (TYPES[x.st] || ('유형'+x.st)) + ' '
+                + dayOnly(x.date) + '일(' + x.seq + '회차)').join(' · ')
+            + '<div class="nmkwhy">' + esc(carryWhy(must[0].st, must[0].seq)) + '</div></div>'
+          : '')
+      + (can.length
+          ? '<div class="nmkline nmk-can">🟡 다음 달로 넘겨도 되는 것 ' + can.length + '건 — '
+            + can.map(x => (TYPES[x.st] || ('유형'+x.st)) + ' '
+                + dayOnly(x.date) + '일(' + x.seq + '회차)').join(' · ')
+            + '</div>'
+          : '')
+      + '</div>';
+  }
+
   b += '<div class="sect">카드결제</div>';
 
   groups.filter(g => g.support_type_id !== 2).forEach(g => {

@@ -214,6 +214,8 @@
              padding:7px 11px; margin-top:5px; font-size:13.5px; }
   .prevone .pnm { font-weight:bold; min-width:78px; }
   .prevone .psm { color:#5e35b1; font-size:12.5px; }
+  .prevone.prevno { border-color:#e8b4a4; background:#fdf5f2; }
+  .prevone .pwhy { color:#b03a20; font-weight:bold; }
   .prevbtn { width:auto; margin:0 0 0 auto; padding:3px 12px; font-size:11.5px;
              font-weight:bold; background:#5e35b1; border-radius:12px;
              white-space:nowrap; }
@@ -1083,6 +1085,38 @@ function mergeRuns(list, htmls, pairs){
   return a.map(x => x.h).join('');
 }
 
+// ===== 이월 보강 규칙 =====
+//   2 발달재활        — 월 4회 당월 필수. 이월 안 됨
+//   3·4 치료지원 / 5 방과후활동비 / 6·7 방과후치료지원
+//                     — 1~3회차는 당월 필수, 4회차부터 이월 가능
+//   1 센터비용 / 8 발추(이) — 언제든 이월 가능
+function canCarry(st, seq) {
+  st = Number(st);
+  if (st === 2) return false;
+  if (st === 1 || st === 8) return true;
+  if ([3,4,5,6,7].indexOf(st) >= 0) return Number(seq) >= 4;
+  return true;
+}
+function carryWhy(st, seq) {
+  st = Number(st);
+  if (st === 2) return '발달재활은 월 4회를 그 달에 채워야 합니다';
+  if ([3,4,5,6,7].indexOf(st) >= 0 && Number(seq) < 4)
+    return (seq || '?') + '회차라 그 달에 보강해야 합니다 (4회차부터 이월 가능)';
+  return '';
+}
+
+// 지난 달 그 회차가 그 유형의 몇 번째였는지
+function seqInPrev(s) {
+  const sc = ROWS_ALL.find(x => x.id === s.schedule_id);
+  const st = s.support_type_id || (sc ? sc.support_type_id : 0);
+  const same = PREV.filter(x => x.status !== '보강'
+      && x.child_id === s.child_id
+      && (x.support_type_id || 0) === (st || 0))
+    .sort((a,b) => String(a.plan_date).localeCompare(String(b.plan_date)));
+  const i = same.findIndex(x => x.id === s.id);
+  return { st: st || 0, seq: i >= 0 ? i + 1 : 0 };
+}
+
 // ===== 지난 달에서 넘어온 보강 =====
 function drawPrev(){
   const need = prevNeed();
@@ -1095,23 +1129,34 @@ function drawPrev(){
     + need.map(s => {
         const sc = ROWS.find(x => x.id === s.schedule_id);
         const t2 = THS_ALL.find(x => x.id === s.therapist_id);
-        return '<div class="prevone">'
+        const q = seqInPrev(s);
+        const ok = canCarry(q.st, q.seq);
+        return '<div class="prevone' + (ok ? '' : ' prevno') + '">'
           + '<span class="pnm">' + esc(s._name || '') + '</span>'
           + '<span class="psm">'
             + (sc ? (STYPE[sc.support_type_id]||'') + ' · ' + (TTYPE[sc._tt]||'') + ' · ' : '')
             + monNo(pm) + '월 ' + dayNo(s.plan_date) + '일 '
+            + (q.seq ? q.seq + '회차 ' : '')
             + (s.status === '휴무' ? '휴무' : '결석')
             + (t2 ? ' · ' + esc(t2.name) : '')
+            + (ok ? '' : ' <b class="pwhy">🔴 ' + esc(carryWhy(q.st, q.seq)) + '</b>')
           + '</span>'
           + (CAN_EDIT || MY_TH
-              ? '<button class="prevbtn" data-pmk="' + s.id + '">보강 잡기</button>' : '')
+              ? '<button class="prevbtn" data-pmk="' + s.id + '"'
+                + (ok ? '' : ' data-no="' + esc(carryWhy(q.st, q.seq)) + '"')
+                + '>보강 잡기</button>' : '')
           + '</div>';
       }).join('')
     + '<div class="prevnote">※ 여기서 잡은 보강은 <b>납부는 ' + monNo(pm)
       + '월</b>, <b>급여는 ' + monNo(mon) + '월</b>로 셉니다.</div>';
 
   $('prevBox').querySelectorAll('.prevbtn').forEach(el => {
-    el.onclick = () => openMk(Number(el.dataset.pmk));
+    el.onclick = () => {
+      const why = el.dataset.no;
+      if (why && !confirm('⚠️ 이 회차는 다음 달로 넘길 수 없습니다.\n\n'
+          + why + '\n\n그래도 보강을 잡을까요?')) return;
+      openMk(Number(el.dataset.pmk));
+    };
   });
 }
 
