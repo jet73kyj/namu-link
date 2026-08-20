@@ -162,7 +162,7 @@
     <button class="tab" data-st="연락 대기">연락 대기</button>
     <button class="tab" data-st="자리 대기">자리 대기</button>
     <button class="tab" data-st="그룹 대기">그룹 대기</button>
-    <button id="addBtn" class="tab" style="background:#8bc34a;color:#fff;font-weight:bold;">＋ 새 문의</button>
+    <button id="addBtn" class="tab" style="display:none;">＋ 새 문의</button>
     <button id="evBtn" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">📋 평가 관리</button>
     <span class="count" id="count"></span>
   </div>
@@ -224,13 +224,7 @@
         <label for="a_action">다음 할 일</label>
         <input id="a_action" type="text" placeholder="예: 보호자에게 다시 전화">
       </div>
-      <div>
-        <label for="pastQ">과거 문의 찾기</label>
-        <input id="pastQ" type="text" autocomplete="off" placeholder="🔍 이름 두 글자">
-      </div>
-      <div id="pastBox" style="grid-column:1 / -1;display:none;padding:10px 12px;
-           border:1px solid #90caf9;border-radius:6px;background:#f1f8fe;
-           font-size:13px;line-height:1.8;color:#1c1f1a;"></div>
+
       <div style="grid-column:1 / -1;">
         <label for="k_memo">상담 내용</label>
         <textarea id="k_memo" rows="7" style="font:inherit;font-size:14px;padding:9px 11px;
@@ -247,7 +241,7 @@
     </div>
     <div class="btns">
       <button id="saveNew" class="tab" style="background:#2e7d32;color:#fff;font-weight:bold;">등록하기</button>
-      <button id="cancelNew" class="tab">취소</button>
+      <button id="cancelNew" class="tab" style="display:none;">취소</button>
     </div>
     <div id="msgA" class="out"></div>
   </div>
@@ -427,6 +421,7 @@
     </div>
   </div>
 
+  <div id="pastBox" style="display:none;margin-bottom:10px;padding:10px 12px;border:1px solid #90caf9;border-radius:6px;background:#f1f8fe;font-size:13px;line-height:1.8;color:#1c1f1a;"></div>
   <table>
     <thead>
       <tr>
@@ -436,7 +431,11 @@
         <th>상태</th>
         <th>다음 확인</th>
         <th>다음 할 일</th>
-        <th></th>
+        <th style="text-align:right;">
+          <input id="pastQ" type="text" autocomplete="off" placeholder="🔍 아동 이름 찾기"
+            style="font:inherit;font-size:13px;font-weight:normal;padding:5px 10px;
+                   border:1px solid #bbb;border-radius:6px;width:150px;">
+        </th>
       </tr>
     </thead>
     <tbody id="rows"></tbody>
