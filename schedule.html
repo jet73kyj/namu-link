@@ -263,6 +263,7 @@
             font-size:10px; font-weight:bold; background:#ffb74d; color:#5d4037;
             border-radius:9px; white-space:nowrap; opacity:.55; }
   td.cell:hover .mnbtn { opacity:1; }
+  .mnmore { margin-top:4px; opacity:.75; }
   .mnbtn:hover { background:#ef6c00; color:#fff; }
   .mnown  { font-size:10.5px; color:#bf6000; margin-top:2px; font-weight:bold; }
   .mnown .del { margin-left:6px; color:#c62828; cursor:pointer; font-weight:bold; }
@@ -1169,6 +1170,10 @@ function drawWeek(){
               + '<span class="st">보강</span></div></span>';
           });
           mns.forEach(x => html += mnChip(x));
+          if (CAN_EDIT) {
+            html += '<button class="mnbtn mnmore" data-mn="'
+                  + s.no+'_'+th+'_'+d+'">＋보강</button>';
+          }
           return '<td class="cell" style="width:14%;">'+html+'</td>';
         }).join('')
       + '</tr>';
@@ -1692,6 +1697,14 @@ function drawDay(){
               return L2.kind === 'open' && L2.d === dd; });
             if (!dup) lines.push({ d: dd, kind: 'open', x: x });
           });
+
+          // 정규 수업이 없는 칸(보강만 있는 칸)도 그 요일의 남은 날짜를 빈 자리로 둔다
+          if (!list.length) {
+            wdDates(mon, wd).forEach(function(dd){
+              const used = lines.some(function(L2){ return L2.d === dd; });
+              if (!used) lines.push({ d: dd, kind: 'open', x: { plan_date: dd } });
+            });
+          }
 
           lines.sort(function(a, b){
             return a.d.localeCompare(b.d)
