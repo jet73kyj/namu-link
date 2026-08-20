@@ -110,6 +110,14 @@
            font-size:15px; font-weight:600; }
   .cut { color:var(--ink3); font-size:12px; font-weight:400; }
   .warn { color:#b5651d; font-size:12.5px; }
+  .shortc { border:1px solid #e8c9a4; background:#fffaf2; border-radius:8px;
+            padding:9px 12px; margin:8px 0 4px; font-size:12.5px; color:#5a4a30; }
+  .shortline { line-height:1.6; }
+  .shortline + .shortline { margin-top:5px; padding-top:5px;
+                            border-top:1px dotted #e8c9a4; }
+  .sred { color:#b03a20; }
+  .shortwhy { font-size:11.5px; color:#8a7a5a; margin:1px 0 0; }
+  .shortnote { font-size:11.5px; color:#8a7a5a; margin:6px 0 0; }
   .nmk { border:1px solid #e3e6e0; background:#fafbf9; border-radius:8px;
          padding:9px 12px; margin:8px 0 4px; font-size:12.5px; color:#4a5148; }
   .nmk-hot { border-color:#e8b4a4; background:#fdf5f2; }
@@ -213,6 +221,8 @@ const REVIEW_MAX  = 4;      // 월 최대 건수
 let CHILDREN = [], TYPES = {}, TTYPES = {}, THERAPISTS = [];
 let FEES = {}, RULES = {}, GRADES = {};
 let NOMAKEUP = {};          // 아동번호 -> 보강 못 잡은 결석 목록
+let SHORTCNT = {};          // 아동|유형 -> { 실제 회수, 빠진 날 }
+let NEEDCNT  = {};          // 아동|유형 -> 기준 회수
 
 // 다음 달로 이월 보강이 되는가
 //   2 발달재활        — 월 4회 당월 필수. 이월 안 됨
@@ -358,7 +368,7 @@ async function load() {
 
     const [th, fe, ru, gr, pay, px, pv, ss] = await Promise.all([
       sb.from('nl_therapies')
-        .select('id, child_id, therapy_type_id, support_type_id, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration)')
+        .select('id, child_id, therapy_type_id, support_type_id, monthly_count, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration)')
         .in('child_id', ids),
       sb.from('nl_therapist_fees').select('*'),
       sb.from('nl_support_rules').select('*'),
@@ -411,6 +421,24 @@ async function load() {
         ord[k] = (ord[k] || 0) + 1;
         x._seq = ord[k];
       });
+
+    // 아동·유형별 실제 회수와 빠진 날짜(휴무·결석)를 모아둔다
+    SHORTCNT = {};
+    sess.forEach(x => {
+      if (x.status === '보강') return;
+      const k = x.child_id + '|' + (x.support_type_id || 0);
+      const g = SHORTCNT[k] = SHORTCNT[k] || { cnt: 0, miss: [] };
+      if (x.status === '휴무') { g.miss.push({ d: x.plan_date, s: '휴무' }); return; }
+      g.cnt++;
+      if (x.status === '결석') g.miss.push({ d: x.plan_date, s: '결석' });
+    });
+
+    // 유형별 기준 회수 (치료 등록의 월 회수)
+    NEEDCNT = {};
+    (th.data || []).forEach(t => {
+      const k = t.child_id + '|' + (t.support_type_id || 0);
+      NEEDCNT[k] = Math.max(NEEDCNT[k] || 0, Number(t.monthly_count) || 0);
+    });
 
     // 보강 못 잡은 결석 — 아동별로 모아둔다
     NOMAKEUP = {};
@@ -638,6 +666,35 @@ function drawKid(c) {
   let b = '';
   if (noClass) {
     b += '<div class="warn">수업이 등록되어 있지 않습니다. 평가비만 넣을 수 있습니다.</div>';
+  }
+
+  // 회기가 기준보다 적은 유형 알려주기
+  const shorts = [];
+  Object.keys(NEEDCNT).forEach(k => {
+    const p = k.split('|');
+    if (Number(p[0]) !== c.id) return;
+    const need = NEEDCNT[k];
+    if (!need) return;
+    const g = SHORTCNT[k];
+    if (!g) return;
+    if (g.cnt >= need) return;
+    shorts.push({ st: Number(p[1]), need: need, cnt: g.cnt, miss: g.miss });
+  });
+
+  if (shorts.length) {
+    b += '<div class="shortc">'
+      + shorts.map(x =>
+          '<div class="shortline"><b>' + (TYPES[x.st] || ('유형'+x.st)) + '</b> — '
+          + '기준 ' + x.need + '회인데 <b class="sred">' + x.cnt + '회</b> '
+          + '(' + (x.need - x.cnt) + '회 적음)'
+          + (x.miss.length
+              ? '<div class="shortwhy">빠진 날 — '
+                + x.miss.map(m => dayOnly(m.d) + '일 ' + m.s).join(' · ')
+                + '</div>'
+              : '')
+          + '</div>').join('')
+      + '<div class="shortnote">보강을 잡을지, 이대로 청구할지 정하세요.</div>'
+      + '</div>';
   }
 
   // 보강을 아직 못 잡은 결석 알려주기
