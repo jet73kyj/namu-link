@@ -118,6 +118,10 @@
   .ln-nosess { border:1px dotted #d6d9d7; color:#9aa09c; }
   .ln-nosess .nosl { font-size:10.5px; }
   .ln-cut  { text-decoration:line-through; }
+  .wkbox.lock { opacity:.5; cursor:default; }
+  .wklock { margin-top:6px; font-size:12px; color:#7a827d;
+            background:#f4f6f5; border:1px solid #dfe4e1;
+            border-radius:6px; padding:6px 8px; }
   .ln-rest { background:#eef0ef; color:#8a908c; border:1px dashed #c4cac6; }
   .ln-rest .mkbtn { background:#fff; color:#555; }
   .ln .go  { font-size:10.5px; font-weight:bold; color:#555; }
@@ -1740,15 +1744,14 @@ $('adSave').onclick = async () => {
       started_on: $('ad_start').value || null,
       monthly_count: wkOn.filter(Boolean).length
                      + (($('ad_cnt').value !== '4회만') ? 1 : 0),
-      count_mode: $('ad_cnt').value,
-      week1: wkOn[0], week2: wkOn[1], week3: wkOn[2], week4: wkOn[3],
-      week5: ($('ad_cnt').value !== '4회만')
+      count_mode: $('ad_cnt').value
     }).select().single();
     if (e1) throw e1;
 
     const { data: sc, error: e2 } = await sb.from('nl_therapy_schedules').insert({
       therapy_id: th.id, weekday: wd, start_time: slot.hm + ':00',
-      therapist_id: thId, duration: Number($('ad_dur').value)
+      therapist_id: thId, duration: Number($('ad_dur').value),
+      week1: wkOn[0], week2: wkOn[1], week3: wkOn[2], week4: wkOn[3]
     }).select().single();
     if (e2) throw e2;
 
@@ -1790,14 +1793,14 @@ async function refreshRuns(scheduleId){
 let edWk = [true,true,true,true];   // 고치기 창의 오는 주차
 
 function drawEdWks(){
+  // 주차는 납부 화면에서 정한다. 여기서는 보기만 한다.
   $('ed_wks').innerHTML = [1,2,3,4].map(n => wkOne(n, edWk[n-1])).join('')
-    + wkSum(edWk, $('ed_cnt').value);
+    + wkSum(edWk, $('ed_cnt').value)
+    + '<div class="wklock">주차는 <b>납부 계산 화면</b>에서 정합니다. '
+    + '거기서 회기 칸 옆 「주차」 단추를 누르세요.</div>';
   $('ed_wks').querySelectorAll('.wkbox').forEach(el => {
-    el.onclick = () => {
-      const n = Number(el.dataset.wk);
-      edWk[n-1] = !edWk[n-1];
-      drawEdWks();
-    };
+    el.classList.add('lock');
+    el.onclick = null;
   });
 }
 
@@ -1863,11 +1866,11 @@ $('edSave').onclick = async () => {
     const nmode= $('ed_cnt').value;
     const nst  = Number($('ed_st2').value);
     const wkCnt = edWk.filter(Boolean).length || 4;
+    // 주차는 수업요일 줄에 있으므로 치료에는 쓰지 않는다
     const up2 = { therapy_type_id: ntt, support_type_id: nst,
                   count_mode: nmode,
                   monthly_count: wkCnt + ((nmode !== '4회만') ? 1 : 0),
-                  week1: edWk[0], week2: edWk[1], week3: edWk[2], week4: edWk[3],
-                  week5: (nmode !== '4회만'), duration_min: du };
+                  duration_min: du };
     const { error: e2 } = await sb.from('nl_therapies')
       .update(up2).eq('id', edRow.therapy_id);
     if (e2) throw e2;
@@ -1919,7 +1922,9 @@ async function changeFromThisMonth(nw, slot, th, du){
     const { data: ns, error: e2 } = await sb.from('nl_therapy_schedules')
       .insert({ therapy_id: edRow.therapy_id, weekday: nw,
                 start_time: slot.hm + ':00', therapist_id: th,
-                duration: du, from_month: mon })
+                duration: du, from_month: mon,
+                week1: edWk[0], week2: edWk[1],
+                week3: edWk[2], week4: edWk[3] })
       .select().single();
     if (e2) throw e2;
 
@@ -1928,11 +1933,11 @@ async function changeFromThisMonth(nw, slot, th, du){
     const nmode= $('ed_cnt').value;
     const nst  = Number($('ed_st2').value);
     const wkCnt = edWk.filter(Boolean).length || 4;
+    // 주차는 수업요일 줄에 있으므로 치료에는 쓰지 않는다
     const { error: e3 } = await sb.from('nl_therapies').update({
       therapy_type_id: ntt, support_type_id: nst, count_mode: nmode,
       monthly_count: wkCnt + ((nmode !== '4회만') ? 1 : 0),
-      week1: edWk[0], week2: edWk[1], week3: edWk[2], week4: edWk[3],
-      week5: (nmode !== '4회만'), duration_min: du
+      duration_min: du
     }).eq('id', edRow.therapy_id);
     if (e3) throw e3;
 
@@ -2612,10 +2617,10 @@ async function afterLogin(user){
   THS = THS_ALL;
 
   const { data: sc, error: e3 } = await sb.from('nl_therapy_schedules')
-    .select('id, therapy_id, weekday, start_time, therapist_id, duration, from_month, to_month');
+    .select('id, therapy_id, weekday, start_time, therapist_id, duration, from_month, to_month, week1, week2, week3, week4');
   if (e3) { show('❌ 시간표 조회 실패\n'+e3.message, false); return; }
   const { data: tp } = await sb.from('nl_therapies')
-    .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode, week1, week2, week3, week4');
+    .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode');
   const { data: kids } = await sb.from('nl_children')
     .select('id, name, birth, status').eq('status','치료중');
 
@@ -2628,8 +2633,10 @@ async function afterLogin(user){
     r.support_type_id=t.support_type_id; r._name=k.name; r._birth=k.birth;
     r.therapy_id = t.id; r._cnt = t.monthly_count || 4;
     r._mode = t.count_mode || '4회만';
-    r._wks = (t.week1?1:0)+(t.week2?1:0)+(t.week3?1:0)+(t.week4?1:0);
-    r._w1 = t.week1; r._w2 = t.week2; r._w3 = t.week3; r._w4 = t.week4;
+    // 주차는 수업요일 줄에 있다 (납부 화면에서 정한다)
+    r._w1 = r.week1 !== false; r._w2 = r.week2 !== false;
+    r._w3 = r.week3 !== false; r._w4 = r.week4 !== false;
+    r._wks = (r._w1?1:0)+(r._w2?1:0)+(r._w3?1:0)+(r._w4?1:0);
     return r;
   }).filter(Boolean);
 
