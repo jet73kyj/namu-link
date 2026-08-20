@@ -669,16 +669,23 @@ function drawKid(c) {
   }
 
   // 회기가 기준보다 적은 유형 알려주기
+  // 이미 저장한 납부 회기와 시간표 회차가 같으면 확정된 것이라 안 띄운다
   const shorts = [];
   Object.keys(NEEDCNT).forEach(k => {
     const p = k.split('|');
     if (Number(p[0]) !== c.id) return;
+    const st = Number(p[1]);
     const need = NEEDCNT[k];
     if (!need) return;
     const g = SHORTCNT[k];
     if (!g) return;
     if (g.cnt >= need) return;
-    shorts.push({ st: Number(p[1]), need: need, cnt: g.cnt, miss: g.miss });
+
+    // 저장된 납부의 회기 합계와 같으면 이대로 확정한 것으로 본다
+    const saved = savedCnt(sv[st]);
+    if (saved !== null && saved === g.cnt) return;
+
+    shorts.push({ st: st, need: need, cnt: g.cnt, miss: g.miss });
   });
 
   if (shorts.length) {
@@ -849,6 +856,14 @@ function drawKid(c) {
 }
 
 // 저장된 메모에서 사람이 적은 부분만 꺼낸다
+// 저장된 납부 메모의 [회기4,4] 에서 회기 합계를 읽는다
+function savedCnt(p) {
+  if (!p || !p.memo) return null;
+  const m = String(p.memo).match(/\[회기([0-9,]+)\]/);
+  if (!m) return null;
+  return m[1].split(',').reduce((a, b) => a + (Number(b) || 0), 0);
+}
+
 function memoOf(p, isBank) {
   let m = (p && p.memo) ? String(p.memo) : '';
   if (isBank) {
