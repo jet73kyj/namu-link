@@ -89,6 +89,13 @@
   .ln { display:flex; align-items:center; gap:6px; font-size:12px;
         padding:4px 6px; border-radius:4px; margin:2px 0; cursor:pointer; }
   .ln:hover { outline:1px solid #9ccc65; }
+  .ln.hit { outline:2px solid #ff9800; outline-offset:1px; }
+  .ln.hitnow { outline:3px solid #e65100; outline-offset:1px;
+               box-shadow:0 0 0 4px rgba(255,152,0,.25); }
+  .jumpbtn { width:auto; margin:0 0 0 6px; padding:6px 12px; font-size:12.5px;
+             background:#ff9800; color:#fff; border:none; border-radius:6px;
+             cursor:pointer; white-space:nowrap; }
+  .jumpbtn:hover { background:#e65100; }
   .ln .d { min-width:30px; text-align:right; font-weight:bold; }
   .ln .n { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ln .s { margin-left:auto; font-weight:bold; font-size:11px; }
@@ -334,6 +341,7 @@
     <select id="wkTh" class="sel" style="display:none;"></select>
     <select id="mon" class="sel"></select>
     <input id="findName" class="findbox" type="text" placeholder="🔍 아동 이름으로 찾기">
+    <button id="findJump" class="jumpbtn" style="display:none;">다음 자리로 ▸</button>
     <button id="offBtn" class="offbtn-top">🏖 휴무 관리</button>
     <span class="count" id="count"></span>
   </div>
@@ -913,7 +921,35 @@ function drawFind(){
   });
 }
 
-$('findName').addEventListener('input', drawFind);
+// 찾은 아동을 시간표 안에서 테두리로 표시하고 첫 자리로 옮겨 준다
+let hitEls = [], hitAt = 0;
+function markFind(){
+  document.querySelectorAll('.ln.hit').forEach(el => el.classList.remove('hit'));
+  hitEls = []; hitAt = 0;
+  const q = $('findName').value.trim();
+  $('findJump').style.display = 'none';
+  if (!q) return;
+
+  document.querySelectorAll('.ln[data-kid]').forEach(el => {
+    if ((el.dataset.kid || '').includes(q)) { el.classList.add('hit'); hitEls.push(el); }
+  });
+
+  if (!hitEls.length) return;
+  $('findJump').style.display = '';
+  $('findJump').textContent = '이 요일에 ' + hitEls.length + '자리 — 다음 자리로 ▸';
+  jumpTo(0);
+}
+function jumpTo(i){
+  if (!hitEls.length) return;
+  hitAt = ((i % hitEls.length) + hitEls.length) % hitEls.length;
+  const el = hitEls[hitAt];
+  el.scrollIntoView({ behavior:'smooth', block:'center', inline:'center' });
+  hitEls.forEach(x => x.classList.remove('hitnow'));
+  el.classList.add('hitnow');
+}
+
+$('findName').addEventListener('input', () => { drawFind(); markFind(); });
+$('findJump').onclick = () => jumpTo(hitAt + 1);
 
 // ===== 치료사별 주간 보기 =====
 function drawWeek(){
@@ -1194,9 +1230,12 @@ function draw(){
     $('noSess').style.display = 'none';
   }
   drawPrev();
-  if (VIEW === 'week') { drawWeek(); return; }
+  if (VIEW === 'week') { drawWeek(); afterDraw(); return; }
   drawDay();
+  afterDraw();
 }
+
+function afterDraw(){ if ($('findName').value.trim()) markFind(); }
 
 function drawDay(){
   // 회차 전체 (모자란 회차 계산용)
@@ -1413,7 +1452,8 @@ function drawDay(){
               ? '<button class="lnedit" data-ed="' + r.id + '">고치기</button>' : '';
             seenSc[r.id] = true;
 
-            html += '<div class="ln ' + cls + '" data-sid="' + x.id + '">'
+            html += '<div class="ln ' + cls + '" data-sid="' + x.id + '"'
+              + ' data-kid="' + esc(r._name || '') + '">'
               + '<span class="d">' + day + '</span>'
               + '<span class="n' + cut + '">' + nm + dur + '</span>'
               + tail + ed + '</div>';
@@ -1421,7 +1461,7 @@ function drawDay(){
 
           list.forEach(function(r){
             if (seenSc[r.id]) return;
-            html += '<div class="ln ln-plan">'
+            html += '<div class="ln ln-plan" data-kid="' + esc(r._name || '') + '">'
               + '<span class="d">—</span>'
               + '<span class="n">' + (STYPE[r.support_type_id] || '?')
               + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name) + '</span>'
