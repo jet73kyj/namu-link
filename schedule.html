@@ -96,6 +96,13 @@
              background:#ff9800; color:#fff; border:none; border-radius:6px;
              cursor:pointer; white-space:nowrap; }
   .jumpbtn:hover { background:#e65100; }
+  .findpick { margin:8px 0 0; font-size:12.5px; color:#555; }
+  .pickbtn { width:auto; margin:0 5px 0 0; padding:5px 11px; font-size:12.5px;
+             background:#fff; color:#444; border:1px solid #bbb;
+             border-radius:6px; cursor:pointer; }
+  .pickbtn:hover { background:#f0f0f0; }
+  .pickbtn.on { background:#ff9800; color:#fff; border-color:#ff9800; }
+  .pickbtn .pbd { font-size:10.5px; opacity:.75; margin-left:5px; }
   .ln .d { min-width:30px; text-align:right; font-weight:bold; }
   .ln .n { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ln .s { margin-left:auto; font-weight:bold; font-size:11px; }
@@ -348,6 +355,7 @@
     <select id="mon" class="sel"></select>
     <input id="findName" class="findbox" type="text" placeholder="🔍 아동 이름으로 찾기">
     <button id="findJump" class="jumpbtn" style="display:none;">다음 자리로 ▸</button>
+    <div id="findPick" class="findpick" style="display:none;"></div>
     <button id="offBtn" class="offbtn-top">🏖 휴무 관리</button>
     <span class="count" id="count"></span>
   </div>
@@ -933,16 +941,48 @@ function drawFind(){
 }
 
 // 찾은 아동을 시간표 안에서 테두리로 표시하고 첫 자리로 옮겨 준다
-let hitEls = [], hitAt = 0;
+let hitEls = [], hitAt = 0, pickCid = null;
+
+function bd(v){
+  const s = String(v || '');
+  return s.length >= 10 ? s.slice(2,4) + s.slice(5,7) + s.slice(8,10) : '';
+}
+
 function markFind(){
   document.querySelectorAll('.ln.hit').forEach(el => el.classList.remove('hit'));
   hitEls = []; hitAt = 0;
   const q = $('findName').value.trim();
   $('findJump').style.display = 'none';
-  if (!q) return;
+  $('findPick').style.display = 'none';
+  if (!q) { pickCid = null; return; }
+
+  // 이름이 걸리는 아동을 모은다
+  const kids = {};
+  ROWS_ALL.forEach(r => {
+    if (!r._name || !r._name.includes(q)) return;
+    kids[r._cid] = { cid: r._cid, name: r._name, birth: r._birth };
+  });
+  const list = Object.values(kids);
+
+  // 여러 명이면 골라 달라고 한다
+  if (list.length > 1) {
+    if (!list.some(k => k.cid === pickCid)) pickCid = null;
+    $('findPick').style.display = '';
+    $('findPick').innerHTML = '같은 이름 ' + list.length + '명 — 골라주세요: '
+      + list.map(k => '<button class="pickbtn' + (k.cid === pickCid ? ' on' : '')
+          + '" data-cid="' + k.cid + '">' + esc(k.name)
+          + '<span class="pbd">' + bd(k.birth) + '</span></button>').join('');
+    $('findPick').querySelectorAll('.pickbtn').forEach(b => {
+      b.onclick = () => { pickCid = Number(b.dataset.cid); markFind(); };
+    });
+  } else {
+    pickCid = list.length ? list[0].cid : null;
+  }
 
   document.querySelectorAll('.ln[data-kid]').forEach(el => {
-    if ((el.dataset.kid || '').includes(q)) { el.classList.add('hit'); hitEls.push(el); }
+    if (!(el.dataset.kid || '').includes(q)) return;
+    if (pickCid && Number(el.dataset.cid) !== pickCid) return;
+    el.classList.add('hit'); hitEls.push(el);
   });
 
   if (!hitEls.length) return;
@@ -1475,7 +1515,8 @@ function drawDay(){
             seenSc[r.id] = true;
 
             html += '<div class="ln ' + cls + '" data-sid="' + x.id + '"'
-              + ' data-kid="' + esc(r._name || '') + '">'
+              + ' data-kid="' + esc(r._name || '') + '"'
+              + ' data-cid="' + (r._cid || '') + '">'
               + '<span class="d">' + day + '</span>'
               + '<span class="n' + cut + '">' + nm + dur + '</span>'
               + tail + ed + '</div>';
@@ -1483,7 +1524,8 @@ function drawDay(){
 
           list.forEach(function(r){
             if (seenSc[r.id]) return;
-            html += '<div class="ln ln-plan" data-kid="' + esc(r._name || '') + '">'
+            html += '<div class="ln ln-plan" data-kid="' + esc(r._name || '') + '"'
+              + ' data-cid="' + (r._cid || '') + '">'
               + '<span class="d">—</span>'
               + '<span class="n">' + (STYPE[r.support_type_id] || '?')
               + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name) + '</span>'
@@ -2531,7 +2573,7 @@ async function afterLogin(user){
   const { data: tp } = await sb.from('nl_therapies')
     .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode, week1, week2, week3, week4');
   const { data: kids } = await sb.from('nl_children')
-    .select('id, name, status').eq('status','치료중');
+    .select('id, name, birth, status').eq('status','치료중');
 
   const tpMap={}; (tp||[]).forEach(x=>tpMap[x.id]=x);
   const kdMap={}; (kids||[]).forEach(x=>kdMap[x.id]=x);
@@ -2539,7 +2581,7 @@ async function afterLogin(user){
     const t=tpMap[r.therapy_id]; if(!t) return null;
     const k=kdMap[t.child_id];   if(!k) return null;
     r._cid=t.child_id; r._tt=t.therapy_type_id;
-    r.support_type_id=t.support_type_id; r._name=k.name;
+    r.support_type_id=t.support_type_id; r._name=k.name; r._birth=k.birth;
     r.therapy_id = t.id; r._cnt = t.monthly_count || 4;
     r._mode = t.count_mode || '4회만';
     r._wks = (t.week1?1:0)+(t.week2?1:0)+(t.week3?1:0)+(t.week4?1:0);
