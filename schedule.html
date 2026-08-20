@@ -119,6 +119,41 @@
   .ln-nosess .nosl { font-size:10.5px; }
   .ln-cut  { text-decoration:line-through; }
   .wkbox.lock { opacity:.5; cursor:default; }
+  .calhead { display:flex; align-items:center; justify-content:center;
+             gap:14px; margin:6px 0 12px; }
+  .calhead b { font-size:17px; color:#2e5c3a; }
+  .calnav { padding:6px 14px; font-size:16px; border:1px solid #cfd4d0;
+            border-radius:7px; background:#fff; color:#2e7d32; cursor:pointer; }
+  .caltbl { width:100%; border-collapse:collapse; table-layout:fixed; }
+  .caltbl th { padding:7px 0; font-size:13px; color:#6b7370; font-weight:600;
+               border-bottom:1px solid #dfe4e1; }
+  .caltbl td { padding:0; border:1px solid #eceeed; height:52px;
+               vertical-align:middle; text-align:center; }
+  .calday { display:block; width:100%; height:52px; line-height:52px;
+            font-size:16px; color:#2b2f2c; background:#fff;
+            border:none; cursor:pointer; }
+  .calday.has  { font-weight:700; color:#1f5c33; background:#f2f8f4; }
+  .calday.none { color:#c2c8c4; cursor:default; }
+  .calday.off  { color:#b9413a; }
+  .calday.today { box-shadow:inset 0 0 0 2px #2e7d32; border-radius:6px; }
+  .calempty { background:#fafbfa; }
+  .calnote { margin-top:10px; font-size:12.5px; color:#7a827d; text-align:center; }
+  .oneli { display:flex; align-items:center; gap:10px;
+           padding:11px 12px; border:1px solid #dfe4e1; border-radius:9px;
+           margin-bottom:7px; background:#fff; font-size:15px; }
+  .oneli .ot { flex:0 0 62px; font-weight:600; color:#2e5c3a; }
+  .oneli .on2 { flex:1; min-width:0; overflow:hidden;
+                text-overflow:ellipsis; white-space:nowrap; }
+  .oneli .os { flex:0 0 auto; font-size:12.5px; color:#6b7370; }
+  .oneli .oth { font-size:12px; color:#7a827d; margin-left:6px; }
+  .oneli.o-done { background:#e6f3e9; border-color:#bcd9c5; }
+  .oneli.o-abs  { background:#e4e7e5; }
+  .oneli.o-off  { background:#d3d8d5; }
+  .oneli.o-rest { background:#f0f2f1; border-style:dashed; color:#8a908c; }
+  .oneli.o-mk   { background:#fff3e6; border-color:#f0cfa5; }
+  .oneli.o-cut .on2 { text-decoration:line-through; }
+  .onenone { padding:22px 8px; text-align:center; color:#8a908c; }
+  .oneday  { margin:14px 0 8px; font-weight:600; color:#2e5c3a; }
   .wklock { margin-top:6px; font-size:12px; color:#7a827d;
             background:#f4f6f5; border:1px solid #dfe4e1;
             border-radius:6px; padding:6px 8px; }
@@ -355,7 +390,14 @@
   <div class="tools">
     <button class="vtab on" data-v="day">요일별</button>
     <button class="vtab" data-v="week">치료사별 주간</button>
+    <button class="vtab" data-v="one">하루씩</button>
     <span class="vgap"></span>
+    <span id="oneBar" style="display:none;">
+      <button class="tab" id="oneBack">‹ 달력으로</button>
+      <b id="oneDay" style="margin:0 10px;font-size:15px;"></b>
+      <button class="tab" id="onePrev">‹ 어제</button>
+      <button class="tab" id="oneNext">내일 ›</button>
+    </span>
     <span id="wdBtns">
     <button class="tab" data-wd="월">월</button>
     <button class="tab" data-wd="화">화</button>
@@ -601,7 +643,10 @@
     <div id="edMsg" class="out"></div>
   </div>
 
-  <div class="scroll">
+  <div id="calBox" style="display:none;"></div>
+  <div id="oneBox" style="display:none;"></div>
+
+  <div id="gridWrap" class="scroll">
     <table class="grid">
       <thead id="ghead"></thead>
       <tbody id="gbody"></tbody>
@@ -1298,6 +1343,162 @@ function mnChip(x){
     + '</div></span>';
 }
 
+// ── 하루씩 보기 (핸드폰용) ────────────────────────
+let oneDate = '';   // 보고 있는 날짜 (YYYY-MM-DD)
+
+function oneShift(n){
+  const p = String(oneDate || '').split('-');
+  if (p.length !== 3) return;
+  const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + n);
+  oneDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+          + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// 이 달 안에서 오늘, 아니면 그 달 1일
+function oneDefault(){
+  const t = new Date();
+  const tk = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0');
+  if (tk === mon) {
+    return mon + '-' + String(t.getDate()).padStart(2,'0');
+  }
+  return mon + '-01';
+}
+
+function drawOne(){
+  if (!oneDate || String(oneDate).slice(0,7) !== mon) oneDate = oneDefault();
+  $('oneDay').textContent = dayNo(oneDate) + '일 (' + wdOf(oneDate) + ')';
+
+  const rowOf = {};
+  ROWS_ALL.forEach(r => { rowOf[r.id] = r; });
+
+  const list = SESS.filter(x => x.plan_date === oneDate)
+    .slice().sort((a,b) => {
+      const t = String(a.start_time||'').localeCompare(String(b.start_time||''));
+      if (t) return t;
+      return (a.therapist_id||0) - (b.therapist_id||0);
+    });
+
+  if (!list.length) {
+    $('oneBox').innerHTML = '<div class="onenone">이 날은 회차가 없습니다.</div>';
+    return;
+  }
+
+  const thName = {};
+  THS_ALL.forEach(t => { thName[t.id] = t.name; });
+
+  let h = '';
+  list.forEach(x => {
+    const r  = rowOf[x.schedule_id];
+    const nm = (r && r._name) ? r._name : '(이름 없음)';
+    const sp = STYPE[x.support_type_id || (r ? r.support_type_id : 0)] || '';
+    const hm = nearest(toMin(x.start_time)).hm;
+
+    let cls = '', st = x.status;
+    if (x.status === '완료')      cls = 'o-done';
+    else if (x.status === '결석') cls = 'o-abs o-cut';
+    else if (x.status === '휴무') cls = 'o-off o-cut';
+    else if (x.status === '쉼')   cls = 'o-rest o-cut';
+    else if (x.status === '보강') cls = 'o-mk';
+
+    h += '<div class="oneli ' + cls + '" data-sid="' + x.id + '">'
+      +  '<span class="ot">' + hm + '</span>'
+      +  '<span class="on2">' + (sp ? sp + ' ' : '') + esc(nm)
+      +  (MY_TH ? '' : '<span class="oth">' + esc(thName[x.therapist_id] || '') + '</span>')
+      +  '</span>'
+      +  '<span class="os">' + st + '</span>'
+      +  '</div>';
+  });
+  $('oneBox').innerHTML = h;
+}
+
+// ── 달력 (핸드폰 첫 화면) ──────────────────────────
+let calOpen = true;   // true = 달력, false = 그날 목록
+
+function drawCal(){
+  const y = Number(mon.slice(0,4)), m = Number(mon.slice(5,7));
+  const first = new Date(y, m - 1, 1);
+  const last  = new Date(y, m, 0).getDate();
+  let lead = first.getDay() - 1;          // 월요일부터 시작
+  if (lead < 0) lead = 6;                 // 일요일이면 맨 뒤
+
+  // 이 달에 회차가 있는 날
+  const has = {};
+  SESS.forEach(x => {
+    if (!x.plan_date) return;
+    if (String(x.plan_date).slice(0,7) !== mon) return;
+    has[dayNo(x.plan_date)] = true;
+  });
+
+  const t = new Date();
+  const tday = (t.getFullYear() === y && (t.getMonth()+1) === m) ? t.getDate() : 0;
+
+  let h = '<div class="calhead">'
+    + '<button class="calnav" id="calPrev">‹</button>'
+    + '<b>' + y + '년 ' + m + '월</b>'
+    + '<button class="calnav" id="calNext">›</button></div>';
+
+  h += '<table class="caltbl"><tr>'
+    + ['월','화','수','목','금','토','일']
+        .map(w => '<th>' + w + '</th>').join('')
+    + '</tr><tr>';
+
+  for (let i = 0; i < lead; i++) h += '<td class="calempty"></td>';
+  let col = lead;
+
+  for (let d = 1; d <= last; d++) {
+    if (col === 7) { h += '</tr><tr>'; col = 0; }
+    const wnum = new Date(y, m - 1, d).getDay();
+    let cls = has[d] ? 'has' : 'none';
+    if (wnum === 0) cls += ' off';
+    if (d === tday) cls += ' today';
+    h += '<td><button class="calday ' + cls + '" data-d="' + d + '">'
+      + d + '</button></td>';
+    col++;
+  }
+  while (col < 7) { h += '<td class="calempty"></td>'; col++; }
+  h += '</tr></table>';
+  h += '<div class="calnote">날짜를 누르면 그날 수업이 보입니다.</div>';
+
+  $('calBox').innerHTML = h;
+
+  $('calPrev').onclick = () => calMove(-1);
+  $('calNext').onclick = () => calMove(1);
+  $('calBox').querySelectorAll('.calday').forEach(b => {
+    if (b.classList.contains('none')) return;
+    b.onclick = () => {
+      oneDate = mon + '-' + String(b.dataset.d).padStart(2,'0');
+      calOpen = false;
+      showOne();
+      drawOne();
+    };
+  });
+}
+
+// 달 넘기기 — 목록에 있는 달만 (회차를 깔아둔 달)
+async function calMove(n){
+  const sel = $('mon');
+  const idx = Array.from(sel.options).findIndex(o => o.value === mon);
+  const nx = idx + n;
+  if (nx < 0 || nx >= sel.options.length) return;
+  sel.value = sel.options[nx].value;
+  mon = sel.value;
+  oneDate = '';
+  await loadMonth();
+  draw();
+}
+
+// 달력 <-> 목록 자리 바꾸기
+function showCal(){
+  $('calBox').style.display = '';
+  $('oneBox').style.display = 'none';
+  $('oneBar').style.display = 'none';
+}
+function showOne(){
+  $('calBox').style.display = 'none';
+  $('oneBox').style.display = '';
+  $('oneBar').style.display = '';
+}
+
 function drawHead(){
   $('ghead').innerHTML = '<tr><th class="hcol">교시</th>'
     + THS.map(t=>'<th><div class="thname">'+esc(t.name)+'</div>'
@@ -1315,6 +1516,11 @@ function draw(){
     $('noSess').style.display = 'none';
   }
   drawPrev();
+  if (VIEW === 'one')  {
+    if (calOpen) { showCal(); drawCal(); }
+    else { showOne(); drawOne(); }
+    return;
+  }
   if (VIEW === 'week') { drawWeek(); afterDraw(); return; }
   drawDay();
   afterDraw();
@@ -2712,10 +2918,23 @@ async function afterLogin(user){
     + (MY_TH ? ' — 담당하시는 수업만 보입니다' : '');
   $('loginBox').style.display='none';
   $('mainBox').style.display='block';
-  drawHead(); draw();
+  drawHead();
+
+  // 화면이 좁으면(핸드폰) 「하루씩」으로 시작한다
+  if (window.innerWidth < 760) {
+    VIEW = 'one';
+    document.querySelectorAll('.vtab').forEach(x =>
+      x.classList.toggle('on', x.dataset.v === 'one'));
+    $('wdBtns').style.display = 'none';
+    $('wkTh').style.display   = 'none';
+    $('gridWrap').style.display = 'none';
+    calOpen = true;
+    showCal();
+  }
+  draw();
 }
 
-$('mon').onchange = async () => { mon=$('mon').value;
+$('mon').onchange = async () => { mon=$('mon').value; oneDate=''; calOpen=true;
   $('mkBox').style.display='none'; $('addBox').style.display='none';
   $('edBox').style.display='none'; $('offBox').style.display='none';
   await loadMonth(); draw(); };
@@ -2726,6 +2945,13 @@ document.querySelectorAll('.vtab').forEach(b=>{
     VIEW = b.dataset.v;
     $('wdBtns').style.display = (VIEW==='day') ? '' : 'none';
     $('wkTh').style.display   = (VIEW==='week') ? '' : 'none';
+    $('gridWrap').style.display = (VIEW==='one') ? 'none' : '';
+    if (VIEW === 'one') { calOpen = true; showCal(); }
+    else {
+      $('calBox').style.display = 'none';
+      $('oneBox').style.display = 'none';
+      $('oneBar').style.display = 'none';
+    }
     $('addBox').style.display='none'; $('edBox').style.display='none';
     $('offBox').style.display='none';
     if (VIEW === 'day') drawHead();
@@ -2733,6 +2959,10 @@ document.querySelectorAll('.vtab').forEach(b=>{
   };
 });
 $('wkTh').onchange = () => draw();
+
+$('onePrev').onclick = () => { oneShift(-1); drawOne(); };
+$('oneNext').onclick = () => { oneShift(1);  drawOne(); };
+$('oneBack').onclick = () => { calOpen = true; showCal(); drawCal(); };
 
 document.querySelectorAll('.tab[data-wd]').forEach(b=>{
   b.onclick=()=>{ document.querySelectorAll('.tab[data-wd]').forEach(x=>x.classList.remove('on'));
