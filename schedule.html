@@ -112,6 +112,8 @@
   .ln-mk   { background:#e8f5e9; color:#1b5e20; }
   .ln-plan { border:1px solid #cfd4d0; color:#333; }
   .ln-open { border:1px dashed #90a4ae; color:#607d8b; cursor:default; }
+  .ln-nosess { border:1px dotted #d6d9d7; color:#9aa09c; }
+  .ln-nosess .nosl { font-size:10.5px; }
   .ln-cut  { text-decoration:line-through; }
   .ln .go  { font-size:10.5px; font-weight:bold; color:#555; }
   .ln-abs .mkbtn, .ln-off .mkbtn { background:#fff; color:#555;
@@ -1471,9 +1473,10 @@ function drawDay(){
               const nm = (org ? (STYPE[org.support_type_id] || '?') + ' ' : '')
                        + esc(x._name || '');
               const from = (L2.kind === 'mk') ? findSess(x.makeup_for) : null;
+              const carry = (L2.kind === 'mk') && from
+                && from.month_key && from.month_key !== mon;
               const tag = (L2.kind === 'mk')
-                ? (from ? ((from.month_key && from.month_key !== mon)
-                            ? monNo(from.month_key) + '월 ' : '')
+                ? (from ? (carry ? '이월 ' + monNo(from.month_key) + '월 ' : '')
                           + dayNo(from.plan_date) + '일분' : '보강')
                 : '직접';
               html += '<div class="ln ln-mk" data-sid="' + x.id + '">'
@@ -1522,13 +1525,18 @@ function drawDay(){
               + tail + ed + '</div>';
           });
 
+          // 회차가 아직 안 깔린 수업 — 이 달에 쓰는 줄일 때만 옅게 알려 준다
           list.forEach(function(r){
             if (seenSc[r.id]) return;
-            html += '<div class="ln ln-plan" data-kid="' + esc(r._name || '') + '"'
+            if (r.weekday !== wd) return;                       // 이 요일 것이 아니면 안 그린다
+            if (r.from_month && r.from_month > mon) return;     // 아직 시작 안 한 줄
+            if (r.to_month   && r.to_month   < mon) return;     // 이미 끝난 줄
+            html += '<div class="ln ln-nosess" data-kid="' + esc(r._name || '') + '"'
               + ' data-cid="' + (r._cid || '') + '">'
-              + '<span class="d">—</span>'
+              + '<span class="d">·</span>'
               + '<span class="n">' + (STYPE[r.support_type_id] || '?')
-              + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name) + '</span>'
+              + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name)
+              + ' <span class="nosl">회차 없음</span></span>'
               + (CAN_EDIT ? '<button class="lnedit" data-ed="' + r.id + '">고치기</button>' : '')
               + '</div>';
           });
