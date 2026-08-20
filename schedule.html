@@ -118,6 +118,8 @@
   .ln-nosess { border:1px dotted #d6d9d7; color:#9aa09c; }
   .ln-nosess .nosl { font-size:10.5px; }
   .ln-cut  { text-decoration:line-through; }
+  .ln-rest { background:#eef0ef; color:#8a908c; border:1px dashed #c4cac6; }
+  .ln-rest .mkbtn { background:#fff; color:#555; }
   .ln .go  { font-size:10.5px; font-weight:bold; color:#555; }
   .ln-abs .mkbtn, .ln-off .mkbtn { background:#fff; color:#555;
             border:1px solid #bbb; font-weight:normal; }
@@ -147,6 +149,7 @@
   .r-abs  { background:#ffcdd2; color:#b71c1c; }
   .r-mk   { background:#ffe0b2; color:#e65100; }
   .r-off  { background:#e0e0e0; color:#555; }
+  .r-rest { background:#f0f2f1; color:#8a908c; }
   .wk5    { background:#c8e6c9; color:#33691e; opacity:.75; cursor:default; }
   .wk5:hover { outline:none; }
   .wk5 .st { font-weight:normal; font-size:10.5px; }
@@ -169,6 +172,7 @@
   .stabs  { margin-left:auto; font-weight:800; color:#b71c1c; font-size:11.5px;
             white-space:nowrap; }
   .r-off .stabs { color:#555; }
+  .r-rest .stabs { color:#8a908c; }
   .freewrap { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
   .freeone { background:#fff; border:1px solid #80cbc4; border-radius:16px;
              padding:6px 13px; font-size:13px; cursor:pointer; color:#00695c; }
@@ -887,9 +891,10 @@ function drawFind(){
     const _rh = _rl.map(x => {
       const cls = x.status==='완료' ? 'r-done'
                 : x.status==='결석' ? 'r-abs'
-                : x.status==='휴무' ? 'r-off' : '';
+                : x.status==='휴무' ? 'r-off'
+                : x.status==='쉼' ? 'r-rest' : '';
       const mk = mkOf[x.id];
-      const tail = (x.status==='결석' || x.status==='휴무')
+      const tail = (x.status==='결석' || x.status==='휴무' || x.status==='쉼')
         ? (mk ? '→' + dayNo(mk.plan_date) + '일'
               : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
         : x.status;
@@ -936,7 +941,7 @@ function drawFind(){
       const id = Number(el.dataset.sid);
       const s = SESS.find(x => x.id === id);
       if (!s) return;
-      if (s.status === '휴무') { openMk(s.id); return; }
+      if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }
       const nx = NEXT[s.status] || '완료';
       const { error } = await sb.from('nl_sessions')
         .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
@@ -1083,9 +1088,10 @@ function drawWeek(){
             const _rh = _rl.map(x => {
               const cls = x.status==='완료' ? 'r-done'
                         : x.status==='결석' ? 'r-abs'
-                        : x.status==='휴무' ? 'r-off' : '';
+                        : x.status==='휴무' ? 'r-off'
+                        : x.status==='쉼' ? 'r-rest' : '';
               const mk = mkOf[x.id];
-              const tail = (x.status==='결석' || x.status==='휴무')
+              const tail = (x.status==='결석' || x.status==='휴무' || x.status==='쉼')
                 ? (mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>'
                       : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
                 : '<span class="st">'+x.status+'</span>';
@@ -1316,7 +1322,7 @@ function drawDay(){
   // 회차 전체 (모자란 회차 계산용)
   const byScdAll = {};
   SESS.forEach(s => {
-    if (s.status === '보강') return;
+    if (s.status === '보강' || s.status === '쉼') return;
     if (!s.schedule_id) return;
     (byScdAll[s.schedule_id] = byScdAll[s.schedule_id] || []).push(s);
   });
@@ -1401,10 +1407,10 @@ function drawDay(){
     (mnCell[k] = mnCell[k] || []).push(s);
   });
 
-  // 이 달·이 요일의 결석·휴무를 칸별로 모은다 (빈 자리 단추용)
+  // 이 달·이 요일의 결석·휴무·쉼을 칸별로 모은다 (빈 자리 단추용)
   const absCell = {};
   SESS.forEach(x => {
-    if (x.status !== '결석' && x.status !== '휴무') return;
+    if (x.status !== '결석' && x.status !== '휴무' && x.status !== '쉼') return;
     if (!x.plan_date) return;
     if (String(x.plan_date).slice(0,7) !== mon) return;
     if (wdOf(x.plan_date) !== wd) return;
@@ -1522,7 +1528,8 @@ function drawDay(){
             const r = L2.r;
             const cls = x.status === '완료' ? 'ln-done'
                       : x.status === '결석' ? 'ln-abs'
-                      : x.status === '휴무' ? 'ln-off' : 'ln-plan';
+                      : x.status === '휴무' ? 'ln-off'
+                      : x.status === '쉼' ? 'ln-rest' : 'ln-plan';
             const cut = (x.status === '결석' || x.status === '휴무') ? ' ln-cut' : '';
             const spn = (x.support_type_id && x.support_type_id !== r.support_type_id)
               ? (STYPE[x.support_type_id] || '') : (STYPE[r.support_type_id] || '?');
@@ -1531,7 +1538,7 @@ function drawDay(){
                         ? ' <span class="dur">' + r.duration + '분</span>' : '';
 
             let tail;
-            if (x.status === '결석' || x.status === '휴무') {
+            if (x.status === '결석' || x.status === '휴무' || x.status === '쉼') {
               const mk = mkOf[x.id];
               tail = mk
                 ? '<span class="go">→ ' + dayNo(mk.plan_date) + '일 '
@@ -1606,7 +1613,7 @@ $('gbody').addEventListener('click', async e => {
   const s  = SESS.find(x => x.id === id);
   if (!s) return;
   if (s.status === '보강') { openMk(s.makeup_for); return; }
-  if (s.status === '휴무') { openMk(s.id); return; }   // 휴무는 상태를 안 바꾸고 보강창을 연다
+  if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }   // 휴무·쉼은 상태를 안 바꾸고 보강창을 연다
 
   const nx = NEXT[s.status] || '완료';
   const { error } = await sb.from('nl_sessions')
@@ -2469,11 +2476,11 @@ $('mkSave').onclick = async () => {
   const slot = SLOTS.find(x => x.no === Number($('mk_slot').value));
   const th   = Number($('mk_th').value);
 
-  // 그 칸이 이미 찼는지 살펴본다 (결석·휴무로 비는 자리는 빈 것으로 본다)
+  // 그 칸이 이미 찼는지 살펴본다 (결석·휴무·쉼으로 비는 자리는 빈 것으로 본다)
   const taken = SESS.filter(s => s.plan_date === d
                   && s.therapist_id === th
                   && s.status !== '보강'
-                  && s.status !== '결석' && s.status !== '휴무'
+                  && s.status !== '결석' && s.status !== '휴무' && s.status !== '쉼'
                   && nearest(toMin(s.start_time)).no === slot.no);
   const takenMk = SESS.filter(s => s.status === '보강' && s.plan_date === d
                   && s.therapist_id === th
