@@ -221,6 +221,8 @@
              padding:7px 11px; margin-top:5px; font-size:13.5px; }
   .prevone .pnm { font-weight:bold; min-width:78px; }
   .prevone .psm { color:#5e35b1; font-size:12.5px; }
+  .ednote { font-size:12px; color:#5e35b1; background:#ede7f6;
+            border-radius:6px; padding:7px 10px; margin:8px 0 0; }
   .prevhint { background:#ede7f6; border:1px solid #d1c4e9; border-radius:8px;
               padding:8px 13px; margin:0 0 10px; font-size:13px; color:#4527a0;
               cursor:pointer; }
@@ -567,9 +569,13 @@
     </div>
     <div class="pbtns">
       <button id="edSave" class="pbtn ok-btn">저장하기</button>
-      <button id="edFrom" class="pbtn" style="background:#7e57c2;color:#fff;">이번 달부터 바꾸기</button>
+      <button id="edFrom" class="pbtn" style="display:none;">이번 달부터 바꾸기</button>
       <button id="edEnd"  class="pbtn red">이 수업 끝내기</button>
       <button id="edClose" class="pbtn grey">닫기</button>
+    </div>
+    <div class="ednote">
+      요일이나 시간을 바꾸고 「저장하기」를 누르면
+      <b>보고 있는 달부터</b> 바뀝니다. 지난 달 시간표는 그대로 남습니다.
     </div>
     <div id="edMsg" class="out"></div>
   </div>
@@ -1746,6 +1752,17 @@ $('edSave').onclick = async () => {
     if (!confirm('이 치료사는 그 치료 담당이 아닙니다.\n그래도 옮길까요?')) return;
   }
 
+  // 요일이나 시간이 바뀌면 지난 달은 건드리지 않고 이번 달부터 갈라 준다
+  const oldWd = edRow.weekday;
+  const oldHm = nearest(toMin(edRow.start_time)).hm;
+  if (oldWd !== nw || oldHm !== slot.hm) {
+    if (!confirm('요일·시간이 바뀝니다.\n\n'
+      + '· ' + oldWd + '요일 ' + oldHm + '  →  ' + nw + '요일 ' + slot.hm + '\n\n'
+      + monNo(mon) + '월부터 바뀌고, 지난 달 시간표는 그대로 남습니다.\n계속할까요?')) return;
+    await changeFromThisMonth(nw, slot, th, du);
+    return;
+  }
+
   $('edSave').disabled = true; $('edSave').textContent = '옮기는 중...';
   try {
     const { data, error } = await sb.from('nl_therapy_schedules')
@@ -1795,28 +1812,24 @@ $('edSave').onclick = async () => {
 };
 
 // ===== 이번 달부터 바꾸기 =====
-$('edFrom').onclick = async () => {
+// 옛 줄은 지난 달까지로 끝내고, 새 요일 줄을 따로 만든다.
+// 그래야 지난 달 시간표가 흔들리지 않는다.
+async function changeFromThisMonth(nw, slot, th, du){
   if (!edRow) return;
-  const slot = SLOTS.find(x => x.no === Number($('ed_slot').value));
-  const nw   = $('ed_wd').value;
-  const th   = Number($('ed_th').value);
-  const du   = Number($('ed_dur').value);
 
   const y = Number(mon.slice(0,4)), m = Number(mon.slice(5,7));
   const pd = new Date(y, m - 2, 1);
   const prev = pd.getFullYear() + '-' + String(pd.getMonth()+1).padStart(2,'0');
 
-  if (!confirm(monNo(mon) + '월부터 ' + nw + '요일 ' + slot.t + ' 로 바꿀까요?\n\n'
-    + '· ' + monNo(prev) + '월까지는 지금 요일 그대로 남습니다\n'
-    + '· ' + monNo(mon) + '월 예정 회차는 새 요일로 다시 깔립니다\n'
-    + '· 완료·결석·휴무·보강 표시는 그대로 둡니다')) return;
-
-  $('edFrom').disabled = true; $('edFrom').textContent = '바꾸는 중...';
+  $('edSave').disabled = true; $('edSave').textContent = '바꾸는 중...';
+  $('edFrom').disabled = true;
   try {
+    // ① 옛 줄을 지난 달까지로 끝낸다
     const { error: e1 } = await sb.from('nl_therapy_schedules')
       .update({ to_month: prev }).eq('id', edRow.id);
     if (e1) throw e1;
 
+    // ② 새 요일 줄을 이번 달부터로 만든다
     const { data: ns, error: e2 } = await sb.from('nl_therapy_schedules')
       .insert({ therapy_id: edRow.therapy_id, weekday: nw,
                 start_time: slot.hm + ':00', therapist_id: th,
@@ -1824,6 +1837,7 @@ $('edFrom').onclick = async () => {
       .select().single();
     if (e2) throw e2;
 
+    // ③ 치료 종류 · 지원 유형 · 회수 방식도 함께 고친다
     const ntt  = Number($('ed_tt').value);
     const nmode= $('ed_cnt').value;
     const nst  = Number($('ed_st2').value);
@@ -1836,9 +1850,12 @@ $('edFrom').onclick = async () => {
     }).eq('id', edRow.therapy_id);
     if (e3) throw e3;
 
+    // ④ 옛 줄의 이번 달 이후 예정 회차를 지운다
+    //    (완료·결석·휴무·보강은 그대로 남긴다)
     await sb.from('nl_sessions').delete()
       .eq('schedule_id', edRow.id).gte('month_key', mon).eq('status', '예정');
 
+    // ⑤ 새 요일로 이번 달 회차를 깐다
     await sb.rpc('nl_make_sessions', { p_month: mon });
 
     edmsg('✅ ' + monNo(mon) + '월부터 ' + nw + '요일 ' + slot.t + ' 로 바꿨습니다.\n'
@@ -1859,8 +1876,25 @@ $('edFrom').onclick = async () => {
   } catch (e) {
     edmsg('❌ 바꾸지 못했습니다.\n' + e.message, false);
   } finally {
+    $('edSave').disabled = false; $('edSave').textContent = '저장하기';
     $('edFrom').disabled = false; $('edFrom').textContent = '이번 달부터 바꾸기';
   }
+}
+
+$('edFrom').onclick = async () => {
+  if (!edRow) return;
+  const slot = SLOTS.find(x => x.no === Number($('ed_slot').value));
+  const nw   = $('ed_wd').value;
+  const th   = Number($('ed_th').value);
+  const du   = Number($('ed_dur').value);
+  const y = Number(mon.slice(0,4)), m = Number(mon.slice(5,7));
+  const pd = new Date(y, m - 2, 1);
+  const prev = pd.getFullYear() + '-' + String(pd.getMonth()+1).padStart(2,'0');
+  if (!confirm(monNo(mon) + '월부터 ' + nw + '요일 ' + slot.t + ' 로 바꿀까요?\n\n'
+    + '· ' + monNo(prev) + '월까지는 지금 요일 그대로 남습니다\n'
+    + '· ' + monNo(mon) + '월 예정 회차는 새 요일로 다시 깔립니다\n'
+    + '· 완료·결석·휴무·보강 표시는 그대로 둡니다')) return;
+  await changeFromThisMonth(nw, slot, th, du);
 };
 
 $('edEnd').onclick = async () => {
