@@ -574,6 +574,19 @@
         <select id="mn_tp"><option value="">아동을 먼저 고르세요</option></select>
       </div>
       <div>
+        <label for="mn_sp">지원유형 (바꿀 수 있음)</label>
+        <select id="mn_sp">
+          <option value="">치료와 같게</option>
+          <option value="1">1 센터비용</option>
+          <option value="8">8 발추(이)</option>
+          <option value="3">3 치료지원(언어)</option>
+          <option value="4">4 치료지원(작업)</option>
+          <option value="5">5 방과후활동비</option>
+          <option value="6">6 방과후치료지원(언어)</option>
+          <option value="7">7 방과후치료지원(작업)</option>
+        </select>
+      </div>
+      <div>
         <label for="mn_memo">보강 사유</label>
         <input id="mn_memo" type="text" placeholder="예: 7월 미이행분">
       </div>
@@ -2358,6 +2371,7 @@ function openMn(key){
   $('mn_hits').innerHTML = '';
   $('mn_pick').innerHTML = '';
   $('mn_tp').innerHTML = '<option value="">아동을 먼저 고르세요</option>';
+  $('mn_sp').value = '';
   $('mn_memo').value = '';
   mnmsg('', true); $('mnMsg').className = 'out';
 
@@ -2434,7 +2448,8 @@ $('mnSave').onclick = async () => {
       therapist_id: mnKey.th,
       start_time: mnKey.slot.hm + ':00',
       makeup_for: null,                // 메울 결석 회차가 없다
-      support_type_id: tp[1] ? Number(tp[1]) : null,
+      support_type_id: ($('mn_sp').value ? Number($('mn_sp').value)
+                      : (tp[1] ? Number(tp[1]) : null)),
       memo: '직접 보강' + (why ? ' · ' + why : '')
     }).select().single();
     if (error) throw error;
