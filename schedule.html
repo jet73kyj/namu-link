@@ -95,7 +95,7 @@
   .short-line.hit, .prevone.hit { outline:2px solid #d32f2f; outline-offset:1px; }
   .short-line.hitnow, .prevone.hitnow { outline:3px solid #b71c1c;
                box-shadow:0 0 0 4px rgba(211,47,47,.22); }
-  .jumpbtn { width:auto; margin:0 0 0 6px; padding:6px 12px; font-size:12.5px;
+  .jumpbtn { width:auto; display:block; margin:8px 0 0; padding:7px 14px; font-size:13px;
              background:#ff9800; color:#fff; border:none; border-radius:6px;
              cursor:pointer; white-space:nowrap; }
   .jumpbtn:hover { background:#e65100; }
@@ -359,8 +359,8 @@
     <select id="wkTh" class="sel" style="display:none;"></select>
     <select id="mon" class="sel"></select>
     <input id="findName" class="findbox" type="text" placeholder="🔍 아동 이름으로 찾기">
-    <button id="findJump" class="jumpbtn" style="display:none;">다음 자리로 ▸</button>
     <div id="findPick" class="findpick" style="display:none;"></div>
+    <button id="findJump" class="jumpbtn" style="display:none;">다음 자리로 ▸</button>
     <button id="offBtn" class="offbtn-top">🏖 휴무 관리</button>
     <span class="count" id="count"></span>
   </div>
@@ -968,7 +968,7 @@ function markFind(){
   // 이름이 걸리는 아동을 모은다
   const kids = {};
   ROWS_ALL.forEach(r => {
-    if (!r._name || !r._name.includes(q)) return;
+    if (!r._name || r._name.indexOf(q) !== 0) return;   // 이름 앞부터 맞을 때만
     kids[r._cid] = { cid: r._cid, name: r._name, birth: r._birth };
   });
   const list = Object.values(kids);
@@ -989,18 +989,16 @@ function markFind(){
   }
 
   // 시간표 칸 + 보강 알림 + 이월 보강 상자를 모두 표시한다
-  document.querySelectorAll('.short-line[data-kid], .prevone[data-kid]')
-    .forEach(el => {
-      if (!(el.dataset.kid || '').includes(q)) return;
-      if (pickCid && Number(el.dataset.cid) !== pickCid) return;
-      el.classList.add('hit'); hitEls.push(el);
-    });
+  const okName = el => (el.dataset.kid || '').indexOf(q) === 0
+    && (!pickCid || Number(el.dataset.cid) === pickCid);
 
-  document.querySelectorAll('.ln[data-kid]').forEach(el => {
-    if (!(el.dataset.kid || '').includes(q)) return;
-    if (pickCid && Number(el.dataset.cid) !== pickCid) return;
-    el.classList.add('hit'); hitEls.push(el);
-  });
+  // 보강 알림 · 이월 보강 상자
+  document.querySelectorAll('.short-line[data-kid], .prevone[data-kid]')
+    .forEach(el => { if (okName(el)) { el.classList.add('hit'); hitEls.push(el); } });
+
+  // 시간표 칸
+  document.querySelectorAll('.ln[data-kid]')
+    .forEach(el => { if (okName(el)) { el.classList.add('hit'); hitEls.push(el); } });
 
   if (!hitEls.length) return;
   $('findJump').style.display = '';
