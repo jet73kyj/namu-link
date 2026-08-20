@@ -221,6 +221,10 @@
              padding:7px 11px; margin-top:5px; font-size:13.5px; }
   .prevone .pnm { font-weight:bold; min-width:78px; }
   .prevone .psm { color:#5e35b1; font-size:12.5px; }
+  .prevhint { background:#ede7f6; border:1px solid #d1c4e9; border-radius:8px;
+              padding:8px 13px; margin:0 0 10px; font-size:13px; color:#4527a0;
+              cursor:pointer; }
+  .prevhint:hover { background:#e1d7f2; }
   .prevone.prevno { border-color:#e8b4a4; background:#fdf5f2; }
   .prevone .pwhy { color:#b03a20; font-weight:bold; }
   .prevbtn { width:auto; margin:0 0 0 auto; padding:3px 12px; font-size:11.5px;
@@ -389,7 +393,7 @@
   <div id="noSess" class="nosess" style="display:none;"></div>
   <div id="holi" class="holibox" style="display:none;"></div>
   <div id="shortTop" class="shorttop" style="display:none;"></div>
-  <div id="prevBox" class="prevbox" style="display:none;"></div>
+  <div id="prevHint" class="prevhint" style="display:none;"></div>
 
   <!-- 빈 자리에 보강 넣기 창 -->
   <div id="w5Box" class="panel" style="display:none;">
@@ -577,6 +581,7 @@
     </table>
   </div>
 
+  <div id="prevBox" class="prevbox" style="display:none;"></div>
   <div id="short" class="shortbox" style="display:none;"></div>
   <div id="allok" class="allok" style="display:none;"></div>
 
@@ -1156,8 +1161,19 @@ function seqInPrev(s) {
 // ===== 지난 달에서 넘어온 보강 =====
 function drawPrev(){
   const need = prevNeed();
-  if (!need.length) { $('prevBox').style.display = 'none'; return; }
+  if (!need.length) {
+    $('prevBox').style.display = 'none';
+    $('prevHint').style.display = 'none';
+    return;
+  }
   const pm = prevMon(mon);
+
+  $('prevHint').style.display = 'block';
+  $('prevHint').innerHTML = '⏪ ' + monNo(prevMon(mon)) + '월에서 넘어온 보강 <b>'
+    + need.length + '건</b> 이 있습니다 — <u>아래에서 잡기 ▾</u>';
+  $('prevHint').onclick = () => {
+    $('prevBox').scrollIntoView({ behavior:'smooth', block:'center' });
+  };
 
   $('prevBox').style.display = 'block';
   $('prevBox').innerHTML = '<div class="prev-t">⏪ ' + monNo(pm)
