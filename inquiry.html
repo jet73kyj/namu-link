@@ -168,6 +168,9 @@
     <button class="tab" data-st="일정 조율 중">일정 조율 중</button>
     <button class="tab" data-st="치료 시작">치료 시작</button>
     <button class="tab" data-st="종료">종료</button>
+    <input id="findQ" type="text" autocomplete="off" placeholder="🔍 아동 이름으로 찾기"
+      style="font:inherit;font-size:14px;padding:6px 11px;border:1px solid #bbb;
+             border-radius:6px;width:180px;">
     <button id="addBtn" class="tab" style="background:#8bc34a;color:#fff;font-weight:bold;">＋ 새 문의</button>
     <button id="evBtn" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">📋 평가 관리</button>
     <span class="count" id="count"></span>
@@ -230,6 +233,13 @@
         <label for="a_action">다음 할 일</label>
         <input id="a_action" type="text" placeholder="예: 보호자에게 다시 전화">
       </div>
+      <div>
+        <label for="pastQ">과거 문의 찾기</label>
+        <input id="pastQ" type="text" autocomplete="off" placeholder="🔍 이름 두 글자">
+      </div>
+      <div id="pastBox" style="grid-column:1 / -1;display:none;padding:10px 12px;
+           border:1px solid #90caf9;border-radius:6px;background:#f1f8fe;
+           font-size:13px;line-height:1.8;color:#1c1f1a;"></div>
       <div style="grid-column:1 / -1;">
         <label for="k_memo">상담 내용</label>
         <textarea id="k_memo" rows="7" style="font:inherit;font-size:14px;padding:9px 11px;
@@ -548,13 +558,17 @@ function drawAlert() {
 
 // ===== 목록 =====
 function draw() {
+  const q = ($('findQ') ? $('findQ').value : '').trim().toLowerCase();
+
   const list = ALL.filter(r => {
+    if (q && !kidName(r.child_id).toLowerCase().includes(q)) return false;
     if (stFilter === '전체') return true;
     if (stFilter === '진행중') return LIVE.indexOf(r.status) >= 0;
     return r.status === stFilter;
   });
 
-  $('count').textContent = list.length + '건 / 전체 ' + ALL.length + '건';
+  $('count').textContent = list.length + '건 / 전체 ' + ALL.length + '건'
+    + (q ? ' · 「' + esc(q) + '」 로 찾는 중' : '');
   $('empty').style.display = list.length ? 'none' : 'block';
 
   const td = today();
@@ -931,12 +945,52 @@ $('addBtn').onclick = () => {
   $('k_gender').value = '';
   $('k_status').value = '대기중';
   $('dupWarn').style.display = 'none';
+  $('pastQ').value = '';
+  $('pastBox').style.display = 'none';
   $('msgA').className = 'out'; $('msgA').textContent = '';
   $('addBox').style.display = 'block';
   $('k_name').focus();
 };
 
 $('cancelNew').onclick = () => { $('addBox').style.display = 'none'; };
+
+// ===== 과거 문의 찾기 =====
+$('pastQ').addEventListener('input', () => {
+  const q = $('pastQ').value.trim().toLowerCase();
+  const box = $('pastBox');
+  if (q.length < 1) { box.style.display = 'none'; return; }
+
+  const kids = KIDS.filter(k => (k.name || '').toLowerCase().includes(q));
+  if (!kids.length) {
+    box.innerHTML = '「' + esc(q) + '」 로 등록된 아동이 없습니다. 처음 문의하는 아동입니다.';
+    box.style.display = 'block';
+    return;
+  }
+
+  const ids = kids.map(k => k.id);
+  const rows = ALL.filter(r => ids.indexOf(r.child_id) >= 0)
+                  .sort((a, b) => (b.inquiry_date || '').localeCompare(a.inquiry_date || ''));
+
+  let h = '<b>찾은 아동 ' + kids.length + '명</b><br>'
+    + kids.map(k => '　· ' + esc(k.name) + ' (' + k.id + '번 · ' + esc(k.status) + ')').join('<br>');
+
+  if (rows.length) {
+    h += '<br><br><b>과거 문의 ' + rows.length + '건</b><br>'
+      + rows.slice(0, 8).map(r => '　· ' + esc(r.inquiry_date) + ' · '
+          + esc(kidName(r.child_id)) + ' · ' + esc(r.status)
+          + (r.next_action ? ' · ' + esc(r.next_action).slice(0, 20) : '')).join('<br>');
+    if (rows.length > 8) h += '<br>　… 그 밖에 ' + (rows.length - 8) + '건';
+    h += '<br><br>같은 아동이면 「취소」를 누르고 목록에서 그 문의를 열어 고치세요.';
+  } else {
+    h += '<br><br>이 아동으로 등록된 문의는 없습니다.';
+  }
+
+  box.innerHTML = h;
+  box.style.display = 'block';
+});
+
+// ===== 아동 이름으로 찾기 =====
+$('findQ').addEventListener('input', () => draw());
 
 // ===== 이름 타이핑 중 같은 이름 알림 =====
 function sameNamed(nm) {
