@@ -178,66 +178,38 @@
     <div class="panel-t">새 문의 등록</div>
     <div class="grid">
       <div style="grid-column:1 / -1;">
-        <label for="a_child">아동 <span style="color:#c62828;">*</span></label>
-        <select id="a_child" style="display:none;"></select>
-        <div id="pickedKid" style="padding:9px 11px;border:1px solid #ddd;border-radius:6px;
-             background:#fafafa;color:#888;">아직 아동을 만들지 않았습니다.</div>
-        <div style="margin-top:8px;">
-          <button id="newKidBtn" type="button" class="tab"
-            style="background:#2e7d32;color:#fff;font-weight:bold;">＋ 새 아동</button>
-        </div>
+        <label for="k_name">아동 이름 <span style="color:#c62828;">*</span></label>
+        <input id="k_name" type="text" autocomplete="off" placeholder="이름을 넣으세요">
+        <div id="dupWarn" style="display:none;margin-top:6px;padding:9px 11px;
+             border-radius:6px;background:#fff8e1;border:1px solid #f0c36d;
+             color:#8a6116;font-size:13px;line-height:1.6;"></div>
       </div>
-
-      <!-- 새 아동 만들기 -->
-      <div id="newKidBox" style="grid-column:1 / -1;display:none;
-           border:2px solid #2e7d32;border-radius:8px;padding:14px;background:#f4faf4;">
-        <div style="font-weight:bold;color:#2e7d32;margin-bottom:10px;">새 아동 만들기</div>
-        <div class="grid">
-          <div>
-            <label for="k_name">이름 <span style="color:#c62828;">*</span></label>
-            <input id="k_name" type="text">
-          </div>
-          <div>
-            <label for="k_birth">생년월일</label>
-            <input id="k_birth" type="date">
-          </div>
-          <div>
-            <label for="k_gender">성별</label>
-            <select id="k_gender">
-              <option value="">-- 고르기 --</option>
-              <option value="남">남</option>
-              <option value="여">여</option>
-            </select>
-          </div>
-          <div>
-            <label for="k_status">상태 <span style="color:#c62828;">*</span></label>
-            <select id="k_status">
-              <option value="대기중">대기중</option>
-              <option value="치료중">치료중</option>
-            </select>
-          </div>
-          <div>
-            <label for="k_guardian">보호자</label>
-            <input id="k_guardian" type="text" placeholder="예: 모">
-          </div>
-          <div>
-            <label for="k_phone">연락처</label>
-            <input id="k_phone" type="text" placeholder="010-0000-0000">
-          </div>
-          <div style="grid-column:1 / -1;">
-            <label for="k_memo">상담 내용</label>
-            <textarea id="k_memo" rows="7" style="font:inherit;font-size:14px;padding:9px 11px;
-              border:1px solid #ddd;border-radius:6px;width:100%;line-height:1.7;resize:vertical;"
-              placeholder="희망영역 : 언어치료, 감각통합&#10;희망요일 : 화·목 / 금도 가능&#10;희망시간 : 오후 4시 이후, 수요일은 3시부터&#10;아동특징 : 낯가림 심함. 발화 거의 없음&#10;기타 : 형제도 함께 상담 원함"></textarea>
-            <div class="hint">희망요일·시간은 여러 개 적어두면 빈 자리 찾기가 쉬워집니다.</div>
-          </div>
-        </div>
-        <div class="btns">
-          <button id="saveKid" type="button" class="tab"
-            style="background:#2e7d32;color:#fff;font-weight:bold;">아동 저장</button>
-          <button id="cancelKid" type="button" class="tab">취소</button>
-        </div>
-        <div id="msgK" class="out"></div>
+      <div>
+        <label for="k_birth">생년월일</label>
+        <input id="k_birth" type="date">
+      </div>
+      <div>
+        <label for="k_gender">성별</label>
+        <select id="k_gender">
+          <option value="">-- 고르기 --</option>
+          <option value="남">남</option>
+          <option value="여">여</option>
+        </select>
+      </div>
+      <div>
+        <label for="k_status">아동 상태 <span style="color:#c62828;">*</span></label>
+        <select id="k_status">
+          <option value="대기중">대기중</option>
+          <option value="치료중">치료중</option>
+        </select>
+      </div>
+      <div>
+        <label for="k_guardian">보호자</label>
+        <input id="k_guardian" type="text" placeholder="예: 모">
+      </div>
+      <div>
+        <label for="k_phone">연락처</label>
+        <input id="k_phone" type="text" placeholder="010-0000-0000">
       </div>
       <div>
         <label for="a_date">문의일 <span style="color:#c62828;">*</span></label>
@@ -247,11 +219,8 @@
         <label for="a_channel">유입경로</label>
         <input id="a_channel" type="text" placeholder="전화 / 네이버 / 소개 등">
       </div>
-      <input id="a_area" type="hidden">
-      <input id="a_day" type="hidden">
-      <input id="a_time" type="hidden">
       <div>
-        <label for="a_status">상태 <span style="color:#c62828;">*</span></label>
+        <label for="a_status">문의 상태 <span style="color:#c62828;">*</span></label>
         <select id="a_status"></select>
       </div>
       <div>
@@ -262,6 +231,17 @@
         <label for="a_action">다음 할 일</label>
         <input id="a_action" type="text" placeholder="예: 보호자에게 다시 전화">
       </div>
+      <div style="grid-column:1 / -1;">
+        <label for="k_memo">상담 내용</label>
+        <textarea id="k_memo" rows="7" style="font:inherit;font-size:14px;padding:9px 11px;
+          border:1px solid #ddd;border-radius:6px;width:100%;line-height:1.7;resize:vertical;"
+          placeholder="희망영역 : 언어치료, 감각통합&#10;희망요일 : 화·목 / 금도 가능&#10;희망시간 : 오후 4시 이후, 수요일은 3시부터&#10;아동특징 : 낯가림 심함. 발화 거의 없음&#10;기타 : 형제도 함께 상담 원함"></textarea>
+        <div class="hint">희망요일·시간은 여러 개 적어두면 빈 자리 찾기가 쉬워집니다.</div>
+      </div>
+      <input id="a_child" type="hidden">
+      <input id="a_area" type="hidden">
+      <input id="a_day" type="hidden">
+      <input id="a_time" type="hidden">
       <input id="a_memo" type="hidden">
     </div>
     <div class="btns">
@@ -944,18 +924,37 @@ $('addBtn').onclick = () => {
   $('a_date').value = today();
   $('a_next').value = today();
   $('a_status').value = '연락 대기';
-  ['a_channel','a_area','a_day','a_time','a_action','a_memo']
+  ['a_channel','a_area','a_day','a_time','a_action','a_memo',
+   'k_name','k_birth','k_guardian','k_phone','k_memo']
     .forEach(k => $(k).value = '');
+  $('k_gender').value = '';
+  $('k_status').value = '대기중';
+  $('dupWarn').style.display = 'none';
   $('msgA').className = 'out'; $('msgA').textContent = '';
-  $('newKidBox').style.display = 'none';
-  $('pickedKid').textContent = '아직 아동을 만들지 않았습니다.';
-  $('pickedKid').style.color = '#888';
   $('addBox').style.display = 'block';
+  $('k_name').focus();
 };
 
 $('cancelNew').onclick = () => { $('addBox').style.display = 'none'; };
 
-// ===== 새 아동 만들기 =====
+// ===== 이름 타이핑 중 같은 이름 알림 =====
+function sameNamed(nm) {
+  const t = (nm || '').trim();
+  if (!t) return [];
+  return KIDS.filter(k => (k.name || '').trim() === t);
+}
+
+$('k_name').addEventListener('input', () => {
+  const hit = sameNamed($('k_name').value);
+  const box = $('dupWarn');
+  if (!hit.length) { box.style.display = 'none'; return; }
+  box.innerHTML = '⚠️ <b>같은 이름이 이미 있습니다.</b><br>'
+    + hit.map(k => '　· ' + esc(k.name) + ' (' + k.id + '번 · ' + esc(k.status) + ')').join('<br>')
+    + '<br>같은 아동이면 아동 관리 화면에서 확인하세요. 동명이인이면 그대로 진행하세요.';
+  box.style.display = 'block';
+});
+
+// ===== 관리번호 자동 =====
 function nextManagerNo() {
   const yr  = new Date().getFullYear();
   const pre = String(yr) + '01-자라는 ';
@@ -970,82 +969,47 @@ function nextManagerNo() {
   return pre + String(max + 1).padStart(3, '0');
 }
 
-$('newKidBtn').onclick = () => {
-  ['k_name','k_birth','k_guardian','k_phone','k_memo'].forEach(k => $(k).value = '');
-  $('k_gender').value = '';
-  $('k_status').value = '대기중';
-  $('msgK').className = 'out'; $('msgK').textContent = '';
-  $('newKidBox').style.display = 'block';
-  $('k_name').focus();
-};
-
-$('cancelKid').onclick = () => { $('newKidBox').style.display = 'none'; };
-
-$('saveKid').onclick = async () => {
+$('saveNew').onclick = async () => {
   const nm = $('k_name').value.trim();
-  if (!nm) { showBox('msgK', '이름을 넣으세요.', false); return; }
+  if (!nm) { showBox('msgA', '아동 이름을 넣으세요.', false); return; }
+  if (!$('a_date').value) { showBox('msgA', '문의일을 넣으세요.', false); return; }
 
-  const same = KIDS.filter(k => (k.name || '').trim() === nm);
-  if (same.length) {
-    const list = same.map(k => '  · ' + k.name + ' (' + k.id + '번 · ' + k.status + ')').join('\n');
+  const hit = sameNamed(nm);
+  if (hit.length) {
+    const list = hit.map(k => '  · ' + k.name + ' (' + k.id + '번 · ' + k.status + ')').join('\n');
     if (!confirm('⚠️ 같은 이름이 이미 있습니다.\n\n' + list
-      + '\n\n같은 아동이면 「취소」를 누르고,\n'
-      + '아동 관리 화면에서 이름으로 검색해 확인하세요.\n\n'
+      + '\n\n같은 아동이면 「취소」를 누르고\n'
+      + '아동 관리 화면에서 확인하세요.\n\n'
       + '동명이인이라 새로 만들어야 하면 「확인」을 누르세요.')) return;
   }
 
-  const row = {
-    manager_no: nextManagerNo(),
-    name:       nm,
-    birth:      $('k_birth').value || null,
-    gender:     $('k_gender').value || null,
-    status:     $('k_status').value,
-    guardian:   $('k_guardian').value.trim() || null,
-    phone:      $('k_phone').value.trim() || null,
-    memo:       $('k_memo').value.trim() || null
-  };
+  $('saveNew').disabled = true;
+  $('saveNew').textContent = '등록 중...';
 
-  $('saveKid').disabled = true;
-  $('saveKid').textContent = '저장 중...';
+  // (1) 아동 먼저 만들기
+  let cid = null, kid = null;
   try {
-    const { data, error } = await sb.from('nl_children')
-      .insert(row).select('id, name, status, manager_no').single();
+    const { data, error } = await sb.from('nl_children').insert({
+      manager_no: nextManagerNo(),
+      name:       nm,
+      birth:      $('k_birth').value || null,
+      gender:     $('k_gender').value || null,
+      status:     $('k_status').value,
+      guardian:   $('k_guardian').value.trim() || null,
+      phone:      $('k_phone').value.trim() || null,
+      memo:       $('k_memo').value.trim() || null
+    }).select('id, name, status, manager_no').single();
     if (error) throw error;
-
+    kid = data; cid = data.id;
     KIDS.push(data);
-    KIDS.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    $('a_child').innerHTML = '<option value="">-- 아동 고르기 --</option>'
-      + KIDS.map(k => '<option value="' + k.id + '">' + esc(k.name)
-          + ' (' + k.id + '번 · ' + esc(k.status) + ')</option>').join('');
-    $('a_child').value = data.id;
-    $('pickedKid').innerHTML = '<b style="color:#2e7d32;">' + esc(data.name)
-      + '</b> (' + data.id + '번 · ' + esc(data.status) + ')';
-    $('pickedKid').style.color = '#1c1f1a';
-
-    $('newKidBox').style.display = 'none';
-    showBox('msgA', '✅ 아동을 만들었습니다. ' + esc(data.name)
-      + ' (' + data.id + '번) · ' + data.manager_no
-      + '\n이어서 문의 내용을 넣고 「등록하기」를 누르세요.', true);
   } catch (e) {
-    showBox('msgK', '❌ 만들지 못했습니다.\n' + e.message, false);
-  } finally {
-    $('saveKid').disabled = false;
-    $('saveKid').textContent = '아동 저장';
-  }
-};
-
-$('saveNew').onclick = async () => {
-  const cid = Number($('a_child').value);
-  if (!cid) { showBox('msgA', '아동을 고르세요.', false); return; }
-  if (!$('a_date').value) { showBox('msgA', '문의일을 넣으세요.', false); return; }
-
-  const dup = ALL.find(r => r.child_id === cid && LIVE.indexOf(r.status) >= 0);
-  if (dup) {
-    showBox('msgA', '⚠️ 이 아동은 이미 진행중인 문의가 있습니다. (문의 '
-      + dup.id + '번) 중복 등록이 아닌지 확인하세요.', false);
+    showBox('msgA', '❌ 아동을 만들지 못했습니다.\n' + e.message, false);
+    $('saveNew').disabled = false;
+    $('saveNew').textContent = '등록하기';
     return;
   }
 
+  // (2) 이어서 문의 만들기
   const row = {
     child_id:        cid,
     inquiry_date:    $('a_date').value,
@@ -1059,22 +1023,24 @@ $('saveNew').onclick = async () => {
     memo:            $('a_memo').value.trim() || null
   };
 
-  $('saveNew').disabled = true;
-  $('saveNew').textContent = '등록 중...';
   try {
     const { data, error } = await sb.from('nl_inquiries')
       .insert(row).select().single();
     if (error) throw error;
     ALL.unshift(data);
     draw();
-    showBox('msgA', '✅ 등록했습니다. 문의 ' + data.id + '번', true);
-    $('a_child').value = '';
-    $('pickedKid').textContent = '아직 아동을 만들지 않았습니다.';
-    $('pickedKid').style.color = '#888';
-    ['a_channel','a_area','a_day','a_time','a_action','a_memo']
+    showBox('msgA', '✅ 등록했습니다.\n아동 ' + esc(kid.name) + ' (' + cid + '번 · '
+      + kid.manager_no + ')\n문의 ' + data.id + '번', true);
+    ['a_channel','a_area','a_day','a_time','a_action','a_memo',
+     'k_name','k_birth','k_guardian','k_phone','k_memo']
       .forEach(k => $(k).value = '');
+    $('k_gender').value = '';
+    $('k_status').value = '대기중';
+    $('dupWarn').style.display = 'none';
   } catch (e) {
-    showBox('msgA', '❌ 등록하지 못했습니다.\n' + e.message, false);
+    showBox('msgA', '⚠️ 아동 ' + esc(kid.name) + ' (' + cid + '번) 은 만들어졌으나\n'
+      + '문의는 등록하지 못했습니다.\n' + e.message
+      + '\n\n아동을 다시 만들지 마세요. 문의만 다시 넣으세요.', false);
   } finally {
     $('saveNew').disabled = false;
     $('saveNew').textContent = '등록하기';
@@ -1104,9 +1070,6 @@ async function afterLogin(user) {
   if (e2) { show('❌ 아동 목록 조회 실패\n' + e2.message, false); return; }
   KIDS = kids || [];
 
-  $('a_child').innerHTML = '<option value="">-- 아동 고르기 --</option>'
-    + KIDS.map(k => '<option value="' + k.id + '">' + esc(k.name)
-        + ' (' + k.id + '번 · ' + esc(k.status) + ')</option>').join('');
 
   // 문의 목록
   const { data, error } = await sb
