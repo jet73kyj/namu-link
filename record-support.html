@@ -26,6 +26,7 @@
     border:1px solid #ccc; padding:3px 6px; font-size:12px;
     font-family:inherit; box-sizing:border-box; width:100%; }
   textarea { resize:vertical; min-height:46px; }
+  textarea.opin { min-height:92px; }
   .sign { text-align:center; font-size:12.5px; line-height:2.4; margin-top:22px; }
   .sign .line { margin-top:6px; }
   .radio { font-size:12px; }
@@ -47,7 +48,7 @@
   .picker #pInfo { font-size:12.5px; color:#777; margin-left:4px; }
 
   @media print {
-    @page { size: A4 portrait; margin: 8mm 8mm; }
+    @page { size: A4 portrait; margin: 8mm 15mm; }
     header, .form-actions, .page-title, .picker, .no-print { display:none !important; }
     body { background:white; }
     .container { max-width:none; margin:0; padding:0; }
@@ -56,6 +57,7 @@
     .rec-tbl td, .rec-tbl th { padding:4px 6px; }
     input, textarea { border:none; padding:1px 3px; font-size:10.5px; background:transparent; }
     textarea { min-height:38px; }
+    textarea.opin { min-height:76px; }
   }
 </style>
 </head>
@@ -165,6 +167,11 @@
             <span data-val="중단" onclick="_pickCont(this)">중단</span>
           </div>
         </td>
+      </tr>
+      <tr>
+        <td class="lbl">치료 경과<br>및 의견</td>
+        <td><textarea id="f_opinion" class="opin"
+              placeholder="이 달의 치료 경과와 의견을 적어 주세요."></textarea></td>
       </tr>
     </table>
 
@@ -388,6 +395,7 @@ function drawAll(saved) {
   // 이번 달 저장분 → 없으면 지난 기록 → 없으면 아동 표
   const pick = k => (saved && saved[k]) || (PREV && PREV[k]) || '';
   $('f_disab').value  = pick('disability_text');
+  $('f_opinion').value = pick('month_summary') || '';
   $('f_school').value = pick('school_text') || c.school || '';
   $('f_grade').value  = pick('grade_text')  || c.grade_year || '';
   $('f_fine').value   = pick('level_fine');
@@ -462,6 +470,7 @@ async function saveRecord() {
       grade_text:  $('f_grade').value  || null,
       disability_text: $('f_disab').value || null,
       continue_yn: CONT || null,
+      month_summary: $('f_opinion').value || null,
       written_on: WRITTEN || null,
       updated_at: new Date().toISOString()
     };
