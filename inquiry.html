@@ -179,12 +179,13 @@
     <div class="grid">
       <div style="grid-column:1 / -1;">
         <label for="a_child">아동 <span style="color:#c62828;">*</span></label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <select id="a_child" style="flex:1;"></select>
+        <select id="a_child" style="display:none;"></select>
+        <div id="pickedKid" style="padding:9px 11px;border:1px solid #ddd;border-radius:6px;
+             background:#fafafa;color:#888;">아직 아동을 만들지 않았습니다.</div>
+        <div style="margin-top:8px;">
           <button id="newKidBtn" type="button" class="tab"
-            style="background:#2e7d32;color:#fff;font-weight:bold;white-space:nowrap;">＋ 새 아동</button>
+            style="background:#2e7d32;color:#fff;font-weight:bold;">＋ 새 아동</button>
         </div>
-        <div class="hint">처음 문의한 아동이면 「＋ 새 아동」을 누르세요.</div>
       </div>
 
       <!-- 새 아동 만들기 -->
@@ -224,8 +225,11 @@
             <input id="k_phone" type="text" placeholder="010-0000-0000">
           </div>
           <div style="grid-column:1 / -1;">
-            <label for="k_memo">아동 특징 메모</label>
-            <input id="k_memo" type="text" placeholder="상담 중 들은 아동 특징을 적으세요">
+            <label for="k_memo">상담 내용</label>
+            <textarea id="k_memo" rows="7" style="font:inherit;font-size:14px;padding:9px 11px;
+              border:1px solid #ddd;border-radius:6px;width:100%;line-height:1.7;resize:vertical;"
+              placeholder="희망영역 : 언어치료, 감각통합&#10;희망요일 : 화·목 / 금도 가능&#10;희망시간 : 오후 4시 이후, 수요일은 3시부터&#10;아동특징 : 낯가림 심함. 발화 거의 없음&#10;기타 : 형제도 함께 상담 원함"></textarea>
+            <div class="hint">희망요일·시간은 여러 개 적어두면 빈 자리 찾기가 쉬워집니다.</div>
           </div>
         </div>
         <div class="btns">
@@ -243,18 +247,9 @@
         <label for="a_channel">유입경로</label>
         <input id="a_channel" type="text" placeholder="전화 / 네이버 / 소개 등">
       </div>
-      <div>
-        <label for="a_area">희망영역</label>
-        <input id="a_area" type="text" placeholder="언어치료">
-      </div>
-      <div>
-        <label for="a_day">희망요일</label>
-        <input id="a_day" type="text" placeholder="화">
-      </div>
-      <div>
-        <label for="a_time">희망시간</label>
-        <input id="a_time" type="text" placeholder="오후 4시 이후">
-      </div>
+      <input id="a_area" type="hidden">
+      <input id="a_day" type="hidden">
+      <input id="a_time" type="hidden">
       <div>
         <label for="a_status">상태 <span style="color:#c62828;">*</span></label>
         <select id="a_status"></select>
@@ -267,10 +262,7 @@
         <label for="a_action">다음 할 일</label>
         <input id="a_action" type="text" placeholder="예: 보호자에게 다시 전화">
       </div>
-      <div style="grid-column:1 / -1;">
-        <label for="a_memo">메모</label>
-        <input id="a_memo" type="text">
-      </div>
+      <input id="a_memo" type="hidden">
     </div>
     <div class="btns">
       <button id="saveNew" class="tab" style="background:#2e7d32;color:#fff;font-weight:bold;">등록하기</button>
@@ -956,6 +948,8 @@ $('addBtn').onclick = () => {
     .forEach(k => $(k).value = '');
   $('msgA').className = 'out'; $('msgA').textContent = '';
   $('newKidBox').style.display = 'none';
+  $('pickedKid').textContent = '아직 아동을 만들지 않았습니다.';
+  $('pickedKid').style.color = '#888';
   $('addBox').style.display = 'block';
 };
 
@@ -992,9 +986,13 @@ $('saveKid').onclick = async () => {
   if (!nm) { showBox('msgK', '이름을 넣으세요.', false); return; }
 
   const same = KIDS.filter(k => (k.name || '').trim() === nm);
-  if (same.length && !confirm('같은 이름의 아동이 이미 ' + same.length
-      + '명 있습니다.\n(' + same.map(k => k.id + '번 ' + k.status).join(', ')
-      + ')\n그래도 새로 만들까요?')) return;
+  if (same.length) {
+    const list = same.map(k => '  · ' + k.name + ' (' + k.id + '번 · ' + k.status + ')').join('\n');
+    if (!confirm('⚠️ 같은 이름이 이미 있습니다.\n\n' + list
+      + '\n\n같은 아동이면 「취소」를 누르고,\n'
+      + '아동 관리 화면에서 이름으로 검색해 확인하세요.\n\n'
+      + '동명이인이라 새로 만들어야 하면 「확인」을 누르세요.')) return;
+  }
 
   const row = {
     manager_no: nextManagerNo(),
@@ -1020,6 +1018,9 @@ $('saveKid').onclick = async () => {
       + KIDS.map(k => '<option value="' + k.id + '">' + esc(k.name)
           + ' (' + k.id + '번 · ' + esc(k.status) + ')</option>').join('');
     $('a_child').value = data.id;
+    $('pickedKid').innerHTML = '<b style="color:#2e7d32;">' + esc(data.name)
+      + '</b> (' + data.id + '번 · ' + esc(data.status) + ')';
+    $('pickedKid').style.color = '#1c1f1a';
 
     $('newKidBox').style.display = 'none';
     showBox('msgA', '✅ 아동을 만들었습니다. ' + esc(data.name)
@@ -1068,6 +1069,8 @@ $('saveNew').onclick = async () => {
     draw();
     showBox('msgA', '✅ 등록했습니다. 문의 ' + data.id + '번', true);
     $('a_child').value = '';
+    $('pickedKid').textContent = '아직 아동을 만들지 않았습니다.';
+    $('pickedKid').style.color = '#888';
     ['a_channel','a_area','a_day','a_time','a_action','a_memo']
       .forEach(k => $(k).value = '');
   } catch (e) {
