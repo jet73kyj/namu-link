@@ -92,6 +92,9 @@
   .ln.hit { outline:2px solid #ff9800; outline-offset:1px; }
   .ln.hitnow { outline:3px solid #e65100; outline-offset:1px;
                box-shadow:0 0 0 4px rgba(255,152,0,.25); }
+  .short-line.hit, .prevone.hit { outline:2px solid #d32f2f; outline-offset:1px; }
+  .short-line.hitnow, .prevone.hitnow { outline:3px solid #b71c1c;
+               box-shadow:0 0 0 4px rgba(211,47,47,.22); }
   .jumpbtn { width:auto; margin:0 0 0 6px; padding:6px 12px; font-size:12.5px;
              background:#ff9800; color:#fff; border:none; border-radius:6px;
              cursor:pointer; white-space:nowrap; }
@@ -803,7 +806,9 @@ function drawShort(byScd, mkOf){
         const s5 = b.short5
           ? ' <span class="s5">이 달은 5주차가 없어 1회 모자람</span>' : '';
 
-        return '<div class="short-line' + (must ? ' must' : '') + '">'
+        return '<div class="short-line' + (must ? ' must' : '') + '"'
+          + ' data-kid="' + esc(r._name || '') + '"'
+          + ' data-cid="' + (r._cid || '') + '">'
           + head
           + '<div class="sline2">'
             + (STYPE[r.support_type_id]||'') + ' · ' + (TTYPE[r._tt]||'')
@@ -951,7 +956,9 @@ function bd(v){
 }
 
 function markFind(){
-  document.querySelectorAll('.ln.hit').forEach(el => el.classList.remove('hit'));
+  document.querySelectorAll('.hit').forEach(el => {
+    el.classList.remove('hit'); el.classList.remove('hitnow');
+  });
   hitEls = []; hitAt = 0;
   const q = $('findName').value.trim();
   $('findJump').style.display = 'none';
@@ -980,6 +987,14 @@ function markFind(){
   } else {
     pickCid = list.length ? list[0].cid : null;
   }
+
+  // 시간표 칸 + 보강 알림 + 이월 보강 상자를 모두 표시한다
+  document.querySelectorAll('.short-line[data-kid], .prevone[data-kid]')
+    .forEach(el => {
+      if (!(el.dataset.kid || '').includes(q)) return;
+      if (pickCid && Number(el.dataset.cid) !== pickCid) return;
+      el.classList.add('hit'); hitEls.push(el);
+    });
 
   document.querySelectorAll('.ln[data-kid]').forEach(el => {
     if (!(el.dataset.kid || '').includes(q)) return;
@@ -1231,7 +1246,9 @@ function drawPrev(){
         const t2 = THS_ALL.find(x => x.id === s.therapist_id);
         const q = seqInPrev(s);
         const ok = canCarry(q.st, q.seq);
-        return '<div class="prevone' + (ok ? '' : ' prevno') + '">'
+        return '<div class="prevone' + (ok ? '' : ' prevno') + '"'
+          + ' data-kid="' + esc(s._name || '') + '"'
+          + ' data-cid="' + (s.child_id || '') + '">'
           + '<span class="pnm">' + esc(s._name || '') + '</span>'
           + '<span class="psm">'
             + (sc ? (STYPE[sc.support_type_id]||'') + ' · ' + (TTYPE[sc._tt]||'') + ' · ' : '')
