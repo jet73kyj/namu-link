@@ -178,7 +178,10 @@
     <div class="panel-t">새 문의 등록</div>
     <div class="grid">
       <div style="grid-column:1 / -1;">
-        <label for="k_name">아동 이름 <span style="color:#c62828;">*</span></label>
+        <label for="k_name" style="display:flex;justify-content:space-between;align-items:baseline;">
+          <span>아동 이름 <span style="color:#c62828;">*</span></span>
+          <span style="color:#1c1f1a;font-weight:600;">문의일 : <span id="dateTxt"></span></span>
+        </label>
         <input id="k_name" type="text" autocomplete="off" placeholder="이름을 넣으세요">
         <div id="dupWarn" style="display:none;margin-top:6px;padding:9px 11px;
              border-radius:6px;background:#fff8e1;border:1px solid #f0c36d;
@@ -212,10 +215,6 @@
         <input id="k_phone" type="text" placeholder="010-0000-0000">
       </div>
       <div>
-        <label for="a_date">문의일 <span style="color:#c62828;">*</span></label>
-        <input id="a_date" type="date">
-      </div>
-      <div>
         <label for="a_channel">유입경로</label>
         <input id="a_channel" type="text" placeholder="전화 / 네이버 / 소개 등">
       </div>
@@ -239,6 +238,7 @@
         <div class="hint">희망요일·시간은 여러 개 적어두면 빈 자리 찾기가 쉬워집니다.</div>
       </div>
       <input id="a_child" type="hidden">
+      <input id="a_date" type="hidden">
       <input id="a_area" type="hidden">
       <input id="a_day" type="hidden">
       <input id="a_time" type="hidden">
@@ -922,6 +922,7 @@ $('addBtn').onclick = () => {
   if (open) { $('addBox').style.display = 'none'; return; }
   $('detBox').style.display = 'none';
   $('a_date').value = today();
+  $('dateTxt').textContent = today();
   $('a_next').value = today();
   $('a_status').value = '연락 대기';
   ['a_channel','a_area','a_day','a_time','a_action','a_memo',
