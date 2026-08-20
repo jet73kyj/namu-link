@@ -185,7 +185,7 @@
   </div>
 
   <div class="note">
-    <b>회기</b>는 시간표의 회차 표에서 가져옵니다. 휴무·보강은 빼고 셉니다.<br>
+    <b>회기</b>는 시간표의 회차 표에서 가져옵니다. 휴무·보강·쉼은 빼고 셉니다.<br>
     회차가 아직 없는 달이면 요일 수로 채워집니다. 다르면 숫자를 고치세요.<br>
     <b>적용단가</b>를 넣으면 치료사 단가 대신 그 값으로 계산합니다 (할인 등). 다음 달에도 이어집니다.
     할인을 끝낼 때는 칸을 비우세요.<br>
@@ -400,7 +400,7 @@ async function load() {
     const sess = (ss && ss.data) ? ss.data : [];
     SESSCNT = {};
     sess.forEach(x => {
-      if (x.status === '휴무' || x.status === '보강') return;
+      if (x.status === '휴무' || x.status === '보강' || x.status === '쉼') return;
       const k = x.schedule_id;
       const sp = x.support_type_id || 0;
       (SESSCNT[k] = SESSCNT[k] || {});
@@ -414,7 +414,7 @@ async function load() {
     // 아동·지원유형별 회차 순번 매기기 (날짜 순)
     const ord = {};
     sess.slice()
-      .filter(x => x.status !== '보강')
+      .filter(x => x.status !== '보강' && x.status !== '쉼')
       .sort((a,b) => String(a.plan_date).localeCompare(String(b.plan_date)))
       .forEach(x => {
         const k = x.child_id + '|' + (x.support_type_id || 0);
@@ -425,7 +425,7 @@ async function load() {
     // 아동·유형별 실제 회수와 빠진 날짜(휴무·결석)를 모아둔다
     SHORTCNT = {};
     sess.forEach(x => {
-      if (x.status === '보강') return;
+      if (x.status === '보강' || x.status === '쉼') return;
       const k = x.child_id + '|' + (x.support_type_id || 0);
       const g = SHORTCNT[k] = SHORTCNT[k] || { cnt: 0, miss: [] };
       if (x.status === '휴무') { g.miss.push({ d: x.plan_date, s: '휴무' }); return; }
