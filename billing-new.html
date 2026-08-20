@@ -81,9 +81,11 @@
   .r { display:flex; align-items:center; gap:12px; padding:5px 0; font-size:14px; }
   .r .nm  { flex:0 0 170px; color:var(--ink2); }
   .r .de  { flex:1; color:var(--ink3); font-size:13px; }
-  .thr { color:var(--ink2); font-weight:600; }
+  .thr { color:var(--ink2); font-weight:600; white-space:nowrap; }
+  .r .de { min-width:0; overflow:hidden; text-overflow:ellipsis;
+           white-space:nowrap; }
   .r .ap  { flex:0 0 72px; }
-  .r .ct  { flex:0 0 46px; }
+  .r .ct  { flex:0 0 78px; white-space:nowrap; }
   .r .up  { flex:0 0 68px; text-align:right; color:var(--ink3); font-size:13px; }
   .r .am  { flex:0 0 96px; text-align:right; }
   .r input.cnt { width:46px; padding:5px 0; text-align:center; font-size:13px; }
@@ -110,6 +112,23 @@
            font-size:15px; font-weight:600; }
   .cut { color:var(--ink3); font-size:12px; font-weight:400; }
   .warn { color:#b5651d; font-size:12.5px; }
+  .wkbox { display:none; margin:2px 0 6px 0; padding:6px 8px;
+           background:#f4f6f5; border:1px solid #dfe4e1; border-radius:6px;
+           font-size:12px; color:#4a524d; }
+  .wkbox.on { display:block; }
+  .wkb { display:inline-block; min-width:50px; margin:0 3px;
+         padding:4px 8px; border-radius:5px; border:1px solid #cfd4d0;
+         background:#fff; color:#666; cursor:pointer; font-size:12px; }
+  .wkb.yes { background:#2f7d4f; border-color:#2f7d4f; color:#fff; }
+  .wkb.no  { background:#eef0ef; color:#9aa19c; text-decoration:line-through; }
+  .wkb.dim { opacity:.35; cursor:default; }
+  .wkhint { margin-left:6px; color:#7a827d; }
+  .wkopen { margin-left:3px; padding:3px 4px; font-size:10.5px;
+            border:1px solid #cfd4d0; border-radius:5px;
+            background:#fff; color:#5a625c; cursor:pointer;
+            vertical-align:middle; }
+  .wkopen:hover { background:#eef1ef; }
+  .wkopen.on { background:#2f7d4f; border-color:#2f7d4f; color:#fff; }
   .shortc { border:1px solid #e8c9a4; background:#fffaf2; border-radius:8px;
             padding:9px 12px; margin:8px 0 4px; font-size:12.5px; color:#5a4a30; }
   .shortline { line-height:1.6; }
@@ -186,6 +205,8 @@
 
   <div class="note">
     <b>회기</b>는 시간표의 회차 표에서 가져옵니다. 휴무·보강·쉼은 빼고 셉니다.<br>
+    <b>회기 칸을 누르면</b> 주차 고르기가 펼쳐집니다. 끈 주차는 「쉼」이 되어 회기에서 빠지고,
+    그 시간은 다른 아동 보강에 쓸 수 있습니다. 저장해야 반영됩니다.<br>
     회차가 아직 없는 달이면 요일 수로 채워집니다. 다르면 숫자를 고치세요.<br>
     <b>적용단가</b>를 넣으면 치료사 단가 대신 그 값으로 계산합니다 (할인 등). 다음 달에도 이어집니다.
     할인을 끝낼 때는 칸을 비우세요.<br>
@@ -247,6 +268,7 @@ function carryWhy(supportTypeId, seq) {
 }
 let SCHED = {};             // child_id -> 수업 목록
 let SESSCNT = {};           // 수업번호 -> { 지원유형: 회차수 }
+let WKWAS   = {};           // 요일줄번호 -> 불러올 때의 주차 상태
 let SAVED = {};             // child_id -> 저장된 납부 (이번 달)
 let PREV  = {};             // child_id -> 지난달 납부 (적용단가·발추방식 이어받기용)
 let LASTX = {};             // child_id -> 지난 발추 담당 치료사
@@ -368,7 +390,7 @@ async function load() {
 
     const [th, fe, ru, gr, pay, px, pv, ss] = await Promise.all([
       sb.from('nl_therapies')
-        .select('id, child_id, therapy_type_id, support_type_id, monthly_count, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration)')
+        .select('id, child_id, therapy_type_id, support_type_id, monthly_count, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration, week1, week2, week3, week4)')
         .in('child_id', ids),
       sb.from('nl_therapist_fees').select('*'),
       sb.from('nl_support_rules').select('*'),
@@ -399,6 +421,7 @@ async function load() {
     // 그 달 회차 수를 수업+지원유형별로 세어둔다 (휴무·보강은 뺀다)
     const sess = (ss && ss.data) ? ss.data : [];
     SESSCNT = {};
+    WKWAS   = {};
     sess.forEach(x => {
       if (x.status === '휴무' || x.status === '보강' || x.status === '쉼') return;
       const k = x.schedule_id;
@@ -462,8 +485,12 @@ async function load() {
           weekday: s.weekday,
           start_time: s.start_time,
           therapist_id: s.therapist_id,
-          duration: s.duration || 40
+          duration: s.duration || 40,
+          wk: [s.week1 !== false, s.week2 !== false,
+               s.week3 !== false, s.week4 !== false]
         });
+        WKWAS[s.id] = [s.week1 !== false, s.week2 !== false,
+                       s.week3 !== false, s.week4 !== false];
       });
     });
 
@@ -514,7 +541,10 @@ function buildRows(childId, mk) {
              + String(s.start_time).slice(0,5) + ' (' + s.duration + '분)',
       therapist_name: thrName(s.therapist_id),
       therapist_id: s.therapist_id,
-      unit: unit
+      unit: unit,
+      sched_id: s.sched_id,
+      wk: s.wk || [true,true,true,true],
+      wdCnt: countWeekday(mk, s.weekday)
     };
     // 회차 표가 있으면 그것으로, 없으면 요일 수로 센다
     const cnt = SESSCNT[s.sched_id];
@@ -675,10 +705,26 @@ function drawKid(c) {
     const p = k.split('|');
     if (Number(p[0]) !== c.id) return;
     const st = Number(p[1]);
-    const need = NEEDCNT[k];
+    let need = NEEDCNT[k];
     if (!need) return;
     const g = SHORTCNT[k];
     if (!g) return;
+    // 발달재활(2번) 기준회수에는 발추(8번) 회수가 함께 들어 있다.
+    // 발추는 따로 계산하므로 그만큼 빼고 비교한다.
+    if (st === 2 && groups.some(gg => gg.support_type_id === 8)) {
+      const g8 = groups.find(gg => gg.support_type_id === 8);
+      const sc = savedCnt(sv[8]);
+      let xn;
+      if (sc !== null) {
+        xn = sc;                                   // 저장된 발추 회수
+      } else {
+        const md = xmodeOf(sv[8]) || xmodeOf(lastM[8]) || (sv[8] !== undefined ? 1 : 3);
+        const five = g8.extra_weekday ? (countWeekday(mk, g8.extra_weekday) >= 5) : false;
+        xn = autoXcnt(md, five);                   // 적용방식으로 정해지는 회수
+      }
+      need = Math.max(0, need - (xn || 0));
+      if (!need) return;
+    }
     if (g.cnt >= need) return;
 
     // 저장된 납부의 회기 합계와 같으면 이대로 확정한 것으로 본다
@@ -747,10 +793,13 @@ function drawKid(c) {
           + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
           + '<span class="ap"><input class="apu" type="text" inputmode="numeric" placeholder="적용단가" value="'
           + (ap ? ap.toLocaleString() : '') + '"></span>'
-          + '<span class="ct"><input class="cnt" type="text" inputmode="numeric" value="' + cnt + '"></span>'
+          + '<span class="ct"><input class="cnt" type="text" inputmode="numeric" value="' + cnt + '">'
+          + (it.sched_id ? '<button class="wkopen" type="button">주차</button>' : '')
+          + '</span>'
           + '<span class="up upbox">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</span>'
           + '<span class="am lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</span>'
-          + '</div>';
+          + '</div>'
+          + wkBoxHtml(it);
       });
       if (g.deduction > 0) {
         b += '<div class="r sub2"><span class="nm"></span>'
@@ -1058,6 +1107,89 @@ function sumAll() {
     + (nUnpaid ? '   ·   미납 ' + nUnpaid + '명' : '   ·   미납 없음');
 }
 
+// ── 주차 고르기 상자 ──────────────────────────────
+// 회기 칸을 누르면 펼쳐진다. 주차를 끄면 그 주 수업을 안 한다는 뜻.
+function wkBoxHtml(it) {
+  if (!it.sched_id) return '';
+  const wdCnt = it.wdCnt || 4;
+  let h = '<div class="wkbox" data-sched="' + it.sched_id + '">주차 ';
+  for (let w = 1; w <= 5; w++) {
+    if (w > wdCnt) break;
+    if (w === 5) {
+      h += '<span class="wkb dim" title="5주차는 회수방식으로 정합니다">5주차</span>';
+    } else {
+      const on = it.wk ? (it.wk[w-1] !== false) : true;
+      h += '<span class="wkb ' + (on ? 'yes' : 'no') + '" data-w="' + w + '">'
+        + w + '주차</span>';
+    }
+  }
+  h += '<span class="wkhint">끄면 그 주는 쉬고, 회기도 줄어듭니다</span></div>';
+  return h;
+}
+
+// 그 줄의 켜진 주차 수를 센다 (5주차는 그대로 두고 1~4만 반영)
+function wkCountOf(boxEl) {
+  let n = 0;
+  boxEl.querySelectorAll('.wkb[data-w]').forEach(b => {
+    if (b.classList.contains('yes')) n++;
+  });
+  return n;
+}
+
+// ── 주차를 실제로 저장한다 ────────────────────────
+// 요일줄의 week1~4 를 고치고, 이 달 회차를 예정 <-> 쉼 으로 맞춘다.
+// 완료·결석·휴무·보강 회차는 건드리지 않는다.
+async function saveWeeks(box) {
+  const boxes = box.querySelectorAll('.wkbox');
+  if (!boxes.length) return '';
+  let chg = 0, rest = 0, back = 0;
+
+  for (const wb of boxes) {
+    const sid = Number(wb.dataset.sched);
+    if (!sid) continue;
+    const on = [true, true, true, true];
+    wb.querySelectorAll('.wkb[data-w]').forEach(b => {
+      on[Number(b.dataset.w) - 1] = b.classList.contains('yes');
+    });
+
+    const before = (WKWAS[sid] || [true, true, true, true]);
+    if (on.every((v, i) => v === before[i])) continue;   // 안 바뀌었으면 건너뛴다
+
+    const { error } = await sb.from('nl_therapy_schedules')
+      .update({ week1: on[0], week2: on[1], week3: on[2], week4: on[3] })
+      .eq('id', sid);
+    if (error) throw error;
+    WKWAS[sid] = on.slice();
+    chg++;
+
+    // 이 달 회차를 날짜 순으로 세어 몇 주차인지 매긴다
+    const { data: ss, error: e2 } = await sb.from('nl_sessions')
+      .select('id, plan_date, status')
+      .eq('schedule_id', sid).eq('month_key', LOADED_MK)
+      .order('plan_date', { ascending: true });
+    if (e2) throw e2;
+
+    for (let i = 0; i < (ss || []).length; i++) {
+      const r = ss[i];
+      if (i >= 4) continue;                       // 5주차는 건드리지 않는다
+      if (r.status !== '예정' && r.status !== '쉼') continue;  // 완료·결석·휴무·보강은 그대로
+      const want = on[i] ? '예정' : '쉼';
+      if (r.status === want) continue;
+      const { error: e3 } = await sb.from('nl_sessions')
+        .update({ status: want, updated_at: new Date().toISOString() })
+        .eq('id', r.id);
+      if (e3) throw e3;
+      if (want === '쉼') rest++; else back++;
+    }
+  }
+
+  if (!chg) return '';
+  let m = ' 주차 ' + chg + '줄 저장';
+  if (rest) m += ' · ' + rest + '회 쉼';
+  if (back) m += ' · ' + back + '회 되살림';
+  return m + '.';
+}
+
 async function saveKid(childId, btn) {
   const box = document.querySelector('.kid[data-child="' + childId + '"]');
   const parts = JSON.parse(box.dataset.parts || '[]');
@@ -1115,9 +1247,11 @@ async function saveKid(childId, btn) {
     rows.forEach(r => {
       (SAVED[childId] = SAVED[childId] || {})[r.support_type_id] = r;
     });
+    const wkMsg = await saveWeeks(box);
     const unpaid = rows.filter(r => !r.paid_on).length;
     show($('msg2'), '✅ ' + rows.length + '건 저장했습니다.'
-      + (unpaid ? ' (그중 ' + unpaid + '건은 날짜가 없어 미납으로 저장)' : ''), true);
+      + (unpaid ? ' (그중 ' + unpaid + '건은 날짜가 없어 미납으로 저장)' : '')
+      + wkMsg, true);
     btn.textContent = '저장됨';
     setTimeout(() => { btn.textContent = '저장'; btn.disabled = false; }, 1200);
   } catch (e) {
@@ -1170,6 +1304,45 @@ $('kids').addEventListener('change', e => {
 $('kids').addEventListener('click', e => {
   if (e.target.classList.contains('ksave')) {
     saveKid(Number(e.target.closest('.kid').dataset.child), e.target);
+    return;
+  }
+
+  // 「주차」 단추를 누르면 주차 상자가 펼쳐진다
+  if (e.target.classList.contains('wkopen')) {
+    const line = e.target.closest('.r.line');
+    const box  = line ? line.nextElementSibling : null;
+    if (box && box.classList.contains('wkbox')) {
+      const on = box.classList.toggle('on');
+      e.target.classList.toggle('on', on);
+    }
+    return;
+  }
+
+  // 주차 단추를 누르면 켜고 끈다. 회기 숫자도 따라 바뀐다
+  if (e.target.classList.contains('wkb') && e.target.dataset.w) {
+    const b   = e.target;
+    const box = b.closest('.wkbox');
+    const kid = b.closest('.kid');
+    const on  = b.classList.contains('yes');
+
+    // 마지막 하나까지 끄지는 못하게 한다
+    if (on && wkCountOf(box) <= 1) {
+      alert('주차를 모두 끌 수는 없습니다.\n수업을 아예 쉬려면 시간표에서 정하세요.');
+      return;
+    }
+    b.classList.toggle('yes', !on);
+    b.classList.toggle('no', on);
+
+    // 회기 칸을 켜진 주차 수에 맞춘다 (5주차가 있으면 더한다)
+    const line = box.previousElementSibling;
+    const cEl  = line ? line.querySelector('.cnt') : null;
+    if (cEl) {
+      const five = box.querySelector('.wkb.dim') ? 1 : 0;
+      cEl.value = wkCountOf(box) + five;
+      calcKid(Number(kid.dataset.child));
+      sumAll();
+    }
+    return;
   }
 });
 $('q').addEventListener('input', () => { if (LOADED_MK) drawAll(); });
