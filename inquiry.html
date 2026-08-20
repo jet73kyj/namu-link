@@ -158,19 +158,10 @@
   </div>
 
   <div class="tools">
-    <button class="tab on" data-st="진행중">진행중</button>
-    <button class="tab" data-st="전체">전체</button>
+    <button class="tab on" data-st="전체">전체</button>
     <button class="tab" data-st="연락 대기">연락 대기</button>
-    <button class="tab" data-st="회신 대기">회신 대기</button>
-    <button class="tab" data-st="평가 대기">평가 대기</button>
     <button class="tab" data-st="자리 대기">자리 대기</button>
     <button class="tab" data-st="그룹 대기">그룹 대기</button>
-    <button class="tab" data-st="일정 조율 중">일정 조율 중</button>
-    <button class="tab" data-st="치료 시작">치료 시작</button>
-    <button class="tab" data-st="종료">종료</button>
-    <input id="findQ" type="text" autocomplete="off" placeholder="🔍 아동 이름으로 찾기"
-      style="font:inherit;font-size:14px;padding:6px 11px;border:1px solid #bbb;
-             border-radius:6px;width:180px;">
     <button id="addBtn" class="tab" style="background:#8bc34a;color:#fff;font-weight:bold;">＋ 새 문의</button>
     <button id="evBtn" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">📋 평가 관리</button>
     <span class="count" id="count"></span>
@@ -483,7 +474,7 @@ const CAN_SEE = [8, 9];
 let ALL = [];        // 문의 전체
 let KIDS = [];       // 아동 이름표 (번호 -> 이름)
 let ME = null;       // 로그인한 직원
-let stFilter = '진행중';
+let stFilter = '전체';
 let openId = null;   // 지금 열어본 문의 번호
 
 // ===== 평가 관리 =====
@@ -558,10 +549,10 @@ function drawAlert() {
 
 // ===== 목록 =====
 function draw() {
-  const q = ($('findQ') ? $('findQ').value : '').trim().toLowerCase();
+  const q = ($('pastQ') ? $('pastQ').value : '').trim().toLowerCase();
 
   const list = ALL.filter(r => {
-    if (q && !kidName(r.child_id).toLowerCase().includes(q)) return false;
+    if (q) return kidName(r.child_id).toLowerCase().includes(q);
     if (stFilter === '전체') return true;
     if (stFilter === '진행중') return LIVE.indexOf(r.status) >= 0;
     return r.status === stFilter;
@@ -952,45 +943,44 @@ $('addBtn').onclick = () => {
   $('k_name').focus();
 };
 
-$('cancelNew').onclick = () => { $('addBox').style.display = 'none'; };
+$('cancelNew').onclick = () => {
+  $('addBox').style.display = 'none';
+  $('pastQ').value = '';
+  $('pastBox').style.display = 'none';
+  draw();
+};
 
-// ===== 과거 문의 찾기 =====
+// ===== 과거 문의 찾기 — 아래 목록을 직접 거른다 =====
 $('pastQ').addEventListener('input', () => {
-  const q = $('pastQ').value.trim().toLowerCase();
+  const q = $('pastQ').value.trim();
   const box = $('pastBox');
-  if (q.length < 1) { box.style.display = 'none'; return; }
 
-  const kids = KIDS.filter(k => (k.name || '').toLowerCase().includes(q));
+  draw();   // 아래 목록 다시 그리기
+
+  if (!q) { box.style.display = 'none'; return; }
+
+  const lq = q.toLowerCase();
+  const kids = KIDS.filter(k => (k.name || '').toLowerCase().includes(lq));
+
   if (!kids.length) {
-    box.innerHTML = '「' + esc(q) + '」 로 등록된 아동이 없습니다. 처음 문의하는 아동입니다.';
+    box.innerHTML = '「' + esc(q) + '」 로 등록된 아동이 없습니다. '
+      + '<b>처음 문의하는 아동입니다.</b>';
     box.style.display = 'block';
     return;
   }
 
-  const ids = kids.map(k => k.id);
-  const rows = ALL.filter(r => ids.indexOf(r.child_id) >= 0)
-                  .sort((a, b) => (b.inquiry_date || '').localeCompare(a.inquiry_date || ''));
+  const ids  = kids.map(k => k.id);
+  const rows = ALL.filter(r => ids.indexOf(r.child_id) >= 0);
 
-  let h = '<b>찾은 아동 ' + kids.length + '명</b><br>'
-    + kids.map(k => '　· ' + esc(k.name) + ' (' + k.id + '번 · ' + esc(k.status) + ')').join('<br>');
-
-  if (rows.length) {
-    h += '<br><br><b>과거 문의 ' + rows.length + '건</b><br>'
-      + rows.slice(0, 8).map(r => '　· ' + esc(r.inquiry_date) + ' · '
-          + esc(kidName(r.child_id)) + ' · ' + esc(r.status)
-          + (r.next_action ? ' · ' + esc(r.next_action).slice(0, 20) : '')).join('<br>');
-    if (rows.length > 8) h += '<br>　… 그 밖에 ' + (rows.length - 8) + '건';
-    h += '<br><br>같은 아동이면 「취소」를 누르고 목록에서 그 문의를 열어 고치세요.';
-  } else {
-    h += '<br><br>이 아동으로 등록된 문의는 없습니다.';
-  }
-
-  box.innerHTML = h;
+  box.innerHTML = '<b>' + esc(q) + '</b> · 아동 ' + kids.length + '명 · 문의 '
+    + rows.length + '건 — '
+    + (rows.length
+        ? '<b>아래 목록</b>에서 「열기」로 들어가세요.'
+        : '이 아동으로 등록된 문의는 없습니다.')
+    + '<br><span style="color:#5a6156;">찾기를 끝내려면 이 칸을 비우세요.</span>';
   box.style.display = 'block';
 });
 
-// ===== 아동 이름으로 찾기 =====
-$('findQ').addEventListener('input', () => draw());
 
 // ===== 이름 타이핑 중 같은 이름 알림 =====
 function sameNamed(nm) {
@@ -1155,6 +1145,9 @@ async function afterLogin(user) {
   $('who').textContent = me.name + ' (' + me.role + ') 님으로 로그인됨';
   $('loginBox').style.display = 'none';
   $('listBox').style.display  = 'block';
+
+  // 화면을 열면 「새 문의 등록」 창을 바로 펼쳐 둔다
+  $('addBtn').click();
   draw();
 }
 
