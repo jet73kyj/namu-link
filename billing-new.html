@@ -848,7 +848,7 @@ function drawKid(c) {
   const evT = evalTypeOf(ev);
   b += '<div class="r gsum" data-st="9" data-manual="1">'
     + '<span class="nm">평가비' + (ev ? '<span class="saved">저장됨</span>' : '') + '</span>'
-    + '<span class="de">평가 </span><select class="evsel" style="border:1px solid #888;border-radius:4px;padding:2px 4px;background:#ff + evalOptions(evT) + '</select></span>'
+    + '<span class="de">평가 </span><select class="evsel" style="border:1px solid #888;border-radius:4px;padding:2px 4px;background:#fff;color:#000">' + evalOptions(evT) + '</select></span>'
     + '<span class="ap"></span><span class="ct"></span><span class="up"></span>'
     + '<span class="am"><input class="mn evamt" type="text" inputmode="numeric" value="'
     + (ev ? Number(ev.amount).toLocaleString() : '') + '" placeholder="0"></span></div>';
