@@ -72,13 +72,18 @@
   .sel { width:auto; padding:8px 10px; font-size:14px; border:1px solid #ddd;
          border-radius:7px; font-family:inherit; }
 
-  .scroll { overflow-x:auto; }
+  .scroll { overflow:auto; max-height:calc(100vh - 150px); }
   table.grid { border-collapse:collapse; font-size:12.5px; width:100%; table-layout:fixed; }
   table.grid th, table.grid td { border:1px solid #e0e6da; padding:0; }
   table.grid thead th { background:#f1f8e9; color:#33691e; padding:8px 4px; text-align:center; }
+  /* 아래로 내려도 치료사·요일 이름 줄이 화면 위에 붙어 따라온다 */
+  table.grid thead th { position:sticky; top:0; z-index:5;
+                        box-shadow:0 1px 0 #c5d6b4; }
   .thname { font-weight:bold; font-size:13px; }
   .thkind { font-weight:normal; color:#7a8a6a; font-size:11px; }
-  .hcol { width:104px; background:#fafdf7; text-align:center; padding:6px 2px; color:#5a6156; }
+  .hcol { width:104px; background:#fafdf7; text-align:center; padding:6px 2px; color:#5a6156;
+          position:sticky; left:0; z-index:4; }
+  table.grid thead th.hcol { z-index:6; }
   .hno { font-weight:bold; color:#33691e; font-size:12px; }
   .htime { font-size:11.5px; white-space:nowrap; }
   td.cell { vertical-align:top; }
