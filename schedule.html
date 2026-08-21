@@ -2264,9 +2264,9 @@ function openEd(scId){
   $('ed_tt').value   = String(r._tt || 1);
   $('ed_st2').value  = String(r.support_type_id || 1);
   $('ed_cnt').value  = r._mode || '4회만';
-  // 이번 달 회차에 「4회 분산」 표시가 붙어 있는지
-  const _mine = SESS.filter(v => v.schedule_id === r.id);
-  const _cur  = _mine.map(splitMin).find(n => n > 0) || 0;
+  // 이번 달 회차에 표시가 붙어 있는지
+  const _cur = SESS.filter(v => v.schedule_id === r.id)
+                   .map(splitMin).find(n => n > 0) || 0;
   $('ed_split').checked = !!_cur;
   $('ed_splitmin').value = String(_cur || 10);
   edmsg('', true); $('edMsg').className = 'out';
@@ -2289,18 +2289,25 @@ $('edSave').onclick = async () => {
     if (!confirm('이 치료사는 그 치료 담당이 아닙니다.\n그래도 옮길까요?')) return;
   }
 
-  // 이번 달 회차에 「4회 분산」 표시를 붙이거나 뗀다
+  // 이번 달 회차에 「발추 나눠 진행」 표시를 붙이거나 뗀다
+  // 화면이 들고 있는 목록이 아니라 표에서 직접 다시 읽는다 (빠지는 줄이 없게)
   const wantSp = $('ed_split').checked ? (Number($('ed_splitmin').value) || 10) : 0;
-  const mineS  = SESS.filter(v => v.schedule_id === edRow.id);
-  const nowSp  = mineS.map(splitMin).find(n => n > 0) || 0;
-  if (wantSp !== nowSp) {
-    for (const v of mineS) {
-      const clean = String(v.memo || '').replace(/\[분산\d+\]\s*/, '');
-      const nm2 = wantSp ? ('[분산' + wantSp + '] ' + clean).trim() : (clean || null);
-      const { error: e9 } = await sb.from('nl_sessions')
-        .update({ memo: nm2, updated_at: new Date().toISOString() }).eq('id', v.id);
-      if (e9) { edmsg('❌ 분산 표시를 바꾸지 못했습니다.\n' + e9.message, false); return; }
-      v.memo = nm2;
+  {
+    const { data: rows, error: eR } = await sb.from('nl_sessions')
+      .select('id, memo')
+      .eq('schedule_id', edRow.id).eq('month_key', mon).is('makeup_for', null);
+    if (eR) { edmsg('❌ 회차를 읽지 못했습니다.\n' + eR.message, false); return; }
+    const cur = (rows || []).map(splitMin).find(n => n > 0) || 0;
+    if (wantSp !== cur) {
+      for (const v of (rows || [])) {
+        const clean = String(v.memo || '').replace(/\[분산\d+\]\s*/, '');
+        const nm2 = wantSp ? ('[분산' + wantSp + '] ' + clean).trim() : (clean || null);
+        const { error: e9 } = await sb.from('nl_sessions')
+          .update({ memo: nm2, updated_at: new Date().toISOString() }).eq('id', v.id);
+        if (e9) { edmsg('❌ 표시를 바꾸지 못했습니다.\n' + e9.message, false); return; }
+        const local = SESS.find(z => z.id === v.id);
+        if (local) local.memo = nm2;
+      }
     }
   }
 
