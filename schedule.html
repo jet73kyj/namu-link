@@ -605,6 +605,20 @@
         </select>
       </div>
       <div>
+        <label for="mn_scd">어느 수업의 회차인가</label>
+        <select id="mn_scd"><option value="">회차로 안 셈 (그냥 보강)</option></select>
+        <div style="font-size:11.5px;color:#7a827d;margin-top:3px;">
+          고르면 그 수업의 <b>회수에 들어갑니다</b>. 발추 5회차는 여기서 고르세요.
+        </div>
+      </div>
+      <div>
+        <label for="mn_run">회차 번호</label>
+        <input id="mn_run" type="number" min="1" max="9" placeholder="예: 5">
+        <div style="font-size:11.5px;color:#7a827d;margin-top:3px;">
+          8-5 처럼 나옵니다. 비워두면 번호가 안 붙습니다.
+        </div>
+      </div>
+      <div>
         <label for="mn_memo">보강 사유</label>
         <input id="mn_memo" type="text" placeholder="예: 전월 미이행분">
         <div style="font-size:11.5px;color:#7a827d;margin-top:3px;">
@@ -2482,6 +2496,8 @@ function openMn(key){
   $('mn_pick').innerHTML = '';
   $('mn_tp').innerHTML = '<option value="">아동을 먼저 고르세요</option>';
   $('mn_sp').value = '';
+  $('mn_run').value = '';
+  $('mn_scd').innerHTML = '<option value="">회차로 안 셈 (그냥 보강)</option>';
   $('mn_memo').value = '';
   mnmsg('', true); $('mnMsg').className = 'out';
 
@@ -2515,6 +2531,12 @@ async function openMnEdit(sid){
     if (opt) $('mn_tp').value = opt.value;
   }
   if (x.support_type_id) $('mn_sp').value = String(x.support_type_id);
+  $('mn_run').value = x.run_no ? String(x.run_no) : '';
+  if (x.schedule_id) {
+    const o2 = Array.from($('mn_scd').options)
+      .find(o => String(o.value) === String(x.schedule_id));
+    if (o2) $('mn_scd').value = String(x.schedule_id);
+  }
   mnmsg('고치는 중입니다. 바꾼 뒤 「저장하기」를 누르세요.', true);
 }
 
@@ -2553,6 +2575,18 @@ async function pickMnKid(kid){
     '<option value="'+t.id+'_'+(t.support_type_id||'')+'">'
     + (STYPE[t.support_type_id] || '?') + ' · ' + (TTYPE[t.therapy_type_id] || '?')
     + (t.ended_on ? ' (' + t.ended_on + " 종료)" : '') + '</option>').join('');
+
+  // 그 아동의 수업요일 줄 — 회차로 셀 때 고른다
+  const tids = list.map(t => t.id);
+  const scds = ROWS_ALL.filter(r => tids.indexOf(r.therapy_id) >= 0);
+  $('mn_scd').innerHTML = '<option value="">회차로 안 셈 (그냥 보강)</option>'
+    + scds.map(r => {
+        const t2 = list.find(v => v.id === r.therapy_id);
+        return '<option value="' + r.id + '">'
+          + r.weekday + ' ' + String(r.start_time).slice(0,5) + ' · '
+          + (t2 ? (STYPE[t2.support_type_id] || '?') + ' ' + (TTYPE[t2.therapy_type_id] || '?') : '')
+          + '</option>';
+      }).join('');
 }
 
 $('mnSave').onclick = async () => {
@@ -2575,10 +2609,13 @@ $('mnSave').onclick = async () => {
 
   $('mnSave').disabled = true; $('mnSave').textContent = '저장 중...';
   try {
+    const scdv = $('mn_scd').value;
+    const runv = $('mn_run').value;
     const row = {
       child_id: mnKid.id,
       therapy_id: Number(tp[0]),
-      schedule_id: null,               // 매주 반복 수업이 아니다
+      // 요일줄을 고르면 그 수업의 회차로 세어진다. 안 고르면 그냥 보강
+      schedule_id: scdv ? Number(scdv) : null,
       month_key: mon,
       plan_date: d,
       therapist_id: mnKey.th,
@@ -2591,6 +2628,7 @@ $('mnSave').onclick = async () => {
 
     let data, error;
     if (fixing) {
+      row.run_no = runv ? Number(runv) : 0;
       ({ data, error } = await sb.from('nl_sessions')
         .update(row).eq('id', mnEditId).select().single());
       if (error) throw error;
@@ -2598,7 +2636,7 @@ $('mnSave').onclick = async () => {
       data._name = mnKid.name;
       if (i >= 0) SESS[i] = data; else SESS.push(data);
     } else {
-      row.run_no = 0;
+      row.run_no = runv ? Number(runv) : 0;
       row.status = '예정';
       ({ data, error } = await sb.from('nl_sessions')
         .insert(row).select().single());
