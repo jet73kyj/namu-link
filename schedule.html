@@ -772,12 +772,14 @@ function isMk(x){ return !!(x && x.makeup_for); }
 function isBlankRest(x){
   return x && x.status === '쉼' && !String(x.memo || '').trim();
 }
-// 회차 시각이 수업요일 줄에 적힌 시각과 다르면 그 시각을 돌려준다
-function tmDif(x, r){
-  if (!x || !r || !x.start_time || !r.start_time) return '';
+// 회차 시각이 그 칸의 교시 시각과 다르면 실제 시각을 돌려준다
+// (예: 15:00 수업은 15:10 칸에 놓이므로 15:00 이라고 알려준다)
+function tmDif(x){
+  if (!x || !x.start_time) return '';
   const a = String(x.start_time).slice(0,5);
-  const b = String(r.start_time).slice(0,5);
-  return (a === b) ? '' : '<span class="tmdif">' + a + '</span>';
+  const sl = nearest(toMin(x.start_time));
+  if (!sl || sl.hm === a) return '';
+  return '<span class="tmdif">' + a + '</span>';
 }
 // 치료 종류별 담당 치료사 (언어=1,2,3 / 작업·전산·감통=4,6,7 / 음악=5 / 일상=전원)
 const RULE = { 1:[1,2,3], 2:[4,6,7], 3:[4,6,7], 4:[4,6,7], 5:[5] };
@@ -1178,7 +1180,7 @@ function drawWeek(){
           list.forEach(r => {
             const sp  = 'sp' + (r.support_type_id || 0);
             const dur = (r.duration && Number(r.duration)!==40)
-                        ? ' <span class="dur">'+r.duration+'분</span>' : '';
+                        ? ' <span class="dur">('+r.duration+')</span>' : '';
             const _rl = (byScd[r.id] || []).filter(x => !isBlankRest(x));
             const _rh = _rl.map(x => {
               const cls = x.status==='완료' ? 'r-done'
@@ -1199,7 +1201,7 @@ function drawWeek(){
                 : ((r.support_type_id === 2 && x.run_no === 5)
                    ? '<span class="spadd">이</span>' : '');
               return '<div class="run '+cls+'" data-sid="'+x.id+'">'
-                + tmDif(x, r) + dif
+                + tmDif(x) + dif
                 + '<span class="dt">'+dayNo(x.plan_date)+'일'
                 + '<b class="no">'+monNo(mon)+'-'+x.run_no+'</b></span>'
                 + '<span class="brk"></span>'
@@ -1468,7 +1470,7 @@ function drawOne(){
       +  '<span class="ot">' + hm + '</span>'
       +  '<span class="on2">' + (sp ? sp + ' ' : '') + esc(nm)
       +  ((r && r.duration && Number(r.duration) !== 40)
-          ? ' <span class="dur">' + r.duration + '분</span>' : '')
+          ? ' <span class="dur">(' + r.duration + ')</span>' : '')
       +  '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span>'
       +  (MY_TH ? '' : '<span class="oth">' + esc(thMap[x.therapist_id] || thName(x.therapist_id)) + '</span>')
       +  '</span>'
@@ -1827,9 +1829,9 @@ function drawDay(){
             const cut = (x.status === '결석' || x.status === '휴무') ? ' ln-cut' : '';
             const spn = (x.support_type_id && x.support_type_id !== r.support_type_id)
               ? (STYPE[x.support_type_id] || '') : (STYPE[r.support_type_id] || '?');
-            const nm = tmDif(x, r) + spn + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name);
+            const nm = tmDif(x) + spn + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name);
             const dur = (r.duration && Number(r.duration) !== 40)
-                        ? ' <span class="dur">' + r.duration + '분</span>' : '';
+                        ? ' <span class="dur">(' + r.duration + ')</span>' : '';
 
             let tail;
             if (x.status === '쉼') {
