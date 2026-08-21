@@ -589,7 +589,7 @@
         <select id="mn_date"></select>
       </div>
       <div style="position:relative;">
-        <label for="mn_name">아동 (치료중)</label>
+        <label for="mn_name">아동 (치료중·대기중)</label>
         <input id="mn_name" type="text" autocomplete="off"
                placeholder="이름 두 글자만 쳐도 됩니다">
         <div id="mn_hits" class="hits"></div>
@@ -610,6 +610,7 @@
           <option value="5">5 방과후활동비</option>
           <option value="6">6 방과후치료지원(언어)</option>
           <option value="7">7 방과후치료지원(작업)</option>
+          <option value="9">9 평가</option>
         </select>
       </div>
       <div>
@@ -818,6 +819,7 @@ function splitMin(x){
   const m = String(x && x.memo || '').match(/\[분산(\d+)\]/);
   return m ? Number(m[1]) : 0;
 }
+let EVALS = [];   // 그 달 평가 일정 (nl_evaluations 에서 읽어 온다)
 let SPLIT = {};
 function buildSplit(){ SPLIT = {}; }
 // 회차에 붙는 +N 딱지 (수업 고치기 창에서 켠다)
@@ -1093,9 +1095,11 @@ function drawFind(){
   $('findRows').querySelectorAll('.run').forEach(el => {
     el.onclick = async (e) => {
       if (e.target.closest('.mkbtn')) return;
-      const id = Number(el.dataset.sid);
-      const s = SESS.find(x => x.id === id);
+      const _sid = el.dataset.sid;
+      const s = SESS.find(x => String(x.id) === String(_sid));
       if (!s) return;
+      if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
+      const id = Number(_sid);
       if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }
       const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
       // 직접 넣은 보강(요일줄 없음)은 완료 → 예정 → 결석 으로 돈다
@@ -1492,18 +1496,20 @@ function mnChip(x){
             : x.status==='결석' ? 'r-abs' : '';
   const rs = String(x.memo || '').replace(/^직접 보강 · ?/, '');
   return '<span class="chip r-mk">'
-    + '<span class="nm"><span class="mntag">보강</span>'
+    + '<span class="nm"><span class="mntag">' + (x._isEval ? '평가' : '보강') + '</span>'
     + (STYPE[x.support_type_id] || '') + ' ' + esc(x._name || '') + '</span>'
     + '<div class="run ' + cls + '" data-sid="' + x.id + '">'
     + '<span class="dt">' + dayNo(x.plan_date) + '일'
-    + (isPrevMn(x) ? '<b class="no">전월</b>' : '')
-    + (CAN_EDIT
+    + (x._isEval ? '<b class="no">평가</b>'
+        : (isPrevMn(x) ? '<b class="no">전월</b>' : ''))
+    + ((CAN_EDIT && !x._isEval)
         ? '<b class="no mnedit" data-mned="' + x.id + '" title="고치기">수정</b>'
         : '') + '</span>'
     + '<span class="brk"></span>'
     + '<span class="st">' + esc(x.status) + '</span></div>'
-    + '<div class="mnown">' + (rs ? esc(rs) : '직접 넣은 보강')
-    + (CAN_EDIT ? ' <span class="del" data-mndel="' + x.id + '">✕</span>' : '')
+    + '<div class="mnown">'
+    + (x._isEval ? '평가 관리에서 넣은 일정' : (rs ? esc(rs) : '직접 넣은 보강'))
+    + ((CAN_EDIT && !x._isEval) ? ' <span class="del" data-mndel="' + x.id + '">✕</span>' : '')
     + '</div></span>';
 }
 
@@ -2049,9 +2055,11 @@ $('gbody').addEventListener('click', async e => {
   if (free) { openAdd(free.dataset.add); return; }
   const el = e.target.closest('.run, .ln[data-sid]');
   if (!el) return;
-  const id = Number(el.dataset.sid);
-  const s  = SESS.find(x => x.id === id);
+  const _sid = el.dataset.sid;
+  const s  = SESS.find(x => String(x.id) === String(_sid));
   if (!s) return;
+  if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
+  const id = Number(_sid);
   // 보강 줄은 눌러서 완료·결석으로 바꾼다 (창을 열려면 옆의 ✕)
   if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }   // 휴무·쉼은 상태를 안 바꾸고 보강창을 연다
 
@@ -2668,10 +2676,13 @@ async function openMnEdit(sid){
 $('mn_name').oninput = () => {
   const q = $('mn_name').value.trim();
   if (q.length < 1) { $('mn_hits').innerHTML=''; return; }
-  const hit = KIDS.filter(k => k.status === '치료중' && (k.name||'').includes(q)).slice(0, 8);
+  // 치료중 · 대기중 둘 다 찾는다 (평가만 받는 아동은 대기중이므로)
+  const hit = KIDS.filter(k => (k.status === '치료중' || k.status === '대기중')
+                          && (k.name||'').includes(q)).slice(0, 8);
   $('mn_hits').innerHTML = hit.length
-    ? hit.map(k => '<span class="hit" data-mnk="'+k.id+'">'+esc(k.name)+'</span>').join('')
-    : '<span class="hit">치료중 아동 중에 없습니다</span>';
+    ? hit.map(k => '<span class="hit" data-mnk="'+k.id+'">'+esc(k.name)
+        + ' <span style="color:#7a827d;font-size:11px;">'+esc(k.status)+'</span></span>').join('')
+    : '<span class="hit">치료중·대기중 아동 중에 없습니다</span>';
   $('mn_hits').querySelectorAll('.hit[data-mnk]').forEach(el => {
     el.onclick = () => pickMnKid(Number(el.dataset.mnk));
   });
@@ -2683,7 +2694,8 @@ async function pickMnKid(kid){
   mnKid = k;
   $('mn_hits').innerHTML = '';
   $('mn_name').value = k.name;
-  $('mn_pick').innerHTML = '고른 아동 — <b>' + esc(k.name) + '</b>';
+  $('mn_pick').innerHTML = '고른 아동 — <b>' + esc(k.name) + '</b>'
+    + ' <span style="color:#7a827d;">(' + esc(k.status) + ')</span>';
 
   // 그 아동의 치료 목록 (끝난 것도 보여준다)
   $('mn_tp').innerHTML = '<option value="">불러오는 중...</option>';
@@ -2692,7 +2704,10 @@ async function pickMnKid(kid){
     .eq('child_id', kid).order('id');
   const list = data || [];
   if (!list.length) {
-    $('mn_tp').innerHTML = '<option value="">이 아동은 치료 기록이 없습니다</option>';
+    // 치료 기록이 없는 아동(평가만 받는 대기중 아동)도 넣을 수 있게 한다
+    $('mn_tp').innerHTML = '<option value="0_9">평가 (치료 기록 없음)</option>';
+    $('mn_scd').innerHTML = '<option value="">회차로 안 셈 (그냥 보강)</option>';
+    $('mn_sp').value = '9';
     return;
   }
   $('mn_tp').innerHTML = list.map(t =>
@@ -2720,6 +2735,7 @@ $('mnSave').onclick = async () => {
   if (!d) { mnmsg('날짜를 고르세요.', false); return; }
   const tv = $('mn_tp').value;
   if (!tv) { mnmsg('치료를 고르세요.', false); return; }
+  if (tv === '0_9' && !$('mn_sp').value) $('mn_sp').value = '9';
   const tp = tv.split('_');
   const why = $('mn_memo').value.trim();
 
@@ -2737,7 +2753,7 @@ $('mnSave').onclick = async () => {
     const runv = $('mn_run').value;
     const row = {
       child_id: mnKid.id,
-      therapy_id: Number(tp[0]),
+      therapy_id: Number(tp[0]) || null,
       // 요일줄을 고르면 그 수업의 회차로 세어진다. 안 고르면 그냥 보강
       schedule_id: scdv ? Number(scdv) : null,
       month_key: mon,
@@ -3185,9 +3201,48 @@ async function loadMonth(){
     if (isMk(s) && String(s.plan_date).slice(0,7) === mon) SESS.push(s);
   });
 
+  // 평가 일정도 시간표에 얹는다 (nl_evaluations 는 따로 있는 표라 회차가 아니다)
+  EVALS = [];
+  try {
+    const { data: ev } = await sb.from('nl_evaluations')
+      .select('id, child_id, eval_date, eval_time, eval_type_id, therapist_id, status')
+      .gte('eval_date', mon + '-01').lte('eval_date', monEnd(mon));
+    (ev || []).forEach(function(e){
+      if (!e.eval_date || !e.eval_time) return;
+      if (MY_TH && e.therapist_id !== MY_TH) return;
+      EVALS.push({
+        id: 'E' + e.id,               // 회차와 안 섞이게 앞에 E 를 붙인다
+        _evalId: e.id,
+        child_id: e.child_id,
+        therapy_id: null,
+        schedule_id: null,
+        month_key: mon,
+        run_no: 0,
+        plan_date: e.eval_date,
+        start_time: e.eval_time,
+        status: e.status || '예정',
+        therapist_id: e.therapist_id,
+        makeup_for: null,
+        support_type_id: 9,           // 9 = 평가
+        memo: '평가',
+        _isEval: true
+      });
+    });
+  } catch (e) { EVALS = []; }
+  SESS = SESS.concat(EVALS);
+
   const nameOf = {}; ROWS.forEach(r => nameOf[r._cid] = r._name);
   SESS.forEach(s => s._name = nameOf[s.child_id] || '');
   PREV.forEach(s => s._name = nameOf[s.child_id] || '');
+
+  // 수업 기록이 없는 아동(평가만 받는 대기중 아동)은 이름표에 없으므로 따로 채운다
+  const need = SESS.filter(s => !s._name).map(s => s.child_id);
+  if (need.length) {
+    const { data: kk } = await sb.from('nl_children')
+      .select('id, name').in('id', Array.from(new Set(need)));
+    const n2 = {}; (kk || []).forEach(k => n2[k.id] = k.name);
+    SESS.forEach(s => { if (!s._name) s._name = n2[s.child_id] || ''; });
+  }
 }
 
 async function afterLogin(user){
