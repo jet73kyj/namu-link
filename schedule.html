@@ -679,7 +679,9 @@
         </div>
         <div style="font-size:11.5px;color:#8a6116;margin-top:5px;line-height:1.6;">
           발추 1회를 따로 잡을 자리가 없어 정규 수업에 나눠 진행할 때 씁니다.<br>
-          <b>이번 달 회차에만</b> 적용되고, 시간표에 <b>+10</b> 딱지가 붙습니다.
+          <b>이번 달 회차에만</b> 적용됩니다. 시간표에 <b>+10</b> 딱지가 붙고,<br>
+          발추 1회기가 <b>급여·회수에 자동으로 들어갑니다</b>
+          (시간표에는 안 보이는 줄이 하나 만들어집니다).
         </div>
       </div>
       <div>
@@ -814,8 +816,11 @@ let mnEditId = null;   // 직접보강 고치는 중인 줄 번호 (없으면 �
 // 메모에 '전월' 이 적혀 있으면 지난달 수업으로 본다 (회차 번호 대신 '전월' 표기)
 function isPrevMn(x){ return /전월/.test(String(x && x.memo || '')); }
 function isMk(x){ return !!(x && x.makeup_for); }
+// 「나눠 진행」으로 자동으로 만든 발추 5회차 줄 — 시간표에서는 감춘다
+function isSplitRun(x){ return /\[분산5회\]/.test(String(x && x.memo || '')); }
 // 「4회에 나눠서 진행」으로 넣은 줄 — 메모에 [분산N] 이 붙는다
 function splitMin(x){
+  if (isSplitRun(x)) return 0;                 // 자동으로 만든 발추 줄은 딱지 대상이 아니다
   const m = String(x && x.memo || '').match(/\[분산(\d+)\]/);
   return m ? Number(m[1]) : 0;
 }
@@ -1260,7 +1265,7 @@ function drawWeek(){
             const sp  = 'sp' + (r.support_type_id || 0);
             const dur = (r.duration && Number(r.duration)!==40)
                         ? ' <span class="dur">('+r.duration+')</span>' : '';
-            const _rl = (byScd[r.id] || []).filter(x => !isBlankRest(x));
+            const _rl = (byScd[r.id] || []).filter(x => !isBlankRest(x) && !isSplitRun(x));
             const _rh = _rl.map(x => {
               const cls = x.status==='완료' ? 'r-done'
                         : x.status==='결석' ? 'r-abs'
@@ -1542,7 +1547,7 @@ function drawOne(){
   const rowOf = {};
   ROWS_ALL.forEach(r => { rowOf[r.id] = r; });
 
-  const list = SESS.filter(x => x.plan_date === oneDate)
+  const list = SESS.filter(x => x.plan_date === oneDate && !isSplitRun(x))
     .slice().sort((a,b) => {
       const t = String(a.start_time||'').localeCompare(String(b.start_time||''));
       if (t) return t;
@@ -1847,6 +1852,7 @@ function drawDay(){
 
           list.forEach(r => {
             (byScd[r.id] || []).forEach(x => {
+              if (isSplitRun(x)) return;   // 나눠 진행하는 발추 줄은 감춘다
               lines.push({ d: String(x.plan_date), kind: 'run', r: r, x: x });
             });
           });
@@ -2230,8 +2236,10 @@ async function makeRuns(){
 // 예정인 것만 지우고 다시 깐다. 완료·결석·휴무·보강은 그대로 둔다
 async function refreshRuns(scheduleId){
   try {
+    // 나눠 진행하는 발추 줄([분산5회])은 지우지 않는다
     await sb.from('nl_sessions').delete()
-      .eq('schedule_id', scheduleId).eq('month_key', mon).eq('status', '예정');
+      .eq('schedule_id', scheduleId).eq('month_key', mon).eq('status', '예정')
+      .not('memo', 'like', '%[분산5회]%');
     await sb.rpc('nl_make_sessions', { p_month: mon });
     await loadMonth();
     return true;
@@ -2289,10 +2297,15 @@ $('edClose').onclick = () => { $('edBox').style.display='none'; edRow=null; };
 // ⚠️ 회차를 다시 깐 뒤에 불러야 한다. 그래야 새로 생긴 줄도 챙긴다
 async function applySplit(schedId, minutes){
   const { data: rows, error } = await sb.from('nl_sessions')
-    .select('id, memo')
+    .select('id, child_id, therapy_id, plan_date, start_time, therapist_id, status, memo')
     .eq('schedule_id', schedId).eq('month_key', mon).is('makeup_for', null);
   if (error) return error.message;
-  for (const v of (rows || [])) {
+
+  const norm = (rows || []).filter(v => !isSplitRun(v));   // 정규 회차
+  const auto = (rows || []).filter(v =>  isSplitRun(v));   // 자동으로 만든 발추 줄
+
+  // (1) 정규 회차에 +N 딱지를 붙이거나 뗀다
+  for (const v of norm) {
     const clean = String(v.memo || '').replace(/\[분산\d+\]\s*/, '');
     const nm2 = minutes ? ('[분산' + minutes + '] ' + clean).trim() : (clean || null);
     if (String(v.memo || '') === String(nm2 || '')) continue;
@@ -2301,6 +2314,57 @@ async function applySplit(schedId, minutes){
     if (e9) return e9.message;
     const local = SESS.find(z => z.id === v.id);
     if (local) local.memo = nm2;
+  }
+
+  // (2) 발추 5회차 줄 — 체크했으면 만들고, 풀었으면 지운다
+  if (!minutes) {
+    if (auto.length) {
+      const ids = auto.map(v => v.id);
+      const { error: eD } = await sb.from('nl_sessions').delete().in('id', ids);
+      if (eD) return eD.message;
+      SESS = SESS.filter(z => ids.indexOf(z.id) < 0);
+    }
+    return true;
+  }
+
+  if (!norm.length) return '이 달 회차가 없어 발추 줄을 만들지 못했습니다.';
+
+  // 마지막 수업일에 놓는다. 4회가 다 끝났으면 완료로
+  const last = norm.slice().sort((a,b) =>
+    String(a.plan_date).localeCompare(String(b.plan_date))).pop();
+  const allDone = norm.every(v => v.status === '완료');
+  const row = {
+    child_id:        last.child_id,
+    therapy_id:      last.therapy_id,
+    schedule_id:     schedId,
+    month_key:       mon,
+    run_no:          5,
+    plan_date:       last.plan_date,
+    start_time:      last.start_time,
+    status:          allDone ? '완료' : '예정',
+    therapist_id:    last.therapist_id,
+    makeup_for:      null,
+    support_type_id: 8,
+    memo:            '[분산5회] 정규 4회에 ' + minutes + '분씩 나눠 진행'
+  };
+
+  if (auto.length) {
+    const keep = auto[0];
+    const { data: up, error: eU } = await sb.from('nl_sessions')
+      .update(row).eq('id', keep.id).select().single();
+    if (eU) return eU.message;
+    const i = SESS.findIndex(z => z.id === keep.id);
+    if (i >= 0) SESS[i] = Object.assign({}, SESS[i], up); else SESS.push(up);
+    if (auto.length > 1) {
+      const extra = auto.slice(1).map(v => v.id);
+      await sb.from('nl_sessions').delete().in('id', extra);
+      SESS = SESS.filter(z => extra.indexOf(z.id) < 0);
+    }
+  } else {
+    const { data: ins, error: eI } = await sb.from('nl_sessions')
+      .insert(row).select().single();
+    if (eI) return eI.message;
+    SESS.push(ins);
   }
   return true;
 }
