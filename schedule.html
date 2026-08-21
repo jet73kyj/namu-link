@@ -118,6 +118,7 @@
   .ln .s { margin-left:auto; font-weight:bold; font-size:11px; }
   /* 날짜+이름을 한 줄로, 나머지를 다음 줄로 민다 */
   .ln .brk { flex-basis:100%; height:0; }
+  .rno { font-weight:800; font-size:11.5px; color:#33691e; margin-left:5px; }
   .ln-done { background:#e8f5e9; color:#1b5e20; }
   .ln-abs  { background:#d9dcda; color:#232823; }
   .ln-off  { background:#c8ccc9; color:#232823; }
@@ -1450,6 +1451,7 @@ function drawOne(){
     h += '<div class="oneli ' + cls + '" data-sid="' + x.id + '">'
       +  '<span class="ot">' + hm + '</span>'
       +  '<span class="on2">' + (sp ? sp + ' ' : '') + esc(nm)
+      +  '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span>'
       +  (MY_TH ? '' : '<span class="oth">' + esc(thMap[x.therapist_id] || thName(x.therapist_id)) + '</span>')
       +  '</span>'
       +  '<span class="os">' + st + '</span>'
@@ -1785,7 +1787,8 @@ function drawDay(){
                 : '직접';
               html += '<div class="ln ln-mk" data-sid="' + x.id + '">'
                 + '<span class="d">' + day + '</span>'
-                + '<span class="n">🔁 ' + nm + '</span>'
+                + '<span class="n">🔁 ' + nm
+                + '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span></span>'
                 + '<span class="brk"></span>'
                 + '<span class="go">' + tag + '</span>'
                 + '<span class="s">' + x.status + '</span>'
@@ -1834,7 +1837,8 @@ function drawDay(){
               + ' data-kid="' + esc(r._name || '') + '"'
               + ' data-cid="' + (r._cid || '') + '">'
               + '<span class="d">' + day + '</span>'
-              + '<span class="n' + cut + '">' + nm + dur + '</span>'
+              + '<span class="n' + cut + '">' + nm + dur
+              + '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span></span>'
               + '<span class="brk"></span>'
               + tail + ed + '</div>';
           });
