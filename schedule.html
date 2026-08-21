@@ -2809,7 +2809,8 @@ $('mkFind').onclick = () => {
     el.onclick = () => {
       $('mk_date').value = el.dataset.d;
       $('mk_slot').value = el.dataset.s;
-      mkmsg('자리를 골랐습니다. 아래 보강 잡기를 누르세요.', true);
+      $('mkFree').innerHTML = '';
+      mkmsg('자리를 골랐습니다. 아래 「저장하기」를 누르세요.', true);
     };
   });
 };
