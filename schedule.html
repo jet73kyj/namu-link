@@ -280,6 +280,10 @@
   .mnmore { margin-top:4px; opacity:.75; }
   .mkfix { margin-left:5px; color:#c62828; cursor:pointer; font-weight:bold; font-size:11px; }
   .mnedit { cursor:pointer; text-decoration:underline; }
+  .sptag { display:inline-block; margin-left:4px; padding:0 5px; font-size:10.5px;
+           font-weight:800; color:#8a6116; background:#fff8e1;
+           border:1px solid #f0c36d; border-radius:3px; cursor:pointer; }
+  .sptag:hover { background:#ffe9a8; }
   .addbtn { display:block; width:100%; margin:0 0 4px; padding:2px 4px; font-size:10.5px;
             background:#fff; color:#33691e; border:1px dashed #9ccc65;
             border-radius:3px; cursor:pointer; }
@@ -622,6 +626,22 @@
           8-5 처럼 나옵니다. 비워두면 번호가 안 붙습니다.
         </div>
       </div>
+      <div style="grid-column:1 / -1;background:#fff8e1;border:1px solid #f0c36d;
+           border-radius:6px;padding:9px 11px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="mn_split" type="checkbox" style="width:auto;margin:0;">
+          <span>4회에 나눠서 진행</span>
+        </label>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12.5px;">나눈 시간</span>
+          <input id="mn_splitmin" type="number" min="1" max="60" value="10"
+                 style="width:70px;"> <span style="font-size:12.5px;">분</span>
+        </div>
+        <div style="font-size:11.5px;color:#8a6116;margin-top:5px;line-height:1.6;">
+          체크하면 이 줄은 시간표에서 감춰지고, 그 달 정규 회차에 <b>+10</b> 딱지가 붙습니다.<br>
+          딱지를 누르면 이 창이 다시 열립니다. (5주차인 달은 체크하지 마세요)
+        </div>
+      </div>
       <div>
         <label for="mn_memo">보강 사유</label>
         <input id="mn_memo" type="text" placeholder="예: 전월 미이행분">
@@ -793,6 +813,29 @@ let mnEditId = null;   // 직접보강 고치는 중인 줄 번호 (없으면 �
 // 메모에 '전월' 이 적혀 있으면 지난달 수업으로 본다 (회차 번호 대신 '전월' 표기)
 function isPrevMn(x){ return /전월/.test(String(x && x.memo || '')); }
 function isMk(x){ return !!(x && x.makeup_for); }
+// 「4회에 나눠서 진행」으로 넣은 줄 — 메모에 [분산N] 이 붙는다
+function splitMin(x){
+  const m = String(x && x.memo || '').match(/\[분산(\d+)\]/);
+  return m ? Number(m[1]) : 0;
+}
+// 그 달에 나눠 진행하는 수업 목록 (아동_치료 -> {min, id})
+let SPLIT = {};
+function buildSplit(){
+  SPLIT = {};
+  SESS.forEach(function(s){
+    const n = splitMin(s);
+    if (!n) return;
+    SPLIT[s.child_id + '_' + s.therapy_id] = { min: n, id: s.id };
+  });
+}
+// 정규 회차에 붙는 +N 딱지
+function splitTag(x){
+  if (!x || !x.therapy_id || splitMin(x)) return '';
+  const v = SPLIT[x.child_id + '_' + x.therapy_id];
+  if (!v) return '';
+  return '<b class="sptag" data-splid="' + v.id + '" title="눌러서 고치기">+'
+       + v.min + '</b>';
+}
 // 사유가 안 적힌 '쉼' — 원래 수업이 없는 주차로 보고 화면에 안 그린다
 function isBlankRest(x){
   return x && x.status === '쉼' && !String(x.memo || '').trim();
@@ -1147,6 +1190,7 @@ $('findJump').onclick = () => jumpTo(hitAt + 1);
 
 // ===== 치료사별 주간 보기 =====
 function drawWeek(){
+  buildSplit();
   const th = Number($('wkTh').value) || (THS[0] ? THS[0].id : 0);
   const t  = THS_ALL.find(x => x.id === th);
   const mine = ROWS.filter(r => r.therapist_id === th);
@@ -1221,7 +1265,7 @@ function drawWeek(){
             const sp  = 'sp' + (r.support_type_id || 0);
             const dur = (r.duration && Number(r.duration)!==40)
                         ? ' <span class="dur">('+r.duration+')</span>' : '';
-            const _rl = (byScd[r.id] || []).filter(x => !isBlankRest(x));
+            const _rl = (byScd[r.id] || []).filter(x => !isBlankRest(x) && !splitMin(x));
             const _rh = _rl.map(x => {
               const cls = x.status==='완료' ? 'r-done'
                         : x.status==='결석' ? 'r-abs'
@@ -1243,7 +1287,8 @@ function drawWeek(){
               return '<div class="run '+cls+'" data-sid="'+x.id+'">'
                 + tmDif(x) + dif
                 + '<span class="dt">'+dayNo(x.plan_date)+'일'
-                + '<b class="no">'+monNo(mon)+'-'+x.run_no+'</b></span>'
+                + '<b class="no">'+monNo(mon)+'-'+x.run_no+'</b>'
+                + splitTag(x) + '</span>'
                 + '<span class="brk"></span>'
                 + tail + '</div>';
             });
@@ -1493,13 +1538,14 @@ function oneDefault(){
 }
 
 function drawOne(){
+  buildSplit();
   if (!oneDate || String(oneDate).slice(0,7) !== mon) oneDate = oneDefault();
   $('oneDay').textContent = dayNo(oneDate) + '일 (' + wdOf(oneDate) + ')';
 
   const rowOf = {};
   ROWS_ALL.forEach(r => { rowOf[r.id] = r; });
 
-  const list = SESS.filter(x => x.plan_date === oneDate)
+  const list = SESS.filter(x => x.plan_date === oneDate && !splitMin(x))
     .slice().sort((a,b) => {
       const t = String(a.start_time||'').localeCompare(String(b.start_time||''));
       if (t) return t;
@@ -1534,6 +1580,7 @@ function drawOne(){
       +  '<span class="on2">' + (sp ? sp + ' ' : '') + esc(nm)
       +  ((r && r.duration && Number(r.duration) !== 40)
           ? ' <span class="dur">(' + r.duration + ')</span>' : '')
+      +  splitTag(x)
       +  '<span class="rno">'
       +  (isPrevMn(x) ? '전월'
           : (!x.schedule_id && !x.run_no) ? ''
@@ -1664,6 +1711,7 @@ function draw(){
 function afterDraw(){ if ($('findName').value.trim()) markFind(); }
 
 function drawDay(){
+  buildSplit();
   // 회차 전체 (모자란 회차 계산용)
   const byScdAll = {};
   SESS.forEach(s => {
@@ -1802,6 +1850,7 @@ function drawDay(){
 
           list.forEach(r => {
             (byScd[r.id] || []).forEach(x => {
+              if (splitMin(x)) return;   // 나눠 진행하는 줄은 감춘다
               lines.push({ d: String(x.plan_date), kind: 'run', r: r, x: x });
             });
           });
@@ -1939,7 +1988,8 @@ function drawDay(){
               + ' data-cid="' + (r._cid || '') + '">'
               + '<span class="d">' + day + '</span>'
               + '<span class="n' + cut + '">' + nm + dur
-              + '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span></span>'
+              + '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span>'
+              + splitTag(x) + '</span>'
               + '<span class="brk"></span>'
               + tail + ed + '</div>';
           });
@@ -1990,6 +2040,9 @@ $('gbody').addEventListener('click', async e => {
   if (mkb) { e.stopPropagation(); openMk(Number(mkb.dataset.mk)); return; }
   // 보강 줄의 ✕ — 보강 창을 연다 (날짜 바꾸기·보강 취소)
   // 직접 넣은 보강의 「수정」 — 고치기 창을 연다
+  // +N 딱지 — 나눠 진행하는 줄의 창을 연다
+  const spl = e.target.closest('[data-splid]');
+  if (spl) { e.stopPropagation(); openMnEdit(Number(spl.dataset.splid)); return; }
   const mne = e.target.closest('[data-mned]');
   if (mne) { e.stopPropagation(); openMnEdit(Number(mne.dataset.mned)); return; }
   const mkf = e.target.closest('[data-mkfix]');
@@ -2542,6 +2595,8 @@ function openMn(key){
   $('mn_tp').innerHTML = '<option value="">아동을 먼저 고르세요</option>';
   $('mn_sp').value = '';
   $('mn_run').value = '';
+  $('mn_split').checked = false;
+  $('mn_splitmin').value = '10';
   $('mn_scd').innerHTML = '<option value="">회차로 안 셈 (그냥 보강)</option>';
   $('mn_memo').value = '';
   mnmsg('', true); $('mnMsg').className = 'out';
@@ -2568,7 +2623,8 @@ async function openMnEdit(sid){
     + (t ? t.name : '') + ' — 직접 보강 고치기';
 
   $('mn_date').value = x.plan_date;
-  $('mn_memo').value = String(x.memo || '').replace(/^직접 보강 · ?/, '');
+  $('mn_memo').value = String(x.memo || '')
+    .replace(/\[분산\d+\]\s*/, '').replace(/^직접 보강 · ?/, '');
   await pickMnKid(x.child_id);
   if (x.therapy_id) {
     const opt = Array.from($('mn_tp').options)
@@ -2577,6 +2633,9 @@ async function openMnEdit(sid){
   }
   if (x.support_type_id) $('mn_sp').value = String(x.support_type_id);
   $('mn_run').value = x.run_no ? String(x.run_no) : '';
+  const _sm = splitMin(x);
+  $('mn_split').checked = !!_sm;
+  $('mn_splitmin').value = String(_sm || 10);
   if (x.schedule_id) {
     const o2 = Array.from($('mn_scd').options)
       .find(o => String(o.value) === String(x.schedule_id));
@@ -2668,7 +2727,9 @@ $('mnSave').onclick = async () => {
       makeup_for: null,                // 메울 결석 회차가 없다
       support_type_id: ($('mn_sp').value ? Number($('mn_sp').value)
                       : (tp[1] ? Number(tp[1]) : null)),
-      memo: '직접 보강' + (why ? ' · ' + why : '')
+      memo: ($('mn_split').checked
+              ? '[분산' + (Number($('mn_splitmin').value) || 10) + '] ' : '')
+            + '직접 보강' + (why ? ' · ' + why : '')
     };
 
     let data, error;
