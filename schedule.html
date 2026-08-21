@@ -1413,7 +1413,10 @@ function mnChip(x){
     + (STYPE[x.support_type_id] || '') + ' ' + esc(x._name || '') + '</span>'
     + '<div class="run ' + cls + '" data-sid="' + x.id + '">'
     + '<span class="dt">' + dayNo(x.plan_date) + '일'
-    + '<b class="no">' + (isPrevMn(x) ? '전월' : '직접') + '</b></span>'
+    + (isPrevMn(x) ? '<b class="no">전월</b>' : '')
+    + (CAN_EDIT
+        ? '<b class="no mnedit" data-mned="' + x.id + '" title="고치기">수정</b>'
+        : '') + '</span>'
     + '<span class="brk"></span>'
     + '<span class="st">' + esc(x.status) + '</span></div>'
     + '<div class="mnown">' + (rs ? esc(rs) : '직접 넣은 보강')
@@ -1486,7 +1489,7 @@ function drawOne(){
           ? ' <span class="dur">(' + r.duration + ')</span>' : '')
       +  '<span class="rno">'
       +  (isPrevMn(x) ? '전월'
-          : (!x.schedule_id && !x.run_no) ? '직접'
+          : (!x.schedule_id && !x.run_no) ? ''
           : monNo(mon) + '-' + x.run_no) + '</span>'
       +  (MY_TH ? '' : '<span class="oth">' + esc(thMap[x.therapist_id] || thName(x.therapist_id)) + '</span>')
       +  '</span>'
@@ -1827,14 +1830,15 @@ function drawDay(){
                 + '<span class="n">🔁 ' + nm
                 + '<span class="rno">'
                 + (isPrevMn(x) ? '전월'
-                   : (L2.kind === 'mn' && !x.run_no) ? '직접'
+                   : (L2.kind === 'mn' && !x.run_no) ? ''
                    : monNo(mon) + '-' + x.run_no) + '</span></span>'
                 + '<span class="brk"></span>'
                 + '<span class="go">' + tag + '</span>'
                 + '<span class="s">' + x.status + '</span>'
                 + (CAN_EDIT
                     ? ((L2.kind === 'mn')
-                        ? '<button class="lnedit" data-mndel="' + x.id + '">✕</button>'
+                        ? '<button class="lnedit" data-mned="' + x.id + '" title="고치기">수정</button>'
+                          + '<button class="lnedit" data-mndel="' + x.id + '">✕</button>'
                         : '<button class="lnedit" data-mkfix="' + x.id + '">✕</button>')
                     : '')
                 + '</div>';
@@ -1929,6 +1933,9 @@ $('gbody').addEventListener('click', async e => {
   const mkb = e.target.closest('.mkbtn');
   if (mkb) { e.stopPropagation(); openMk(Number(mkb.dataset.mk)); return; }
   // 보강 줄의 ✕ — 보강 창을 연다 (날짜 바꾸기·보강 취소)
+  // 직접 넣은 보강의 「수정」 — 고치기 창을 연다
+  const mne = e.target.closest('[data-mned]');
+  if (mne) { e.stopPropagation(); openMnEdit(Number(mne.dataset.mned)); return; }
   const mkf = e.target.closest('[data-mkfix]');
   if (mkf) {
     e.stopPropagation();
