@@ -2006,10 +2006,11 @@ $('gbody').addEventListener('click', async e => {
   if (nx === '쉼') {
     const why = prompt('쉬는 사유를 적으세요.\n'
       + '(예: 모 출산 / 입원 / 가족 여행)\n\n'
-      + '비워두면 「원래 수업이 없는 주차」로 보고 화면에서 감춥니다.',
+      + '⚠️ 사유를 안 적으면 쉼으로 바꾸지 않습니다.',
       String(s.memo || '').trim());
-    if (why === null) return;              // 취소
-    upd.memo = why.trim() || null;
+    if (why === null) return;                 // 취소
+    if (!why.trim()) return;                  // 사유 없으면 안 바꾼다
+    upd.memo = why.trim();
   } else if (s.status === '쉼') {
     upd.memo = null;                        // 쉼을 풀면 사유도 지운다
   }
