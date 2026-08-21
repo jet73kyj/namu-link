@@ -2236,10 +2236,12 @@ async function makeRuns(){
 // 예정인 것만 지우고 다시 깐다. 완료·결석·휴무·보강은 그대로 둔다
 async function refreshRuns(scheduleId){
   try {
-    // 나눠 진행하는 발추 줄([분산5회])은 지우지 않는다
-    await sb.from('nl_sessions').delete()
-      .eq('schedule_id', scheduleId).eq('month_key', mon).eq('status', '예정')
-      .not('memo', 'like', '%[분산5회]%');
+    // 예정 회차만 지운다. 나눠 진행하는 발추 줄([분산5회])은 남긴다
+    const { data: olds } = await sb.from('nl_sessions')
+      .select('id, memo')
+      .eq('schedule_id', scheduleId).eq('month_key', mon).eq('status', '예정');
+    const kill = (olds || []).filter(v => !isSplitRun(v)).map(v => v.id);
+    if (kill.length) await sb.from('nl_sessions').delete().in('id', kill);
     await sb.rpc('nl_make_sessions', { p_month: mon });
     await loadMonth();
     return true;
@@ -2390,8 +2392,9 @@ $('edSave').onclick = async () => {
     if (!confirm('요일·시간이 바뀝니다.\n\n'
       + '· ' + oldWd + '요일 ' + oldHm + '  →  ' + nw + '요일 ' + slot.hm + '\n\n'
       + monNo(mon) + '월부터 바뀌고, 지난 달 시간표는 그대로 남습니다.\n계속할까요?')) return;
+    const scId0 = edRow.id;
     await changeFromThisMonth(nw, slot, th, du);
-    if (edRow) await applySplit(edRow.id, wantSp);
+    await applySplit(scId0, wantSp);
     draw();
     return;
   }
@@ -2431,17 +2434,23 @@ $('edSave').onclick = async () => {
       .eq('schedule_id', edRow.id).gte('plan_date', today).neq('status','보강');
 
     // 회차를 새로 맞춘다 (예정만 다시 깔고 완료·결석·휴무·보강은 그대로)
-    const rr = await refreshRuns(edRow.id);
+    // ⚠️ refreshRuns 안에서 자료를 다시 읽으므로 edRow 가 바뀔 수 있다.
+    //    그래서 번호를 미리 붙잡아 둔다.
+    const scId = edRow.id;
+    const rr = await refreshRuns(scId);
 
     // 회차를 다시 깐 뒤에 표시를 붙인다 (새로 생긴 줄도 챙기려고)
-    const sp = await applySplit(edRow.id, wantSp);
+    const sp = await applySplit(scId, wantSp);
     if (sp !== true) { edmsg('⚠️ 저장은 됐으나 +' + wantSp
       + ' 표시를 붙이지 못했습니다.\n' + sp, false); draw(); return; }
 
-    edmsg(rr === true
+    edmsg((rr === true
       ? '✅ 저장했습니다. 이 달 회차도 새로 맞췄습니다.\n'
         + '완료·결석·휴무·보강으로 표시한 것은 그대로 뒀습니다.'
-      : '✅ 저장했습니다. 다만 회차를 새로 맞추지 못했습니다.\n' + rr, true);
+      : '✅ 저장했습니다. 다만 회차를 새로 맞추지 못했습니다.\n' + rr)
+      + (wantSp
+          ? '\n＋' + wantSp + ' 딱지를 붙이고, 발추 1회차를 만들었습니다.'
+          : '\n나눠 진행 표시는 꺼져 있습니다.'), true);
     draw();
   } catch (e) {
     edmsg('❌ 옮기지 못했습니다.\n' + e.message, false);
