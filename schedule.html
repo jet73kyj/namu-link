@@ -2718,7 +2718,8 @@ function openMk(absId){
   const old = (km !== mon);
   $('mkTitle').textContent = (s._name||'') + ' · ' + monNo(km)+'-'+s.run_no
     + ' (' + (old ? monNo(km) + '월 ' : '') + dayNo(s.plan_date) + '일 '
-    + (s.status === '휴무' ? '휴무' : '결석') + ') 보강'
+    + String(s.start_time).slice(0,5) + ' '
+    + (s.status === '휴무' ? '휴무' : s.status === '쉼' ? '쉼' : '결석') + ') 보강'
     + (old ? ' — ' + monNo(km) + '월분을 ' + monNo(mon) + '월에 잡습니다' : '');
   $('mk_date').value = has ? has.plan_date : '';
   $('mk_slot').value = has ? String(nearest(toMin(has.start_time)).no)
