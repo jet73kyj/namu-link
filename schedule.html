@@ -2297,17 +2297,16 @@ $('edSave').onclick = async () => {
       .select('id, memo')
       .eq('schedule_id', edRow.id).eq('month_key', mon).is('makeup_for', null);
     if (eR) { edmsg('❌ 회차를 읽지 못했습니다.\n' + eR.message, false); return; }
-    const cur = (rows || []).map(splitMin).find(n => n > 0) || 0;
-    if (wantSp !== cur) {
-      for (const v of (rows || [])) {
-        const clean = String(v.memo || '').replace(/\[분산\d+\]\s*/, '');
-        const nm2 = wantSp ? ('[분산' + wantSp + '] ' + clean).trim() : (clean || null);
-        const { error: e9 } = await sb.from('nl_sessions')
-          .update({ memo: nm2, updated_at: new Date().toISOString() }).eq('id', v.id);
-        if (e9) { edmsg('❌ 표시를 바꾸지 못했습니다.\n' + e9.message, false); return; }
-        const local = SESS.find(z => z.id === v.id);
-        if (local) local.memo = nm2;
-      }
+    // 줄마다 하나씩 견주어 맞춘다 (이미 붙은 줄이 있어도 나머지를 빠뜨리지 않게)
+    for (const v of (rows || [])) {
+      const clean = String(v.memo || '').replace(/\[분산\d+\]\s*/, '');
+      const nm2 = wantSp ? ('[분산' + wantSp + '] ' + clean).trim() : (clean || null);
+      if (String(v.memo || '') === String(nm2 || '')) continue;   // 이미 맞으면 넘어감
+      const { error: e9 } = await sb.from('nl_sessions')
+        .update({ memo: nm2, updated_at: new Date().toISOString() }).eq('id', v.id);
+      if (e9) { edmsg('❌ 표시를 바꾸지 못했습니다.\n' + e9.message, false); return; }
+      const local = SESS.find(z => z.id === v.id);
+      if (local) local.memo = nm2;
     }
   }
 
