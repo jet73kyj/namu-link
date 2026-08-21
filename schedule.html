@@ -1467,6 +1467,8 @@ function drawOne(){
     h += '<div class="oneli ' + cls + '" data-sid="' + x.id + '">'
       +  '<span class="ot">' + hm + '</span>'
       +  '<span class="on2">' + (sp ? sp + ' ' : '') + esc(nm)
+      +  ((r && r.duration && Number(r.duration) !== 40)
+          ? ' <span class="dur">' + r.duration + '분</span>' : '')
       +  '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span>'
       +  (MY_TH ? '' : '<span class="oth">' + esc(thMap[x.therapist_id] || thName(x.therapist_id)) + '</span>')
       +  '</span>'
