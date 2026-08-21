@@ -280,6 +280,10 @@
   .mnmore { margin-top:4px; opacity:.75; }
   .mkfix { margin-left:5px; color:#c62828; cursor:pointer; font-weight:bold; font-size:11px; }
   .mnedit { cursor:pointer; text-decoration:underline; }
+  .addbtn { display:block; width:100%; margin:0 0 4px; padding:2px 4px; font-size:10.5px;
+            background:#fff; color:#33691e; border:1px dashed #9ccc65;
+            border-radius:3px; cursor:pointer; }
+  .addbtn:hover { background:#f1f8e9; }
   .mnbtn:hover { background:#ef6c00; color:#fff; }
   .mnown  { font-size:10.5px; color:#bf6000; margin-top:2px; font-weight:bold; }
   .mnown .del { margin-left:6px; color:#c62828; cursor:pointer; font-weight:bold; }
@@ -1196,11 +1200,21 @@ function drawWeek(){
           const mks  = mkCell[s.no+'_'+d] || [];
           const mns  = mnCell[s.no+'_'+d] || [];
           if (!list.length && !mks.length && !mns.length) {
+            let eh2 = '';
+            if (lunch) eh2 += '<span class="lunchtxt">점심</span>';
+            if (CAN_EDIT) {
+              eh2 += '<button class="addbtn" data-add2="'
+                   + s.no + '_' + th + '">＋ 수업 넣기</button>';
+              eh2 += wdDates(mon, d).map(function(dd){
+                return '<div class="ln ln-open">'
+                  + '<span class="d">' + dayNo(dd) + '일</span>'
+                  + '<button class="lnadd" data-mn="'
+                  + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>'
+                  + '</div>';
+              }).join('');
+            }
             return '<td class="cell '+(lunch?'lunch':'free')+'" style="width:14%;">'
-              + (lunch ? '<span class="lunchtxt">점심</span>' : '')
-              + (CAN_EDIT ? '<button class="mnbtn" data-mn="'
-                  + s.no+'_'+th+'_'+d+'">보강</button>' : '')
-              + '</td>';
+              + eh2 + '</td>';
           }
           let html = '';
           list.forEach(r => {
@@ -1746,13 +1760,23 @@ function drawDay(){
           const mns  = mnCell[key] || [];
           const abs  = absCell[key] || [];
           if (!list.length && !mks.length && !mns.length && !abs.length) {
-            return '<td class="cell '+(lunch?'lunch':'free')+'" style="'+colW+'"'
-              + (CAN_EDIT ? ' data-add="'+s.no+'_'+t.id+'"' : '') + '>'
-              + (lunch ? '<span class="lunchtxt">점심 / 보강</span>'
-                       : (CAN_EDIT ? '<span class="plus">＋</span>' : ''))
-              + (CAN_EDIT ? '<button class="mnbtn" data-mn="'
-                  + s.no+'_'+t.id+'_'+wd+'">보강</button>' : '')
-              + '</td>';
+            // 아무 수업도 없는 칸 — 그 요일의 날짜를 하나씩 빈 자리로 내놓는다
+            let eh = '';
+            if (lunch) eh += '<span class="lunchtxt">점심 / 보강</span>';
+            if (CAN_EDIT) {
+              eh += wdDates(mon, wd).map(function(dd){
+                return '<div class="ln ln-open">'
+                  + '<span class="d">' + dayNo(dd) + '일</span>'
+                  + '<span class="n">빈 자리</span>'
+                  + '<button class="lnadd" data-mn="'
+                  + s.no + '_' + t.id + '_' + wd + '_' + dd + '">＋</button>'
+                  + '</div>';
+              }).join('');
+            }
+            return '<td class="cell '+(lunch?'lunch':'free')+'" style="'+colW+'">'
+              + (CAN_EDIT ? '<button class="addbtn" data-add2="'
+                  + s.no + '_' + t.id + '">＋ 수업 넣기</button>' : '')
+              + eh + '</td>';
           }
           const lines = [];
           const seenSc = {};
@@ -1958,6 +1982,8 @@ $('gbody').addEventListener('click', async e => {
     if (ms && ms.makeup_for) openMk(ms.makeup_for);
     return;
   }
+  const ab2 = e.target.closest('[data-add2]');
+  if (ab2) { e.stopPropagation(); openAdd(ab2.dataset.add2); return; }
   const free = e.target.closest('td[data-add]');
   if (free) { openAdd(free.dataset.add); return; }
   const el = e.target.closest('.run, .ln[data-sid]');
@@ -2071,7 +2097,8 @@ function openAdd(key){
   addKey = key;
   const p = key.split('_');
   const slot = SLOTS.find(x => x.no === Number(p[0]));
-  const th   = THS.find(x => x.id === Number(p[1]));
+  const th   = THS.find(x => x.id === Number(p[1]))
+            || THS_ALL.find(x => x.id === Number(p[1]));
   $('addTitle').textContent = wd + '요일 ' + slot.t + ' · ' + (th ? th.name : '') + ' — 수업 넣기';
   $('ad_name').value = '';
   $('ad_hits').innerHTML = '';
