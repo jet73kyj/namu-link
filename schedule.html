@@ -1270,9 +1270,28 @@ function drawWeek(){
               + '</div></span>';
           });
           mns.forEach(x => html += mnChip(x));
+
+          // 이 칸에서 아직 자리가 남은 날짜를 하나씩 내놓는다
+          // (결석·휴무·쉼인 날은 자리가 빈 것으로 본다)
           if (CAN_EDIT) {
-            html += '<button class="mnbtn mnmore" data-mn="'
-                  + s.no+'_'+th+'_'+d+'" title="보강 넣기">＋</button>';
+            const usedD = {};
+            list.forEach(function(r){
+              (byScd[r.id] || []).forEach(function(x){
+                if (x.status === '결석' || x.status === '휴무' || x.status === '쉼') return;
+                usedD[String(x.plan_date)] = true;
+              });
+            });
+            mks.forEach(function(x){ usedD[String(x.plan_date)] = true; });
+            mns.forEach(function(x){ usedD[String(x.plan_date)] = true; });
+
+            html += wdDates(mon, d).filter(function(dd){ return !usedD[dd]; })
+              .map(function(dd){
+                return '<div class="ln ln-open">'
+                  + '<span class="d">' + dayNo(dd) + '일</span>'
+                  + '<button class="lnadd" data-mn="'
+                  + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>'
+                  + '</div>';
+              }).join('');
           }
           return '<td class="cell" style="width:14%;">'+html+'</td>';
         }).join('')
