@@ -279,6 +279,7 @@
   td.cell:hover .mnbtn { opacity:1; }
   .mnmore { margin-top:4px; opacity:.75; }
   .mkfix { margin-left:5px; color:#c62828; cursor:pointer; font-weight:bold; font-size:11px; }
+  .mnedit { cursor:pointer; text-decoration:underline; }
   .mnbtn:hover { background:#ef6c00; color:#fff; }
   .mnown  { font-size:10.5px; color:#bf6000; margin-top:2px; font-weight:bold; }
   .mnown .del { margin-left:6px; color:#c62828; cursor:pointer; font-weight:bold; }
@@ -605,7 +606,10 @@
       </div>
       <div>
         <label for="mn_memo">보강 사유</label>
-        <input id="mn_memo" type="text" placeholder="예: 7월 미이행분">
+        <input id="mn_memo" type="text" placeholder="예: 전월 미이행분">
+        <div style="font-size:11.5px;color:#7a827d;margin-top:3px;">
+          「전월」 이라고 적으면 시간표에 회차 번호 대신 <b>전월</b> 로 나옵니다.
+        </div>
       </div>
     </div>
     <div class="pbtns">
@@ -767,6 +771,9 @@ const STYPE = {1:'센',2:'발',3:'치언',4:'치작',5:'방',6:'방치언',7:'�
 const NEXT  = { '예정':'완료', '완료':'결석', '결석':'예정' };
 // 보강인지 — 상태가 아니라 '메울 결석(makeup_for)이 있는가' 로 본다
 // (완료로 바꿔도 보강으로 계속 알아본다)
+let mnEditId = null;   // 직접보강 고치는 중인 줄 번호 (없으면 새로 넣기)
+// 메모에 '전월' 이 적혀 있으면 지난달 수업으로 본다 (회차 번호 대신 '전월' 표기)
+function isPrevMn(x){ return /전월/.test(String(x && x.memo || '')); }
 function isMk(x){ return !!(x && x.makeup_for); }
 // 사유가 안 적힌 '쉼' — 원래 수업이 없는 주차로 보고 화면에 안 그린다
 function isBlankRest(x){
@@ -1039,7 +1046,12 @@ function drawFind(){
       if (!s) return;
       if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }
       const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
-      const nx = isMk(s) ? (MKNEXT[s.status] || '완료') : (NEXT[s.status] || '완료');
+      // 직접 넣은 보강(요일줄 없음)은 완료 → 예정 → 결석 으로 돈다
+      const isMn = !s.schedule_id && !s.makeup_for;
+      const MNNEXT = { '완료':'예정', '예정':'결석', '결석':'완료' };
+      const nx = isMn ? (MNNEXT[s.status] || '완료')
+               : isMk(s) ? (MKNEXT[s.status] || '완료')
+               : (NEXT[s.status] || '완료');
       const { error } = await sb.from('nl_sessions')
         .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
       if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
@@ -1401,7 +1413,7 @@ function mnChip(x){
     + (STYPE[x.support_type_id] || '') + ' ' + esc(x._name || '') + '</span>'
     + '<div class="run ' + cls + '" data-sid="' + x.id + '">'
     + '<span class="dt">' + dayNo(x.plan_date) + '일'
-    + '<b class="no">직접</b></span>'
+    + '<b class="no">' + (isPrevMn(x) ? '전월' : '직접') + '</b></span>'
     + '<span class="brk"></span>'
     + '<span class="st">' + esc(x.status) + '</span></div>'
     + '<div class="mnown">' + (rs ? esc(rs) : '직접 넣은 보강')
@@ -1472,7 +1484,10 @@ function drawOne(){
       +  '<span class="on2">' + (sp ? sp + ' ' : '') + esc(nm)
       +  ((r && r.duration && Number(r.duration) !== 40)
           ? ' <span class="dur">(' + r.duration + ')</span>' : '')
-      +  '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span>'
+      +  '<span class="rno">'
+      +  (isPrevMn(x) ? '전월'
+          : (!x.schedule_id && !x.run_no) ? '직접'
+          : monNo(mon) + '-' + x.run_no) + '</span>'
       +  (MY_TH ? '' : '<span class="oth">' + esc(thMap[x.therapist_id] || thName(x.therapist_id)) + '</span>')
       +  '</span>'
       +  '<span class="os">' + st + '</span>'
@@ -1810,7 +1825,10 @@ function drawDay(){
               html += '<div class="ln ln-mk" data-sid="' + x.id + '">'
                 + '<span class="d">' + day + '</span>'
                 + '<span class="n">🔁 ' + nm
-                + '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span></span>'
+                + '<span class="rno">'
+                + (isPrevMn(x) ? '전월'
+                   : (L2.kind === 'mn' && !x.run_no) ? '직접'
+                   : monNo(mon) + '-' + x.run_no) + '</span></span>'
                 + '<span class="brk"></span>'
                 + '<span class="go">' + tag + '</span>'
                 + '<span class="s">' + x.status + '</span>'
@@ -1930,7 +1948,12 @@ $('gbody').addEventListener('click', async e => {
   if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }   // 휴무·쉼은 상태를 안 바꾸고 보강창을 연다
 
   const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
-      const nx = isMk(s) ? (MKNEXT[s.status] || '완료') : (NEXT[s.status] || '완료');
+      // 직접 넣은 보강(요일줄 없음)은 완료 → 예정 → 결석 으로 돈다
+      const isMn = !s.schedule_id && !s.makeup_for;
+      const MNNEXT = { '완료':'예정', '예정':'결석', '결석':'완료' };
+      const nx = isMn ? (MNNEXT[s.status] || '완료')
+               : isMk(s) ? (MKNEXT[s.status] || '완료')
+               : (NEXT[s.status] || '완료');
   const { error } = await sb.from('nl_sessions')
     .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
   if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
@@ -2434,6 +2457,7 @@ function openMn(key){
   if (!slot) return;
   mnKey = { slot: slot, th: thId, wd: wdn };
   mnKid = null;
+  mnEditId = null;
 
   const t = THS_ALL.find(x => x.id === thId);
   $('mnTitle').textContent = monNo(mon) + '월 ' + wdn + '요일 ' + slot.t + ' · '
@@ -2461,6 +2485,31 @@ function openMn(key){
   floatOn('mnBox', lastClick);
 }
 $('mnClose').onclick = () => { $('mnBox').style.display='none'; mnKey=null; mnKid=null; };
+
+// ===== 직접 넣은 보강 고치기 =====
+async function openMnEdit(sid){
+  const x = SESS.find(v => v.id === sid) || PREV.find(v => v.id === sid);
+  if (!x) return;
+  const slot = nearest(toMin(x.start_time));
+  const wdn  = wdOf(x.plan_date);
+  openMn(slot.no + '_' + x.therapist_id + '_' + wdn + '_' + x.plan_date);
+  mnEditId = sid;
+
+  const t = THS_ALL.find(v => v.id === x.therapist_id);
+  $('mnTitle').textContent = monNo(mon) + '월 ' + wdn + '요일 ' + slot.t + ' · '
+    + (t ? t.name : '') + ' — 직접 보강 고치기';
+
+  $('mn_date').value = x.plan_date;
+  $('mn_memo').value = String(x.memo || '').replace(/^직접 보강 · ?/, '');
+  await pickMnKid(x.child_id);
+  if (x.therapy_id) {
+    const opt = Array.from($('mn_tp').options)
+      .find(o => String(o.value).split('_')[0] === String(x.therapy_id));
+    if (opt) $('mn_tp').value = opt.value;
+  }
+  if (x.support_type_id) $('mn_sp').value = String(x.support_type_id);
+  mnmsg('고치는 중입니다. 바꾼 뒤 「저장하기」를 누르세요.', true);
+}
 
 // 아동 이름 찾기 (치료중만)
 $('mn_name').oninput = () => {
@@ -2509,39 +2558,56 @@ $('mnSave').onclick = async () => {
   const tp = tv.split('_');
   const why = $('mn_memo').value.trim();
 
+  const fixing = !!mnEditId;
+
   if (!confirm(mnKid.name + ' 아동 보강을\n'
-      + dayNo(d) + '일(' + mnKey.wd + ') ' + mnKey.slot.hm + ' 로 넣을까요?\n\n'
+      + dayNo(d) + '일(' + mnKey.wd + ') ' + mnKey.slot.hm
+      + (fixing ? ' 로 고칠까요?' : ' 로 넣을까요?') + '\n\n'
       + '이 줄은 회차 수·납부에는 안 들어가고,\n'
       + '완료로 표시하면 그 치료사 급여에만 들어갑니다.')) return;
 
-  $('mnSave').disabled = true; $('mnSave').textContent = '넣는 중...';
+  $('mnSave').disabled = true; $('mnSave').textContent = '저장 중...';
   try {
-    const { data, error } = await sb.from('nl_sessions').insert({
+    const row = {
       child_id: mnKid.id,
       therapy_id: Number(tp[0]),
       schedule_id: null,               // 매주 반복 수업이 아니다
       month_key: mon,
-      run_no: 0,
       plan_date: d,
-      status: '예정',
       therapist_id: mnKey.th,
       start_time: mnKey.slot.hm + ':00',
       makeup_for: null,                // 메울 결석 회차가 없다
       support_type_id: ($('mn_sp').value ? Number($('mn_sp').value)
                       : (tp[1] ? Number(tp[1]) : null)),
       memo: '직접 보강' + (why ? ' · ' + why : '')
-    }).select().single();
-    if (error) throw error;
-    data._name = mnKid.name;
-    SESS.push(data);
+    };
+
+    let data, error;
+    if (fixing) {
+      ({ data, error } = await sb.from('nl_sessions')
+        .update(row).eq('id', mnEditId).select().single());
+      if (error) throw error;
+      const i = SESS.findIndex(v => v.id === mnEditId);
+      data._name = mnKid.name;
+      if (i >= 0) SESS[i] = data; else SESS.push(data);
+    } else {
+      row.run_no = 0;
+      row.status = '예정';
+      ({ data, error } = await sb.from('nl_sessions')
+        .insert(row).select().single());
+      if (error) throw error;
+      data._name = mnKid.name;
+      SESS.push(data);
+    }
+
     mnmsg('✅ ' + mnKid.name + ' 아동 보강을 ' + dayNo(d) + '일 '
-      + mnKey.slot.hm + ' 로 넣었습니다. 수업을 하면 눌러서 완료로 바꾸세요.', true);
+      + mnKey.slot.hm + (fixing ? ' 로 고쳤습니다.' : ' 로 넣었습니다.'), true);
     $('mn_name').value=''; $('mn_pick').innerHTML='';
     $('mn_tp').innerHTML='<option value="">아동을 먼저 고르세요</option>';
-    $('mn_memo').value=''; mnKid=null;
+    $('mn_memo').value=''; mnKid=null; mnEditId=null;
     draw();
   } catch (e) {
-    mnmsg('❌ 넣지 못했습니다.\n' + e.message, false);
+    mnmsg('❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally {
     $('mnSave').disabled = false; $('mnSave').textContent = '저장하기';
   }
