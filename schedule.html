@@ -1751,8 +1751,9 @@ function drawDay(){
             const x = L2.x;
             const day = dayNo(L2.d) + '일';
 
-            // 사유 없는 쉼은 원래 수업이 없는 주차 → 빈 자리로 보여준다
-            if (isBlankRest(x)) L2 = { d: L2.d, kind: 'open', x: x };
+            // 사유 없는 쉼은 그리지 않는다
+            // (그 날짜의 「빈 자리」 줄은 아래 abs 처리에서 이미 만들어진다)
+            if (L2.kind === 'run' && isBlankRest(x)) return;
 
             if (L2.kind === 'open') {
               html += '<div class="ln ln-open">'
