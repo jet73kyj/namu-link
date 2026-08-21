@@ -786,7 +786,7 @@ const WDS = ['일','월','화','수','목','금','토'];
 
 const TTYPE = {1:'언어',2:'작업',3:'전산',4:'감통',5:'음악',6:'일상'};
 const STYPE = {1:'센',2:'발',3:'치언',4:'치작',5:'방',6:'방치언',7:'방치작',8:'이',9:'평가'};
-const NEXT  = { '예정':'완료', '완료':'결석', '결석':'쉼', '쉼':'예정' };
+const NEXT  = { '예정':'완료', '완료':'결석', '결석':'예정' };
 // 보강인지 — 상태가 아니라 '메울 결석(makeup_for)이 있는가' 로 본다
 // (완료로 바꿔도 보강으로 계속 알아본다)
 let mnEditId = null;   // 직접보강 고치는 중인 줄 번호 (없으면 새로 넣기)
@@ -1062,7 +1062,7 @@ function drawFind(){
       const id = Number(el.dataset.sid);
       const s = SESS.find(x => x.id === id);
       if (!s) return;
-      if (s.status === '휴무') { openMk(s.id); return; }
+      if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }
       const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
       // 직접 넣은 보강(요일줄 없음)은 완료 → 예정 → 결석 으로 돈다
       const isMn = !s.schedule_id && !s.makeup_for;
@@ -1992,7 +1992,7 @@ $('gbody').addEventListener('click', async e => {
   const s  = SESS.find(x => x.id === id);
   if (!s) return;
   // 보강 줄은 눌러서 완료·결석으로 바꾼다 (창을 열려면 옆의 ✕)
-  if (s.status === '휴무') { openMk(s.id); return; }   // 휴무는 상태를 안 바꾸고 보강창을 연다
+  if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }   // 휴무·쉼은 상태를 안 바꾸고 보강창을 연다
 
   const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
       // 직접 넣은 보강(요일줄 없음)은 완료 → 예정 → 결석 으로 돈다
@@ -2001,24 +2001,9 @@ $('gbody').addEventListener('click', async e => {
       const nx = isMn ? (MNNEXT[s.status] || '완료')
                : isMk(s) ? (MKNEXT[s.status] || '완료')
                : (NEXT[s.status] || '완료');
-  // 쉼으로 바꿀 때는 사유를 받는다 (사유가 없으면 화면에서 안 보이게 되므로)
-  const upd = { status: nx, updated_at: new Date().toISOString() };
-  if (nx === '쉼') {
-    const why = prompt('쉬는 사유를 적으세요.\n'
-      + '(예: 모 출산 / 입원 / 가족 여행)\n\n'
-      + '⚠️ 사유를 안 적으면 쉼으로 바꾸지 않습니다.',
-      String(s.memo || '').trim());
-    if (why === null) return;                 // 취소
-    if (!why.trim()) return;                  // 사유 없으면 안 바꾼다
-    upd.memo = why.trim();
-  } else if (s.status === '쉼') {
-    upd.memo = null;                        // 쉼을 풀면 사유도 지운다
-  }
-
   const { error } = await sb.from('nl_sessions')
-    .update(upd).eq('id', id);
+    .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
   if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
-  if ('memo' in upd) s.memo = upd.memo;
   s.status = nx;
   draw();
 });
