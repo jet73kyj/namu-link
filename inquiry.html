@@ -993,10 +993,61 @@ $('k_name').addEventListener('input', () => {
   const box = $('dupWarn');
   if (!hit.length) { box.style.display = 'none'; return; }
   box.innerHTML = '⚠️ <b>같은 이름이 이미 있습니다.</b><br>'
-    + hit.map(k => '　· ' + esc(k.name) + ' (' + k.id + '번 · ' + esc(k.status) + ')').join('<br>')
-    + '<br>같은 아동이면 아동 관리 화면에서 확인하세요. 동명이인이면 그대로 진행하세요.';
+    + hit.map(k => '　· ' + esc(k.name) + ' (' + k.id + '번 · ' + esc(k.status) + ') '
+        + '<button type="button" class="tab addonly" data-only="' + k.id + '"'
+        + ' style="padding:2px 8px;font-size:11.5px;background:#2e7d32;color:#fff;'
+        + 'border:none;border-radius:4px;cursor:pointer;">이 아동에 문의만 추가</button>')
+        .join('<br>')
+    + '<br><span style="color:#8a6116;">이미 등록된 아동이면 위 단추를 누르세요.<br>'
+    + '동명이인이면 그냥 「등록하기」로 진행하세요.</span>';
   box.style.display = 'block';
+
+  box.querySelectorAll('.addonly').forEach(el => {
+    el.onclick = () => addInquiryOnly(Number(el.dataset.only));
+  });
 });
+
+// ===== 이미 있는 아동에 문의만 붙이기 =====
+async function addInquiryOnly(cid) {
+  const k = KIDS.find(x => x.id === cid);
+  if (!k) return;
+  if (!$('a_date').value) { showBox('msgA', '문의일이 비어 있습니다.', false); return; }
+
+  const live = ALL.filter(r => r.child_id === cid);
+  if (live.length && !confirm(k.name + ' (' + cid + '번) 은 이미 문의가 '
+      + live.length + '건 있습니다.\n그래도 새 문의를 추가할까요?')) return;
+
+  if (!confirm(k.name + ' (' + cid + '번 · ' + k.status + ') 에\n'
+      + '문의만 추가합니다.\n\n아동은 새로 만들지 않습니다. 계속할까요?')) return;
+
+  $('saveNew').disabled = true;
+  try {
+    const { data, error } = await sb.from('nl_inquiries').insert({
+      child_id:        cid,
+      inquiry_date:    $('a_date').value,
+      channel:         $('a_channel').value.trim() || null,
+      wish_area:       null, wish_day: null, wish_time: null,
+      status:          $('a_status').value,
+      next_check_date: $('a_next').value || null,
+      next_action:     $('a_action').value.trim() || null,
+      memo:            $('k_memo').value.trim() || null
+    }).select().single();
+    if (error) throw error;
+    ALL.unshift(data);
+    draw();
+    showBox('msgA', '✅ ' + esc(k.name) + ' (' + cid + '번) 에 문의를 추가했습니다.\n'
+      + '문의 ' + data.id + '번', true);
+    ['a_channel','a_action','k_name','k_birth','k_guardian','k_phone','k_memo']
+      .forEach(x => $(x).value = '');
+    $('k_gender').value = '';
+    $('k_status').value = '대기중';
+    $('dupWarn').style.display = 'none';
+  } catch (e) {
+    showBox('msgA', '❌ 문의를 추가하지 못했습니다.\n' + e.message, false);
+  } finally {
+    $('saveNew').disabled = false;
+  }
+}
 
 // ===== 관리번호 자동 =====
 function nextManagerNo() {
