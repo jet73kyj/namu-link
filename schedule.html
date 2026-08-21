@@ -1217,7 +1217,8 @@ function drawWeek(){
             const mcls = x.status==='완료' ? 'r-done'
                        : x.status==='결석' ? 'r-abs' : 'r-mk';
             const _org = ROWS_ALL.find(function(rr){ return rr.id === x.schedule_id; });
-            const _sp  = _org ? (STYPE[_org.support_type_id] || '') + ' ' : '';
+            const _st2 = x.support_type_id || (_org ? _org.support_type_id : null);
+            const _sp  = _st2 ? (STYPE[_st2] || '') + ' ' : '';
             html += '<span class="chip r-mk">'
               + '<span class="nm">🔁 '+_sp+esc(x._name||'')+'</span>'
               + '<div class="run '+mcls+'" data-sid="'+x.id+'">'
@@ -1796,7 +1797,8 @@ function drawDay(){
             if (L2.kind === 'mk' || L2.kind === 'mn') {
               const org = (L2.kind === 'mk')
                 ? ROWS_ALL.find(function(r){ return r.id === x.schedule_id; }) : null;
-              const nm = (org ? (STYPE[org.support_type_id] || '?') + ' ' : '')
+              const _st = x.support_type_id || (org ? org.support_type_id : null);
+              const nm = (_st ? (STYPE[_st] || '') + ' ' : '')
                        + esc(x._name || '');
               const from = (L2.kind === 'mk') ? findSess(x.makeup_for) : null;
               const carry = (L2.kind === 'mk') && from
