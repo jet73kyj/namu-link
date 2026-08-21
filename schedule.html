@@ -1838,13 +1838,12 @@ function drawDay(){
             if (!dup) lines.push({ d: dd, kind: 'open', x: x });
           });
 
-          // 정규 수업이 없는 칸(보강만 있는 칸)도 그 요일의 남은 날짜를 빈 자리로 둔다
-          if (!list.length) {
-            wdDates(mon, wd).forEach(function(dd){
-              const used = lines.some(function(L2){ return L2.d === dd; });
-              if (!used) lines.push({ d: dd, kind: 'open', x: { plan_date: dd } });
-            });
-          }
+          // 그 요일 날짜 중 아직 아무것도 안 놓인 날은 빈 자리로 둔다
+          // (5주차, 보강만 있는 칸, 다른 요일 회차가 들어온 칸 모두 포함)
+          wdDates(mon, wd).forEach(function(dd){
+            const used = lines.some(function(L2){ return L2.d === dd; });
+            if (!used) lines.push({ d: dd, kind: 'open', x: { plan_date: dd } });
+          });
 
           lines.sort(function(a, b){
             return a.d.localeCompare(b.d)
