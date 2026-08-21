@@ -511,7 +511,7 @@
     </div>
     <div class="pbtns">
       <button id="mkFind" class="pbtn" style="background:#00695c;">빈 자리 찾기</button>
-      <button id="mkSave" class="pbtn" title="보강 잡기">＋</button>
+      <button id="mkSave" class="pbtn ok-btn">저장하기</button>
       <button id="mkDel"  class="pbtn grey">보강 취소</button>
       <button id="mkClose" class="pbtn grey">닫기</button>
     </div>
@@ -565,7 +565,7 @@
       </div>
     </div>
     <div class="pbtns">
-      <button id="adSave" class="pbtn ok-btn">이 자리에 넣기</button>
+      <button id="adSave" class="pbtn ok-btn">저장하기</button>
       <button id="adClose" class="pbtn grey">닫기</button>
     </div>
     <div id="adMsg" class="out"></div>
@@ -609,7 +609,7 @@
       </div>
     </div>
     <div class="pbtns">
-      <button id="mnSave" class="pbtn" style="background:#ef6c00;">보강 넣기</button>
+      <button id="mnSave" class="pbtn ok-btn">저장하기</button>
       <button id="mnClose" class="pbtn grey">닫기</button>
     </div>
     <div id="mnMsg" class="out"></div>
@@ -2074,7 +2074,7 @@ $('adSave').onclick = async () => {
   } catch (e) {
     admsg('❌ 넣지 못했습니다.\n' + e.message, false);
   } finally {
-    $('adSave').disabled = false; $('adSave').textContent = '이 자리에 넣기';
+    $('adSave').disabled = false; $('adSave').textContent = '저장하기';
   }
 };
 
@@ -2541,7 +2541,7 @@ $('mnSave').onclick = async () => {
   } catch (e) {
     mnmsg('❌ 넣지 못했습니다.\n' + e.message, false);
   } finally {
-    $('mnSave').disabled = false; $('mnSave').textContent = '보강 넣기';
+    $('mnSave').disabled = false; $('mnSave').textContent = '저장하기';
   }
 };
 
@@ -2884,7 +2884,7 @@ $('mkSave').onclick = async () => {
   } catch (e) {
     mkmsg('❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally {
-    $('mkSave').disabled = false; $('mkSave').textContent = '보강 잡기';
+    $('mkSave').disabled = false; $('mkSave').textContent = '저장하기';
   }
 };
 
