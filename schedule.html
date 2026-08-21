@@ -626,22 +626,6 @@
           8-5 처럼 나옵니다. 비워두면 번호가 안 붙습니다.
         </div>
       </div>
-      <div style="grid-column:1 / -1;background:#fff8e1;border:1px solid #f0c36d;
-           border-radius:6px;padding:9px 11px;">
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <input id="mn_split" type="checkbox" style="width:auto;margin:0;">
-          <span>4회에 나눠서 진행</span>
-        </label>
-        <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
-          <span style="font-size:12.5px;">나눈 시간</span>
-          <input id="mn_splitmin" type="number" min="1" max="60" value="10"
-                 style="width:70px;"> <span style="font-size:12.5px;">분</span>
-        </div>
-        <div style="font-size:11.5px;color:#8a6116;margin-top:5px;line-height:1.6;">
-          체크하면 이 줄은 시간표에서 감춰지고, 그 달 정규 회차에 <b>+10</b> 딱지가 붙습니다.<br>
-          딱지를 누르면 이 창이 다시 열립니다. (5주차인 달은 체크하지 마세요)
-        </div>
-      </div>
       <div>
         <label for="mn_memo">보강 사유</label>
         <input id="mn_memo" type="text" placeholder="예: 전월 미이행분">
@@ -680,6 +664,22 @@
           <option value="50">50분</option>
           <option value="60">60분</option>
         </select>
+      </div>
+      <div style="grid-column:1 / -1;background:#fff8e1;border:1px solid #f0c36d;
+           border-radius:6px;padding:9px 11px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="ed_split" type="checkbox" style="width:auto;margin:0;">
+          <span>이번 달은 발추 1회를 나눠서 진행</span>
+        </label>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12.5px;">나눈 시간</span>
+          <input id="ed_splitmin" type="number" min="1" max="60" value="10"
+                 style="width:70px;"> <span style="font-size:12.5px;">분</span>
+        </div>
+        <div style="font-size:11.5px;color:#8a6116;margin-top:5px;line-height:1.6;">
+          발추 1회를 따로 잡을 자리가 없어 정규 수업에 나눠 진행할 때 씁니다.<br>
+          <b>이번 달 회차에만</b> 적용되고, 시간표에 <b>+10</b> 딱지가 붙습니다.
+        </div>
       </div>
       <div>
         <label for="ed_tt">치료 종류</label>
@@ -818,23 +818,14 @@ function splitMin(x){
   const m = String(x && x.memo || '').match(/\[분산(\d+)\]/);
   return m ? Number(m[1]) : 0;
 }
-// 그 달에 나눠 진행하는 수업 목록 (아동_치료 -> {min, id})
 let SPLIT = {};
-function buildSplit(){
-  SPLIT = {};
-  SESS.forEach(function(s){
-    const n = splitMin(s);
-    if (!n) return;
-    SPLIT[s.child_id + '_' + s.therapy_id] = { min: n, id: s.id };
-  });
-}
-// 정규 회차에 붙는 +N 딱지
+function buildSplit(){ SPLIT = {}; }
+// 회차에 붙는 +N 딱지 (수업 고치기 창에서 켠다)
 function splitTag(x){
-  if (!x || !x.therapy_id || splitMin(x)) return '';
-  const v = SPLIT[x.child_id + '_' + x.therapy_id];
-  if (!v) return '';
-  return '<b class="sptag" data-splid="' + v.id + '" title="눌러서 고치기">+'
-       + v.min + '</b>';
+  const n = splitMin(x);
+  if (!n) return '';
+  return '<b class="sptag" data-edsp="' + (x.schedule_id || '')
+       + '" title="수업 고치기에서 바꿉니다">+' + n + '</b>';
 }
 // 사유가 안 적힌 '쉼' — 원래 수업이 없는 주차로 보고 화면에 안 그린다
 function isBlankRest(x){
@@ -1265,7 +1256,7 @@ function drawWeek(){
             const sp  = 'sp' + (r.support_type_id || 0);
             const dur = (r.duration && Number(r.duration)!==40)
                         ? ' <span class="dur">('+r.duration+')</span>' : '';
-            const _rl = (byScd[r.id] || []).filter(x => !isBlankRest(x) && !splitMin(x));
+            const _rl = (byScd[r.id] || []).filter(x => !isBlankRest(x));
             const _rh = _rl.map(x => {
               const cls = x.status==='완료' ? 'r-done'
                         : x.status==='결석' ? 'r-abs'
@@ -1545,7 +1536,7 @@ function drawOne(){
   const rowOf = {};
   ROWS_ALL.forEach(r => { rowOf[r.id] = r; });
 
-  const list = SESS.filter(x => x.plan_date === oneDate && !splitMin(x))
+  const list = SESS.filter(x => x.plan_date === oneDate)
     .slice().sort((a,b) => {
       const t = String(a.start_time||'').localeCompare(String(b.start_time||''));
       if (t) return t;
@@ -1850,7 +1841,6 @@ function drawDay(){
 
           list.forEach(r => {
             (byScd[r.id] || []).forEach(x => {
-              if (splitMin(x)) return;   // 나눠 진행하는 줄은 감춘다
               lines.push({ d: String(x.plan_date), kind: 'run', r: r, x: x });
             });
           });
@@ -2040,9 +2030,9 @@ $('gbody').addEventListener('click', async e => {
   if (mkb) { e.stopPropagation(); openMk(Number(mkb.dataset.mk)); return; }
   // 보강 줄의 ✕ — 보강 창을 연다 (날짜 바꾸기·보강 취소)
   // 직접 넣은 보강의 「수정」 — 고치기 창을 연다
-  // +N 딱지 — 나눠 진행하는 줄의 창을 연다
-  const spl = e.target.closest('[data-splid]');
-  if (spl) { e.stopPropagation(); openMnEdit(Number(spl.dataset.splid)); return; }
+  // +N 딱지 — 수업 고치기 창을 연다
+  const spl = e.target.closest('[data-edsp]');
+  if (spl) { e.stopPropagation(); openEd(Number(spl.dataset.edsp)); return; }
   const mne = e.target.closest('[data-mned]');
   if (mne) { e.stopPropagation(); openMnEdit(Number(mne.dataset.mned)); return; }
   const mkf = e.target.closest('[data-mkfix]');
@@ -2274,6 +2264,11 @@ function openEd(scId){
   $('ed_tt').value   = String(r._tt || 1);
   $('ed_st2').value  = String(r.support_type_id || 1);
   $('ed_cnt').value  = r._mode || '4회만';
+  // 이번 달 회차에 「4회 분산」 표시가 붙어 있는지
+  const _mine = SESS.filter(v => v.schedule_id === r.id);
+  const _cur  = _mine.map(splitMin).find(n => n > 0) || 0;
+  $('ed_split').checked = !!_cur;
+  $('ed_splitmin').value = String(_cur || 10);
   edmsg('', true); $('edMsg').className = 'out';
   $('addBox').style.display = 'none';
   $('mkBox').style.display = 'none';
@@ -2292,6 +2287,21 @@ $('edSave').onclick = async () => {
   const rule = RULE[edRow._tt];
   if (rule && rule.indexOf(th) < 0) {
     if (!confirm('이 치료사는 그 치료 담당이 아닙니다.\n그래도 옮길까요?')) return;
+  }
+
+  // 이번 달 회차에 「4회 분산」 표시를 붙이거나 뗀다
+  const wantSp = $('ed_split').checked ? (Number($('ed_splitmin').value) || 10) : 0;
+  const mineS  = SESS.filter(v => v.schedule_id === edRow.id);
+  const nowSp  = mineS.map(splitMin).find(n => n > 0) || 0;
+  if (wantSp !== nowSp) {
+    for (const v of mineS) {
+      const clean = String(v.memo || '').replace(/\[분산\d+\]\s*/, '');
+      const nm2 = wantSp ? ('[분산' + wantSp + '] ' + clean).trim() : (clean || null);
+      const { error: e9 } = await sb.from('nl_sessions')
+        .update({ memo: nm2, updated_at: new Date().toISOString() }).eq('id', v.id);
+      if (e9) { edmsg('❌ 분산 표시를 바꾸지 못했습니다.\n' + e9.message, false); return; }
+      v.memo = nm2;
+    }
   }
 
   // 요일이나 시간이 바뀌면 지난 달은 건드리지 않고 이번 달부터 갈라 준다
@@ -2595,8 +2605,6 @@ function openMn(key){
   $('mn_tp').innerHTML = '<option value="">아동을 먼저 고르세요</option>';
   $('mn_sp').value = '';
   $('mn_run').value = '';
-  $('mn_split').checked = false;
-  $('mn_splitmin').value = '10';
   $('mn_scd').innerHTML = '<option value="">회차로 안 셈 (그냥 보강)</option>';
   $('mn_memo').value = '';
   mnmsg('', true); $('mnMsg').className = 'out';
@@ -2633,9 +2641,6 @@ async function openMnEdit(sid){
   }
   if (x.support_type_id) $('mn_sp').value = String(x.support_type_id);
   $('mn_run').value = x.run_no ? String(x.run_no) : '';
-  const _sm = splitMin(x);
-  $('mn_split').checked = !!_sm;
-  $('mn_splitmin').value = String(_sm || 10);
   if (x.schedule_id) {
     const o2 = Array.from($('mn_scd').options)
       .find(o => String(o.value) === String(x.schedule_id));
@@ -2727,9 +2732,7 @@ $('mnSave').onclick = async () => {
       makeup_for: null,                // 메울 결석 회차가 없다
       support_type_id: ($('mn_sp').value ? Number($('mn_sp').value)
                       : (tp[1] ? Number(tp[1]) : null)),
-      memo: ($('mn_split').checked
-              ? '[분산' + (Number($('mn_splitmin').value) || 10) + '] ' : '')
-            + '직접 보강' + (why ? ' · ' + why : '')
+      memo: '직접 보강' + (why ? ' · ' + why : '')
     };
 
     let data, error;
