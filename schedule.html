@@ -1180,8 +1180,9 @@ function drawWeek(){
                 ? '<span class="st">쉼</span>'
                   + (CAN_EDIT ? '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>' : '')
                 : (x.status==='결석' || x.status==='휴무')
-                ? (mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>'
-                      : '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>')
+                ? ((mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>' : '')
+                   + (CAN_EDIT ? '<button class="mkbtn" data-mk="'+x.id+'"'
+                     + ' title="'+(mk ? '보강 고치기' : '보강 잡기')+'">＋</button>' : ''))
                 : '<span class="st">'+x.status+'</span>';
               const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
                 ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
@@ -1824,10 +1825,11 @@ function drawDay(){
                 + '<span class="s">쉼</span>';
             } else if (x.status === '결석' || x.status === '휴무') {
               const mk = mkOf[x.id];
-              tail = mk
+              tail = (mk
                 ? '<span class="go">→ ' + dayNo(mk.plan_date) + '일 '
-                  + nearest(toMin(mk.start_time)).hm + '</span>'
-                : (CAN_EDIT ? '<button class="mkbtn" data-mk="' + x.id + '" title="보강 잡기">＋</button>' : '');
+                  + nearest(toMin(mk.start_time)).hm + '</span>' : '')
+                + (CAN_EDIT ? '<button class="mkbtn" data-mk="' + x.id + '"'
+                  + ' title="' + (mk ? '보강 고치기' : '보강 잡기') + '">＋</button>' : '');
               tail += '<span class="s">' + x.status + '</span>';
             } else {
               tail = '<span class="s">' + x.status + '</span>';
@@ -2803,6 +2805,15 @@ $('mkSave').onclick = async () => {
   if (!d) { mkmsg('보강 날짜를 고르세요.', false); return; }
   const slot = SLOTS.find(x => x.no === Number($('mk_slot').value));
   const th   = Number($('mk_th').value);
+
+  // 결석한 그 날 그 시각에 그대로 보강을 잡을 수는 없다
+  if (String(d) === String(mkSess.plan_date)
+      && slot && nearest(toMin(mkSess.start_time)).no === slot.no) {
+    mkmsg('결석한 날(' + dayNo(mkSess.plan_date) + '일 '
+      + nearest(toMin(mkSess.start_time)).hm + ')과 같은 날 같은 시각에는\n'
+      + '보강을 잡을 수 없습니다. 다른 날이나 다른 시각을 고르세요.', false);
+    return;
+  }
 
   // 그 칸이 이미 찼는지 살펴본다 (결석·휴무·쉼으로 비는 자리는 빈 것으로 본다)
   const taken = SESS.filter(s => s.plan_date === d
