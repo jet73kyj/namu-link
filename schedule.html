@@ -92,7 +92,8 @@
   .lunchtxt { color:#9aa294; font-size:11.5px; text-align:center; display:block; padding:16px 0; }
 
   .ln { display:flex; align-items:center; gap:6px; font-size:12px;
-        padding:4px 6px; border-radius:4px; margin:2px 0; cursor:pointer; }
+        padding:4px 6px; border-radius:4px; margin:2px 0; cursor:pointer;
+        flex-wrap:wrap; }
   .ln:hover { outline:1px solid #9ccc65; }
   .ln.hit { outline:2px solid #ff9800; outline-offset:1px; }
   .ln.hitnow { outline:3px solid #e65100; outline-offset:1px;
@@ -112,8 +113,11 @@
   .pickbtn.on { background:#ff9800; color:#fff; border-color:#ff9800; }
   .pickbtn .pbd { font-size:10.5px; opacity:.75; margin-left:5px; }
   .ln .d { min-width:30px; text-align:right; font-weight:bold; }
-  .ln .n { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* 이름은 자르지 않는다. 길면 아랫줄로 접힌다 */
+  .ln .n { flex:1 1 auto; min-width:0; word-break:break-all; font-weight:600; }
   .ln .s { margin-left:auto; font-weight:bold; font-size:11px; }
+  /* 날짜+이름을 한 줄로, 나머지를 다음 줄로 민다 */
+  .ln .brk { flex-basis:100%; height:0; }
   .ln-done { background:#e8f5e9; color:#1b5e20; }
   .ln-abs  { background:#d9dcda; color:#232823; }
   .ln-off  { background:#c8ccc9; color:#232823; }
@@ -143,12 +147,11 @@
   .calday.today { box-shadow:inset 0 0 0 2px #2e7d32; border-radius:6px; }
   .calempty { background:#fafbfa; }
   .calnote { margin-top:10px; font-size:12.5px; color:#7a827d; text-align:center; }
-  .oneli { display:flex; align-items:center; gap:10px;
+  .oneli { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
            padding:11px 12px; border:1px solid #dfe4e1; border-radius:9px;
            margin-bottom:7px; background:#fff; font-size:15px; }
   .oneli .ot { flex:0 0 62px; font-weight:600; color:#2e5c3a; }
-  .oneli .on2 { flex:1; min-width:0; overflow:hidden;
-                text-overflow:ellipsis; white-space:nowrap; }
+  .oneli .on2 { flex:1; min-width:0; word-break:break-all; }
   .oneli .os { flex:0 0 auto; font-size:12.5px; color:#6b7370; }
   .oneli .oth { font-size:12px; color:#7a827d; margin-left:6px; }
   .oneli.o-done { background:#e6f3e9; border-color:#bcd9c5; }
@@ -177,7 +180,8 @@
              border-radius:3px; cursor:pointer; }
   .lnadd:hover { background:#eceff1; }
   .chip { display:block; padding:5px 6px; line-height:1.4; border-radius:4px; margin:2px; }
-  .chip .nm { font-weight:bold; font-size:12.5px; }
+  .chip .nm { font-weight:bold; font-size:12.5px;
+              word-break:break-all; display:block; }
   .chip .dur { font-size:11px; color:#5a6156; }
   .chip .warn { margin-top:3px; font-size:11px; font-weight:bold; color:#c62828; }
 
@@ -754,7 +758,7 @@ const LUNCH_NO = 5;
 const WDS = ['일','월','화','수','목','금','토'];
 
 const TTYPE = {1:'언어',2:'작업',3:'전산',4:'감통',5:'음악',6:'일상'};
-const STYPE = {1:'센',2:'발',3:'치',4:'치',5:'방',6:'방치',7:'방치',8:'발추',9:'평가'};
+const STYPE = {1:'센',2:'발',3:'치언',4:'치작',5:'방',6:'방치언',7:'방치작',8:'이',9:'평가'};
 const NEXT  = { '예정':'완료', '완료':'결석', '결석':'예정' };
 // 보강인지 — 상태가 아니라 '메울 결석(makeup_for)이 있는가' 로 본다
 // (완료로 바꿔도 보강으로 계속 알아본다)
@@ -1196,8 +1200,10 @@ function drawWeek(){
           mks.forEach(x => {
             const mcls = x.status==='완료' ? 'r-done'
                        : x.status==='결석' ? 'r-abs' : 'r-mk';
+            const _org = ROWS_ALL.find(function(rr){ return rr.id === x.schedule_id; });
+            const _sp  = _org ? (STYPE[_org.support_type_id] || '') + ' ' : '';
             html += '<span class="chip r-mk">'
-              + '<span class="nm">🔁 '+esc(x._name||'')+'</span>'
+              + '<span class="nm">🔁 '+_sp+esc(x._name||'')+'</span>'
               + '<div class="run '+mcls+'" data-sid="'+x.id+'">'
               + '<span class="no">'+monNo(mon)+'-'+x.run_no+'</span>'
               + '<span class="dt">'+dayNo(x.plan_date)+'일</span>'
@@ -1424,13 +1430,13 @@ function drawOne(){
     return;
   }
 
-  const thName = {};
-  THS_ALL.forEach(t => { thName[t.id] = t.name; });
+  const thMap = {};
+  THS_ALL.forEach(t => { thMap[t.id] = t.name; });
 
   let h = '';
   list.forEach(x => {
     const r  = rowOf[x.schedule_id];
-    const nm = (r && r._name) ? r._name : '(이름 없음)';
+    const nm = x._name || (r && r._name) || '(이름 없음)';
     const sp = STYPE[x.support_type_id || (r ? r.support_type_id : 0)] || '';
     const hm = nearest(toMin(x.start_time)).hm;
 
@@ -1444,7 +1450,7 @@ function drawOne(){
     h += '<div class="oneli ' + cls + '" data-sid="' + x.id + '">'
       +  '<span class="ot">' + hm + '</span>'
       +  '<span class="on2">' + (sp ? sp + ' ' : '') + esc(nm)
-      +  (MY_TH ? '' : '<span class="oth">' + esc(thName[x.therapist_id] || '') + '</span>')
+      +  (MY_TH ? '' : '<span class="oth">' + esc(thMap[x.therapist_id] || thName(x.therapist_id)) + '</span>')
       +  '</span>'
       +  '<span class="os">' + st + '</span>'
       +  '</div>';
@@ -1780,6 +1786,7 @@ function drawDay(){
               html += '<div class="ln ln-mk" data-sid="' + x.id + '">'
                 + '<span class="d">' + day + '</span>'
                 + '<span class="n">🔁 ' + nm + '</span>'
+                + '<span class="brk"></span>'
                 + '<span class="go">' + tag + '</span>'
                 + '<span class="s">' + x.status + '</span>'
                 + (CAN_EDIT
@@ -1828,6 +1835,7 @@ function drawDay(){
               + ' data-cid="' + (r._cid || '') + '">'
               + '<span class="d">' + day + '</span>'
               + '<span class="n' + cut + '">' + nm + dur + '</span>'
+              + '<span class="brk"></span>'
               + tail + ed + '</div>';
           });
 
