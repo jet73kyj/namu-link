@@ -480,6 +480,8 @@
   <!-- 보강 잡기 창 -->
   <div id="mkBox" class="panel" style="display:none;">
     <div class="panel-t" id="mkTitle"></div>
+    <div id="mkWhy" style="display:none;margin:0 0 10px;padding:9px 12px;
+         border-radius:6px;font-size:13px;line-height:1.6;"></div>
     <div class="pgrid">
       <div>
         <label for="mk_date">보강 날짜</label>
@@ -500,7 +502,7 @@
     </div>
     <div class="pbtns">
       <button id="mkFind" class="pbtn" style="background:#00695c;">빈 자리 찾기</button>
-      <button id="mkSave" class="pbtn">보강 잡기</button>
+      <button id="mkSave" class="pbtn" title="보강 잡기">＋</button>
       <button id="mkDel"  class="pbtn grey">보강 취소</button>
       <button id="mkClose" class="pbtn grey">닫기</button>
     </div>
@@ -694,7 +696,7 @@
     회차를 <b>누를 때마다</b> 예정 → 완료 → 결석 → 예정 순으로 바뀝니다.
     결석은 <b>두 번</b> 눌러야 나옵니다.<br>
     🏖 <b>휴무</b>는 공휴일이라 자동으로 붙습니다. 눌러도 상태는 안 바뀌고 보강 창이 열립니다.<br>
-    결석·휴무가 되면 옆에 주황색 <b>보강 잡기</b> 단추가 생깁니다.
+    결석·휴무가 되면 옆에 주황색 <b>＋</b> 단추가 생깁니다. (보강 잡기)
     창에서 <b>빈 자리 찾기</b>를 누르면 담당 치료사가 비는 자리를 가까운 날부터 찾아줍니다.<br>
     🔁 빈 칸의 작은 <b>보강</b> 단추는 <b>직접 넣는 보강</b>입니다.
     메울 결석 기록이 없을 때 씁니다. 회차 수·납부에는 안 들어가고,
@@ -707,13 +709,13 @@
     <b>발4+센1</b> — 1~4주차는 원래 지원유형(발달재활) 그대로, 5주 있는 달은 5주차 1회가
     센터비용으로 들어갑니다. 그 회차에 <b>초록 「센」</b> 표시가 붙습니다.<br>
     위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
-    요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 고치기가 됩니다.<br>
+    요일과 상관없이 한 번에 나옵니다. 거기서 바로 회차 표시와 수정이 됩니다.<br>
 그 아동이 안 오는 날은 <b>초록 빈 자리</b>로 보입니다.
     그 자리의 <b>보강</b> 단추를 누르면 보강이 필요한 아동 목록이 뜨고,
     하나 고르면 그 시간으로 보강이 잡힙니다.<br>
     빈 칸이 그 치료사의 빈 시간입니다. 5교시는 주중 점심(보강 가능)입니다.<br>
     빈 칸의 <b>＋</b> 를 누르면 그 자리에 새 수업을 넣습니다.
-    수업의 <b>고치기</b> 를 누르면 요일·시간·치료사를 바꾸거나 수업을 끝냅니다.
+    수업의 <b>수정</b> 을 누르면 요일·시간·치료사를 바꾸거나 수업을 끝냅니다.
     (관리자·행정만)<br>
     수업분은 50분·60분만 적습니다.
   </div>
@@ -757,6 +759,10 @@ const NEXT  = { '예정':'완료', '완료':'결석', '결석':'예정' };
 // 보강인지 — 상태가 아니라 '메울 결석(makeup_for)이 있는가' 로 본다
 // (완료로 바꿔도 보강으로 계속 알아본다)
 function isMk(x){ return !!(x && x.makeup_for); }
+// 사유가 안 적힌 '쉼' — 원래 수업이 없는 주차로 보고 화면에 안 그린다
+function isBlankRest(x){
+  return x && x.status === '쉼' && !String(x.memo || '').trim();
+}
 // 치료 종류별 담당 치료사 (언어=1,2,3 / 작업·전산·감통=4,6,7 / 음악=5 / 일상=전원)
 const RULE = { 1:[1,2,3], 2:[4,6,7], 3:[4,6,7], 4:[4,6,7], 5:[5] };
 
@@ -866,7 +872,7 @@ function drawShort(byScd, mkOf){
           + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
           + monNo(mon) + '월 ' + dayNo(x.plan_date) + '일 '
           + (x.status === '휴무' ? '휴무' : '결석') + '입니다.</span>'
-          + '<button class="sbtn" data-mk="' + x.id + '">보강 잡기</button>'
+          + '<button class="sbtn" data-mk="' + x.id + '" title="보강 잡기">＋</button>'
           + '</div>').join('');
 
         // 결석은 없는데 회수만 모자란 경우 (5주차 없는 달 등)
@@ -968,7 +974,7 @@ function drawFind(){
       const mk = mkOf[x.id];
       const tail = (x.status==='결석' || x.status==='휴무' || x.status==='쉼')
         ? (mk ? '→' + dayNo(mk.plan_date) + '일'
-              : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
+              : '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>')
         : x.status;
       const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
         ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
@@ -989,7 +995,7 @@ function drawFind(){
         + '<span class="fr-th">' + (STYPE[r.support_type_id]||'') + ' · '
           + (TTYPE[r._tt]||'') + ' · ' + (th ? esc(th.name) : '') + ' · '
           + (r.duration||'') + '분</span>'
-        + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'">고치기</button>' : '')
+        + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'" title="고치기">수정</button>' : '')
       + '</div>'
       + '<div class="fr-runs">' + (runs || '<span class="findnone">이 달 회차 없음</span>')
         + '</div>'
@@ -1157,16 +1163,19 @@ function drawWeek(){
             const sp  = 'sp' + (r.support_type_id || 0);
             const dur = (r.duration && Number(r.duration)!==40)
                         ? ' <span class="dur">'+r.duration+'분</span>' : '';
-            const _rl = (byScd[r.id] || []);
+            const _rl = (byScd[r.id] || []).filter(x => !isBlankRest(x));
             const _rh = _rl.map(x => {
               const cls = x.status==='완료' ? 'r-done'
                         : x.status==='결석' ? 'r-abs'
                         : x.status==='휴무' ? 'r-off'
                         : x.status==='쉼' ? 'r-rest' : '';
               const mk = mkOf[x.id];
-              const tail = (x.status==='결석' || x.status==='휴무' || x.status==='쉼')
+              const tail = (x.status==='쉼')
+                ? '<span class="st">쉼</span>'
+                  + (CAN_EDIT ? '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>' : '')
+                : (x.status==='결석' || x.status==='휴무')
                 ? (mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>'
-                      : '<button class="mkbtn" data-mk="'+x.id+'">보강</button>')
+                      : '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>')
                 : '<span class="st">'+x.status+'</span>';
               const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
                 ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
@@ -1179,7 +1188,7 @@ function drawWeek(){
                 + tail + '</div>';
             });
             html += '<span class="chip '+sp+'">'
-              + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'">고치기</button>' : '')
+              + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'" title="고치기">수정</button>' : '')
               + '<span class="nm">'+(STYPE[r.support_type_id]||'?')
               + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+'</span>'+dur
               + mergeRuns(_rl, _rh, wk5Pairs(r, byScd, d)) + '</span>';
@@ -1199,7 +1208,7 @@ function drawWeek(){
           mns.forEach(x => html += mnChip(x));
           if (CAN_EDIT) {
             html += '<button class="mnbtn mnmore" data-mn="'
-                  + s.no+'_'+th+'_'+d+'">＋보강</button>';
+                  + s.no+'_'+th+'_'+d+'" title="보강 넣기">＋</button>';
           }
           return '<td class="cell" style="width:14%;">'+html+'</td>';
         }).join('')
@@ -1342,7 +1351,7 @@ function drawPrev(){
           + (CAN_EDIT || MY_TH
               ? '<button class="prevbtn" data-pmk="' + s.id + '"'
                 + (ok ? '' : ' data-no="' + esc(carryWhy(q.st, q.seq)) + '"')
-                + '>보강 잡기</button>' : '')
+                + ' title="보강 잡기">＋</button>' : '')
           + '</div>';
       }).join('')
     + '<div class="prevnote">※ 여기서 잡은 보강은 <b>납부는 ' + monNo(pm)
@@ -1742,12 +1751,15 @@ function drawDay(){
             const x = L2.x;
             const day = dayNo(L2.d) + '일';
 
+            // 사유 없는 쉼은 원래 수업이 없는 주차 → 빈 자리로 보여준다
+            if (isBlankRest(x)) L2 = { d: L2.d, kind: 'open', x: x };
+
             if (L2.kind === 'open') {
               html += '<div class="ln ln-open">'
                 + '<span class="d">' + day + '</span>'
                 + '<span class="n">빈 자리</span>'
                 + (CAN_EDIT ? '<button class="lnadd" data-mn="'
-                    + s.no + '_' + t.id + '_' + wd + '_' + L2.d + '">＋ 보강</button>' : '')
+                    + s.no + '_' + t.id + '_' + wd + '_' + L2.d + '" title="보강 넣기">＋</button>' : '')
                 + '</div>';
               return;
             }
@@ -1791,19 +1803,23 @@ function drawDay(){
                         ? ' <span class="dur">' + r.duration + '분</span>' : '';
 
             let tail;
-            if (x.status === '결석' || x.status === '휴무' || x.status === '쉼') {
+            if (x.status === '쉼') {
+              tail = (CAN_EDIT
+                ? '<button class="mkbtn" data-mk="' + x.id + '" title="보강 잡기">＋</button>' : '')
+                + '<span class="s">쉼</span>';
+            } else if (x.status === '결석' || x.status === '휴무') {
               const mk = mkOf[x.id];
               tail = mk
                 ? '<span class="go">→ ' + dayNo(mk.plan_date) + '일 '
                   + nearest(toMin(mk.start_time)).hm + '</span>'
-                : (CAN_EDIT ? '<button class="mkbtn" data-mk="' + x.id + '">보강 잡기</button>' : '');
+                : (CAN_EDIT ? '<button class="mkbtn" data-mk="' + x.id + '" title="보강 잡기">＋</button>' : '');
               tail += '<span class="s">' + x.status + '</span>';
             } else {
               tail = '<span class="s">' + x.status + '</span>';
             }
 
             const ed = (CAN_EDIT && !seenSc[r.id])
-              ? '<button class="lnedit" data-ed="' + r.id + '">고치기</button>' : '';
+              ? '<button class="lnedit" data-ed="' + r.id + '" title="고치기">수정</button>' : '';
             seenSc[r.id] = true;
 
             html += '<div class="ln ' + cls + '" data-sid="' + x.id + '"'
@@ -1826,7 +1842,7 @@ function drawDay(){
               + '<span class="n">' + (STYPE[r.support_type_id] || '?')
               + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name)
               + ' <span class="nosl">회차 없음</span></span>'
-              + (CAN_EDIT ? '<button class="lnedit" data-ed="' + r.id + '">고치기</button>' : '')
+              + (CAN_EDIT ? '<button class="lnedit" data-ed="' + r.id + '" title="고치기">수정</button>' : '')
               + '</div>';
           });
 
@@ -2677,6 +2693,35 @@ function openMk(absId){
   $('mk_memo').value = has ? (has.memo || '') : '';
   $('mkDel').style.display = has ? '' : 'none';
   $('mkFree').innerHTML = '';
+
+  // 왜 비었는지 — 상태에 따라 색을 달리해 알려준다
+  const why = $('mkWhy');
+  const rs  = String(s.memo || '').trim();
+  if (s.status === '쉼') {
+    why.style.background = '#eceff1';
+    why.style.border     = '1px solid #b0bec5';
+    why.style.color      = '#37474f';
+    why.innerHTML = '<b>쉼</b> · ' + dayNo(s.plan_date) + '일'
+      + (rs ? ' — ' + esc(rs) : ' — 사유가 적혀 있지 않습니다');
+    why.style.display = 'block';
+  } else if (s.status === '휴무') {
+    why.style.background = '#fff3e0';
+    why.style.border     = '1px solid #ffb74d';
+    why.style.color      = '#8a5200';
+    why.innerHTML = '<b>휴무</b> · ' + dayNo(s.plan_date) + '일'
+      + (rs ? ' — ' + esc(rs) : '');
+    why.style.display = 'block';
+  } else if (s.status === '결석') {
+    why.style.background = '#fdeeee';
+    why.style.border     = '1px solid #e79b9b';
+    why.style.color      = '#8c2b2b';
+    why.innerHTML = '<b>결석</b> · ' + dayNo(s.plan_date) + '일'
+      + (rs ? ' — ' + esc(rs) : '');
+    why.style.display = 'block';
+  } else {
+    why.style.display = 'none';
+  }
+
   mkmsg('', true); $('mkMsg').className = 'out';
   $('mkBox').style.display = 'block';
   floatOn('mkBox', lastClick);
