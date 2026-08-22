@@ -149,8 +149,27 @@
   .pay { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px; }
   .pay input.dt { width:150px; }
   .pay input.tx { flex:1; min-width:150px; }
-  .kidfoot { display:flex; margin-top:20px; }
-  .kidfoot button { margin-left:auto; }
+  .kidfoot { display:flex; gap:8px; margin-top:20px; }
+  .kidfoot .ksave { margin-left:auto; }
+  .kidfoot .knotice { background:#fff; color:#2c5c37; border:1px solid #3c7a4a; }
+
+  /* 안내문 미리보기 창 */
+  .ncover { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:900;
+            display:flex; align-items:center; justify-content:center; padding:20px; }
+  .nwin { background:#fff; border-radius:12px; width:100%; max-width:520px;
+          max-height:88vh; display:flex; flex-direction:column; overflow:hidden; }
+  .nhead { padding:14px 18px; border-bottom:1px solid #e8ebe4;
+           display:flex; align-items:center; gap:10px; }
+  .nhead b { font-size:15px; }
+  .nwho { font-size:13px; color:#9c2b2b; font-weight:600; }
+  .nbody { padding:14px 18px; overflow:auto; flex:1; }
+  .nbody textarea { width:100%; min-height:340px; font-family:"D2Coding","Consolas",monospace;
+                    font-size:12.5px; line-height:1.65; padding:12px;
+                    border:1px solid #ddd; border-radius:8px; resize:vertical; }
+  .nfoot { padding:12px 18px; border-top:1px solid #e8ebe4;
+           display:flex; gap:8px; align-items:center; }
+  .nfoot .nmsg { font-size:13px; color:#2c5c37; margin-right:auto; }
+  .nfoot .nclose { background:#fff; color:#5a6156; border:1px solid #e8ebe4; }
   .saved { font-size:11px; color:var(--acc); font-weight:500; margin-left:5px; }
   .empty { padding:60px 20px; text-align:center; color:var(--ink3); font-size:14px; }
 
@@ -312,6 +331,166 @@ function esc(s) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function won(n) { return (n || 0).toLocaleString() + '원'; }
+
+// ── 학부모 안내문 ──────────────────────────────
+// 화면에 이미 계산돼 있는 값을 그대로 읽어서 글로 만든다.
+// 따로 계산하지 않으므로 화면에 보이는 금액과 항상 같다.
+const NBOX_W = 38;                       // 네모 상자 안쪽 폭
+
+function nPad(left, right) {
+  // 한글은 두 칸, 나머지는 한 칸으로 세어 폭을 맞춘다
+  const w = t => { let n = 0; for (const ch of String(t))
+    n += /[\u1100-\u11FF\u3000-\u303F\u3130-\u318F\uAC00-\uD7AF\uFF00-\uFF60]/.test(ch) ? 2 : 1;
+    return n; };
+  const gap = Math.max(1, NBOX_W - w(left) - w(right));
+  return left + ' '.repeat(gap) + right;
+}
+function nLine(txt) { return '│ ' + nPad(txt, '') + ' │'; }
+function nRow(l, r) { return '│ ' + nPad(l, r) + ' │'; }
+function nTop()  { return '┌' + '─'.repeat(NBOX_W + 2) + '┐'; }
+function nMid()  { return '├' + '─'.repeat(NBOX_W + 2) + '┤'; }
+function nBot()  { return '└' + '─'.repeat(NBOX_W + 2) + '┘'; }
+
+function nNum(el) {
+  if (!el) return 0;
+  const v = (el.value !== undefined ? el.value : el.textContent) || '';
+  return Number(String(v).replace(/[^0-9-]/g, '')) || 0;
+}
+
+// 아동 카드 하나를 읽어 안내문 글을 만든다
+function noticeText(childId) {
+  const box = document.querySelector('.kid[data-child="' + childId + '"]');
+  if (!box) return null;
+  const c = CHILDREN.find(x => x.id === childId);
+  const mk = LOADED_MK || $('mk').value;
+  const mon = Number(String(mk).split('-')[1]);
+
+  const L = [];
+  L.push('[자라는나무] ' + mon + '월 수업료 안내');
+  L.push('');
+  L.push((c ? c.name : '') + ' 아동');
+  L.push('');
+
+  // ── 계좌입금 (발달재활서비스 본인부담금) ──
+  const dev = box.querySelector('.gsum[data-st="2"]');
+  const devAmt = dev ? nNum(dev.querySelector('.gamt')) : 0;
+  if (devAmt > 0) {
+    L.push(nTop());
+    L.push(nRow('계좌입금', ''));
+    L.push(nMid());
+    L.push(nRow('· 발달재활서비스', devAmt.toLocaleString() + '원'));
+    L.push(nRow('', '소계  ' + devAmt.toLocaleString() + '원'));
+    L.push(nLine(''));
+    L.push(nRow('아동 이름으로 입금해 주세요', ''));
+    L.push(nRow('국민 자라는나무', ''));
+    L.push(nRow('749601-01-348791', ''));
+    L.push(nRow('(본인부담금 전용계좌)', ''));
+    L.push(nBot());
+    L.push('');
+  }
+
+  // ── 신용카드 또는 계좌입금 ──
+  const rows = [];
+  box.querySelectorAll('.r.line').forEach(tr => {
+    const amt = nNum(tr.querySelector('.lineamt'));
+    if (amt <= 0) return;
+    const st  = Number(tr.dataset.st);
+    const nm  = TYPES[st] || ('유형' + st);
+    const de  = tr.querySelector('.de');
+    const lab = de ? (de.childNodes[0] ? de.childNodes[0].textContent : '') : '';
+    const thr = de && de.querySelector('.thr') ? de.querySelector('.thr').textContent : '';
+    const day = (String(lab).match(/([월화수목금토일])/) || [])[1] || '';
+    const cnt = nNum(tr.querySelector('.cnt'));
+    rows.push({ nm: nm, day: day, thr: thr, cnt: cnt, amt: amt });
+  });
+  // 발추
+  const x8 = box.querySelector('.gsum[data-st="8"]');
+  if (x8) {
+    const a8 = nNum(x8.querySelector('.gamt'));
+    if (a8 > 0) {
+      const sel = x8.querySelector('.xthr');
+      rows.push({ nm: TYPES[8] || '발추비용', day: '',
+        thr: sel ? (sel.options[sel.selectedIndex] || {}).text || '' : '',
+        cnt: nNum(x8.querySelector('.xcnt')), amt: a8 });
+    }
+  }
+  // 평가비
+  const x9 = box.querySelector('.gsum[data-st="9"]');
+  if (x9) {
+    const a9 = nNum(x9.querySelector('.evamt'));
+    if (a9 > 0) rows.push({ nm: '평가비', day: '', thr: '', cnt: 0, amt: a9 });
+  }
+
+  const cardTot = nNum(box.querySelector('.cardtotal'));
+  if (rows.length) {
+    L.push(nTop());
+    L.push(nRow('신용카드 또는 계좌입금', ''));
+    L.push(nMid());
+    rows.forEach(r => {
+      let left = '· ' + r.nm;
+      if (r.day) left += ' ' + r.day;
+      if (r.thr) left += '(' + r.thr + ')';
+      if (r.cnt) left += ' ' + r.cnt + '회';
+      L.push(nRow(left, r.amt.toLocaleString() + '원'));
+    });
+    L.push(nRow('', '소계  ' + cardTot.toLocaleString() + '원'));
+    L.push(nLine(''));
+    L.push(nRow('신용카드 — 현장 또는 모바일 결제', ''));
+    L.push(nRow('계좌입금 — 국민 자라는나무', ''));
+    L.push(nRow('           749601-01-330411', ''));
+    L.push(nRow('           (교육비 전용계좌)', ''));
+    L.push(nBot());
+    L.push('');
+  }
+
+  L.push('합계  ' + (devAmt + cardTot).toLocaleString() + '원');
+  L.push('');
+  L.push('문의 : 042-488-6011');
+
+  return { name: (c ? c.name : ''), text: L.join('\n') };
+}
+
+// 미리보기 창을 띄운다
+function openNotice(childId) {
+  const r = noticeText(childId);
+  if (!r) return;
+  const old = document.querySelector('.ncover');
+  if (old) old.remove();
+
+  const cover = document.createElement('div');
+  cover.className = 'ncover';
+  cover.innerHTML =
+      '<div class="nwin">'
+    + '<div class="nhead"><b>안내문</b>'
+    + '<span class="nwho">' + esc(r.name) + ' 아동</span></div>'
+    + '<div class="nbody"><textarea class="ntx" spellcheck="false"></textarea></div>'
+    + '<div class="nfoot"><span class="nmsg"></span>'
+    + '<button class="nclose" type="button">닫기</button>'
+    + '<button class="ncopy" type="button">복사하기</button></div></div>';
+  document.body.appendChild(cover);
+  cover.querySelector('.ntx').value = r.text;
+
+  cover.addEventListener('click', e => {
+    if (e.target === cover || e.target.classList.contains('nclose')) {
+      cover.remove(); return;
+    }
+    if (e.target.classList.contains('ncopy')) {
+      const ta = cover.querySelector('.ntx');
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+      if (!ok && navigator.clipboard) {
+        navigator.clipboard.writeText(ta.value)
+          .then(() => { cover.querySelector('.nmsg').textContent = '복사했습니다.'; })
+          .catch(() => { cover.querySelector('.nmsg').textContent = '복사가 안 됩니다. 글을 직접 선택해 복사하세요.'; });
+        return;
+      }
+      cover.querySelector('.nmsg').textContent =
+        ok ? '복사했습니다. 카카오톡에 붙여넣으세요.' : '복사가 안 됩니다. 글을 직접 선택해 복사하세요.';
+    }
+  });
+}
 // 2019-03-14 -> 190314
 function ymd(b) {
   const s = String(b || '').replace(/[^0-9]/g, '');
@@ -927,7 +1106,9 @@ function drawKid(c) {
       + '</div>';
   }
 
-  b += '<div class="kidfoot"><button class="ksave" type="button">저장</button></div>';
+  b += '<div class="kidfoot">'
+    + '<button class="knotice" type="button">\uD83D\uDCCB 안내문</button>'
+    + '<button class="ksave" type="button">저장</button></div>';
 
   return '<div class="kid" data-child="' + c.id + '">' + head + b + '</div>';
 }
@@ -1356,6 +1537,12 @@ $('kids').addEventListener('change', e => {
 $('kids').addEventListener('click', e => {
   if (e.target.classList.contains('ksave')) {
     saveKid(Number(e.target.closest('.kid').dataset.child), e.target);
+    return;
+  }
+
+  // 「안내문」 단추 — 미리보기 창을 띄운다
+  if (e.target.classList.contains('knotice')) {
+    openNotice(Number(e.target.closest('.kid').dataset.child));
     return;
   }
 
