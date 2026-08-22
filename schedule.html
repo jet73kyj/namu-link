@@ -564,7 +564,7 @@
         <select id="ad_cnt">
           <option value="매주">매주 — 5주면 5회, 4주면 4회</option>
           <option value="4회만">4회만 — 5주차여도 4회</option>
-          <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
+          <option value="발4+발추1">발4+발추1 — 4주여도 5회, 보강 필요</option>
           <option value="발4+센1">발4+센1 — 1~4주차는 그대로, 5주차 1회만 센터비용</option>
         </select>
       </div>
@@ -697,7 +697,7 @@
         <select id="ed_cnt">
           <option value="매주">매주 — 5주면 5회, 4주면 4회</option>
           <option value="4회만">4회만 — 5주차여도 4회</option>
-          <option value="매월 5회">매월 5회 (발추) — 4주여도 5회, 보강 필요</option>
+          <option value="발4+발추1">발4+발추1 — 4주여도 5회, 보강 필요</option>
           <option value="발4+센1">발4+센1 — 1~4주차는 그대로, 5주차 1회만 센터비용</option>
         </select>
       </div>
@@ -760,7 +760,7 @@
     발달재활은 반드시 4회를 채워야 해서 맨 앞에 나옵니다.<br>
     <b>회수 방식</b> — <b>매주</b>(5주면 5회, 4주면 4회. 대부분 이것) ·
     4회만(5주차여도 4회) ·
-    <b>매월 5회 (발추)</b>(4주뿐인 달엔 1회 모자람으로 뜨니 보강을 잡으세요) ·
+    <b>발4+발추1</b>(4주뿐인 달엔 1회 모자람으로 뜨니 보강을 잡으세요) ·
     <b>발4+센1</b> — 1~4주차는 원래 지원유형(발달재활) 그대로, 5주 있는 달은 5주차 1회가
     센터비용으로 들어갑니다. 그 회차에 <b>초록 「센」</b> 표시가 붙습니다.<br>
     위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
@@ -903,8 +903,8 @@ function drawShort(byScd, mkOf){
     // 보강을 못 잡은 결석·휴무
     const miss = runs.filter(x =>
       (x.status === '결석' || x.status === '휴무') && !mkOf[x.id]);
-    // 「매월 5회」인데 그 달에 5주차가 없어 회차가 하나 모자란 경우
-    const short5 = (r._mode === '매월 5회' && runs.length < (r._wks + 1)) ? 1 : 0;
+    // 「발4+발추1」인데 그 달에 5주차가 없어 회차가 하나 모자란 경우
+    const short5 = (r._mode === '발4+발추1' && runs.length < (r._wks + 1)) ? 1 : 0;
     if (!miss.length && !short5) return;
     if (r._mode === '발4+센1' && !miss.length) return;
     const need = r._cnt || (runs.length + short5);
