@@ -152,6 +152,35 @@
   .kidfoot { display:flex; gap:8px; margin-top:20px; }
   .kidfoot .ksave { margin-left:auto; }
   .kidfoot .knotice { background:#fff; color:#2c5c37; border:1px solid #3c7a4a; }
+  .kidfoot .kdeduct { background:#fff; color:#8a6116; border:1px solid #c9922b; }
+
+  /* 교육비 납입증명서 */
+  .dcover { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:900;
+            display:flex; align-items:flex-start; justify-content:center;
+            padding:20px; overflow:auto; }
+  .dwin { background:#fff; border-radius:10px; width:100%; max-width:760px; }
+  .dbody { padding:26px 30px; }
+  .dfoot { padding:12px 18px; border-top:1px solid #e8ebe4; display:flex; gap:8px;
+           justify-content:flex-end; }
+  .dfoot .dclose { background:#fff; color:#5a6156; border:1px solid #e8ebe4; }
+  .dtitle { text-align:center; font-size:19px; font-weight:700; letter-spacing:.35em;
+            border:1px solid #333; padding:14px; margin-bottom:16px; }
+  .dsec { background:#eef3ec; font-weight:600; font-size:13px;
+          border:1px solid #333; border-bottom:none; padding:6px 9px; }
+  table.dt { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:14px; }
+  table.dt th, table.dt td { border:1px solid #333; padding:7px 9px; }
+  table.dt th { background:#f7f8f5; font-weight:600; text-align:left; white-space:nowrap; }
+  table.dt td.num { text-align:right; }
+  table.dt tr.sum td, table.dt tr.sum th { background:#fdf6e3; font-weight:700; }
+  .dnote { font-size:11.5px; color:#5a6156; line-height:1.7; margin-bottom:14px; }
+  .dsign { font-size:13px; line-height:2.1; margin-top:18px; }
+  .dsign .r { text-align:right; }
+  @media print {
+    body > *:not(.dcover) { display:none !important; }
+    .dcover { position:static; background:none; padding:0; display:block; overflow:visible; }
+    .dwin { max-width:none; border-radius:0; }
+    .dfoot { display:none !important; }
+  }
 
   /* 안내문 미리보기 창 */
   .ncover { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:900;
@@ -438,6 +467,142 @@ function noticeText(childId) {
   L.push('문의 : 042-488-6011');
 
   return { name: (c ? c.name : ''), text: L.join('\n') };
+}
+
+// ── 교육비 납입증명서 (소득공제) ─────────────
+// 그해 낸 돈을 달마다 모아 보여 준다.
+// 연간합계에서 지원유형별 제외액을 한 번에 뺀다.
+const DEDUCT = {          // 지원유형별 한 해 제외액
+  3: 120000,              // 치료지원(언어)
+  4: 120000,              // 치료지원(작업)
+  5: 120000,              // 방과후활동비
+  6: 240000,              // 방과후치료지원(언어)
+  7: 240000               // 방과후치료지원(작업)
+};
+const CENTER = {
+  name: '자라는 나무',
+  biz:  '314-82-75463',
+  addr: '대전광역시 서구 문정로 22, 10층 (탄방동 충렬공회관)'
+};
+
+function jumin6(b) {
+  const t = String(b || '').replace(/[^0-9]/g, '');
+  return t.length >= 8 ? t.slice(2, 8) + '-' : '';
+}
+
+async function openDeduct(childId) {
+  const c = CHILDREN.find(x => x.id === childId);
+  if (!c) return;
+  const yr = String(LOADED_MK || $('mk').value).slice(0, 4);
+
+  const old = document.querySelector('.dcover');
+  if (old) old.remove();
+
+  const cover = document.createElement('div');
+  cover.className = 'dcover';
+  cover.innerHTML = '<div class="dwin"><div class="dbody">불러오는 중...</div></div>';
+  document.body.appendChild(cover);
+  cover.addEventListener('click', e => {
+    if (e.target === cover || e.target.classList.contains('dclose')) cover.remove();
+    if (e.target.classList.contains('dprint')) window.print();
+  });
+
+  let rows;
+  try {
+    const { data, error } = await sb.from('nl_payments')
+      .select('month_key, amount, support_type_id')
+      .eq('child_id', childId)
+      .gte('month_key', yr + '-01').lte('month_key', yr + '-12')
+      .not('paid_on', 'is', null);
+    if (error) throw error;
+    rows = data || [];
+  } catch (e) {
+    cover.querySelector('.dbody').textContent = '납부 기록을 읽지 못했습니다. ' + e.message;
+    return;
+  }
+
+  const mon = {}, used = {};
+  rows.forEach(r => {
+    const m = Number(String(r.month_key).slice(5, 7));
+    mon[m] = (mon[m] || 0) + (Number(r.amount) || 0);
+    if (Number(r.amount) > 0) used[Number(r.support_type_id)] = true;
+  });
+
+  let gross = 0;
+  for (let m = 1; m <= 12; m++) gross += (mon[m] || 0);
+
+  let cut = 0;
+  const cutList = [];
+  Object.keys(DEDUCT).forEach(k => {
+    if (used[Number(k)]) {
+      cut += DEDUCT[k];
+      cutList.push((TYPES[k] || ('유형' + k)) + ' ' + DEDUCT[k].toLocaleString() + '원');
+    }
+  });
+  const net = Math.max(0, gross - cut);
+
+  const cell = m => (mon[m] ? mon[m].toLocaleString() : '');
+  let payRows = '';
+  for (let i = 1; i <= 6; i++) {
+    const j = i + 6;
+    payRows += '<tr>'
+      + '<th>' + String(i).padStart(2, '0') + ' 월</th>'
+      + '<td class="num">' + cell(i) + ' 원</td>'
+      + '<th>' + String(j).padStart(2, '0') + ' 월</th>'
+      + '<td class="num">' + cell(j) + ' 원</td></tr>';
+  }
+
+  cover.querySelector('.dwin').innerHTML =
+      '<div class="dbody">'
+    + '<div class="dtitle">' + yr + '년 교육비 납입증명서</div>'
+
+    + '<div class="dsec">1. 신청인</div>'
+    + '<table class="dt">'
+    + '<tr><th style="width:15%">① 성 명</th><td style="width:35%"></td>'
+    +     '<th style="width:22%">② 주민등록번호<br>(납세번호)</th><td></td></tr>'
+    + '<tr><th>③ 주 소</th><td colspan="3"></td></tr>'
+    + '<tr><th rowspan="2">대상<br>학생</th>'
+    +     '<td>④ 성 명: <b>' + esc(c.name) + '</b></td>'
+    +     '<th>주민등록번호</th><td>' + jumin6(c.birth) + '</td></tr>'
+    + '<tr><td>⑥ 주 소</td><td colspan="2">⑦ 관계: <b>자녀</b></td></tr>'
+    + '</table>'
+
+    + '<div class="dsec">2. 교육기관</div>'
+    + '<table class="dt">'
+    + '<tr><th style="width:15%">⑧ 기관명</th><td style="width:35%"><b>' + CENTER.name + '</b></td>'
+    +     '<th style="width:22%">⑨ 사업자등록번호</th><td><b>' + CENTER.biz + '</b></td></tr>'
+    + '<tr><th>⑩ 소재지</th><td colspan="2">' + CENTER.addr + '</td>'
+    +     '<th>⑪ 전화<br>팩스</th></tr>'
+    + '</table>'
+
+    + '<div class="dsec">3. 수강료 납입금액</div>'
+    + '<table class="dt">'
+    + '<tr><th>납부 월</th><th>납부금액</th><th>납부 월</th><th>납부금액</th></tr>'
+    + payRows
+    + '<tr class="sum"><th colspan="2" style="text-align:center;">연간합계액</th>'
+    +     '<td class="num">' + net.toLocaleString() + ' 원</td>'
+    +     '<td style="text-align:center;">용도: 제출용</td></tr>'
+    + '</table>'
+
+    + (cut
+        ? '<div class="dnote">※ 납부액 합계 ' + gross.toLocaleString() + '원에서 '
+          + '교육비 공제 제외액 ' + cut.toLocaleString() + '원을 뺀 금액입니다.<br>'
+          + '&nbsp;&nbsp;&nbsp;제외 내역 — ' + cutList.join(' · ') + '</div>'
+        : '')
+
+    + '<div class="dnote">소득세법 제52조 및 소득세법시행령 제113조 제1항의 규정에 의하여 '
+    + '위와 같이 교육비를 납부하였음을 증명하여 주시기 바랍니다.</div>'
+    + '<div class="dsign"><div class="r">' + yr + ' 년 &nbsp;&nbsp; 월 &nbsp;&nbsp; 일</div>'
+    + '<div class="r">신 청 인 &nbsp;&nbsp;&nbsp;&nbsp; (서명 또는 날인)</div></div>'
+
+    + '<div class="dnote" style="margin-top:16px;">위와 같이 교육비를 납입하였음을 증명합니다.</div>'
+    + '<div class="dsign"><div class="r">' + yr + ' 년 &nbsp;&nbsp; 월 &nbsp;&nbsp; 일</div>'
+    + '<div class="r" style="font-size:15px;font-weight:600;letter-spacing:.3em;">'
+    + CENTER.name + ' &nbsp;[직인]</div></div>'
+    + '</div>'
+    + '<div class="dfoot">'
+    + '<button class="dclose" type="button">닫기</button>'
+    + '<button class="dprint" type="button">인쇄 · PDF</button></div>';
 }
 
 // 미리보기 창을 띄운다
@@ -1101,6 +1266,7 @@ function drawKid(c) {
 
   b += '<div class="kidfoot">'
     + '<button class="knotice" type="button">\uD83D\uDCCB 납부내역 안내</button>'
+    + '<button class="kdeduct" type="button">\uD83D\uDCC4 소득공제</button>'
     + '<button class="ksave" type="button">저장</button></div>';
 
   return '<div class="kid" data-child="' + c.id + '">' + head + b + '</div>';
@@ -1534,6 +1700,12 @@ $('kids').addEventListener('click', e => {
   }
 
   // 「안내문」 단추 — 미리보기 창을 띄운다
+  // 「소득공제」 단추 — 교육비 납입증명서
+  if (e.target.classList.contains('kdeduct')) {
+    openDeduct(Number(e.target.closest('.kid').dataset.child));
+    return;
+  }
+
   if (e.target.classList.contains('knotice')) {
     openNotice(Number(e.target.closest('.kid').dataset.child));
     return;
