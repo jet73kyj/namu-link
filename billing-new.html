@@ -1142,7 +1142,7 @@ function wkCountOf(boxEl) {
 async function saveWeeks(box) {
   const boxes = box.querySelectorAll('.wkbox');
   if (!boxes.length) return '';
-  let chg = 0, rest = 0, back = 0;
+  let chg = 0, made = 0;
 
   for (const wb of boxes) {
     const sid = Number(wb.dataset.sched);
@@ -1162,31 +1162,17 @@ async function saveWeeks(box) {
     WKWAS[sid] = on.slice();
     chg++;
 
-    // 이 달 회차를 날짜 순으로 세어 몇 주차인지 매긴다
-    const { data: ss, error: e2 } = await sb.from('nl_sessions')
-      .select('id, plan_date, status')
-      .eq('schedule_id', sid).eq('month_key', LOADED_MK)
-      .order('plan_date', { ascending: true });
+    // 이 달 회차를 바뀐 주차대로 다시 깐다 (완료·결석·보강은 그대로 둔다)
+    const { data: n2, error: e2 } = await sb.rpc('nl_remake_schedule_month', {
+      p_schedule_id: sid, p_month: LOADED_MK
+    });
     if (e2) throw e2;
-
-    for (let i = 0; i < (ss || []).length; i++) {
-      const r = ss[i];
-      if (i >= 4) continue;                       // 5주차는 건드리지 않는다
-      if (r.status !== '예정' && r.status !== '쉼') continue;  // 완료·결석·휴무·보강은 그대로
-      const want = on[i] ? '예정' : '쉼';
-      if (r.status === want) continue;
-      const { error: e3 } = await sb.from('nl_sessions')
-        .update({ status: want, updated_at: new Date().toISOString() })
-        .eq('id', r.id);
-      if (e3) throw e3;
-      if (want === '쉼') rest++; else back++;
-    }
+    made += Number(n2 || 0);
   }
 
   if (!chg) return '';
   let m = ' 주차 ' + chg + '줄 저장';
-  if (rest) m += ' · ' + rest + '회 쉼';
-  if (back) m += ' · ' + back + '회 되살림';
+  if (made) m += ' · 회차 ' + made + '개 다시 깖';
   return m + '.';
 }
 
