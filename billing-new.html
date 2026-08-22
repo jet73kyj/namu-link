@@ -785,21 +785,24 @@ function buildRows(childId, mk) {
   });
 
   // 발달재활(2번)이 있으면 발추(8번) 줄도 만들어 둔다
+  // 회차에서 이미 8번 묶음이 만들어졌으면 새로 만들지 않고 그것에 값만 채운다
+  // (그러지 않으면 발추 회차가 있는 아동은 8번 줄이 두 개로 그려진다)
   const dev = out.find(g => g.support_type_id === 2);
   if (dev) {
     const tid = dev.items.length ? dev.items[0].therapist_id : null;
     const fee = tid ? FEES[tid] : null;
     const rule8 = RULES[8] || { calc_type: '치료사정액', deduction: 0, review_target: true };
-    out.push({
-      support_type_id: 8,
-      calc_type: rule8.calc_type,
-      deduction: 0,
-      review_target: rule8.review_target !== false,
-      extra_unit: fee ? (fee.fee_extra || 0) : null,
-      extra_therapist: tid,
-      extra_weekday: dev.items.length ? dev.items[0].weekday : null,
-      items: []
-    });
+    let g8 = out.find(g => g.support_type_id === 8);
+    if (!g8) {
+      g8 = { support_type_id: 8, items: [] };
+      out.push(g8);
+    }
+    g8.calc_type     = rule8.calc_type;
+    g8.deduction     = 0;
+    g8.review_target = rule8.review_target !== false;
+    g8.extra_unit      = fee ? (fee.fee_extra || 0) : null;
+    g8.extra_therapist = tid;
+    g8.extra_weekday   = dev.items.length ? dev.items[0].weekday : null;
   }
 
   out.sort((a, b) => a.support_type_id - b.support_type_id);
