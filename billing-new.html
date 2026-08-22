@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>납부 내역 - 나무링크</title>
+<title>납부 계산 - 나무링크</title>
 <style>
   :root {
     --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
@@ -170,7 +170,7 @@
 
 <!-- 로그인 전 -->
 <div class="box" id="loginBox">
-  <h1>납부 내역</h1>
+  <h1>납부 계산</h1>
   <div class="sub">나무링크</div>
   <label for="em">이메일</label>
   <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
@@ -184,7 +184,7 @@
 <div class="wide" id="mainBox" style="display:none;">
   <div class="top">
     <div>
-      <h1>납부 내역</h1>
+      <h1>납부 계산</h1>
       <div class="who" id="who"></div>
     </div>
     <a href="index.html" class="btn-home">🌿 처음으로</a>
@@ -390,7 +390,7 @@ async function load() {
 
     const [th, fe, ru, gr, pay, px, pv, ss] = await Promise.all([
       sb.from('nl_therapies')
-        .select('id, child_id, therapy_type_id, support_type_id, monthly_count, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration, week1, week2, week3, week4)')
+        .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration, week1, week2, week3, week4)')
         .in('child_id', ids),
       sb.from('nl_therapist_fees').select('*'),
       sb.from('nl_support_rules').select('*'),
@@ -456,11 +456,53 @@ async function load() {
       if (x.status === '결석') g.miss.push({ d: x.plan_date, s: '결석' });
     });
 
-    // 유형별 기준 회수 (치료 등록의 월 회수)
+    // 유형별 기준 회수 — 셈방식(count_mode)에 따라 계산한다
+    //   4회만    : 4
+    //   발4+센1  : 발달재활 4. 5주인 달만 센터비용 1회가 더 붙음
+    //   매월 5회 : 발달재활 4 + 발추 1      (발추는 8번으로 따로 셈)
+    //   매주     : 그 달에 그 요일이 몇 번 있는지 (4주면 4, 5주면 5)
     NEEDCNT = {};
     (th.data || []).forEach(t => {
-      const k = t.child_id + '|' + (t.support_type_id || 0);
-      NEEDCNT[k] = Math.max(NEEDCNT[k] || 0, Number(t.monthly_count) || 0);
+      const st   = Number(t.support_type_id) || 0;
+      const mode = String(t.count_mode || '').trim();
+      const scs  = t.nl_therapy_schedules || [];
+      let need   = Number(t.monthly_count) || 0;
+      let plus1  = 0;                      // 센터비용에 얹을 1회
+
+      if (mode === '매주') {
+        // 요일줄마다 그 달 요일 수를 세어 합친다. 꺼둔 주차는 뺀다.
+        let n = 0;
+        scs.forEach(sc => {
+          if (!sc.weekday) return;
+          const wc = countWeekday(mk, sc.weekday);
+          let off = 0;
+          for (let i = 1; i <= Math.min(wc, 4); i++) {
+            if (sc['week' + i] === false) off++;
+          }
+          n += Math.max(0, wc - off);
+        });
+        if (n) need = n;
+      } else if (mode === '4회만') {
+        need = 4;
+      } else if (mode === '매월 5회') {
+        need = 4;                          // 나머지 1회는 발추(8번)로 따로 센다
+      } else if (mode === '발4+센1') {
+        // 4주인 달 → 발달재활 4회만
+        // 5주인 달 → 발달재활 4회 + 센터비용 1회 (5회차)
+        need = 4;
+        let five = false;
+        scs.forEach(sc => {
+          if (sc.weekday && countWeekday(mk, sc.weekday) >= 5) five = true;
+        });
+        plus1 = five ? 1 : 0;
+      }
+
+      const k = t.child_id + '|' + st;
+      NEEDCNT[k] = Math.max(NEEDCNT[k] || 0, need);
+      if (plus1) {
+        const k1 = t.child_id + '|1';
+        NEEDCNT[k1] = (NEEDCNT[k1] || 0) + plus1;
+      }
     });
 
     // 보강 못 잡은 결석 — 아동별로 모아둔다
@@ -709,22 +751,8 @@ function drawKid(c) {
     if (!need) return;
     const g = SHORTCNT[k];
     if (!g) return;
-    // 발달재활(2번) 기준회수에는 발추(8번) 회수가 함께 들어 있다.
-    // 발추는 따로 계산하므로 그만큼 빼고 비교한다.
-    if (st === 2 && groups.some(gg => gg.support_type_id === 8)) {
-      const g8 = groups.find(gg => gg.support_type_id === 8);
-      const sc = savedCnt(sv[8]);
-      let xn;
-      if (sc !== null) {
-        xn = sc;                                   // 저장된 발추 회수
-      } else {
-        const md = xmodeOf(sv[8]) || xmodeOf(lastM[8]) || (sv[8] !== undefined ? 1 : 3);
-        const five = g8.extra_weekday ? (countWeekday(mk, g8.extra_weekday) >= 5) : false;
-        xn = autoXcnt(md, five);                   // 적용방식으로 정해지는 회수
-      }
-      need = Math.max(0, need - (xn || 0));
-      if (!need) return;
-    }
+    // 기준 회수는 위에서 셈방식대로 이미 계산해 두었다.
+    // (발달재활은 언제나 4회. 발추 1회는 8번으로 따로 센다)
     if (g.cnt >= need) return;
 
     // 저장된 납부의 회기 합계와 같으면 이대로 확정한 것으로 본다
