@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>0원 납부 채우기 - 나무링크</title>
+<style>
+  :root {
+    --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
+    --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system, "Malgun Gothic", sans-serif; background:var(--bg);
+         margin:0; padding:28px 20px; color:var(--ink);
+         font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+
+  .box  { max-width:400px; margin:56px auto; background:#fff; border-radius:14px;
+          padding:32px; border:1px solid var(--line); }
+  .wide { max-width:900px; margin:0 auto; }
+
+  h1 { font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0; color:var(--ink); }
+  .sub { font-size:13px; color:var(--ink3); margin:6px 0 24px; }
+  label { display:block; font-size:12px; color:var(--ink2); margin:16px 0 6px; }
+
+  input, select { font:inherit; font-size:14px; padding:9px 11px; color:var(--ink);
+                  border:1px solid var(--line); border-radius:8px; background:#fff; }
+  input:focus, select:focus { outline:2px solid var(--acc); outline-offset:-1px;
+                              border-color:transparent; }
+  .box input { width:100%; }
+
+  button { font:inherit; font-size:14px; font-weight:500; padding:10px 16px;
+           background:var(--acc); color:#fff; border:none; border-radius:8px;
+           cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  button:disabled { background:#c3c8c0; cursor:default; }
+  .box button { width:100%; padding:12px; margin-top:24px; }
+  .ghost { background:none; color:var(--ink2); border:1px solid var(--line); }
+
+  .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
+         line-height:1.6; display:none; white-space:pre-wrap; }
+  .ok  { background:var(--acc-bg); color:#2c5c37; display:block; }
+  .err { background:#fdeeee; color:#9c2b2b; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:flex-start;
+         gap:12px; margin-bottom:24px; }
+  .who { font-size:13px; color:var(--ink3); margin-top:4px; }
+
+  .btn-home { display:inline-block; padding:8px 16px; background:#2e7d32; color:#fff;
+              font-size:13px; border-radius:8px; text-decoration:none;
+              white-space:nowrap; margin-right:8px; }
+  .btn-home:hover { filter:brightness(1.08); }
+
+  .tools { display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+           padding-bottom:18px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+  .tools label { margin:0; }
+  .allsum { margin-left:auto; font-size:14px; color:var(--ink2); }
+
+  .note { font-size:12.5px; color:var(--ink3); line-height:1.9; margin:14px 0 22px; }
+  .note b { color:var(--ink2); font-weight:600; }
+
+  /* 아동 카드 */
+  .kid { background:#fff; border:1px solid var(--line); border-radius:12px;
+         padding:16px 18px; margin-bottom:12px; }
+  .kid.done { opacity:.45; }
+  .khead { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .kname { font-size:15px; font-weight:600; }
+  .kno   { font-size:12px; color:var(--ink3); }
+  .kleft { margin-left:auto; font-size:12.5px; color:var(--ink3); }
+
+  table { width:100%; border-collapse:collapse; }
+  th { font-size:11.5px; color:var(--ink3); font-weight:500; text-align:left;
+       padding:0 6px 6px; white-space:nowrap; }
+  td { padding:4px 6px; border-top:1px solid var(--line); font-size:13px;
+       vertical-align:middle; }
+  td.mk  { white-space:nowrap; color:var(--ink2); width:76px; }
+  td.st  { white-space:nowrap; }
+  td.day { white-space:nowrap; color:var(--ink2); width:100px; }
+  .amt  { width:110px; text-align:right; }
+  .memo { width:100%; min-width:120px; }
+  .row.saved { background:var(--acc-bg); }
+
+  .kfoot { display:flex; align-items:center; gap:10px; margin-top:12px; }
+  .kfoot .sum { font-size:13px; color:var(--ink2); }
+  .kfoot button { margin-left:auto; }
+
+  .empty { text-align:center; color:var(--ink3); font-size:13.5px; padding:40px 0; }
+</style>
+</head>
+<body>
+
+<!-- 로그인 전 -->
+<div class="box" id="loginBox">
+  <h1>0원 납부 채우기</h1>
+  <div class="sub">나무링크</div>
+  <label for="em">이메일</label>
+  <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="btn">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<!-- 로그인 후 -->
+<div class="wide" id="mainBox" style="display:none;">
+  <div class="top">
+    <div>
+      <h1>0원 납부 채우기</h1>
+      <div class="who" id="who"></div>
+    </div>
+    <a href="index.html" class="btn-home">🌿 처음으로</a>
+    <button id="out" class="ghost">로그아웃</button>
+  </div>
+
+  <div class="tools">
+    <select id="mkfilter"><option value="">달 전체</option></select>
+    <input id="q" type="search" placeholder="아동 이름" style="width:170px;">
+    <button id="load">불러오기</button>
+    <span class="allsum" id="allsum"></span>
+  </div>
+
+  <div class="note">
+    납부일은 있는데 <b>금액이 0원</b>인 줄만 모았습니다. 옛 자료를 옮길 때 금액이 안 넘어온 줄입니다.<br>
+    실제 낸 금액을 넣고 <b>저장</b>을 누르면 목록에서 빠집니다.<br>
+    <b>승인번호</b> 칸 — 발달재활서비스는 계좌입금이라 <b>입금자명</b>을 넣습니다. 나머지는 카드 승인번호입니다.
+    모르면 비워두어도 됩니다.<br>
+    납부일은 여기서 고칠 수 없습니다. 고치려면 <b>납부 내역</b> 화면에서 하세요.
+  </div>
+
+  <div id="kids"></div>
+  <div class="empty" id="empty">불러오기를 누르세요.</div>
+  <div id="msg2" class="out"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: {
+    storage: window.sessionStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false
+  }
+});
+const $ = id => document.getElementById(id);
+
+let NAMES = {}, TYPES = {}, ROWS = [];
+
+function show(el, text, ok) {
+  el.textContent = text;
+  el.className = 'out ' + (ok ? 'ok' : 'err');
+}
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+function won(n) { return (n || 0).toLocaleString() + '원'; }
+function numOf(v) {
+  const n = Number(String(v == null ? '' : v).replace(/[^0-9]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+// memo 에서 [회기...] 같은 표시는 남기고 앞쪽 글자만 바꾼다
+function keepTags(memo) {
+  const m = String(memo || '').match(/\[[^\]]+\]/g);
+  return m ? ' ' + m.join(' ') : '';
+}
+// 지금 들어 있는 승인번호/입금자명을 꺼낸다
+function memoText(memo, isBank) {
+  let m = String(memo || '');
+  m = m.replace(/\s*\[[^\]]+\]/g, '').trim();
+  if (isBank) {
+    if (m === '계좌입금') return '';
+    if (m.indexOf('계좌입금 ') === 0) return m.slice(5);
+    return '';
+  }
+  if (m.indexOf('자동이관') >= 0) return '';
+  if (m === '카드결제' || m === '자동계산' || m === '화면입력' || m === '계좌입금') return '';
+  return m;
+}
+
+async function afterLogin(user) {
+  const { data: me, error: e1 } = await sb
+    .from('nl_therapists').select('name, role')
+    .eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+
+  const [c, st] = await Promise.all([
+    sb.from('nl_children').select('id, name, manager_no'),
+    sb.from('nl_support_types').select('id, name').order('id')
+  ]);
+  if (c.error)  { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
+  if (st.error) { show($('msg'), '❌ 지원유형 조회 실패\n' + st.error.message, false); return; }
+
+  (c.data  || []).forEach(x => NAMES[x.id] = x);
+  (st.data || []).forEach(x => TYPES[x.id] = x.name);
+
+  $('who').textContent = me.name + ' (' + me.role + ') 님';
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
+
+async function load() {
+  $('load').disabled = true;
+  $('load').textContent = '불러오는 중...';
+  $('msg2').className = 'out';
+  try {
+    const { data, error } = await sb.from('nl_payments')
+      .select('id, child_id, support_type_id, month_key, amount, paid_on, memo')
+      .eq('amount', 0)
+      .not('paid_on', 'is', null)
+      .order('month_key');
+    if (error) throw error;
+
+    ROWS = data || [];
+
+    // 달 고르기 칸 채우기
+    const months = [...new Set(ROWS.map(r => r.month_key))].sort();
+    const sel = $('mkfilter'), keep = sel.value;
+    sel.innerHTML = '<option value="">달 전체</option>'
+      + months.map(m => '<option value="' + m + '">' + m + '</option>').join('');
+    if (months.indexOf(keep) >= 0) sel.value = keep;
+
+    render();
+  } catch (e) {
+    show($('msg2'), '❌ 불러오기 실패\n' + e.message, false);
+  } finally {
+    $('load').disabled = false;
+    $('load').textContent = '불러오기';
+  }
+}
+
+function render() {
+  const mk = $('mkfilter').value;
+  const q  = $('q').value.trim();
+
+  let list = ROWS.filter(r => r.amount === 0);
+  if (mk) list = list.filter(r => r.month_key === mk);
+  if (q)  list = list.filter(r => {
+    const c = NAMES[r.child_id];
+    return c && c.name && c.name.indexOf(q) >= 0;
+  });
+
+  $('allsum').textContent = '남은 줄 ' + list.length + '개 · 아동 '
+    + new Set(list.map(r => r.child_id)).size + '명';
+
+  if (!list.length) {
+    $('kids').innerHTML = '';
+    $('empty').style.display = 'block';
+    $('empty').textContent = '채울 줄이 없습니다.';
+    return;
+  }
+  $('empty').style.display = 'none';
+
+  // 아동별로 묶기
+  const by = {};
+  list.forEach(r => { (by[r.child_id] = by[r.child_id] || []).push(r); });
+
+  const ids = Object.keys(by).sort((a, b) => {
+    const na = (NAMES[a] && NAMES[a].name) || '';
+    const nb = (NAMES[b] && NAMES[b].name) || '';
+    return na.localeCompare(nb, 'ko');
+  });
+
+  $('kids').innerHTML = ids.map(cid => {
+    const c = NAMES[cid] || {};
+    const rs = by[cid].sort((a, b) =>
+      a.month_key.localeCompare(b.month_key) || (a.support_type_id - b.support_type_id));
+
+    const body = rs.map(r => {
+      const isBank = Number(r.support_type_id) === 2;
+      return '<tr class="row" data-id="' + r.id + '" data-bank="' + (isBank ? 1 : 0) + '">'
+        + '<td class="mk">' + esc(r.month_key) + '</td>'
+        + '<td class="st">' + esc(TYPES[r.support_type_id] || ('유형' + r.support_type_id)) + '</td>'
+        + '<td class="day">' + esc(r.paid_on || '') + '</td>'
+        + '<td><input class="amt famt" type="text" inputmode="numeric" placeholder="0"></td>'
+        + '<td><input class="memo fmemo" type="text" placeholder="'
+        + (isBank ? '입금자명' : '카드 승인번호') + '" value="'
+        + esc(memoText(r.memo, isBank)) + '"></td>'
+        + '</tr>';
+    }).join('');
+
+    return '<div class="kid" data-child="' + cid + '">'
+      + '<div class="khead">'
+      +   '<span class="kname">' + esc(c.name || ('아동 ' + cid)) + '</span>'
+      +   '<span class="kno">번호 ' + cid + (c.manager_no ? ' · 관리 ' + esc(c.manager_no) : '') + '</span>'
+      +   '<span class="kleft">' + rs.length + '줄</span>'
+      + '</div>'
+      + '<table><thead><tr>'
+      +   '<th>달</th><th>지원유형</th><th>납부일</th><th style="text-align:right;">금액</th><th>승인번호 / 입금자명</th>'
+      + '</tr></thead><tbody>' + body + '</tbody></table>'
+      + '<div class="kfoot">'
+      +   '<span class="sum"></span>'
+      +   '<button class="savebtn">저장</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  // 금액 합계 실시간 표시
+  document.querySelectorAll('.kid').forEach(box => {
+    const upd = () => {
+      let s = 0;
+      box.querySelectorAll('.famt').forEach(i => s += numOf(i.value));
+      box.querySelector('.sum').textContent = s ? ('합계 ' + won(s)) : '';
+    };
+    box.querySelectorAll('.famt').forEach(i => i.addEventListener('input', upd));
+    box.querySelector('.savebtn').onclick = () => saveKid(box);
+  });
+}
+
+async function saveKid(box) {
+  const btn = box.querySelector('.savebtn');
+  const jobs = [];
+
+  box.querySelectorAll('.row').forEach(tr => {
+    const amt = numOf(tr.querySelector('.famt').value);
+    if (amt <= 0) return;                    // 안 채운 줄은 건드리지 않는다
+    const id     = Number(tr.dataset.id);
+    const isBank = tr.dataset.bank === '1';
+    const txt    = tr.querySelector('.fmemo').value.trim();
+    const old    = ROWS.find(r => r.id === id);
+
+    let head;
+    if (isBank) head = txt ? ('계좌입금 ' + txt) : '계좌입금';
+    else        head = txt ? txt : '카드결제';
+
+    jobs.push({ id: id, amount: amt, memo: (head + keepTags(old && old.memo)).trim() });
+  });
+
+  if (!jobs.length) { show($('msg2'), '금액을 넣은 줄이 없습니다.', false); return; }
+
+  btn.disabled = true; btn.textContent = '저장 중...';
+  try {
+    for (const j of jobs) {
+      const { error } = await sb.from('nl_payments')
+        .update({ amount: j.amount, memo: j.memo, is_paid: true })
+        .eq('id', j.id);
+      if (error) throw error;
+      const r = ROWS.find(x => x.id === j.id);
+      if (r) { r.amount = j.amount; r.memo = j.memo; }
+    }
+    show($('msg2'), '✅ ' + jobs.length + '줄 저장했습니다.', true);
+    render();
+  } catch (e) {
+    show($('msg2'), '❌ 저장 실패\n' + e.message, false);
+  } finally {
+    btn.disabled = false; btn.textContent = '저장';
+  }
+}
+
+// 마우스 휠로 칸 값이 바뀌지 않게
+document.addEventListener('wheel', () => {
+  const a = document.activeElement;
+  if (a && a.tagName === 'INPUT') a.blur();
+}, true);
+
+$('load').onclick = load;
+$('mkfilter').onchange = () => { if (ROWS.length) render(); };
+$('q').addEventListener('input', () => { if (ROWS.length) render(); });
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+$('out').onclick = async () => {
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+};
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) { await afterLogin(data.session.user); }
+  else { location.replace('index.html'); }
+})();
+</script>
+</body>
+</html>
