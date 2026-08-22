@@ -70,6 +70,12 @@
               font-size:13px; border-radius:8px; text-decoration:none;
               white-space:nowrap; margin-right:8px; }
   .btn-home:hover { filter:brightness(1.08); }
+  /* 발달재활 등급 단추 */
+  .grb { font:inherit; font-size:13px; padding:7px 12px; cursor:pointer;
+         background:#fff; color:#5a6156; border:1px solid #ddd; border-radius:8px; }
+  .grb:hover { border-color:#3c7a4a; }
+  .grb.on { background:#3c7a4a; color:#fff; border-color:#3c7a4a; font-weight:600; }
+  .grb-non.on { background:#8a8f86; border-color:#8a8f86; }
 </style>
 </head>
 <body>
@@ -242,21 +248,20 @@
       <div style="grid-column:1 / -1; border-top:1px solid #e8ebe4; margin-top:6px; padding-top:12px;">
         <label style="font-weight:600;">발달재활서비스 등급</label>
         <div style="font-size:12px;color:#888;margin:2px 0 8px;">
-          등급을 정하면 본인부담금이 자동으로 채워집니다.
-          등급이 바뀐 달이 있으면 「언제부터」를 그 달로 두고 저장하세요.
+          단추를 누르면 본인부담금이 자동으로 채워집니다. 금액은 직접 고쳐도 됩니다.
+          등급이 바뀌었으면 「언제부터」를 바뀐 달로 두고 저장하세요.
+          지난 달 기록은 그대로 남고, 그 달부터 새 금액이 적용됩니다.
         </div>
+        <div id="grbtns" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+          <button type="button" class="grb" data-g="가">가형 2만</button>
+          <button type="button" class="grb" data-g="나">나형 4만</button>
+          <button type="button" class="grb" data-g="다">다형 0원</button>
+          <button type="button" class="grb" data-g="라">라형 6만</button>
+          <button type="button" class="grb" data-g="마">마형 8만</button>
+          <button type="button" class="grb grb-non" data-g="">없음</button>
+        </div>
+        <input id="e_gr" type="hidden">
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
-          <div style="min-width:110px;">
-            <label for="e_gr" style="font-size:12px;">등급</label>
-            <select id="e_gr" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;">
-              <option value="">넣지 않음</option>
-              <option value="가">가형</option>
-              <option value="나">나형</option>
-              <option value="다">다형</option>
-              <option value="라">라형</option>
-              <option value="마">마형</option>
-            </select>
-          </div>
           <div style="min-width:120px;">
             <label for="e_gr_pay" style="font-size:12px;">본인부담금</label>
             <input id="e_gr_pay" type="text" inputmode="numeric" placeholder="0">
@@ -606,13 +611,22 @@ function thisMonth() {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
-// 등급을 고르면 본인부담금을 자동으로 채운다
-document.addEventListener('change', function (e) {
-  if (e.target && e.target.id === 'e_gr') {
-    const g = e.target.value;
-    $('e_gr_pay').value = (g && GRADE_PAY[g] !== undefined)
-      ? String(GRADE_PAY[g]) : '';
-  }
+// 고른 등급 단추에 색을 입힌다
+function markGrade(g) {
+  document.querySelectorAll('#grbtns .grb').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.g === (g || ''));
+  });
+}
+
+// 등급 단추를 누르면 본인부담금이 자동으로 채워진다
+document.addEventListener('click', function (e) {
+  const b = e.target.closest ? e.target.closest('#grbtns .grb') : null;
+  if (!b) return;
+  const g = b.dataset.g || '';
+  $('e_gr').value = g;
+  $('e_gr_pay').value = (g && GRADE_PAY[g] !== undefined)
+    ? String(GRADE_PAY[g]) : '';
+  markGrade(g);
 });
 
 async function loadGrade(id) {
@@ -620,6 +634,7 @@ async function loadGrade(id) {
   $('e_gr_pay').value = '';
   $('e_gr_from').value = thisMonth();
   $('e_gr_hist').textContent = '';
+  markGrade('');
   try {
     const { data, error } = await sb.from('nl_child_grades')
       .select('grade, self_pay, from_month')
@@ -634,6 +649,7 @@ async function loadGrade(id) {
     $('e_gr').value      = last.grade || '';
     $('e_gr_pay').value  = (last.self_pay == null ? '' : String(last.self_pay));
     $('e_gr_from').value = last.from_month || thisMonth();
+    markGrade(last.grade || '');
     $('e_gr_hist').textContent = '지난 등급 — '
       + data.map(function (r) {
           return r.from_month + ' 부터 ' + r.grade + '형 '
