@@ -229,7 +229,11 @@
         <label for="k_memo">상담 내용</label>
         <textarea id="k_memo" rows="7" style="font:inherit;font-size:14px;padding:9px 11px;
           border:1px solid #ddd;border-radius:6px;width:100%;line-height:1.7;resize:vertical;"
-          placeholder="희망영역 : 언어치료, 감각통합&#10;희망요일 : 화·목 / 금도 가능&#10;희망시간 : 오후 4시 이후, 수요일은 3시부터&#10;아동특징 : 낯가림 심함. 발화 거의 없음&#10;기타 : 형제도 함께 상담 원함"></textarea>
+          placeholder="희망영역 : 언어치료, 감각통합&#10;희망요일 : 화·목 / 금도 가능&#10;희망시간 : 오후 4시 이후, 수요일은 3시부터&#10;아동특징 : 낯가림 심함. 발화 거의 없음&#10;기타 : 형제도 함께 상담 원함">희망영역 : 
+희망요일 : 
+희망시간 : 
+아동특징 : 
+기타 : </textarea>
         <div class="hint">희망요일·시간은 여러 개 적어두면 빈 자리 찾기가 쉬워집니다.</div>
       </div>
       <input id="a_child" type="hidden">
@@ -516,6 +520,16 @@ const sb  = window.supabase.createClient(URL_, KEY_, {
   }
 });
 const $   = id => document.getElementById(id);
+
+// 상담 내용 칸에 미리 넣어두는 항목 틀
+const MEMO_TMPL = '희망영역 : \n희망요일 : \n희망시간 : \n아동특징 : \n기타 : ';
+// 틀만 있고 실제로 적은 내용이 없으면 빈 값으로 저장한다
+function memoOf() {
+  const v = ($('k_memo').value || '').trim();
+  if (!v) return null;
+  const bare = v.split('\n').map(x => x.replace(/^[^:]*:\s*/, '').trim()).join('');
+  return bare ? v : null;
+}
 const msg = $('msg');
 
 // 상태 8가지
@@ -1217,8 +1231,9 @@ $('addBtn').onclick = () => {
   $('a_next').value = today();
   $('a_status').value = '연락 대기';
   ['a_channel','a_area','a_day','a_time','a_action','a_memo',
-   'k_name','k_birth','k_guardian','k_phone','k_memo']
+   'k_name','k_birth','k_guardian','k_phone']
     .forEach(k => $(k).value = '');
+  $('k_memo').value = MEMO_TMPL;
   $('k_gender').value = '';
   $('k_status').value = '대기중';
   $('dupWarn').style.display = 'none';
@@ -1328,7 +1343,7 @@ $('saveNew').onclick = async () => {
       status:     $('k_status').value,
       guardian:   $('k_guardian').value.trim() || null,
       phone:      $('k_phone').value.trim() || null,
-      memo:       $('k_memo').value.trim() || null
+      memo:       memoOf()
     }).select('id, name, status, manager_no').single();
     if (error) throw error;
     kid = data; cid = data.id;
@@ -1363,8 +1378,9 @@ $('saveNew').onclick = async () => {
     showBox('msgA', '✅ 등록했습니다.\n아동 ' + esc(kid.name) + ' (' + cid + '번 · '
       + kid.manager_no + ')\n문의 ' + data.id + '번', true);
     ['a_channel','a_area','a_day','a_time','a_action','a_memo',
-     'k_name','k_birth','k_guardian','k_phone','k_memo']
+     'k_name','k_birth','k_guardian','k_phone']
       .forEach(k => $(k).value = '');
+    $('k_memo').value = MEMO_TMPL;
     $('k_gender').value = '';
     $('k_status').value = '대기중';
     $('dupWarn').style.display = 'none';
