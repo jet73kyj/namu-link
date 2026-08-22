@@ -1737,6 +1737,8 @@ function drawDay(){
   // 이 요일에 그릴 수업 — 요일이 같거나, 회차가 이 요일에 놓인 것
   const day = ROWS_ALL.filter(r => {
     if (r.weekday === wd) {
+      // 이 달만 쉬는 줄도 회색으로 남긴다 (되돌릴 수 있게)
+      if (isRestingMonth(r)) return true;
       return (!r.from_month || r.from_month <= mon) &&
              (!r.to_month   || r.to_month   >= mon);
     }
@@ -1851,6 +1853,20 @@ function drawDay(){
           const lines = [];
           const seenSc = {};
 
+          // 이 달만 쉬는 수업 — 회색 줄로 남겨 되돌릴 수 있게 한다
+          let restHtml = '';
+          list.forEach(function(r){
+            if (!isRestingMonth(r) || r.weekday !== wd) return;
+            restHtml += '<div class="ln ln-rest">'
+              + '<span class="d">쉼</span>'
+              + '<span class="n">' + (STYPE[r.support_type_id] || '') + ' '
+              + esc(r._name) + ' — ' + monNo(mon) + '월 쉬는 중</span>'
+              + (CAN_EDIT
+                  ? '<button class="lnedit" data-ed="' + r.id + '" title="되돌리기">되돌리기</button>'
+                  : '')
+              + '</div>';
+          });
+
           list.forEach(r => {
             (byScd[r.id] || []).forEach(x => {
               if (isSplitRun(x)) return;   // 나눠 진행하는 발추 줄은 감춘다
@@ -1902,6 +1918,8 @@ function drawDay(){
               || ((a.kind === 'open' ? 1 : 0) - (b.kind === 'open' ? 1 : 0)); });
 
           let html = '';
+          html += restHtml;
+
           lines.forEach(function(L2){
             const x = L2.x;
             const day = dayNo(L2.d) + '일';
@@ -2269,7 +2287,8 @@ function drawEdWks(){
 $('ed_cnt').onchange = drawEdWks;
 
 function openEd(scId){
-  const r = ROWS.find(x => x.id === scId);
+  // 이 달 쉬는 줄은 ROWS 에서 걸러지므로 전체에서도 찾는다
+  const r = ROWS.find(x => x.id === scId) || ROWS_ALL.find(x => x.id === scId);
   if (!r) return;
   edRow = r;
   edWk = [r._w1 !== false, r._w2 !== false, r._w3 !== false, r._w4 !== false];
@@ -2288,6 +2307,7 @@ function openEd(scId){
                    .map(splitMin).find(n => n > 0) || 0;
   $('ed_split').checked = !!_cur;
   $('ed_splitmin').value = String(_cur || 10);
+  drawRestBtn();
   edmsg('', true); $('edMsg').className = 'out';
   $('addBox').style.display = 'none';
   $('mkBox').style.display = 'none';
@@ -2372,11 +2392,51 @@ async function applySplit(schedId, minutes){
   return true;
 }
 
-// ===== 이 달은 쉼 =====
+// ===== 이 달은 쉼 / 쉼 되돌리기 =====
 // 요일줄에 「언제부터」를 다음 달로 넣고, 이 달 회차를 지운다
 // ⚠️ 회차만 지우면 nl_make_sessions 가 다시 깔아버린다. 요일줄을 먼저 손봐야 한다
+
+// 지금 보고 있는 달이 「쉼」 상태인지
+function isRestingMonth(r){
+  return !!(r && r.from_month && String(r.from_month) > String(mon));
+}
+
+// 단추 글자를 상태에 맞게 바꾼다
+function drawRestBtn(){
+  const on = isRestingMonth(edRow);
+  $('edRest').textContent = on ? '쉼 되돌리기' : '이 달은 쉼';
+  $('edRest').style.background = on ? '#e65100' : '#00695c';
+  $('edRest').title = on
+    ? '이 달 수업을 다시 살립니다'
+    : '이 달만 쉬고 다음 달부터 다시 나옵니다';
+}
+
+// 쉼 되돌리기
+async function undoRest(){
+  if (!confirm((edRow._name || '') + ' 아동의 이 수업을\n'
+    + monNo(mon) + '월부터 다시 진행합니다.\n\n'
+    + '· ' + monNo(mon) + '월 회차를 새로 만듭니다\n'
+    + '· 다른 달은 그대로 둡니다\n\n계속할까요?')) return;
+
+  $('edRest').disabled = true; $('edRest').textContent = '되돌리는 중...';
+  try {
+    const { error: e1 } = await sb.from('nl_therapy_schedules')
+      .update({ from_month: null }).eq('id', edRow.id);
+    if (e1) throw e1;
+    await sb.rpc('nl_make_sessions', { p_month: mon });
+    await loadMonth(); draw();
+    edmsg('✅ ' + monNo(mon) + '월 수업을 다시 살렸습니다.', true);
+    $('edBox').style.display = 'none';
+  } catch (e) {
+    edmsg('❌ 되돌리지 못했습니다.\n' + (e.message || e), false);
+  } finally {
+    $('edRest').disabled = false; drawRestBtn();
+  }
+}
+
 $('edRest').onclick = async () => {
   if (!edRow) return;
+  if (isRestingMonth(edRow)) { await undoRest(); return; }
   const nextM = (function(k){
     const p = String(k).split('-');
     const d = new Date(Number(p[0]), Number(p[1]), 1);
