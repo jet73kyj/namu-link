@@ -160,7 +160,7 @@
   <div class="tools">
     <button class="tab on" data-st="전체">전체</button>
     <button class="tab" data-st="연락 대기">연락 대기</button>
-    <button class="tab" data-st="자리 대기">자리 대기</button>
+    <button id="wlBtn" class="tab" style="background:#00695c;color:#fff;font-weight:bold;">⏳ 자리 대기 명단</button>
     <button class="tab" data-st="그룹 대기">그룹 대기</button>
     <button id="addBtn" class="tab" style="display:none;">＋ 새 문의</button>
     <button id="evBtn" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">📋 평가 관리</button>
@@ -244,6 +244,64 @@
       <button id="cancelNew" class="tab" style="display:none;">취소</button>
     </div>
     <div id="msgA" class="out"></div>
+  </div>
+
+  <!-- 자리 대기 명단 창 -->
+  <div id="wlBox" class="panel" style="display:none;">
+    <div class="panel-t">자리 대기 명단</div>
+
+    <div class="grid">
+      <div style="grid-column:1 / -1; position:relative;">
+        <label for="w_kidq">아동 <span style="color:#c62828;">*</span>
+          <span style="font-weight:normal;color:#888;">— 이름을 치면 목록이 뜹니다 (신규·등록 아동 모두)</span></label>
+        <input id="w_kidq" type="text" placeholder="이름 두 글자만 쳐도 됩니다" autocomplete="off">
+        <div id="w_kidlist" class="kidlist" style="display:none;"></div>
+        <div id="w_kidpick" class="kidpick"></div>
+      </div>
+
+      <div style="grid-column:1 / -1;">
+        <label>희망 요일·시간 <span style="font-weight:normal;color:#888;">— 최대 5개</span></label>
+        <div id="w_slots"></div>
+        <button id="w_addslot" type="button" class="tab"
+          style="margin-top:6px;padding:4px 10px;font-size:12px;">＋ 시간 추가</button>
+      </div>
+
+      <div>
+        <label for="w_status">상태 <span style="color:#c62828;">*</span></label>
+        <select id="w_status">
+          <option value="대기중">대기중</option>
+          <option value="보류">보류</option>
+          <option value="배정됨">배정됨</option>
+        </select>
+      </div>
+      <div>
+        <label for="w_contact">마지막 연락일</label>
+        <input id="w_contact" type="date">
+      </div>
+      <div style="grid-column:1 / -1;">
+        <label for="w_memo">연락 결과 · 메모</label>
+        <input id="w_memo" type="text" placeholder="예: 9월부터 가능하다고 함 / 다른 기관 정리 후 연락 주기로">
+      </div>
+    </div>
+
+    <div class="btns">
+      <button id="w_save" class="tab"
+        style="background:#00695c;color:#fff;font-weight:bold;">저장하기</button>
+      <button id="w_del" class="tab" style="color:#c62828;">이 아동 대기 취소</button>
+      <button id="w_close" class="tab">닫기</button>
+    </div>
+    <div id="msgW" class="out"></div>
+
+    <div style="margin-top:16px;">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+        <button class="wltab tab on" data-wl="전체">전체</button>
+        <button class="wltab tab" data-wl="대기중">대기중</button>
+        <button class="wltab tab" data-wl="보류">보류</button>
+        <button class="wltab tab" data-wl="배정됨">배정됨</button>
+        <span class="count" id="wlCount"></span>
+      </div>
+      <div id="wlRows"></div>
+    </div>
   </div>
 
   <!-- 평가 관리 창 -->
@@ -860,9 +918,238 @@ function clearEvalForm() {
   evMsg('', true);
 }
 
+// ===== 자리 대기 명단 =====
+const WLWDS   = ['월','화','수','목','금','토'];
+const WLSLOTS = ['09:00','09:50','10:40','11:30','12:20','13:30','14:20',
+                 '15:10','16:00','16:50','17:40','18:30','19:20'];
+let WL = [];          // 대기 명단 (희망 시간 포함)
+let wlKid = null;     // 고른 아동
+let wlEditId = null;  // 고치는 중인 대기 번호
+let wlFilter = '전체';
+
+function wlmsg(t, ok){ $('msgW').textContent = t;
+  $('msgW').className = 'out ' + (ok ? 'ok' : 'err'); }
+
+// 희망 시간 한 줄
+function wlSlotRow(wd, hm){
+  return '<div class="wlslot" style="display:flex;gap:6px;margin-bottom:5px;">'
+    + '<select class="wlwd">'
+    + WLWDS.map(w => '<option value="' + w + '"' + (w === wd ? ' selected' : '') + '>'
+        + w + '요일</option>').join('')
+    + '</select>'
+    + '<select class="wlhm">'
+    + WLSLOTS.map(t => '<option value="' + t + '"' + (t === hm ? ' selected' : '') + '>'
+        + t + '</option>').join('')
+    + '</select>'
+    + '<button type="button" class="tab wldrop" style="padding:2px 9px;color:#c62828;">✕</button>'
+    + '</div>';
+}
+
+function wlBindDrop(){
+  $('w_slots').querySelectorAll('.wldrop').forEach(el => {
+    el.onclick = () => { el.closest('.wlslot').remove(); };
+  });
+}
+
+$('w_addslot').onclick = () => {
+  if ($('w_slots').querySelectorAll('.wlslot').length >= 5) {
+    wlmsg('희망 시간은 5개까지만 넣을 수 있습니다.', false); return;
+  }
+  $('w_slots').insertAdjacentHTML('beforeend', wlSlotRow('월', '15:10'));
+  wlBindDrop();
+};
+
+function clearWlForm(){
+  wlKid = null; wlEditId = null;
+  $('w_kidq').value = ''; $('w_kidlist').style.display = 'none';
+  $('w_kidpick').innerHTML = '';
+  $('w_slots').innerHTML = wlSlotRow('월', '15:10');
+  wlBindDrop();
+  $('w_status').value = '대기중';
+  $('w_contact').value = '';
+  $('w_memo').value = '';
+  $('msgW').className = 'out'; $('msgW').textContent = '';
+}
+
+// 아동 찾기
+$('w_kidq').addEventListener('input', () => {
+  const q = $('w_kidq').value.trim().toLowerCase();
+  const box = $('w_kidlist');
+  if (q.length < 1) { box.style.display = 'none'; return; }
+  const hit = KIDS.filter(k => (k.name || '').toLowerCase().includes(q)).slice(0, 20);
+  box.innerHTML = hit.length
+    ? hit.map(k => '<div class="kiditem" data-wk="' + k.id + '">' + esc(k.name)
+        + ' <span style="color:#888;font-size:11.5px;">(' + k.id + '번 · '
+        + esc(k.status) + ')</span></div>').join('')
+    : '<div class="kiditem">찾는 아동이 없습니다</div>';
+  box.style.display = 'block';
+  box.querySelectorAll('[data-wk]').forEach(el => {
+    el.onclick = () => pickWlKid(Number(el.dataset.wk));
+  });
+});
+
+function pickWlKid(cid){
+  const k = KIDS.find(x => x.id === cid);
+  if (!k) return;
+  wlKid = k;
+  $('w_kidq').value = k.name;
+  $('w_kidlist').style.display = 'none';
+  $('w_kidpick').innerHTML = '고른 아동 — <b>' + esc(k.name) + '</b>'
+    + ' <span style="color:#7a827d;">(' + k.id + '번 · ' + esc(k.status) + ')</span>'
+    + (k.phone ? ' · ☎ ' + esc(k.phone) : ' · <span style="color:#c62828;">연락처 없음</span>');
+}
+
+// 목록 읽기
+async function loadWl(){
+  const { data, error } = await sb.from('nl_waitlist')
+    .select('*, nl_waitlist_slots(weekday, start_time)')
+    .order('created_at');
+  if (error) { wlmsg('❌ 대기 명단을 읽지 못했습니다.\n' + error.message, false); return; }
+  WL = data || [];
+}
+
+function wlSlotText(w){
+  const ss = (w.nl_waitlist_slots || []).slice()
+    .sort((a,b) => WLWDS.indexOf(a.weekday) - WLWDS.indexOf(b.weekday)
+                || String(a.start_time).localeCompare(String(b.start_time)));
+  if (!ss.length) return '<span style="color:#c62828;">희망 시간 없음</span>';
+  return ss.map(v => v.weekday + ' ' + String(v.start_time).slice(0,5)).join(' · ');
+}
+
+function drawWl(){
+  const list = WL.filter(w => wlFilter === '전체' || w.status === wlFilter);
+  $('wlCount').textContent = list.length + '명 / 전체 ' + WL.length + '명';
+  if (!list.length) { $('wlRows').innerHTML =
+    '<div class="evnone">해당하는 아동이 없습니다.</div>'; return; }
+
+  $('wlRows').innerHTML = list.map(w => {
+    const k = KIDS.find(x => x.id === w.child_id);
+    const cls = w.status === '대기중' ? '#00695c'
+              : w.status === '보류'   ? '#8a6116' : '#5a625c';
+    return '<div class="evrow" style="cursor:pointer;" data-wlid="' + w.id + '">'
+      + '<span class="kn">' + esc(k ? k.name : '(' + w.child_id + '번)') + '</span>'
+      + '<span class="d">' + (k && k.phone ? esc(k.phone) : '연락처 없음') + '</span>'
+      + '<span>' + wlSlotText(w) + '</span>'
+      + '<span style="font-weight:bold;color:' + cls + ';">' + esc(w.status) + '</span>'
+      + '<span class="d">' + (w.last_contact ? esc(w.last_contact) : '') + '</span>'
+      + '<span class="d">' + esc(String(w.memo || '').slice(0, 20)) + '</span>'
+      + '</div>';
+  }).join('');
+
+  $('wlRows').querySelectorAll('[data-wlid]').forEach(el => {
+    el.onclick = () => openWl(Number(el.dataset.wlid));
+  });
+}
+
+function openWl(id){
+  const w = WL.find(x => x.id === id);
+  if (!w) return;
+  clearWlForm();
+  wlEditId = id;
+  pickWlKid(w.child_id);
+  const ss = (w.nl_waitlist_slots || []);
+  $('w_slots').innerHTML = ss.length
+    ? ss.map(v => wlSlotRow(v.weekday, String(v.start_time).slice(0,5))).join('')
+    : wlSlotRow('월', '15:10');
+  wlBindDrop();
+  $('w_status').value  = w.status || '대기중';
+  $('w_contact').value = w.last_contact || '';
+  $('w_memo').value    = w.memo || '';
+  wlmsg('고치는 중입니다. 바꾼 뒤 「저장하기」를 누르세요.', true);
+  $('wlBox').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// 저장
+$('w_save').onclick = async () => {
+  if (!wlKid) { wlmsg('아동을 고르세요.', false); return; }
+
+  const slots = [];
+  $('w_slots').querySelectorAll('.wlslot').forEach(el => {
+    const wd = el.querySelector('.wlwd').value;
+    const hm = el.querySelector('.wlhm').value;
+    if (!slots.some(v => v.weekday === wd && v.start_time === hm + ':00'))
+      slots.push({ weekday: wd, start_time: hm + ':00' });
+  });
+  if (!slots.length) { wlmsg('희망 시간을 하나 이상 넣으세요.', false); return; }
+
+  const dup = WL.find(w => w.child_id === wlKid.id && w.id !== wlEditId);
+  if (dup && !confirm(wlKid.name + ' 아동은 이미 대기 명단에 있습니다.\n그래도 새로 넣을까요?')) return;
+
+  const row = {
+    child_id:     wlKid.id,
+    status:       $('w_status').value,
+    last_contact: $('w_contact').value || null,
+    memo:         $('w_memo').value.trim() || null,
+    updated_at:   new Date().toISOString()
+  };
+
+  $('w_save').disabled = true;
+  try {
+    let wid = wlEditId;
+    if (wid) {
+      const { error } = await sb.from('nl_waitlist').update(row).eq('id', wid);
+      if (error) throw error;
+      await sb.from('nl_waitlist_slots').delete().eq('waitlist_id', wid);
+    } else {
+      const { data, error } = await sb.from('nl_waitlist')
+        .insert(row).select('id').single();
+      if (error) throw error;
+      wid = data.id;
+    }
+    const { error: e2 } = await sb.from('nl_waitlist_slots')
+      .insert(slots.map(v => ({ waitlist_id: wid, weekday: v.weekday, start_time: v.start_time })));
+    if (e2) throw e2;
+
+    await loadWl(); drawWl();
+    wlmsg('✅ ' + esc(wlKid.name) + ' 아동 대기를 저장했습니다. (희망 시간 '
+      + slots.length + '개)', true);
+    clearWlForm();
+  } catch (e) {
+    wlmsg('❌ 저장하지 못했습니다.\n' + e.message, false);
+  } finally {
+    $('w_save').disabled = false;
+  }
+};
+
+// 대기 취소
+$('w_del').onclick = async () => {
+  if (!wlEditId) { wlmsg('목록에서 아동을 먼저 고르세요.', false); return; }
+  const w = WL.find(x => x.id === wlEditId);
+  const k = w ? KIDS.find(x => x.id === w.child_id) : null;
+  if (!confirm((k ? k.name + ' 아동' : '이 아동') + ' 을 대기 명단에서 뺍니다.\n계속할까요?')) return;
+  const { error } = await sb.from('nl_waitlist').delete().eq('id', wlEditId);
+  if (error) { wlmsg('❌ 빼지 못했습니다.\n' + error.message, false); return; }
+  await loadWl(); drawWl(); clearWlForm();
+  wlmsg('✅ 대기 명단에서 뺐습니다.', true);
+};
+
+$('w_close').onclick = () => { $('wlBox').style.display = 'none'; };
+
+// 걸러 보기
+document.querySelectorAll('.wltab').forEach(el => {
+  el.onclick = () => {
+    document.querySelectorAll('.wltab').forEach(x => x.classList.remove('on'));
+    el.classList.add('on');
+    wlFilter = el.dataset.wl;
+    drawWl();
+  };
+});
+
+$('wlBtn').onclick = async () => {
+  $('addBox').style.display = 'none';
+  $('detBox').style.display = 'none';
+  $('evBox').style.display  = 'none';
+  $('wlBox').style.display  = 'block';
+  clearWlForm();
+  await loadWl();
+  drawWl();
+  $('wlBox').scrollIntoView({ behavior:'smooth', block:'start' });
+};
+
 $('evBtn').onclick = () => {
   $('addBox').style.display = 'none';
   $('detBox').style.display = 'none';
+  $('wlBox').style.display = 'none';
   $('evBox').style.display = 'block';
   if (!$('e_mon').value) $('e_mon').value = today().slice(0, 7);
   clearEvalForm();
@@ -1109,7 +1396,7 @@ async function afterLogin(user) {
   // 아동 이름표
   const { data: kids, error: e2 } = await sb
     .from('nl_children')
-    .select('id, name, status, manager_no')
+    .select('id, name, status, manager_no, phone')
     .order('name');
   if (e2) { show('❌ 아동 목록 조회 실패\n' + e2.message, false); return; }
   KIDS = kids || [];
