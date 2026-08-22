@@ -1339,12 +1339,6 @@ function drawWeek(){
                   + '</div>';
               }).join('');
           }
-          // 수업이 있는 칸에도 「＋ 수업 넣기」를 붙인다
-          // (한 칸에 아동이 여러 명 들어갈 수 있다)
-          if (CAN_EDIT) {
-            html += '<button class="addbtn" data-add2="'
-                  + s.no + '_' + th + '">＋ 수업 넣기</button>';
-          }
           return '<td class="cell" style="width:14%;">'+html+'</td>';
         }).join('')
       + '</tr>';
@@ -2037,11 +2031,6 @@ function drawDay(){
               + '</div>';
           });
 
-          // 수업이 있는 칸에도 「＋ 수업 넣기」를 붙인다
-          if (CAN_EDIT) {
-            html += '<button class="addbtn" data-add2="'
-                  + s.no + '_' + t.id + '">＋ 수업 넣기</button>';
-          }
           return '<td class="cell" style="' + colW + '">' + html + '</td>';
         }).join('')
       + '</tr>';
