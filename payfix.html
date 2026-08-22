@@ -78,6 +78,10 @@
   .amt  { width:110px; text-align:right; }
   .memo { width:100%; min-width:120px; }
   .row.saved { background:var(--acc-bg); }
+  td.zc { white-space:nowrap; width:96px; }
+  td.zc label { display:inline-flex; align-items:center; gap:5px; margin:0;
+                font-size:12.5px; color:var(--ink2); cursor:pointer; }
+  td.zc input { width:15px; height:15px; accent-color:var(--acc); cursor:pointer; }
 
   .kfoot { display:flex; align-items:center; gap:10px; margin-top:12px; }
   .kfoot .sum { font-size:13px; color:var(--ink2); }
@@ -123,6 +127,8 @@
     실제 낸 금액을 넣고 <b>저장</b>을 누르면 목록에서 빠집니다.<br>
     <b>승인번호</b> 칸 — 발달재활서비스는 계좌입금이라 <b>입금자명</b>을 넣습니다. 나머지는 카드 승인번호입니다.
     모르면 비워두어도 됩니다.<br>
+    실제로 <b>0원이 맞는 줄</b>(발달재활 다형 등)은 <b>「0원 맞음」</b>에 표시하고 저장하세요.
+    금액은 0원 그대로 두고 목록에서만 빠집니다.<br>
     납부일은 여기서 고칠 수 없습니다. 고치려면 <b>납부 내역</b> 화면에서 하세요.
   </div>
 
@@ -163,6 +169,10 @@ function numOf(v) {
   return isNaN(n) ? 0 : n;
 }
 
+// 0원이 맞다고 확인해 둔 줄인가
+function hasZeroOk(memo) {
+  return String(memo || '').indexOf('[0원확인]') >= 0;
+}
 // memo 에서 [회기...] 같은 표시는 남기고 앞쪽 글자만 바꾼다
 function keepTags(memo) {
   const m = String(memo || '').match(/\[[^\]]+\]/g);
@@ -238,7 +248,7 @@ function render() {
   const mk = $('mkfilter').value;
   const q  = $('q').value.trim();
 
-  let list = ROWS.filter(r => r.amount === 0);
+  let list = ROWS.filter(r => r.amount === 0 && !hasZeroOk(r.memo));
   if (mk) list = list.filter(r => r.month_key === mk);
   if (q)  list = list.filter(r => {
     const c = NAMES[r.child_id];
@@ -281,6 +291,7 @@ function render() {
         + '<td><input class="memo fmemo" type="text" placeholder="'
         + (isBank ? '입금자명' : '카드 승인번호') + '" value="'
         + esc(memoText(r.memo, isBank)) + '"></td>'
+        + '<td class="zc"><label><input type="checkbox" class="fzero"> 0원 맞음</label></td>'
         + '</tr>';
     }).join('');
 
@@ -291,7 +302,7 @@ function render() {
       +   '<span class="kleft">' + rs.length + '줄</span>'
       + '</div>'
       + '<table><thead><tr>'
-      +   '<th>달</th><th>지원유형</th><th>납부일</th><th style="text-align:right;">금액</th><th>승인번호 / 입금자명</th>'
+      +   '<th>달</th><th>지원유형</th><th>납부일</th><th style="text-align:right;">금액</th><th>승인번호 / 입금자명</th><th>확인</th>'
       + '</tr></thead><tbody>' + body + '</tbody></table>'
       + '<div class="kfoot">'
       +   '<span class="sum"></span>'
@@ -308,6 +319,10 @@ function render() {
       box.querySelector('.sum').textContent = s ? ('합계 ' + won(s)) : '';
     };
     box.querySelectorAll('.famt').forEach(i => i.addEventListener('input', upd));
+    box.querySelectorAll('.fzero').forEach(i => i.addEventListener('change', () => {
+      const tr = i.closest('.row');
+      tr.style.background = i.checked ? '#eef3ec' : '';
+    }));
     box.querySelector('.savebtn').onclick = () => saveKid(box);
   });
 }
@@ -317,8 +332,10 @@ async function saveKid(box) {
   const jobs = [];
 
   box.querySelectorAll('.row').forEach(tr => {
-    const amt = numOf(tr.querySelector('.famt').value);
-    if (amt <= 0) return;                    // 안 채운 줄은 건드리지 않는다
+    const amt  = numOf(tr.querySelector('.famt').value);
+    const zero = tr.querySelector('.fzero').checked;
+    // 금액도 안 넣고 0원 확인도 안 한 줄은 건드리지 않는다
+    if (amt <= 0 && !zero) return;
     const id     = Number(tr.dataset.id);
     const isBank = tr.dataset.bank === '1';
     const txt    = tr.querySelector('.fmemo').value.trim();
@@ -328,10 +345,13 @@ async function saveKid(box) {
     if (isBank) head = txt ? ('계좌입금 ' + txt) : '계좌입금';
     else        head = txt ? txt : '카드결제';
 
-    jobs.push({ id: id, amount: amt, memo: (head + keepTags(old && old.memo)).trim() });
+    let memo2 = head + keepTags(old && old.memo);
+    if (amt <= 0 && zero) memo2 += ' [0원확인]';
+
+    jobs.push({ id: id, amount: amt, memo: memo2.trim() });
   });
 
-  if (!jobs.length) { show($('msg2'), '금액을 넣은 줄이 없습니다.', false); return; }
+  if (!jobs.length) { show($('msg2'), '금액을 넣었거나 「0원 맞음」에 표시한 줄이 없습니다.', false); return; }
 
   btn.disabled = true; btn.textContent = '저장 중...';
   try {
