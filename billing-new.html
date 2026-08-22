@@ -1264,22 +1264,26 @@ async function saveKid(childId, btn) {
 // 평가비를 받았으면 평가 관리 쪽 상태도 「완료」로 바꾼다
 // (금액이 0원이면 안 바꾼다)
 async function markEvalPaid(childId, rows){
-  const ev = rows.find(r => r.support_type_id === 9);
-  if (!ev || !ev.amount || Number(ev.amount) <= 0) return '';
+  const ev = rows.find(r => Number(r.support_type_id) === 9);
+  if (!ev) return '\n(평가비 줄이 없어 평가 상태는 그대로)';
+  if (!ev.amount || Number(ev.amount) <= 0)
+    return '\n(평가비가 0원이라 평가 상태는 그대로)';
   try {
     const { data, error } = await sb.from('nl_evaluations')
       .select('id, status, eval_date')
       .eq('child_id', childId)
       .gte('eval_date', LOADED_MK + '-01')
       .lte('eval_date', monEndDay(LOADED_MK));
-    if (error) return '';
-    const todo = (data || []).filter(v => v.status !== '완료' && v.status !== '취소');
-    if (!todo.length) return '';
+    if (error) return '\n⚠️ 평가를 읽지 못했습니다. ' + error.message;
+    if (!data || !data.length)
+      return '\n(' + LOADED_MK + ' 에 잡힌 평가가 없어 상태는 그대로)';
+    const todo = data.filter(v => v.status !== '완료' && v.status !== '취소');
+    if (!todo.length) return '\n(평가가 이미 완료·취소라 그대로)';
     const { error: e2 } = await sb.from('nl_evaluations')
       .update({ status: '완료' }).in('id', todo.map(v => v.id));
     if (e2) return '\n⚠️ 평가 상태는 바꾸지 못했습니다. ' + e2.message;
     return '\n평가 ' + todo.length + '건을 「완료」로 바꿨습니다.';
-  } catch (e) { return ''; }
+  } catch (e) { return '\n⚠️ 평가 처리 중 문제. ' + (e.message || e); }
 }
 
 // 그 달 마지막 날 (YYYY-MM-DD)
