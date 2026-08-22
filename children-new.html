@@ -238,6 +238,36 @@
         <label for="e_memo">메모</label>
         <input id="e_memo" type="text">
       </div>
+
+      <div style="grid-column:1 / -1; border-top:1px solid #e8ebe4; margin-top:6px; padding-top:12px;">
+        <label style="font-weight:600;">발달재활서비스 등급</label>
+        <div style="font-size:12px;color:#888;margin:2px 0 8px;">
+          등급을 정하면 본인부담금이 자동으로 채워집니다.
+          등급이 바뀐 달이 있으면 「언제부터」를 그 달로 두고 저장하세요.
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+          <div style="min-width:110px;">
+            <label for="e_gr" style="font-size:12px;">등급</label>
+            <select id="e_gr" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;">
+              <option value="">넣지 않음</option>
+              <option value="가">가형</option>
+              <option value="나">나형</option>
+              <option value="다">다형</option>
+              <option value="라">라형</option>
+              <option value="마">마형</option>
+            </select>
+          </div>
+          <div style="min-width:120px;">
+            <label for="e_gr_pay" style="font-size:12px;">본인부담금</label>
+            <input id="e_gr_pay" type="text" inputmode="numeric" placeholder="0">
+          </div>
+          <div style="min-width:130px;">
+            <label for="e_gr_from" style="font-size:12px;">언제부터</label>
+            <input id="e_gr_from" type="month">
+          </div>
+        </div>
+        <div id="e_gr_hist" style="font-size:12px;color:#5a6156;margin-top:8px;line-height:1.7;"></div>
+      </div>
     </div>
     <div class="addbtns">
       <button id="saveEdit" class="tab" style="background:#1565c0;color:#fff;font-weight:bold;">저장하기</button>
@@ -564,6 +594,69 @@ function openEdit(id) {
   $('msg4').textContent = '';
   $('edBox').style.display = 'block';
   $('edBox').scrollIntoView({ behavior:'smooth', block:'start' });
+  loadGrade(id);
+}
+
+// ── 발달재활 등급 ────────────────────────────
+// 등급은 달마다 따로 둘 수 있다 (도중에 바뀔 수 있으므로)
+const GRADE_PAY = { '가':20000, '나':40000, '다':0, '라':60000, '마':80000 };
+
+function thisMonth() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+// 등급을 고르면 본인부담금을 자동으로 채운다
+document.addEventListener('change', function (e) {
+  if (e.target && e.target.id === 'e_gr') {
+    const g = e.target.value;
+    $('e_gr_pay').value = (g && GRADE_PAY[g] !== undefined)
+      ? String(GRADE_PAY[g]) : '';
+  }
+});
+
+async function loadGrade(id) {
+  $('e_gr').value = '';
+  $('e_gr_pay').value = '';
+  $('e_gr_from').value = thisMonth();
+  $('e_gr_hist').textContent = '';
+  try {
+    const { data, error } = await sb.from('nl_child_grades')
+      .select('grade, self_pay, from_month')
+      .eq('child_id', id)
+      .order('from_month', { ascending: false });
+    if (error) throw error;
+    if (!data || !data.length) {
+      $('e_gr_hist').textContent = '아직 등급이 없습니다.';
+      return;
+    }
+    const last = data[0];
+    $('e_gr').value      = last.grade || '';
+    $('e_gr_pay').value  = (last.self_pay == null ? '' : String(last.self_pay));
+    $('e_gr_from').value = last.from_month || thisMonth();
+    $('e_gr_hist').textContent = '지난 등급 — '
+      + data.map(function (r) {
+          return r.from_month + ' 부터 ' + r.grade + '형 '
+               + Number(r.self_pay || 0).toLocaleString() + '원';
+        }).join(' · ');
+  } catch (e) {
+    $('e_gr_hist').textContent = '등급을 읽지 못했습니다. ' + e.message;
+  }
+}
+
+// 등급을 저장한다. 같은 달 것이 있으면 고치고, 없으면 새로 넣는다
+async function saveGrade(id) {
+  const g = $('e_gr').value;
+  if (!g) return '';                       // 비워 두면 손대지 않는다
+  const fm = $('e_gr_from').value;
+  if (!fm) throw new Error('등급의 「언제부터」를 정하세요.');
+  const pay = Number(String($('e_gr_pay').value).replace(/[^0-9]/g, ''));
+  if (isNaN(pay)) throw new Error('본인부담금이 숫자가 아닙니다.');
+  const { error } = await sb.from('nl_child_grades')
+    .upsert({ child_id: id, grade: g, self_pay: pay, from_month: fm },
+            { onConflict: 'child_id,from_month' });
+  if (error) throw error;
+  return '\n등급 ' + g + '형 · ' + pay.toLocaleString() + '원 (' + fm + ' 부터) 저장했습니다.';
 }
 
 $('cancelEdit').onclick = () => { $('edBox').style.display = 'none'; edId = null; };
@@ -608,9 +701,15 @@ $('saveEdit').onclick = async () => {
     if (i >= 0) ALL[i] = data;
     ALL.sort((a, b) => (a.id || 0) - (b.id || 0));
     draw();
+
+    let gmsg = '';
+    try { gmsg = await saveGrade(edId); await loadGrade(edId); }
+    catch (ge) { gmsg = '\n⚠️ 등급은 저장하지 못했습니다. ' + ge.message; }
+
     show4('✅ 저장했습니다.'
       + (before && before.status !== newSt
-         ? '\n상태를 ' + newSt + ' 로 바꿨습니다. 시간표와 납부 계산에도 반영됩니다.' : ''), true);
+         ? '\n상태를 ' + newSt + ' 로 바꿨습니다. 시간표와 납부 내역에도 반영됩니다.' : '')
+      + gmsg, true);
   } catch (e) {
     show4('❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally {
