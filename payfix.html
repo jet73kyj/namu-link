@@ -387,7 +387,7 @@ $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click
 (async () => {
   const { data } = await sb.auth.getSession();
   if (data && data.session) { await afterLogin(data.session.user); }
-  else { location.replace('index.html'); }
+  // 로그인이 없으면 첫 화면으로 보내지 않고 이 자리에서 로그인 칸을 보여준다
 })();
 </script>
 </body>
