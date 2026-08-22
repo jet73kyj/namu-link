@@ -560,6 +560,10 @@
         <input id="ad_start" type="date">
       </div>
       <div>
+        <label for="ad_end">마지막 날짜 <span style="color:#9aa294;">(모르면 비우기)</span></label>
+        <input id="ad_end" type="date">
+      </div>
+      <div>
         <label for="ad_cnt">회기 방식</label>
         <select id="ad_cnt">
           <option value="매주">매주 — 5주면 5회, 4주면 4회</option>
@@ -683,6 +687,14 @@
           발추 1회기가 <b>급여·회기에 자동으로 들어갑니다</b>
           (시간표에는 안 보이는 줄이 하나 만들어집니다).
         </div>
+      </div>
+      <div>
+        <label for="ed_start">시작 날짜 <span style="color:#9aa294;">(비우면 달 처음부터)</span></label>
+        <input id="ed_start" type="date">
+      </div>
+      <div>
+        <label for="ed_end">마지막 날짜 <span style="color:#9aa294;">(비우면 계속)</span></label>
+        <input id="ed_end" type="date">
       </div>
       <div>
         <label for="ed_tt">치료 종류</label>
@@ -2188,6 +2200,7 @@ function openAdd(key){
   wkOn = [true,true,true,true];
   drawWks();
   $('ad_start').value = mon + '-01';
+  $('ad_end').value = '';
   admsg('', true); $('adMsg').className = 'out';
   $('edBox').style.display = 'none';
   $('mkBox').style.display = 'none';
@@ -2227,7 +2240,10 @@ $('adSave').onclick = async () => {
     const { data: sc, error: e2 } = await sb.from('nl_therapy_schedules').insert({
       therapy_id: th.id, weekday: wd, start_time: slot.hm + ':00',
       therapist_id: thId, duration: Number($('ad_dur').value),
-      week1: wkOn[0], week2: wkOn[1], week3: wkOn[2], week4: wkOn[3]
+      week1: wkOn[0], week2: wkOn[1], week3: wkOn[2], week4: wkOn[3],
+      // 시작·마지막 날짜를 요일줄에 넣어야 회기가 그 사이에만 깔린다
+      from_date: $('ad_start').value || null,
+      to_date:   $('ad_end').value   || null
     }).select().single();
     if (e2) throw e2;
 
@@ -2307,6 +2323,8 @@ function openEd(scId){
                    .map(splitMin).find(n => n > 0) || 0;
   $('ed_split').checked = !!_cur;
   $('ed_splitmin').value = String(_cur || 10);
+  $('ed_start').value = r.from_date || '';
+  $('ed_end').value   = r.to_date   || '';
   showSplitBox();
   drawRestBtn();
   edmsg('', true); $('edMsg').className = 'out';
@@ -2526,7 +2544,9 @@ $('edSave').onclick = async () => {
   try {
     const { data, error } = await sb.from('nl_therapy_schedules')
       .update({ weekday: nw, start_time: slot.hm + ':00',
-                therapist_id: th, duration: du })
+                therapist_id: th, duration: du,
+                from_date: $('ed_start').value || null,
+                to_date:   $('ed_end').value   || null })
       .eq('id', edRow.id).select().single();
     if (error) throw error;
     Object.assign(edRow, data);
@@ -3473,7 +3493,7 @@ async function afterLogin(user){
   THS = THS_ALL;
 
   const { data: sc, error: e3 } = await sb.from('nl_therapy_schedules')
-    .select('id, therapy_id, weekday, start_time, therapist_id, duration, from_month, to_month, week1, week2, week3, week4');
+    .select('id, therapy_id, weekday, start_time, therapist_id, duration, from_month, to_month, from_date, to_date, week1, week2, week3, week4');
   if (e3) { show('❌ 시간표 조회 실패\n'+e3.message, false); return; }
   const { data: tp } = await sb.from('nl_therapies')
     .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode');
