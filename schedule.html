@@ -709,6 +709,7 @@
     <div class="pbtns">
       <button id="edSave" class="pbtn ok-btn">저장하기</button>
       <button id="edFrom" class="pbtn" style="display:none;">이번 달부터 바꾸기</button>
+      <button id="edRest" class="pbtn" style="background:#00695c;">이 달은 쉼</button>
       <button id="edEnd"  class="pbtn red">이 수업 끝내기</button>
       <button id="edClose" class="pbtn grey">닫기</button>
     </div>
@@ -2370,6 +2371,56 @@ async function applySplit(schedId, minutes){
   }
   return true;
 }
+
+// ===== 이 달은 쉼 =====
+// 요일줄에 「언제부터」를 다음 달로 넣고, 이 달 회차를 지운다
+// ⚠️ 회차만 지우면 nl_make_sessions 가 다시 깔아버린다. 요일줄을 먼저 손봐야 한다
+$('edRest').onclick = async () => {
+  if (!edRow) return;
+  const nextM = (function(k){
+    const p = String(k).split('-');
+    const d = new Date(Number(p[0]), Number(p[1]), 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  })(mon);
+
+  if (!confirm((edRow._name || '') + ' 아동의 이 수업을\n'
+    + monNo(mon) + '월 한 달 쉽니다.\n\n'
+    + '· ' + monNo(mon) + '월 회차를 지웁니다\n'
+    + '· ' + monNo(nextM) + '월부터 다시 나옵니다\n'
+    + '· 지난 달 시간표는 그대로 남습니다\n\n계속할까요?')) return;
+
+  $('edRest').disabled = true; $('edRest').textContent = '쉼 처리 중...';
+  try {
+    // (1) 요일줄을 다음 달부터 쓰도록
+    const { error: e1 } = await sb.from('nl_therapy_schedules')
+      .update({ from_month: nextM }).eq('id', edRow.id);
+    if (e1) throw e1;
+
+    // (2) 이 달 회차를 지운다 (완료·결석 등 표시한 것이 있으면 알린다)
+    const { data: had } = await sb.from('nl_sessions')
+      .select('id, status')
+      .eq('schedule_id', edRow.id).eq('month_key', mon);
+    const done = (had || []).filter(v =>
+      v.status === '완료' || v.status === '결석' || v.status === '보강');
+    if (done.length && !confirm('이 달에 완료·결석·보강으로 표시한 회차가 '
+        + done.length + '개 있습니다.\n그것까지 함께 지울까요?')) {
+      $('edRest').disabled = false; $('edRest').textContent = '이 달은 쉼';
+      return;
+    }
+    const { error: e2 } = await sb.from('nl_sessions').delete()
+      .eq('schedule_id', edRow.id).eq('month_key', mon);
+    if (e2) throw e2;
+
+    await loadMonth(); draw();
+    edmsg('✅ ' + monNo(mon) + '월 한 달 쉼으로 처리했습니다.\n'
+      + monNo(nextM) + '월부터 다시 나옵니다.', true);
+    $('edBox').style.display = 'none';
+  } catch (e) {
+    edmsg('❌ 쉼 처리를 하지 못했습니다.\n' + (e.message || e), false);
+  } finally {
+    $('edRest').disabled = false; $('edRest').textContent = '이 달은 쉼';
+  }
+};
 
 $('edSave').onclick = async () => {
   if (!edRow) return;
