@@ -223,10 +223,10 @@
   </div>
 
   <div class="note">
-    <b>회기</b>는 시간표의 회차 표에서 가져옵니다. 휴무·보강·쉼은 빼고 셉니다.<br>
+    <b>회기</b>는 시간표의 회기 표에서 가져옵니다. 휴무·보강·쉼은 빼고 셉니다.<br>
     <b>회기 칸을 누르면</b> 주차 고르기가 펼쳐집니다. 끈 주차는 「쉼」이 되어 회기에서 빠지고,
     그 시간은 다른 아동 보강에 쓸 수 있습니다. 저장해야 반영됩니다.<br>
-    회차가 아직 없는 달이면 요일 수로 채워집니다. 다르면 숫자를 고치세요.<br>
+    회기가 아직 없는 달이면 요일 수로 채워집니다. 다르면 숫자를 고치세요.<br>
     <b>적용단가</b>를 넣으면 치료사 단가 대신 그 값으로 계산합니다 (할인 등). 다음 달에도 이어집니다.
     할인을 끝낼 때는 칸을 비우세요.<br>
     <b>리뷰</b>는 1건 5,000원, 월 4건까지. 발달재활 본인부담금에서는 빠지지 않습니다.<br>
@@ -261,14 +261,14 @@ const REVIEW_MAX  = 4;      // 월 최대 건수
 let CHILDREN = [], TYPES = {}, TTYPES = {}, THERAPISTS = [];
 let FEES = {}, RULES = {}, GRADES = {};
 let NOMAKEUP = {};          // 아동번호 -> 보강 못 잡은 결석 목록
-let SHORTCNT = {};          // 아동|유형 -> { 실제 회수, 빠진 날 }
-let NEEDCNT  = {};          // 아동|유형 -> 기준 회수
+let SHORTCNT = {};          // 아동|유형 -> { 실제 회기, 빠진 날 }
+let NEEDCNT  = {};          // 아동|유형 -> 기준 회기
 
 // 다음 달로 이월 보강이 되는가
 //   2 발달재활        — 월 4회 당월 필수. 이월 안 됨
-//   3·4 치료지원      — 1~3회차 당월 필수, 4회차부터 이월 가능
-//   5 방과후활동비    — 1~3회차 당월 필수, 4회차부터 이월 가능
-//   6·7 방과후치료지원— 1~3회차 당월 필수, 4회차부터 이월 가능
+//   3·4 치료지원      — 1~3회기 당월 필수, 4회기부터 이월 가능
+//   5 방과후활동비    — 1~3회기 당월 필수, 4회기부터 이월 가능
+//   6·7 방과후치료지원— 1~3회기 당월 필수, 4회기부터 이월 가능
 //   1 센터비용        — 언제든 이월 가능
 //   8 발추(이)        — 언제든 이월 가능
 function canCarry(supportTypeId, seq) {
@@ -282,11 +282,11 @@ function carryWhy(supportTypeId, seq) {
   const st = Number(supportTypeId);
   if (st === 2) return '발달재활은 월 4회를 당월에 채워야 합니다';
   if ([3,4,5,6,7].indexOf(st) >= 0 && Number(seq) < 4)
-    return (seq || '?') + '회차라 당월에 보강해야 합니다 (4회차부터 이월 가능)';
+    return (seq || '?') + '회기라 당월에 보강해야 합니다 (4회기부터 이월 가능)';
   return '';
 }
 let SCHED = {};             // child_id -> 수업 목록
-let SESSCNT = {};           // 수업번호 -> { 지원유형: 회차수 }
+let SESSCNT = {};           // 수업번호 -> { 지원유형: 회기수 }
 let WKWAS   = {};           // 요일줄번호 -> 불러올 때의 주차 상태
 let SAVED = {};             // child_id -> 저장된 납부 (이번 달)
 let PREV  = {};             // child_id -> 지난달 납부 (적용단가·발추방식 이어받기용)
@@ -587,7 +587,7 @@ async function load() {
     RULES  = pickLatest(ru.data, mk, 'support_type_id');
     GRADES = pickLatest(gr.data, mk, 'child_id');
 
-    // 그 달 회차 수를 수업+지원유형별로 세어둔다 (휴무·보강은 뺀다)
+    // 그 달 회기 수를 수업+지원유형별로 세어둔다 (휴무·보강은 뺀다)
     const sess = (ss && ss.data) ? ss.data : [];
     SESSCNT = {};
     WKWAS   = {};
@@ -603,7 +603,7 @@ async function load() {
     const covered = {};
     sess.forEach(x => { if (x.status === '보강' && x.makeup_for) covered[x.makeup_for] = 1; });
 
-    // 아동·지원유형별 회차 순번 매기기 (날짜 순)
+    // 아동·지원유형별 회기 순번 매기기 (날짜 순)
     const ord = {};
     sess.slice()
       .filter(x => x.status !== '보강' && x.status !== '쉼')
@@ -614,7 +614,7 @@ async function load() {
         x._seq = ord[k];
       });
 
-    // 아동·유형별 실제 회수와 빠진 날짜(휴무·결석)를 모아둔다
+    // 아동·유형별 실제 회기와 빠진 날짜(휴무·결석)를 모아둔다
     SHORTCNT = {};
     sess.forEach(x => {
       if (x.status === '보강' || x.status === '쉼') return;
@@ -625,7 +625,7 @@ async function load() {
       if (x.status === '결석') g.miss.push({ d: x.plan_date, s: '결석' });
     });
 
-    // 유형별 기준 회수 — 셈방식(count_mode)에 따라 계산한다
+    // 유형별 기준 회기 — 셈방식(count_mode)에 따라 계산한다
     //   4회만    : 4
     //   발4+센1  : 발달재활 4. 5주인 달만 센터비용 1회가 더 붙음
     //   발4+발추1 : 발달재활 4 + 발추 1      (발추는 8번으로 따로 셈)
@@ -657,7 +657,7 @@ async function load() {
         need = 4;                          // 나머지 1회는 발추(8번)로 따로 센다
       } else if (mode === '발4+센1') {
         // 4주인 달 → 발달재활 4회만
-        // 5주인 달 → 발달재활 4회 + 센터비용 1회 (5회차)
+        // 5주인 달 → 발달재활 4회 + 센터비용 1회 (5회기)
         need = 4;
         let five = false;
         scs.forEach(sc => {
@@ -757,7 +757,7 @@ function buildRows(childId, mk) {
       wk: s.wk || [true,true,true,true],
       wdCnt: countWeekday(mk, s.weekday)
     };
-    // 회차 표가 있으면 그것으로, 없으면 요일 수로 센다
+    // 회기 표가 있으면 그것으로, 없으면 요일 수로 센다
     const cnt = SESSCNT[s.sched_id];
     if (cnt && Object.keys(cnt).length) {
       Object.keys(cnt).forEach(sp => {
@@ -785,8 +785,8 @@ function buildRows(childId, mk) {
   });
 
   // 발달재활(2번)이 있으면 발추(8번) 줄도 만들어 둔다
-  // 회차에서 이미 8번 묶음이 만들어졌으면 새로 만들지 않고 그것에 값만 채운다
-  // (그러지 않으면 발추 회차가 있는 아동은 8번 줄이 두 개로 그려진다)
+  // 회기에서 이미 8번 묶음이 만들어졌으면 새로 만들지 않고 그것에 값만 채운다
+  // (그러지 않으면 발추 회기가 있는 아동은 8번 줄이 두 개로 그려진다)
   const dev = out.find(g => g.support_type_id === 2);
   if (dev) {
     const tid = dev.items.length ? dev.items[0].therapist_id : null;
@@ -913,7 +913,7 @@ function drawKid(c) {
   }
 
   // 회기가 기준보다 적은 유형 알려주기
-  // 이미 저장한 납부 회기와 시간표 회차가 같으면 확정된 것이라 안 띄운다
+  // 이미 저장한 납부 회기와 시간표 회기가 같으면 확정된 것이라 안 띄운다
   const shorts = [];
   Object.keys(NEEDCNT).forEach(k => {
     const p = k.split('|');
@@ -923,7 +923,7 @@ function drawKid(c) {
     if (!need) return;
     const g = SHORTCNT[k];
     if (!g) return;
-    // 기준 회수는 위에서 셈방식대로 이미 계산해 두었다.
+    // 기준 회기는 위에서 셈방식대로 이미 계산해 두었다.
     // (발달재활은 언제나 4회. 발추 1회는 8번으로 따로 센다)
     if (g.cnt >= need) return;
 
@@ -960,13 +960,13 @@ function drawKid(c) {
       + (must.length
           ? '<div class="nmkline nmk-must">🔴 당월에 꼭 보강해야 함 ' + must.length + '건 — '
             + must.map(x => (TYPES[x.st] || ('유형'+x.st)) + ' '
-                + dayOnly(x.date) + '일(' + x.seq + '회차)').join(' · ')
+                + dayOnly(x.date) + '일(' + x.seq + '회기)').join(' · ')
             + '<div class="nmkwhy">' + esc(carryWhy(must[0].st, must[0].seq)) + '</div></div>'
           : '')
       + (can.length
           ? '<div class="nmkline nmk-can">🟡 다음 달로 넘겨도 되는 것 ' + can.length + '건 — '
             + can.map(x => (TYPES[x.st] || ('유형'+x.st)) + ' '
-                + dayOnly(x.date) + '일(' + x.seq + '회차)').join(' · ')
+                + dayOnly(x.date) + '일(' + x.seq + '회기)').join(' · ')
             + '</div>'
           : '')
       + '</div>';
@@ -1179,7 +1179,7 @@ function evalTypeOf(p) {
   return m ? Number(m[1]) : null;
 }
 
-// 발추 방식에 따른 기본 회수
+// 발추 방식에 따른 기본 회기
 function autoXcnt(mode, isFiveWeek) {
   if (Number(mode) === 1) return 1;
   if (Number(mode) === 2) return isFiveWeek ? 1 : 0;
@@ -1318,7 +1318,7 @@ function wkBoxHtml(it) {
   for (let w = 1; w <= 5; w++) {
     if (w > wdCnt) break;
     if (w === 5) {
-      h += '<span class="wkb dim" title="5주차는 회수방식으로 정합니다">5주차</span>';
+      h += '<span class="wkb dim" title="5주차는 회기방식으로 정합니다">5주차</span>';
     } else {
       const on = it.wk ? (it.wk[w-1] !== false) : true;
       h += '<span class="wkb ' + (on ? 'yes' : 'no') + '" data-w="' + w + '">'
@@ -1339,8 +1339,8 @@ function wkCountOf(boxEl) {
 }
 
 // ── 주차를 실제로 저장한다 ────────────────────────
-// 요일줄의 week1~4 를 고치고, 이 달 회차를 예정 <-> 쉼 으로 맞춘다.
-// 완료·결석·휴무·보강 회차는 건드리지 않는다.
+// 요일줄의 week1~4 를 고치고, 이 달 회기를 예정 <-> 쉼 으로 맞춘다.
+// 완료·결석·휴무·보강 회기는 건드리지 않는다.
 async function saveWeeks(box) {
   const boxes = box.querySelectorAll('.wkbox');
   if (!boxes.length) return '';
@@ -1364,7 +1364,7 @@ async function saveWeeks(box) {
     WKWAS[sid] = on.slice();
     chg++;
 
-    // 이 달 회차를 바뀐 주차대로 다시 깐다 (완료·결석·보강은 그대로 둔다)
+    // 이 달 회기를 바뀐 주차대로 다시 깐다 (완료·결석·보강은 그대로 둔다)
     const { data: n2, error: e2 } = await sb.rpc('nl_remake_schedule_month', {
       p_schedule_id: sid, p_month: LOADED_MK
     });
@@ -1374,7 +1374,7 @@ async function saveWeeks(box) {
 
   if (!chg) return '';
   let m = ' 주차 ' + chg + '줄 저장';
-  if (made) m += ' · 회차 ' + made + '개 다시 깖';
+  if (made) m += ' · 회기 ' + made + '개 다시 깖';
   return m + '.';
 }
 
@@ -1513,7 +1513,7 @@ $('kids').addEventListener('change', e => {
     if (amtEl) amtEl.value = amt ? amt.toLocaleString() : '';
   }
 
-  // 발추 방식을 고치면 회수가 자동으로 바뀐다
+  // 발추 방식을 고치면 회기가 자동으로 바뀐다
   if (t.classList.contains('xmode')) {
     const row = box.querySelector('.gsum[data-st="8"]');
     const xc  = row ? row.querySelector('.xcnt') : null;

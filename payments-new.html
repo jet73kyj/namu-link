@@ -89,7 +89,7 @@
     <label for="mk">입력할 달</label>
     <input id="mk" type="month" value="2026-07">
     <button id="load">불러오기</button>
-    <button id="save">저장하기</button>
+    <button id="save">저장</button>
     <input id="q" type="search" placeholder="아동 이름 검색" style="width:150px;">
     <select id="stf" style="width:110px;">
       <option value="치료중">치료중</option>
@@ -328,7 +328,7 @@ async function save() {
     show($('msg2'), '❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally {
     $('save').disabled = false;
-    $('save').textContent = '저장하기';
+    $('save').textContent = '저장';
   }
 }
 

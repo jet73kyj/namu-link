@@ -290,7 +290,7 @@
 
     <div class="btns">
       <button id="w_save" class="tab"
-        style="background:#00695c;color:#fff;font-weight:bold;">저장하기</button>
+        style="background:#00695c;color:#fff;font-weight:bold;">저장</button>
       <button id="w_del" class="tab" style="color:#c62828;">이 아동 대기 취소</button>
       <button id="w_close" class="tab">닫기</button>
     </div>
@@ -372,7 +372,7 @@
     </div>
 
     <div class="btns">
-      <button id="evSave" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">저장하기</button>
+      <button id="evSave" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">저장</button>
       <button id="evNew"  class="tab">새로 넣기</button>
       <button id="evClose" class="tab">닫기</button>
     </div>
@@ -447,7 +447,7 @@
       </div>
     </div>
     <div class="btns">
-      <button id="saveDet" class="tab" style="background:#2e7d32;color:#fff;font-weight:bold;">저장하기</button>
+      <button id="saveDet" class="tab" style="background:#2e7d32;color:#fff;font-weight:bold;">저장</button>
       <button id="closeDet" class="tab">닫기</button>
     </div>
     <div id="msgD" class="out"></div>
@@ -748,7 +748,7 @@ $('saveDet').onclick = async () => {
     showBox('msgD', '❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally {
     $('saveDet').disabled = false;
-    $('saveDet').textContent = '저장하기';
+    $('saveDet').textContent = '저장';
   }
 };
 
@@ -1069,7 +1069,7 @@ function openWl(id){
   $('w_status').value  = w.status || '대기중';
   $('w_contact').value = w.last_contact || '';
   $('w_memo').value    = w.memo || '';
-  wlmsg('고치는 중입니다. 바꾼 뒤 「저장하기」를 누르세요.', true);
+  wlmsg('고치는 중입니다. 바꾼 뒤 「저장」를 누르세요.', true);
   $('wlBox').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
