@@ -979,8 +979,10 @@ function dvAddRow(e) {
     box.querySelector('.dv_fee').value =
       feeOf(box.querySelector('.dv_type').value, box.querySelector('.dv_cnt').value);
   };
-  box.querySelector('.dv_type').addEventListener('change', upd);
-  box.querySelector('.dv_cnt').addEventListener('change', upd);
+  box.querySelector('.dv_type').onchange = upd;
+  box.querySelector('.dv_cnt').onchange  = upd;
+  box.querySelector('.dv_type').oninput  = upd;
+  box.querySelector('.dv_cnt').oninput   = upd;
   box.querySelector('.dv_del').onclick = async () => {
     const eid = box.dataset.id;
     if (!eid) { box.remove(); return; }
@@ -1034,8 +1036,10 @@ function nvAddRow() {
     box.querySelector('.nv_fee').value =
       feeOf(box.querySelector('.nv_type').value, box.querySelector('.nv_cnt').value);
   };
-  box.querySelector('.nv_type').addEventListener('change', upd);
-  box.querySelector('.nv_cnt').addEventListener('change', upd);
+  box.querySelector('.nv_type').onchange = upd;
+  box.querySelector('.nv_cnt').onchange  = upd;
+  box.querySelector('.nv_type').oninput  = upd;
+  box.querySelector('.nv_cnt').oninput   = upd;
   box.querySelector('.nv_del').onclick = () => box.remove();
   upd();
 }
