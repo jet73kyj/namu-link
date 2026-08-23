@@ -446,15 +446,24 @@
         <label for="d_evaldate">평가 날짜</label>
         <input id="d_evaldate" type="date">
       </div>
-      <div>
-        <label for="d_endreason">종료 사유</label>
-        <input id="d_endreason" type="text" placeholder="상태가 종료일 때만">
-      </div>
+      <input id="d_endreason" type="hidden">
       <div style="grid-column:1 / -1;">
         <label for="d_memo">메모</label>
         <input id="d_memo" type="text">
       </div>
     </div>
+    <div style="border-top:2px solid #cfe0d0; margin-top:14px; padding-top:14px;">
+      <label style="display:flex; align-items:center; gap:10px;">
+        <span>평가</span>
+        <button type="button" id="dvAdd" class="tab"
+                style="background:#fff8e1;border-color:#f0c36d;color:#8a6116;
+                       font-weight:600;padding:5px 12px;">＋ 평가 줄 추가</button>
+        <span style="font-weight:normal;color:#888;font-size:12.5px;">
+          — 고치면 아래 「저장」을 누르세요</span>
+      </label>
+      <div id="dvRows"></div>
+    </div>
+
     <div class="btns">
       <button id="saveDet" class="tab" style="background:#2e7d32;color:#fff;font-weight:bold;">저장</button>
       <button id="closeDet" class="tab">닫기</button>
@@ -706,6 +715,12 @@ async function openDetail(id) {
   $('d_memo').value      = r.memo || '';
   showBox('msgD', '', true); $('msgD').className = 'out';
 
+  // 이 아동의 평가를 채운다
+  $('dvRows').innerHTML = '';
+  EVALS.filter(e => e.child_id === r.child_id)
+    .sort((a, b) => String(a.eval_date).localeCompare(String(b.eval_date)))
+    .forEach(e => dvAddRow(e));
+
   $('l_date').value = today();
   $('l_content').value = '';
   showBox('msgL', '', true); $('msgL').className = 'out';
@@ -769,8 +784,48 @@ $('saveDet').onclick = async () => {
     if (error) throw error;
     const i = ALL.findIndex(x => x.id === openId);
     if (i >= 0) ALL[i] = data;
+
+    // 평가 줄도 함께 저장한다
+    const cid = data.child_id;
+    let evN = 0, evErr = '';
+    const boxes = Array.from(document.querySelectorAll('#dvRows .dvrow'))
+      .filter(b => b.querySelector('.dv_date').value);
+    for (const b of boxes) {
+      const fee = parseInt(String(b.querySelector('.dv_fee').value)
+                    .replace(/[^0-9]/g, ''), 10);
+      const row = {
+        child_id:     cid,
+        eval_type_id: Number(b.querySelector('.dv_type').value) || null,
+        eval_date:    b.querySelector('.dv_date').value,
+        eval_time:    b.querySelector('.dv_time').value || null,
+        therapist_id: Number(b.querySelector('.dv_thr').value) || null,
+        item_cnt:     Number(b.querySelector('.dv_cnt').value) || 1,
+        fee:          isNaN(fee) ? 0 : fee,
+        status:       b.querySelector('.dv_st').value,
+        paid_on:      b.querySelector('.dv_paid').value || null,
+        card_no:      b.querySelector('.dv_card').value.trim() || null
+      };
+      const eid = b.dataset.id;
+      let res;
+      if (eid) res = await sb.from('nl_evaluations')
+                       .update(row).eq('id', Number(eid)).select().single();
+      else     res = await sb.from('nl_evaluations')
+                       .insert(row).select().single();
+      if (res.error) { evErr = res.error.message; break; }
+      evN++;
+      if (eid) {
+        const k = EVALS.findIndex(x => x.id === Number(eid));
+        if (k >= 0) EVALS[k] = res.data;
+      } else {
+        EVALS.push(res.data);
+        b.dataset.id = res.data.id;
+      }
+    }
+
     draw();
-    showBox('msgD', '✅ 저장했습니다.', true);
+    showBox('msgD', '✅ 저장했습니다.'
+      + (evN ? '\n평가 ' + evN + '건' : '')
+      + (evErr ? '\n⚠️ 평가는 저장하지 못했습니다: ' + evErr : ''), true);
   } catch (e) {
     showBox('msgD', '❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally {
@@ -872,6 +927,71 @@ function feeOf(tid, cnt) {
   if (!hit) hit = same.find(f => !/[0-9]개/.test(String(f.name)));
   if (!hit) hit = same[0];
   return hit ? Number(hit.amount).toLocaleString() : '';
+}
+
+// 열기 창의 평가 줄 — e 가 있으면 그 값으로 채운다
+function dvAddRow(e) {
+  const typeOpt = EVTYPES.map(t =>
+    '<option value="' + t.id + '"' + (e && e.eval_type_id === t.id ? ' selected' : '') + '>'
+    + esc(t.name) + '</option>').join('');
+  const thrOpt = '<option value="">-- 담당 --</option>' + THRS.map(t =>
+    '<option value="' + t.id + '"' + (e && e.therapist_id === t.id ? ' selected' : '') + '>'
+    + esc(t.name) + '</option>').join('');
+  const stOpt = ['예정','완료','취소'].map(v =>
+    '<option value="' + v + '"' + (e && e.status === v ? ' selected' : '') + '>'
+    + v + '</option>').join('');
+  const cntOpt = [1,2,3].map(v =>
+    '<option value="' + v + '"' + (e && Number(e.item_cnt) === v ? ' selected' : '') + '>'
+    + v + '개</option>').join('');
+  const html =
+    '<div class="dvrow" data-id="' + (e ? e.id : '') + '" style="border:1px solid #e0e5df;'
+    + 'border-radius:8px; padding:10px 12px; margin-top:8px; background:#fafbf9;">'
+    + '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">'
+    + '<div><label style="font-size:12px;">평가 날짜</label>'
+    +   '<input class="dv_date" type="date" style="width:140px;" value="'
+    +   esc(e && e.eval_date || '') + '"></div>'
+    + '<div><label style="font-size:12px;">시간</label>'
+    +   '<input class="dv_time" type="time" style="width:110px;" value="'
+    +   esc(e && e.eval_time ? String(e.eval_time).slice(0,5) : '') + '"></div>'
+    + '<div><label style="font-size:12px;">평가 종류</label>'
+    +   '<select class="dv_type" style="width:130px;">' + typeOpt + '</select></div>'
+    + '<div><label style="font-size:12px;">개수</label>'
+    +   '<select class="dv_cnt" style="width:80px;">' + cntOpt + '</select></div>'
+    + '<div><label style="font-size:12px;">담당</label>'
+    +   '<select class="dv_thr" style="width:120px;">' + thrOpt + '</select></div>'
+    + '<div><label style="font-size:12px;">평가비</label>'
+    +   '<input class="dv_fee" type="text" inputmode="numeric" style="width:110px;" value="'
+    +   (e ? Number(e.fee || 0).toLocaleString() : '') + '"></div>'
+    + '<div><label style="font-size:12px;">상태</label>'
+    +   '<select class="dv_st" style="width:90px;">' + stOpt + '</select></div>'
+    + '<div><label style="font-size:12px;">납부일</label>'
+    +   '<input class="dv_paid" type="date" style="width:140px;" value="'
+    +   esc(e && e.paid_on || '') + '"></div>'
+    + '<div><label style="font-size:12px;">카드 승인번호</label>'
+    +   '<input class="dv_card" type="text" style="width:140px;" value="'
+    +   esc(e && e.card_no || '') + '"></div>'
+    + '<button type="button" class="tab dv_del" style="padding:6px 12px;">'
+    +   (e ? '이 평가 지우기' : '줄 지우기') + '</button>'
+    + '</div></div>';
+  $('dvRows').insertAdjacentHTML('beforeend', html);
+  const box = $('dvRows').lastElementChild;
+  const upd = () => {
+    box.querySelector('.dv_fee').value =
+      feeOf(box.querySelector('.dv_type').value, box.querySelector('.dv_cnt').value);
+  };
+  box.querySelector('.dv_type').addEventListener('change', upd);
+  box.querySelector('.dv_cnt').addEventListener('change', upd);
+  box.querySelector('.dv_del').onclick = async () => {
+    const eid = box.dataset.id;
+    if (!eid) { box.remove(); return; }
+    if (!confirm('이 평가 기록을 지웁니다. 되돌릴 수 없습니다.\n계속할까요?')) return;
+    const { error } = await sb.from('nl_evaluations').delete().eq('id', Number(eid));
+    if (error) { showBox('msgD', '❌ 지우지 못했습니다.\n' + error.message, false); return; }
+    EVALS = EVALS.filter(x => x.id !== Number(eid));
+    box.remove(); draw();
+    showBox('msgD', '✅ 평가를 지웠습니다.', true);
+  };
+  if (!e) upd();
 }
 
 function nvAddRow() {
@@ -1295,6 +1415,7 @@ $('evSave').onclick = async () => {
 };
 
 $('nvAdd').onclick = () => nvAddRow();
+$('dvAdd').onclick = () => dvAddRow(null);
 
 // 등록 창에 평가 줄이 하나도 없으면 하나 만들어 둔다
 function nvEnsureOne() {
