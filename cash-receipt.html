@@ -86,6 +86,12 @@
   .w-day { width:140px; }
 
   .empty { text-align:center; color:var(--ink3); font-size:13.5px; padding:40px 0; }
+  table.mix td.mm { color:var(--ink3); font-size:11.5px; }
+  table.mix.bank tr.sumrow td { font-weight:600; color:var(--acc);
+                                border-top:2px solid var(--line); }
+  .asktitle { font-size:12px; color:#8a6d1f; background:#fff3c4;
+              display:inline-block; padding:3px 9px; border-radius:6px;
+              margin-top:14px; }
   .fold { font-size:12px; color:var(--acc); cursor:pointer; user-select:none;
           margin-top:8px; display:inline-block; }
 </style>
@@ -181,6 +187,12 @@ function kindOf(p) {
   return 'ask';
 }
 function tName(id) { return TYPES[id] || ('유형' + id); }
+// 메모를 보기 좋게 다듬는다 (자동이관 같은 군말은 줄인다)
+function cleanMemo(m) {
+  let t = String(m || '').trim();
+  t = t.replace(/^\d{4}-\d{2}-\d{2}\s*자동이관\s*\(납부완료분만\)$/, '자동이관');
+  return t;
+}
 
 async function afterLogin(user) {
   const { data: me, error: e1 } = await sb
@@ -243,9 +255,12 @@ function render() {
   const by = {};
   PAYS.forEach(p => {
     const k = kindOf(p);
-    const g = by[p.child_id] = by[p.child_id] || { bank:0, card:0, done:0, ask:[] };
+    const g = by[p.child_id] = by[p.child_id] || { bank:0, card:0, done:0, ask:[], bankRows:[] };
     if (k === 'ask') g.ask.push(p);
-    else g[k] += (p.amount || 0);
+    else {
+      g[k] += (p.amount || 0);
+      if (k === 'bank') g.bankRows.push(p);
+    }
   });
 
   let ids = Object.keys(by);
@@ -296,6 +311,17 @@ function render() {
         + '<td class="zc"><label><input type="checkbox" class="fcard"> 카드로 봄</label></td>'
         + '</tr>').join('');
 
+    const bankRows = g.bankRows.slice()
+      .sort((a,b) => String(a.paid_on).localeCompare(String(b.paid_on)))
+      .map(p =>
+        '<tr>'
+        + '<td>' + esc(p.paid_on || '') + '</td>'
+        + '<td>' + esc(p.month_key || '') + '</td>'
+        + '<td>' + esc(tName(p.support_type_id)) + '</td>'
+        + '<td style="text-align:right;">' + won(p.amount) + '</td>'
+        + '<td class="mm">' + esc(cleanMemo(p.memo)) + '</td>'
+        + '</tr>').join('');
+
     return '<div class="kid' + (issued ? ' done' : '') + '" data-child="' + id + '">'
       + '<div class="khead">'
       +   '<span class="kname">' + esc(c.name || ('아동 ' + id)) + '</span>'
@@ -310,8 +336,17 @@ function render() {
       +   (g.ask.length ? '<span class="tag" style="background:#fff3c4;">고를 것 '
             + g.ask.length + '건</span>' : '')
       + '</div>'
+      + (bankRows
+          ? '<table class="mix bank"><thead><tr><th>낸 날</th><th>달</th><th>항목</th>'
+            + '<th style="text-align:right;">금액</th><th>메모</th>'
+            + '</tr></thead><tbody>' + bankRows
+            + '<tr class="sumrow"><td colspan="3">계좌 합계</td>'
+            + '<td style="text-align:right;">' + won(g.bank) + '</td><td></td></tr>'
+            + '</tbody></table>'
+          : '<div class="kbody" style="color:var(--ink3);">계좌로 받은 것이 없습니다.</div>')
       + (askRows
-          ? '<table class="mix"><thead><tr><th>낸 날</th><th>항목</th>'
+          ? '<div class="asktitle">어느 쪽인지 알 수 없는 것 — 골라 주세요</div>'
+            + '<table class="mix"><thead><tr><th>낸 날</th><th>항목</th>'
             + '<th style="text-align:right;">금액</th><th>계좌</th><th>카드</th>'
             + '</tr></thead><tbody>' + askRows + '</tbody></table>'
             + '<span class="fold" data-act="mark">고른 것 저장</span>'
