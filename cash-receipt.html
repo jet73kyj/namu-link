@@ -231,7 +231,7 @@ async function load() {
       sb.from('nl_payments')
         .select('id, child_id, support_type_id, month_key, amount, paid_on, memo')
         .gte('paid_on', y + '-01-01').lte('paid_on', y + '-12-31')
-        .gt('amount', 0),
+        .gt('amount', 0).limit(20000),
       sb.from('nl_cash_receipts').select('*').eq('year', Number(y))
     ]);
     if (p.error) throw p.error;
