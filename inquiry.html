@@ -862,7 +862,7 @@ function nvAddRow() {
   const i = ++nvSeq;
   const typeOpt = EVTYPES.map(t =>
     '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
-  const thrOpt = '<option value="">-- 담당 --</option>' + THS.map(t =>
+  const thrOpt = '<option value="">-- 담당 --</option>' + THRS.map(t =>
     '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
   const html =
     '<div class="nvrow" data-i="' + i + '" style="border:1px solid #e0e5df;'
@@ -1291,6 +1291,11 @@ $('evSave').onclick = async () => {
 
 $('nvAdd').onclick = () => nvAddRow();
 
+// 등록 창에 평가 줄이 하나도 없으면 하나 만들어 둔다
+function nvEnsureOne() {
+  if (!document.querySelector('#nvRows .nvrow')) nvAddRow();
+}
+
 $('addBtn').onclick = () => {
   const open = $('addBox').style.display !== 'none';
   if (open) { $('addBox').style.display = 'none'; return; }
@@ -1299,6 +1304,8 @@ $('addBtn').onclick = () => {
   $('dateTxt').textContent = today();
   $('a_next').value = today();
   $('a_status').value = '연락 대기';
+  $('nvRows').innerHTML = '';
+  nvEnsureOne();
   ['a_channel','a_area','a_day','a_time','a_action','a_memo',
    'k_name','k_birth','k_guardian','k_phone']
     .forEach(k => $(k).value = '');
@@ -1475,7 +1482,7 @@ $('saveNew').onclick = async () => {
       + kid.manager_no + ')\n문의 ' + data.id + '번'
       + (evN ? '\n평가 ' + evN + '건' : '')
       + (evErr ? '\n⚠️ 평가는 넣지 못했습니다: ' + evErr : ''), true);
-    $('nvRows').innerHTML = '';
+    $('nvRows').innerHTML = ''; nvEnsureOne();
     ['a_channel','a_area','a_day','a_time','a_action','a_memo',
      'k_name','k_birth','k_guardian','k_phone']
       .forEach(k => $(k).value = '');
