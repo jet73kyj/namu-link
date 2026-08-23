@@ -2453,6 +2453,9 @@ async function undoRest(){
     const { error: e1 } = await sb.from('nl_therapy_schedules')
       .update({ from_month: null }).eq('id', edRow.id);
     if (e1) throw e1;
+    // 화면이 들고 있는 값도 함께 바꾼다 (안 그러면 「쉬는 중」 표시가 남는다)
+    edRow.from_month = null;
+    { const rr = ROWS.find(x => x.id === edRow.id); if (rr) rr.from_month = null; }
     await sb.rpc('nl_make_sessions', { p_month: mon });
     await loadMonth(); draw();
     edmsg('✅ ' + monNo(mon) + '월 수업을 다시 살렸습니다.', true);
@@ -2485,6 +2488,9 @@ $('edRest').onclick = async () => {
     const { error: e1 } = await sb.from('nl_therapy_schedules')
       .update({ from_month: nextM }).eq('id', edRow.id);
     if (e1) throw e1;
+    // 화면이 들고 있는 값도 함께 바꾼다
+    edRow.from_month = nextM;
+    { const rr = ROWS.find(x => x.id === edRow.id); if (rr) rr.from_month = nextM; }
 
     // (2) 이 달 회기를 지운다 (완료·결석 등 표시한 것이 있으면 알린다)
     const { data: had } = await sb.from('nl_sessions')
