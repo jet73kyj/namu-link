@@ -163,7 +163,6 @@
     <button id="wlBtn" class="tab" style="background:#00695c;color:#fff;font-weight:bold;">⏳ 자리 대기 명단</button>
     <button class="tab" data-st="그룹 대기">그룹 대기</button>
     <button id="addBtn" class="tab" style="display:none;">＋ 새 문의</button>
-    <button id="evBtn" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">📋 평가 관리</button>
     <span class="count" id="count"></span>
   </div>
 
@@ -235,6 +234,16 @@
 아동특징 : 
 기타 : </textarea>
         <div class="hint">희망요일·시간은 여러 개 적어두면 빈 자리 찾기가 쉬워집니다.</div>
+      </div>
+      <div style="grid-column:1 / -1; border-top:2px solid #cfe0d0;
+                  margin-top:14px; padding-top:14px;">
+        <label style="display:flex; align-items:center; gap:10px;">
+          <span>평가 (받은 것이 있으면 넣으세요. 없으면 비워두면 됩니다)</span>
+          <button type="button" id="nvAdd" class="tab"
+                  style="background:#fff8e1;border-color:#f0c36d;color:#8a6116;
+                         font-weight:600;padding:5px 12px;">＋ 평가 줄 추가</button>
+        </label>
+        <div id="nvRows"></div>
       </div>
       <input id="a_child" type="hidden">
       <input id="a_date" type="hidden">
@@ -437,7 +446,10 @@
         <label for="d_evaldate">평가 날짜</label>
         <input id="d_evaldate" type="date">
       </div>
-      <input id="d_endreason" type="hidden">
+      <div>
+        <label for="d_endreason">종료 사유</label>
+        <input id="d_endreason" type="text" placeholder="상태가 종료일 때만">
+      </div>
       <div style="grid-column:1 / -1;">
         <label for="d_memo">메모</label>
         <input id="d_memo" type="text">
@@ -529,10 +541,11 @@ function memoOf() {
 }
 const msg = $('msg');
 
-// 상태 5가지
-const STATUS = ['연락 대기','자리 대기','그룹 대기','평가완료','치료 시작'];
+// 상태 8가지
+const STATUS = ['연락 대기','회신 대기','평가 대기','자리 대기','그룹 대기',
+                '일정 조율 중','치료 시작','종료'];
 // 아직 결론이 안 난 상태 (= 진행중)
-const LIVE = ['연락 대기','자리 대기','그룹 대기','평가완료'];
+const LIVE = ['연락 대기','회신 대기','평가 대기','자리 대기','그룹 대기','일정 조율 중'];
 
 // 이 화면을 볼 수 있는 직원 번호. 8=관리자 9=행정
 // 나중에 치료사도 보게 하려면 아래 줄에 번호를 더하면 됩니다.
@@ -575,10 +588,15 @@ function kidName(cid) {
   const k = KIDS.find(x => x.id === cid);
   return k ? k.name : '(번호 ' + cid + ')';
 }
+// 이 아동이 평가를 받은 적이 있는가 (취소는 뺀다)
+function hasEval(cid) {
+  return EVALS.some(e => e.child_id === cid && e.status !== '취소');
+}
 function badge(st) {
-  const c = (st === '평가완료') ? 's-eval'
+  const c = (st === '평가 대기') ? 's-eval'
           : (st === '자리 대기' || st === '그룹 대기') ? 's-seat'
-          : (st === '치료 시작') ? 's-go' : 's-wait';
+          : (st === '치료 시작') ? 's-go'
+          : (st === '종료') ? 's-end' : 's-wait';
   return '<span class="badge ' + c + '">' + esc(st || '미지정') + '</span>';
 }
 // 상태 고르는 칸 채우기
@@ -636,7 +654,8 @@ function draw() {
       + '<td class="idcell">' + r.id + '</td>'
       + '<td>' + esc(kidName(r.child_id)) + '</td>'
       + '<td class="nowrap">' + esc(r.inquiry_date) + '</td>'
-      + '<td>' + badge(r.status) + '</td>'
+      + '<td>' + badge(r.status)
+        + (hasEval(r.child_id) ? ' ' + badge('평가완료') : '') + '</td>'
       + '<td class="nowrap ' + (late ? 'late' : '') + '">'
         + esc(r.next_check_date) + '</td>'
       + '<td>' + esc(r.next_action).slice(0, 30) + '</td>'
@@ -820,6 +839,69 @@ function pickKid(cid) {
   document.querySelectorAll('.evtab').forEach(x =>
     x.classList.toggle('on', x.dataset.ev === 'kid'));
   drawEvalList();
+}
+
+// ===== 새 문의 등록 창의 평가 줄 =====
+let nvSeq = 0;
+
+// 평가 종류·개수로 평가비를 찾는다 (autoFee 와 같은 규칙)
+function feeOf(tid, cnt) {
+  const t  = EVTYPES.find(x => x.id === Number(tid));
+  const tn = t ? String(t.name).replace('평가', '') : '';
+  if (!tn) return '';
+  let hit = EVFEES.find(f => {
+    const nm = String(f.name || '');
+    if (!nm.includes(tn)) return false;
+    return nm.includes(cnt + '개') || (Number(cnt) === 1 && !/[123]개/.test(nm));
+  });
+  if (!hit) hit = EVFEES.find(f => String(f.name || '').includes(tn));
+  return hit ? Number(hit.amount).toLocaleString() : '';
+}
+
+function nvAddRow() {
+  const i = ++nvSeq;
+  const typeOpt = EVTYPES.map(t =>
+    '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
+  const thrOpt = '<option value="">-- 담당 --</option>' + THS.map(t =>
+    '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
+  const html =
+    '<div class="nvrow" data-i="' + i + '" style="border:1px solid #e0e5df;'
+    + 'border-radius:8px; padding:10px 12px; margin-top:8px; background:#fafbf9;">'
+    + '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">'
+    + '<div><label style="font-size:12px;">평가 날짜</label>'
+    +   '<input class="nv_date" type="date" style="width:140px;"></div>'
+    + '<div><label style="font-size:12px;">시간</label>'
+    +   '<input class="nv_time" type="time" style="width:110px;"></div>'
+    + '<div><label style="font-size:12px;">평가 종류</label>'
+    +   '<select class="nv_type" style="width:130px;">' + typeOpt + '</select></div>'
+    + '<div><label style="font-size:12px;">개수</label>'
+    +   '<select class="nv_cnt" style="width:80px;">'
+    +   '<option value="1">1개</option><option value="2">2개</option>'
+    +   '<option value="3">3개</option></select></div>'
+    + '<div><label style="font-size:12px;">담당</label>'
+    +   '<select class="nv_thr" style="width:120px;">' + thrOpt + '</select></div>'
+    + '<div><label style="font-size:12px;">평가비</label>'
+    +   '<input class="nv_fee" type="text" inputmode="numeric" style="width:110px;"></div>'
+    + '<div><label style="font-size:12px;">상태</label>'
+    +   '<select class="nv_st" style="width:90px;">'
+    +   '<option value="예정">예정</option><option value="완료">완료</option>'
+    +   '<option value="취소">취소</option></select></div>'
+    + '<div><label style="font-size:12px;">납부일</label>'
+    +   '<input class="nv_paid" type="date" style="width:140px;"></div>'
+    + '<div><label style="font-size:12px;">카드 승인번호</label>'
+    +   '<input class="nv_card" type="text" style="width:140px;"></div>'
+    + '<button type="button" class="tab nv_del" style="padding:6px 12px;">줄 지우기</button>'
+    + '</div></div>';
+  $('nvRows').insertAdjacentHTML('beforeend', html);
+  const box = $('nvRows').lastElementChild;
+  const upd = () => {
+    box.querySelector('.nv_fee').value =
+      feeOf(box.querySelector('.nv_type').value, box.querySelector('.nv_cnt').value);
+  };
+  box.querySelector('.nv_type').addEventListener('change', upd);
+  box.querySelector('.nv_cnt').addEventListener('change', upd);
+  box.querySelector('.nv_del').onclick = () => box.remove();
+  upd();
 }
 
 // 평가 종류·개수를 고르면 평가비를 자동으로 채운다
@@ -1155,16 +1237,6 @@ $('wlBtn').onclick = async () => {
   $('wlBox').scrollIntoView({ behavior:'smooth', block:'start' });
 };
 
-$('evBtn').onclick = () => {
-  $('addBox').style.display = 'none';
-  $('detBox').style.display = 'none';
-  $('wlBox').style.display = 'none';
-  $('evBox').style.display = 'block';
-  if (!$('e_mon').value) $('e_mon').value = today().slice(0, 7);
-  clearEvalForm();
-  drawEvalList();
-  $('evBox').scrollIntoView({ behavior:'smooth', block:'start' });
-};
 
 // 달을 바꾸면 다시 그린다
 $('e_mon').addEventListener('change', () => { drawEvalList(); });
@@ -1216,6 +1288,8 @@ $('evSave').onclick = async () => {
     evMsg('❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally { $('evSave').disabled = false; }
 };
+
+$('nvAdd').onclick = () => nvAddRow();
 
 $('addBtn').onclick = () => {
   const open = $('addBox').style.display !== 'none';
@@ -1369,9 +1443,39 @@ $('saveNew').onclick = async () => {
       .insert(row).select().single();
     if (error) throw error;
     ALL.unshift(data);
+
+    // (3) 평가 줄이 있으면 함께 만든다
+    let evN = 0, evErr = '';
+    const nvRows = Array.from(document.querySelectorAll('#nvRows .nvrow'))
+      .filter(b => b.querySelector('.nv_date').value);
+    if (nvRows.length) {
+      const evList = nvRows.map(b => {
+        const fee = parseInt(String(b.querySelector('.nv_fee').value)
+                      .replace(/[^0-9]/g, ''), 10);
+        return {
+          child_id:     cid,
+          eval_type_id: Number(b.querySelector('.nv_type').value) || null,
+          eval_date:    b.querySelector('.nv_date').value,
+          eval_time:    b.querySelector('.nv_time').value || null,
+          therapist_id: Number(b.querySelector('.nv_thr').value) || null,
+          item_cnt:     Number(b.querySelector('.nv_cnt').value) || 1,
+          fee:          isNaN(fee) ? 0 : fee,
+          status:       b.querySelector('.nv_st').value,
+          paid_on:      b.querySelector('.nv_paid').value || null,
+          card_no:      b.querySelector('.nv_card').value.trim() || null
+        };
+      });
+      const ev = await sb.from('nl_evaluations').insert(evList).select();
+      if (ev.error) evErr = ev.error.message;
+      else { evN = (ev.data || []).length; EVALS = EVALS.concat(ev.data || []); }
+    }
+
     draw();
     showBox('msgA', '✅ 등록했습니다.\n아동 ' + esc(kid.name) + ' (' + cid + '번 · '
-      + kid.manager_no + ')\n문의 ' + data.id + '번', true);
+      + kid.manager_no + ')\n문의 ' + data.id + '번'
+      + (evN ? '\n평가 ' + evN + '건' : '')
+      + (evErr ? '\n⚠️ 평가는 넣지 못했습니다: ' + evErr : ''), true);
+    $('nvRows').innerHTML = '';
     ['a_channel','a_area','a_day','a_time','a_action','a_memo',
      'k_name','k_birth','k_guardian','k_phone']
       .forEach(k => $(k).value = '');
