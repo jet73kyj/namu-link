@@ -129,15 +129,17 @@
     </select>
     <input id="q" type="search" placeholder="아동 이름" style="width:150px;">
     <button id="load">불러오기</button>
+    <button id="eye" class="ghost">👁 금액 보기</button>
     <span class="allsum" id="allsum"></span>
   </div>
 
   <div class="note">
     한 해 동안 <b>계좌로 받은 돈</b>을 아동별로 모았습니다. 12월에 한꺼번에 발행하실 때 쓰는 화면입니다.<br>
-    <b>계좌로 본 것</b> — 메모에 「계좌」가 있는 것, 발달재활서비스<br>
+    <b>계좌로 본 것</b> — 메모에 「계좌」가 있는 것, 발달재활서비스, 발추<br>
     <b>카드로 본 것</b> — 메모에 「카드」「결제선생」「결제완료」나 승인번호가 있는 것, 평가비<br>
     <b>메모에 「현영」</b>이 있으면 이미 발행한 것으로 보고 뺍니다.<br>
-    어느 쪽인지 알 수 없는 것은 <b>「계좌로 봄」</b> 네모칸으로 골라 주세요. 한 번 고르면 메모에 남아 다음부터 자동으로 잡힙니다.
+    어느 쪽인지 알 수 없는 것은 <b>「계좌로 봄」</b> 네모칸으로 골라 주세요. 한 번 고르면 메모에 남아 다음부터 자동으로 잡힙니다.<br>
+    금액은 처음에 가려져 있습니다. <b>「👁 금액 보기」</b>를 눌러야 보입니다.
   </div>
 
   <div id="kids"></div>
@@ -163,7 +165,11 @@ function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function won(n) { return (n || 0).toLocaleString() + '원'; }
+let SHOWMONEY = false;
+function won(n) {
+  if (!SHOWMONEY) return '•••••';
+  return (n || 0).toLocaleString() + '원';
+}
 function numOf(v) {
   const n = Number(String(v == null ? '' : v).replace(/[^0-9]/g, ''));
   return isNaN(n) ? 0 : n;
@@ -183,6 +189,7 @@ function kindOf(p) {
   if (/[0-9]{7,9}/.test(m)) return 'card';
   const st = Number(p.support_type_id);
   if (st === 2) return 'bank';     // 발달재활서비스는 계좌
+  if (st === 8) return 'bank';     // 발추도 계좌
   if (st === 9) return 'card';     // 평가비는 카드
   return 'ask';
 }
@@ -441,6 +448,11 @@ document.addEventListener('wheel', () => {
   if (a && a.tagName === 'INPUT') a.blur();
 }, true);
 
+$('eye').onclick = () => {
+  SHOWMONEY = !SHOWMONEY;
+  $('eye').textContent = SHOWMONEY ? '🙈 금액 가리기' : '👁 금액 보기';
+  if (PAYS.length) render();
+};
 $('load').onclick = load;
 $('year').onchange = () => { if (PAYS.length) load(); };
 $('filt').onchange = () => { if (PAYS.length) render(); };
