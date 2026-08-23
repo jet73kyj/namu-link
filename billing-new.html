@@ -1780,6 +1780,19 @@ document.addEventListener('wheel', () => {
 
 $('load').onclick = load;
 
+// 엔터를 치면 불러오기 (아동 목록의 입력 칸 안에서는 안 되게 — 적은 것이 날아가지 않도록)
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.isComposing) return;
+  if (!$('mainBox') || $('mainBox').style.display === 'none') return;
+  const a = e.target;
+  if (a && (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) return;
+  if (a && a.tagName === 'INPUT' && a.id !== 'mk' && a.id !== 'q') return;
+  if ($('load').disabled) return;
+  e.preventDefault();
+  load();
+});
+
 $('btn').onclick = async () => {
   const email = $('em').value.trim().toLowerCase();
   const pw    = $('pw').value;
