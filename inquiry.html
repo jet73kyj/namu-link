@@ -642,6 +642,19 @@ function draw() {
     return r.status === stFilter;
   });
 
+  // 줄 세우기 — 날짜 지난 것 먼저, 치료 시작은 맨 아래
+  const tdNow = today();
+  function orderOf(r) {
+    if (LIVE.indexOf(r.status) < 0) return 3;                 // 치료 시작 등
+    if (r.next_check_date && r.next_check_date <= tdNow) return 1;  // 날짜 지남
+    return 2;
+  }
+  list.sort(function(a, b) {
+    const d = orderOf(a) - orderOf(b);
+    if (d) return d;
+    return String(b.inquiry_date || '').localeCompare(String(a.inquiry_date || ''));
+  });
+
   $('count').textContent = list.length + '건 / 전체 ' + ALL.length + '건'
     + (q ? ' · 「' + esc(q) + '」 로 찾는 중' : '');
   $('empty').style.display = list.length ? 'none' : 'block';
@@ -844,17 +857,20 @@ function pickKid(cid) {
 // ===== 새 문의 등록 창의 평가 줄 =====
 let nvSeq = 0;
 
-// 평가 종류·개수로 평가비를 찾는다 (autoFee 와 같은 규칙)
+// 평가 종류·개수로 평가비를 찾는다
+// 기준표 이름 모양: 「언어평가 1개」 「발달평가 2개」 「심리평가 (기본)」
 function feeOf(tid, cnt) {
   const t  = EVTYPES.find(x => x.id === Number(tid));
-  const tn = t ? String(t.name).replace('평가', '') : '';
-  if (!tn) return '';
-  let hit = EVFEES.find(f => {
-    const nm = String(f.name || '');
-    if (!nm.includes(tn)) return false;
-    return nm.includes(cnt + '개') || (Number(cnt) === 1 && !/[123]개/.test(nm));
-  });
-  if (!hit) hit = EVFEES.find(f => String(f.name || '').includes(tn));
+  if (!t) return '';
+  const tn = String(t.name).trim();          // 예: 언어평가
+  const c  = Number(cnt) || 1;
+  const same = EVFEES.filter(f => String(f.name || '').indexOf(tn) === 0);
+  if (!same.length) return '';
+  // 개수가 적힌 것이 있으면 그것으로
+  let hit = same.find(f => String(f.name).indexOf(c + '개') >= 0);
+  // 개수가 없는 종류(심리평가 등)는 개수 표시 없는 줄로
+  if (!hit) hit = same.find(f => !/[0-9]개/.test(String(f.name)));
+  if (!hit) hit = same[0];
   return hit ? Number(hit.amount).toLocaleString() : '';
 }
 
@@ -906,18 +922,7 @@ function nvAddRow() {
 
 // 평가 종류·개수를 고르면 평가비를 자동으로 채운다
 function autoFee() {
-  const tid = Number($('e_type').value);
-  const cnt = Number($('e_cnt').value);
-  const t = EVTYPES.find(x => x.id === tid);
-  const tn = t ? t.name : '';
-  // nl_eval_fees 에서 이름이 맞는 것을 찾는다
-  let hit = EVFEES.find(f => {
-    const n = String(f.name || '');
-    if (!n.includes(tn.replace('평가', ''))) return false;
-    return n.includes(cnt + '개') || (cnt === 1 && !/[123]개/.test(n));
-  });
-  if (!hit) hit = EVFEES.find(f => String(f.name || '').includes(tn.replace('평가', '')));
-  $('e_fee').value = hit ? Number(hit.amount).toLocaleString() : '';
+  $('e_fee').value = feeOf($('e_type').value, $('e_cnt').value);
 }
 $('e_type').addEventListener('change', autoFee);
 $('e_cnt').addEventListener('change', autoFee);
