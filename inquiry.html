@@ -1418,6 +1418,27 @@ $('evSave').onclick = async () => {
   } finally { $('evSave').disabled = false; }
 };
 
+// 평가 줄의 종류·개수가 바뀌면 금액을 다시 셈한다 (담는 곳 전체를 지켜본다)
+function watchFee(boxId, pre) {
+  const wrap = $(boxId);
+  if (!wrap) return;
+  const redo = function (ev) {
+    const t = ev.target;
+    if (!t) return;
+    if (!t.classList.contains(pre + '_type')
+     && !t.classList.contains(pre + '_cnt')) return;
+    const row = t.closest('.' + pre + 'row');
+    if (!row) return;
+    row.querySelector('.' + pre + '_fee').value =
+      feeOf(row.querySelector('.' + pre + '_type').value,
+            row.querySelector('.' + pre + '_cnt').value);
+  };
+  wrap.addEventListener('change', redo, true);
+  wrap.addEventListener('input',  redo, true);
+}
+watchFee('nvRows', 'nv');
+watchFee('dvRows', 'dv');
+
 $('nvAdd').onclick = () => nvAddRow();
 $('dvAdd').onclick = () => dvAddRow(null);
 
