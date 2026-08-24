@@ -92,6 +92,13 @@
   .pr .pa { font-size:15px; font-weight:700; white-space:nowrap; }
   .pill { font-size:11px; font-weight:700; padding:4px 9px; border-radius:20px;
           white-space:nowrap; }
+  .pr.pblk { display:block; }
+  .ptop { display:flex; align-items:center; gap:8px; }
+  .pdet { margin-top:7px; padding-top:7px; border-top:1px dashed #e4e7e0; }
+  .dtl { display:flex; justify-content:space-between; gap:8px;
+         font-size:12.5px; color:var(--ink2); padding:2px 0; }
+  .dtl.ded { color:#9c2b2b; }
+  .dtl span:last-child { font-weight:600; white-space:nowrap; }
   .pill.paid { background:var(--acc-bg); color:#2c5c37; }
   .pill.no   { background:#fdeaea; color:#9c2b2b; }
   .psub { text-align:right; font-size:13px; color:var(--ink2);
@@ -400,6 +407,48 @@ async function loadPay() {
   const SN = {};
   (sts || []).forEach(r => { SN[r.id] = r.name; });
 
+  // 지원금 제외액
+  const { data: rules } = await sb.from('nl_support_rules').select('*');
+  const DED = {};
+  (rules || []).forEach(r => {
+    const k = r.support_type_id != null ? r.support_type_id : r.id;
+    DED[k] = Number(r.deduction || 0);
+  });
+
+  // 이 달 회기 — 무슨 수업을 몇 번 받았는지 세려고
+  const { data: ses } = await sb
+    .from('nl_sessions')
+    .select('child_id, support_type_id, therapist_id, therapy_id, plan_date, status')
+    .in('child_id', ids).eq('month_key', CURMK);
+
+  // 치료 종류 이름
+  const tids2 = [...new Set((ses || []).map(r => r.therapy_id).filter(Boolean))];
+  const T2 = {};
+  if (tids2.length) {
+    const { data: th2 } = await sb
+      .from('nl_therapies').select('id, therapy_type_id').in('id', tids2);
+    (th2 || []).forEach(r => { T2[r.id] = r.therapy_type_id; });
+  }
+
+  // 아동 + 지원유형별로 「치료종류(치료사) 요일 · N회」 줄을 만든다
+  function detailOf(childId, stId) {
+    const rows = (ses || []).filter(r =>
+      r.child_id === childId && Number(r.support_type_id) === Number(stId)
+      && String(r.status || '') !== '쉼' && String(r.status || '') !== '휴무');
+    const bag = {};
+    rows.forEach(r => {
+      const tn  = TYPES[T2[r.therapy_id]] || '수업';
+      const thn = THRS[r.therapist_id] || '';
+      const wd  = DAYS[new Date(r.plan_date + 'T00:00:00').getDay()] + '요일';
+      const key = tn + '|' + thn + '|' + wd;
+      bag[key] = (bag[key] || 0) + 1;
+    });
+    return Object.keys(bag).map(key => {
+      const p = key.split('|');
+      return p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ' ' + p[2] + ' · ' + bag[key] + '회';
+    });
+  }
+
   let html = '';
   let allTot = 0;
 
@@ -419,12 +468,29 @@ async function loadPay() {
     if (card.length) {
       s += '<div class="grpttl">\uD83D\uDCB3 신용카드 · 계좌입금</div>';
       card.forEach(r => {
-        s += '<div class="pr">'
-           + '<div class="pn">' + esc(SN[r.support_type_id] || '수업료') + '</div>'
+        const det = detailOf(k.id, r.support_type_id);
+        const ded = Number(DED[r.support_type_id] || 0);
+        const gross = Number(r.amount) + ded;
+        let inner = '';
+        det.forEach((t, i) => {
+          inner += '<div class="dtl"><span>· ' + esc(t) + '</span><span>'
+                 + (i === 0 && det.length === 1 ? won(gross) : '') + '</span></div>';
+        });
+        if (det.length > 1) {
+          inner += '<div class="dtl"><span>수업료</span><span>' + won(gross) + '</span></div>';
+        }
+        if (ded > 0) {
+          inner += '<div class="dtl ded"><span>· 지원금 제외</span><span>−'
+                 + Number(ded).toLocaleString() + '원</span></div>';
+        }
+        s += '<div class="pr pblk">'
+           + '<div class="ptop"><div class="pn">' + esc(SN[r.support_type_id] || '수업료') + '</div>'
            + '<div class="pa">' + won(r.amount) + '</div>'
            + (r.paid_on
               ? '<span class="pill paid">납부완료 ' + mmdd(r.paid_on) + '</span>'
-              : '<span class="pill no">미납</span>') + '</div>';
+              : '<span class="pill no">미납</span>') + '</div>'
+           + (inner ? '<div class="pdet">' + inner + '</div>' : '')
+           + '</div>';
       });
       s += '<div class="psub">소계 ' + won(cardTot) + '</div>';
       s += '<div class="pacc">· 현장 또는 모바일 결제<br>'
@@ -434,12 +500,19 @@ async function loadPay() {
     if (acct.length) {
       s += '<div class="grpttl">\uD83C\uDFE6 계좌입금</div>';
       acct.forEach(r => {
-        s += '<div class="pr">'
-           + '<div class="pn">발달재활서비스</div>'
+        const det = detailOf(k.id, 2);
+        let inner = '';
+        det.forEach(t => {
+          inner += '<div class="dtl"><span>· ' + esc(t) + '</span><span></span></div>';
+        });
+        s += '<div class="pr pblk">'
+           + '<div class="ptop"><div class="pn">발달재활서비스</div>'
            + '<div class="pa">' + won(r.amount) + '</div>'
            + (r.paid_on
               ? '<span class="pill paid">납부완료 ' + mmdd(r.paid_on) + '</span>'
-              : '<span class="pill no">미납</span>') + '</div>';
+              : '<span class="pill no">미납</span>') + '</div>'
+           + (inner ? '<div class="pdet">' + inner + '</div>' : '')
+           + '</div>';
       });
       s += '<div class="psub">소계 ' + won(acctTot) + '</div>';
       s += '<div class="pacc">· 아동 이름으로 입금해 주세요<br>'
