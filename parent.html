@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>나무링크 · 학부모</title>
+<style>
+  :root {
+    --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
+    --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:var(--bg);
+         margin:0; padding:18px 14px 40px; color:var(--ink);
+         -webkit-font-smoothing:antialiased; }
+
+  .box  { max-width:400px; margin:36px auto; background:#fff; border-radius:14px;
+          padding:26px 22px; border:1px solid var(--line); }
+  .wrap { max-width:560px; margin:0 auto; }
+
+  h1 { font-size:18px; font-weight:600; letter-spacing:-.01em; margin:0; }
+  .sub { font-size:13px; color:var(--ink3); margin:6px 0 20px; }
+  label { display:block; font-size:12px; color:var(--ink2); margin:14px 0 6px; }
+  input { font:inherit; font-size:16px; padding:11px; color:var(--ink);
+          border:1px solid var(--line); border-radius:8px; background:#fff; width:100%; }
+  input:focus { outline:2px solid var(--acc); outline-offset:-1px; border-color:transparent; }
+  button { font:inherit; font-size:14px; font-weight:500; padding:10px 15px;
+           background:var(--acc); color:#fff; border:none; border-radius:8px; cursor:pointer; }
+  button:disabled { background:#c3c8c0; cursor:default; }
+  .box button { width:100%; padding:13px; margin-top:20px; font-size:15px; }
+  .ghost { background:none; color:var(--ink2); border:1px solid var(--line); }
+
+  .out { margin-top:14px; padding:11px 13px; border-radius:8px; font-size:13.5px;
+         line-height:1.6; display:none; white-space:pre-wrap; }
+  .ok  { background:var(--acc-bg); color:#2c5c37; display:block; }
+  .err { background:#fdeeee; color:#9c2b2b; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:center;
+         gap:10px; margin-bottom:14px; }
+
+  .kids { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .kid  { background:#fff; color:var(--ink2); border:1px solid var(--line);
+          border-radius:20px; padding:8px 16px; font-size:14px; }
+  .kid.on { background:var(--acc); color:#fff; border-color:var(--acc); font-weight:600; }
+
+  .bar { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+  .bar .mk { font-size:15px; font-weight:600; flex:1; text-align:center; }
+  .bar button { padding:8px 14px; }
+
+  .day { background:#fff; border:1px solid var(--line); border-radius:12px;
+         padding:13px 15px; margin-bottom:9px; }
+  .day .dt { font-size:13px; color:var(--ink3); margin-bottom:7px; font-weight:600; }
+  .row { display:flex; align-items:baseline; gap:9px; padding:5px 0;
+         border-top:1px solid var(--line); }
+  .row:first-of-type { border-top:none; }
+  .row .tm { font-size:15px; font-weight:600; min-width:52px; }
+  .row .nm { font-size:14px; flex:1; }
+  .row .th { font-size:12.5px; color:var(--ink3); }
+  .tag { font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;
+         background:var(--acc-bg); color:#2c5c37; white-space:nowrap; }
+  .tag.off { background:#f0f1ee; color:#8b9186; }
+  .tag.ab  { background:#fdeeee; color:#9c2b2b; }
+  .tag.mk  { background:#fdf3e6; color:#a9701c; }
+
+  .none { padding:40px 18px; text-align:center; color:var(--ink3); font-size:14px;
+          background:#fff; border:1px solid var(--line); border-radius:12px; }
+  .foot { margin-top:26px; font-size:12px; color:var(--ink3); line-height:1.9;
+          border-top:1px solid var(--line); padding-top:14px; }
+</style>
+</head>
+<body>
+
+<!-- 로그인 전 -->
+<div class="box" id="loginBox">
+  <h1>🌿 나무링크</h1>
+  <div class="sub">자라는나무 아동발달치료센터</div>
+  <label for="ph">휴대폰 번호</label>
+  <input id="ph" type="tel" inputmode="numeric" autocomplete="username"
+         placeholder="01012345678">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" inputmode="numeric" autocomplete="current-password">
+  <button id="btn">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<!-- 로그인 후 -->
+<div class="wrap" id="mainBox" style="display:none;">
+  <div class="top">
+    <h1>🌿 나무링크</h1>
+    <button id="out" class="ghost">로그아웃</button>
+  </div>
+
+  <div class="kids" id="kids"></div>
+
+  <div class="bar">
+    <button id="prev" class="ghost">‹ 지난달</button>
+    <div class="mk" id="mkLabel"></div>
+    <button id="next" class="ghost">다음달 ›</button>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="foot">
+    자라는나무 · 042-488-6011<br>
+    시간표가 실제와 다르면 센터로 연락 주세요.
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+
+// 로그인을 창(탭) 안에서만 유지한다. 창을 닫으면 끊긴다.
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }
+});
+const $ = id => document.getElementById(id);
+
+const MAIL_TAIL = '@parent.namu';
+const DAYS = ['일','월','화','수','목','금','토'];
+
+let KIDS = [];      // 내 자녀 [{id, name}]
+let CURKID = null;  // 지금 보고 있는 자녀
+let CURMK = '';     // 지금 보고 있는 달 'YYYY-MM'
+let TYPES = {};     // 치료 종류 이름
+let THRS  = {};     // 치료사 이름
+
+function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
+function esc(s) { return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function thisMonth() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function shiftMonth(mk, n) {
+  const y = +mk.slice(0, 4), m = +mk.slice(5, 7);
+  const d = new Date(y, m - 1 + n, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function hhmm(t) { return t ? String(t).slice(0, 5) : ''; }
+
+// ── 로그인 ─────────────────────────────────────────────
+$('btn').onclick = async () => {
+  const phone = $('ph').value.replace(/[^0-9]/g, '');
+  const pw    = $('pw').value;
+  if (!phone || !pw) { show($('msg'), '휴대폰 번호와 비밀번호를 모두 넣어 주세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: phone + MAIL_TAIL, password: pw
+    });
+    if (error) throw error;
+    try { localStorage.setItem('nl_parent_phone', phone); } catch (e) {}
+    await afterLogin();
+  } catch (e) {
+    show($('msg'), '로그인하지 못했습니다.\n번호와 비밀번호를 다시 확인해 주세요.', false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+
+$('out').onclick = async () => {
+  $('out').disabled = true; $('out').textContent = '나가는 중...';
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('parent.html');
+};
+
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+$('ph').addEventListener('keydown', e => { if (e.key === 'Enter') $('pw').focus(); });
+
+// 지난번 번호를 채워둔다 (비밀번호는 저장하지 않는다)
+try {
+  const last = localStorage.getItem('nl_parent_phone');
+  if (last) $('ph').value = last;
+} catch (e) {}
+
+// ── 로그인 뒤 ───────────────────────────────────────────
+async function afterLogin() {
+  // 내 자녀 — 표 잠금이 알아서 내 아이만 내려준다
+  const { data: kids, error } = await sb
+    .from('nl_children').select('id, name').order('id');
+
+  if (error) { show($('msg'), '자료를 가져오지 못했습니다.\n센터로 연락해 주세요.', false); return; }
+  if (!kids || !kids.length) {
+    show($('msg'), '보실 수 있는 자녀가 없습니다.\n센터로 연락해 주세요.', false); return;
+  }
+
+  KIDS = kids;
+  CURKID = kids[0].id;
+  CURMK = thisMonth();
+
+  // 이름표 미리 담아둔다
+  const { data: tt } = await sb.from('nl_therapy_types').select('id, name');
+  (tt || []).forEach(r => { TYPES[r.id] = r.name; });
+  const { data: th } = await sb.from('nl_therapists').select('id, name');
+  (th || []).forEach(r => { THRS[r.id] = r.name; });
+
+  drawKids();
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+  await loadMonth();
+}
+
+function drawKids() {
+  if (KIDS.length < 2) { $('kids').innerHTML = ''; return; }
+  $('kids').innerHTML = KIDS.map(k =>
+    '<button class="kid' + (k.id === CURKID ? ' on' : '') + '" data-id="' + k.id + '">'
+    + esc(k.name) + '</button>').join('');
+  $('kids').querySelectorAll('.kid').forEach(b => {
+    b.onclick = async () => { CURKID = +b.dataset.id; drawKids(); await loadMonth(); };
+  });
+}
+
+$('prev').onclick = async () => { CURMK = shiftMonth(CURMK, -1); await loadMonth(); };
+$('next').onclick = async () => { CURMK = shiftMonth(CURMK,  1); await loadMonth(); };
+
+// ── 한 달 시간표 ────────────────────────────────────────
+async function loadMonth() {
+  $('mkLabel').textContent = CURMK.slice(0, 4) + '년 ' + (+CURMK.slice(5, 7)) + '월';
+  $('list').innerHTML = '<div class="none">불러오는 중...</div>';
+
+  const { data, error } = await sb
+    .from('nl_sessions')
+    .select('plan_date, start_time, status, therapist_id, therapy_id')
+    .eq('child_id', CURKID)
+    .eq('month_key', CURMK)
+    .order('plan_date').order('start_time');
+
+  if (error) {
+    $('list').innerHTML = '<div class="none">시간표를 가져오지 못했습니다.<br>센터로 연락해 주세요.</div>';
+    return;
+  }
+  if (!data || !data.length) {
+    $('list').innerHTML = '<div class="none">이 달에는 수업이 없습니다.</div>';
+    return;
+  }
+
+  // 치료 종류를 알아내기 위해 치료 줄을 함께 가져온다
+  const tids = [...new Set(data.map(r => r.therapy_id).filter(Boolean))];
+  const T = {};
+  if (tids.length) {
+    const { data: ths } = await sb
+      .from('nl_therapies').select('id, therapy_type_id').in('id', tids);
+    (ths || []).forEach(r => { T[r.id] = r.therapy_type_id; });
+  }
+
+  // 날짜별로 묶는다
+  const byDay = {};
+  data.forEach(r => { (byDay[r.plan_date] = byDay[r.plan_date] || []).push(r); });
+
+  $('list').innerHTML = Object.keys(byDay).sort().map(d => {
+    const dd = new Date(d + 'T00:00:00');
+    const head = (+d.slice(5, 7)) + '월 ' + (+d.slice(8, 10)) + '일 ('
+               + DAYS[dd.getDay()] + ')';
+    const rows = byDay[d].map(r => {
+      const tname = TYPES[T[r.therapy_id]] || '수업';
+      const thn   = THRS[r.therapist_id] || '';
+      const st    = String(r.status || '');
+      let cls = 'tag', txt = st;
+      if (st === '쉼' || st === '휴무') { cls = 'tag off'; txt = '쉼'; }
+      else if (st === '결석')            { cls = 'tag ab'; }
+      else if (st === '보강')            { cls = 'tag mk'; }
+      return '<div class="row">'
+        + '<div class="tm">' + esc(hhmm(r.start_time)) + '</div>'
+        + '<div class="nm">' + esc(tname)
+        + (thn ? ' <span class="th">' + esc(thn) + ' 선생님</span>' : '') + '</div>'
+        + (txt ? '<span class="' + cls + '">' + esc(txt) + '</span>' : '')
+        + '</div>';
+    }).join('');
+    return '<div class="day"><div class="dt">' + esc(head) + '</div>' + rows + '</div>';
+  }).join('');
+}
+
+// 이미 로그인해 있으면 바로 들어간다
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data.session) await afterLogin();
+})();
+</script>
+</body>
+</html>
