@@ -313,7 +313,11 @@ async function loadMonth() {
     return;
   }
   if (!data || !data.length) {
-    $('list').innerHTML = '<div class="none">이 달에는 수업이 없습니다.</div>';
+    $('list').innerHTML = '<div class="none">이 달에는 수업이 없습니다.'
+      + (CURMK < '2026-08'
+         ? '<br><span style="font-size:12.5px;">시간표는 2026년 8월부터 기록되어 있습니다.</span>'
+         : '')
+      + '</div>';
     return;
   }
 
