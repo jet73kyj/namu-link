@@ -430,6 +430,27 @@ async function loadPay() {
     (th2 || []).forEach(r => { T2[r.id] = r.therapy_type_id; });
   }
 
+  // 발추(8번) 담당 치료사 — 회기가 없으므로 납부 기록에서 가져온다
+  const X8 = {};
+  for (const k of KIDS) {
+    const has = (cur || []).some(r =>
+      r.child_id === k.id && Number(r.support_type_id) === 8 && Number(r.amount) > 0);
+    if (!has) continue;
+    try {
+      const { data: tid } = await sb.rpc('nl_extra_therapist',
+        { p_child: k.id, p_mk: CURMK });
+      if (tid) X8[k.id] = Number(tid);
+    } catch (e) {}
+  }
+
+  // 발추 요일 — 발달재활서비스(2번) 수업 요일을 그대로 쓴다
+  function devWeekday(childId) {
+    const r = (ses || []).find(x =>
+      x.child_id === childId && Number(x.support_type_id) === 2
+      && String(x.status || '') !== '쉼' && String(x.status || '') !== '휴무');
+    return r ? DAYS[new Date(r.plan_date + 'T00:00:00').getDay()] + '요일' : '';
+  }
+
   // 아동 + 지원유형별로 「치료종류(치료사) 요일 · N회」 줄을 만든다
   function detailOf(childId, stId) {
     const rows = (ses || []).filter(r =>
@@ -468,7 +489,16 @@ async function loadPay() {
     if (card.length) {
       s += '<div class="grpttl">\uD83D\uDCB3 신용카드 · 계좌입금</div>';
       card.forEach(r => {
-        const det = detailOf(k.id, r.support_type_id);
+        let det;
+        if (Number(r.support_type_id) === 8) {
+          // 발추는 회기로 세지 않는다. 담당 치료사만 보여 준다
+          const thn = THRS[X8[k.id]] || '';
+          const wd  = devWeekday(k.id);
+          det = [ '발달재활 추가' + (thn ? ' (' + thn + ')' : '')
+                  + (wd ? ' ' + wd : '') ];
+        } else {
+          det = detailOf(k.id, r.support_type_id);
+        }
         const ded = Number(DED[r.support_type_id] || 0);
         const gross = Number(r.amount) + ded;
         let inner = '';
