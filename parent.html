@@ -387,7 +387,7 @@ async function loadPay() {
   // 이 달 것 — 메모 칸은 가져오지 않는다
   const { data: cur, error } = await sb
     .from('nl_payments')
-    .select('child_id, support_type_id, amount, paid_on, month_key')
+    .select('child_id, support_type_id, amount, paid_on, month_key, carry_over')
     .in('child_id', ids).eq('month_key', CURMK);
 
   if (error) {
@@ -500,7 +500,7 @@ async function loadPay() {
           det = detailOf(k.id, r.support_type_id);
         }
         const ded = Number(DED[r.support_type_id] || 0);
-        const gross = Number(r.amount) + ded;
+        const gross = Number(r.amount) + ded + Number(r.carry_over || 0);
         let inner = '';
         det.forEach((t, i) => {
           inner += '<div class="dtl"><span>· ' + esc(t) + '</span><span>'
@@ -512,6 +512,11 @@ async function loadPay() {
         if (ded > 0) {
           inner += '<div class="dtl ded"><span>· 지원금 제외</span><span>−'
                  + Number(ded).toLocaleString() + '원</span></div>';
+        }
+        const co = Number(r.carry_over || 0);
+        if (co > 0) {
+          inner += '<div class="dtl ded"><span>· 전월 이월</span><span>−'
+                 + co.toLocaleString() + '원</span></div>';
         }
         s += '<div class="pr pblk">'
            + '<div class="ptop"><div class="pn">' + esc(SN[r.support_type_id] || '수업료') + '</div>'
