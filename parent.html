@@ -275,7 +275,7 @@ async function loadMonth() {
       // 쉬는 날 — 시간을 보이지 않는다
       if (st === '쉼' || st === '휴무') {
         const txt = HOL[d] ? HOL[d] + ' · 휴무'
-                           : (thn ? thn + ' 휴무' : '휴무');
+                           : (thn ? thn + ' 선생님 휴무' : '휴무');
         return '<div class="row rest"><div class="nm">' + esc(txt) + '</div></div>';
       }
 
