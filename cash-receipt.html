@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>현금영수증 - 나무링크</title>
+<style>
+  :root {
+    --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
+    --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system, "Malgun Gothic", sans-serif; background:var(--bg);
+         margin:0; padding:28px 20px; color:var(--ink);
+         font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+
+  .box  { max-width:400px; margin:56px auto; background:#fff; border-radius:14px;
+          padding:32px; border:1px solid var(--line); }
+  .wide { max-width:1000px; margin:0 auto; }
+
+  h1 { font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0; }
+  .sub { font-size:13px; color:var(--ink3); margin:6px 0 24px; }
+  label { display:block; font-size:12px; color:var(--ink2); margin:16px 0 6px; }
+
+  input, select { font:inherit; font-size:14px; padding:9px 11px; color:var(--ink);
+                  border:1px solid var(--line); border-radius:8px; background:#fff; }
+  input:focus, select:focus { outline:2px solid var(--acc); outline-offset:-1px;
+                              border-color:transparent; }
+  .box input { width:100%; }
+
+  button { font:inherit; font-size:14px; font-weight:500; padding:10px 16px;
+           background:var(--acc); color:#fff; border:none; border-radius:8px; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  button:disabled { background:#c3c8c0; cursor:default; }
+  .box button { width:100%; padding:12px; margin-top:24px; }
+  .ghost { background:none; color:var(--ink2); border:1px solid var(--line); }
+
+  .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
+         line-height:1.6; display:none; white-space:pre-wrap; }
+  .ok  { background:var(--acc-bg); color:#2c5c37; display:block; }
+  .err { background:#fdeeee; color:#9c2b2b; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:flex-start;
+         gap:12px; margin-bottom:24px; }
+  .who { font-size:13px; color:var(--ink3); margin-top:4px; }
+  .btn-home { display:inline-block; padding:8px 16px; background:#2e7d32; color:#fff;
+              font-size:13px; border-radius:8px; text-decoration:none;
+              white-space:nowrap; margin-right:8px; }
+  .btn-home:hover { filter:brightness(1.08); }
+
+  .tools { display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+           padding-bottom:18px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+  .allsum { margin-left:auto; font-size:14px; color:var(--ink2); }
+
+  .note { font-size:12.5px; color:var(--ink3); line-height:1.9; margin:14px 0 22px; }
+  .note b { color:var(--ink2); font-weight:600; }
+
+  .kid { background:#fff; border:1px solid var(--line); border-radius:12px;
+         padding:16px 18px; margin-bottom:12px; }
+  .kid.done { border-color:#bcd6c0; background:#fbfdfa; }
+  .khead { display:flex; align-items:center; gap:10px; margin-bottom:4px; flex-wrap:wrap; }
+  .kname { font-size:15px; font-weight:600; }
+  .kno   { font-size:12px; color:var(--ink3); }
+  .kamt  { margin-left:auto; font-size:15px; font-weight:600; color:var(--acc); }
+  .kdone { font-size:12px; color:#2c5c37; background:var(--acc-bg);
+           padding:3px 9px; border-radius:99px; }
+
+  .kbody { font-size:12.5px; color:var(--ink2); line-height:1.8; margin:8px 0 0; }
+  .kbody .tag { display:inline-block; background:#f2f4f0; border-radius:6px;
+                padding:1px 7px; margin-right:5px; font-size:11.5px; }
+
+  table.mix { width:100%; border-collapse:collapse; margin-top:10px; }
+  table.mix th { font-size:11.5px; color:var(--ink3); font-weight:500;
+                 text-align:left; padding:0 6px 5px; white-space:nowrap; }
+  table.mix td { padding:3px 6px; border-top:1px solid var(--line);
+                 font-size:12.5px; vertical-align:middle; }
+  td.zc { width:92px; white-space:nowrap; }
+  td.zc label { display:inline-flex; align-items:center; gap:5px;
+                cursor:pointer; font-size:12px; color:var(--ink2); }
+  td.zc input { width:15px; height:15px; accent-color:var(--acc); cursor:pointer; }
+
+  .kfoot { display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+  .kfoot input { font-size:13px; padding:7px 10px; }
+  .w-id  { width:150px; }
+  .w-no  { width:150px; }
+  .w-day { width:140px; }
+
+  .empty { text-align:center; color:var(--ink3); font-size:13.5px; padding:40px 0; }
+  table.mix td.mm { color:var(--ink3); font-size:11.5px; }
+  table.mix.bank tr.sumrow td { font-weight:600; color:var(--acc);
+                                border-top:2px solid var(--line); }
+  .asktitle { font-size:12px; color:#8a6d1f; background:#fff3c4;
+              display:inline-block; padding:3px 9px; border-radius:6px;
+              margin-top:14px; }
+  .fold { font-size:12px; color:var(--acc); cursor:pointer; user-select:none;
+          margin-top:8px; display:inline-block; }
+</style>
+</head>
+<body>
+
+<div class="box" id="loginBox">
+  <h1>현금영수증</h1>
+  <div class="sub">나무링크</div>
+  <label for="em">이메일</label>
+  <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="btn">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<div class="wide" id="mainBox" style="display:none;">
+  <div class="top">
+    <div>
+      <h1>현금영수증</h1>
+      <div class="who" id="who"></div>
+    </div>
+    <a href="index.html" class="btn-home">🌿 처음으로</a>
+    <button id="out" class="ghost">로그아웃</button>
+  </div>
+
+  <div class="tools">
+    <select id="year"></select>
+    <select id="filt">
+      <option value="">전체</option>
+      <option value="todo">아직 발행 안 한 아동</option>
+      <option value="done">발행 끝난 아동</option>
+      <option value="mix">고를 것이 남은 아동</option>
+    </select>
+    <input id="q" type="search" placeholder="아동 이름" style="width:150px;">
+    <button id="load">불러오기</button>
+    <span class="allsum" id="allsum"></span>
+  </div>
+
+  <div class="note">
+    한 해 동안 <b>계좌로 받은 돈</b>을 아동별로 모았습니다. 12월에 한꺼번에 발행하실 때 쓰는 화면입니다.<br>
+    <b>계좌로 본 것</b> — 메모에 「계좌」가 있는 것, 발달재활서비스, 발추 <span style="color:#3c7a4a;font-weight:600;">(판 3)</span><br>
+    <b>카드로 본 것</b> — 메모에 「카드」「결제선생」「결제완료」나 승인번호가 있는 것, 평가비<br>
+    <b>메모에 「현영」</b>이 있으면 이미 발행한 것으로 보고 뺍니다.<br>
+    어느 쪽인지 알 수 없는 것은 <b>「계좌로 봄」</b> 네모칸으로 골라 주세요. 한 번 고르면 메모에 남아 다음부터 자동으로 잡힙니다.
+  </div>
+
+  <div id="kids"></div>
+  <div class="empty" id="empty">연도를 고르고 불러오기를 누르세요.</div>
+  <div id="msg2" class="out"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: window.sessionStorage, persistSession: true,
+          autoRefreshToken: true, detectSessionInUrl: false }
+});
+const $ = id => document.getElementById(id);
+
+let NAMES = {}, TYPES = {}, PAYS = [], RECS = {};
+
+function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function won(n) { return (n || 0).toLocaleString() + '원'; }
+function numOf(v) {
+  const n = Number(String(v == null ? '' : v).replace(/[^0-9]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+// 한 줄이 계좌인지 카드인지 가린다
+//  'bank' 계좌 / 'card' 카드 / 'done' 이미 발행 / 'ask' 알 수 없음
+function kindOf(p) {
+  const m = String(p.memo || '');
+  if (m.indexOf('현영') >= 0) return 'done';
+  if (m.indexOf('[계좌확인]') >= 0) return 'bank';
+  if (m.indexOf('[카드확인]') >= 0) return 'card';
+  if (m.indexOf('계좌') >= 0) return 'bank';
+  if (m.indexOf('카드') >= 0) return 'card';
+  if (m.indexOf('결제선생') >= 0) return 'card';
+  if (m.indexOf('결제완료') >= 0 || m.indexOf('결재완료') >= 0) return 'card';
+  if (/[0-9]{7,9}/.test(m)) return 'card';
+  const st = Number(p.support_type_id);
+  if (st === 2) return 'bank';     // 발달재활서비스는 계좌
+  if (st === 8) return 'bank';     // 발추도 계좌
+  if (st === 9) return 'card';     // 평가비는 카드
+  return 'ask';
+}
+function tName(id) { return TYPES[id] || ('유형' + id); }
+// 메모를 보기 좋게 다듬는다 (자동이관 같은 군말은 줄인다)
+function cleanMemo(m) {
+  let t = String(m || '').trim();
+  t = t.replace(/^\d{4}-\d{2}-\d{2}\s*자동이관\s*\(납부완료분만\)$/, '자동이관');
+  return t;
+}
+
+async function afterLogin(user) {
+  const { data: me, error: e1 } = await sb
+    .from('nl_therapists').select('name, role')
+    .eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+
+  const [c, st] = await Promise.all([
+    sb.from('nl_children').select('id, name, manager_no'),
+    sb.from('nl_support_types').select('id, name').order('id')
+  ]);
+  if (c.error)  { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
+  if (st.error) { show($('msg'), '❌ 지원유형 조회 실패\n' + st.error.message, false); return; }
+  (c.data  || []).forEach(x => NAMES[x.id] = x);
+  (st.data || []).forEach(x => TYPES[x.id] = x.name);
+
+  const now = new Date().getFullYear();
+  let opt = '';
+  for (let y = now + 1; y >= 2024; y--) opt += '<option value="' + y + '">' + y + '년</option>';
+  $('year').innerHTML = opt;
+  $('year').value = String(now);
+
+  $('who').textContent = me.name + ' (' + me.role + ') 님';
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
+
+async function load() {
+  const y = $('year').value;
+  $('load').disabled = true; $('load').textContent = '불러오는 중...';
+  $('msg2').className = 'out';
+  try {
+    // 한 번에 1000줄까지만 오므로 나눠서 여러 번 가져온다
+    const rows = [];
+    for (let from = 0; from < 50000; from += 1000) {
+      const { data, error } = await sb.from('nl_payments')
+        .select('id, child_id, support_type_id, month_key, amount, paid_on, memo')
+        .gte('paid_on', y + '-01-01').lte('paid_on', y + '-12-31')
+        .gt('amount', 0)
+        .order('id')
+        .range(from, from + 999);
+      if (error) throw error;
+      const got = data || [];
+      rows.push.apply(rows, got);
+      if (got.length < 1000) break;
+    }
+    const r = await sb.from('nl_cash_receipts').select('*').eq('year', Number(y));
+    if (r.error) throw r.error;
+
+    PAYS = rows;
+    RECS = {};
+    (r.data || []).forEach(x => RECS[x.child_id] = x);
+    render();
+  } catch (e) {
+    show($('msg2'), '❌ 불러오기 실패\n' + e.message, false);
+  } finally {
+    $('load').disabled = false; $('load').textContent = '불러오기';
+  }
+}
+
+function render() {
+  const filt = $('filt').value;
+  const q = $('q').value.trim();
+
+  // 아동별로 모으기
+  const by = {};
+  PAYS.forEach(p => {
+    const k = kindOf(p);
+    const g = by[p.child_id] = by[p.child_id] || { bank:0, card:0, done:0, ask:[], bankRows:[] };
+    if (k === 'ask') g.ask.push(p);
+    else {
+      g[k] += (p.amount || 0);
+      if (k === 'bank') g.bankRows.push(p);
+    }
+  });
+
+  let ids = Object.keys(by);
+  if (q) ids = ids.filter(id => {
+    const c = NAMES[id]; return c && c.name && c.name.indexOf(q) >= 0;
+  });
+  if (filt === 'todo') ids = ids.filter(id => !(RECS[id] && RECS[id].issued_on));
+  if (filt === 'done') ids = ids.filter(id => RECS[id] && RECS[id].issued_on);
+  if (filt === 'mix')  ids = ids.filter(id => by[id].ask.length > 0);
+
+  ids.sort((a,b) => {
+    const na = (NAMES[a] && NAMES[a].name) || '';
+    const nb = (NAMES[b] && NAMES[b].name) || '';
+    return na.localeCompare(nb, 'ko');
+  });
+
+  let sumBank = 0, nDone = 0, nAsk = 0;
+  ids.forEach(id => {
+    sumBank += by[id].bank;
+    if (RECS[id] && RECS[id].issued_on) nDone++;
+    if (by[id].ask.length) nAsk++;
+  });
+  $('allsum').textContent = '아동 ' + ids.length + '명 · 발행 끝 ' + nDone + '명'
+    + (nAsk ? ' · 고를 것 남음 ' + nAsk + '명' : '');
+
+  if (!ids.length) {
+    $('kids').innerHTML = '';
+    $('empty').style.display = 'block';
+    $('empty').textContent = '해당하는 아동이 없습니다.';
+    return;
+  }
+  $('empty').style.display = 'none';
+
+  $('kids').innerHTML = ids.map(id => {
+    const c = NAMES[id] || {};
+    const g = by[id];
+    const rec = RECS[id] || {};
+    const issued = !!rec.issued_on;
+
+    const askRows = g.ask.slice()
+      .sort((a,b) => String(a.paid_on).localeCompare(String(b.paid_on)))
+      .map(p =>
+        '<tr data-pid="' + p.id + '">'
+        + '<td>' + esc(p.paid_on || '') + '</td>'
+        + '<td>' + esc(tName(p.support_type_id)) + '</td>'
+        + '<td style="text-align:right;">' + won(p.amount) + '</td>'
+        + '<td class="zc"><label><input type="checkbox" class="fbank"> 계좌로 봄</label></td>'
+        + '<td class="zc"><label><input type="checkbox" class="fcard"> 카드로 봄</label></td>'
+        + '</tr>').join('');
+
+    const bankRows = g.bankRows.slice()
+      .sort((a,b) => String(a.paid_on).localeCompare(String(b.paid_on)))
+      .map(p =>
+        '<tr>'
+        + '<td>' + esc(p.paid_on || '') + '</td>'
+        + '<td>' + esc(p.month_key || '') + '</td>'
+        + '<td>' + esc(tName(p.support_type_id)) + '</td>'
+        + '<td style="text-align:right;">' + won(p.amount) + '</td>'
+        + '<td class="mm">' + esc(cleanMemo(p.memo)) + '</td>'
+        + '</tr>').join('');
+
+    return '<div class="kid' + (issued ? ' done' : '') + '" data-child="' + id + '">'
+      + '<div class="khead">'
+      +   '<span class="kname">' + esc(c.name || ('아동 ' + id)) + '</span>'
+      +   '<span class="kno">번호 ' + id + (c.manager_no ? ' · 관리 ' + esc(c.manager_no) : '') + '</span>'
+      +   (issued ? '<span class="kdone">발행 끝</span>' : '')
+      +   '<span class="kamt">' + won(g.bank) + '</span>'
+      + '</div>'
+      + '<div class="kbody">'
+      +   '<span class="tag">계좌 ' + won(g.bank) + '</span>'
+      +   '<span class="tag">카드 ' + won(g.card) + '</span>'
+      +   (g.done ? '<span class="tag">이미 발행 ' + won(g.done) + '</span>' : '')
+      +   (g.ask.length ? '<span class="tag" style="background:#fff3c4;">고를 것 '
+            + g.ask.length + '건</span>' : '')
+      + '</div>'
+      + (bankRows
+          ? '<table class="mix bank"><thead><tr><th>낸 날</th><th>달</th><th>항목</th>'
+            + '<th style="text-align:right;">금액</th><th>메모</th>'
+            + '</tr></thead><tbody>' + bankRows
+            + '<tr class="sumrow"><td colspan="3">계좌 합계</td>'
+            + '<td style="text-align:right;">' + won(g.bank) + '</td><td></td></tr>'
+            + '</tbody></table>'
+          : '<div class="kbody" style="color:var(--ink3);">계좌로 받은 것이 없습니다.</div>')
+      + (askRows
+          ? '<div class="asktitle">어느 쪽인지 알 수 없는 것 — 골라 주세요</div>'
+            + '<table class="mix"><thead><tr><th>낸 날</th><th>항목</th>'
+            + '<th style="text-align:right;">금액</th><th>계좌</th><th>카드</th>'
+            + '</tr></thead><tbody>' + askRows + '</tbody></table>'
+            + '<span class="fold" data-act="mark">고른 것 저장</span>'
+          : '')
+      + '<div class="kfoot">'
+      +   '<input class="w-id fid" type="text" placeholder="사업자번호 / 휴대폰번호" value="'
+          + esc(rec.id_no || '') + '">'
+      +   '<input class="w-day fday" type="date" value="' + esc(rec.issued_on || '') + '">'
+      +   '<input class="w-no fno" type="text" placeholder="발행번호" value="'
+          + esc(rec.receipt_no || '') + '">'
+      +   '<button class="savebtn">저장</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  document.querySelectorAll('.kid').forEach(box => {
+    box.querySelector('.savebtn').onclick = () => saveKid(box);
+    const mk = box.querySelector('[data-act="mark"]');
+    if (mk) mk.onclick = () => markKind(box);
+    // 두 네모칸은 하나만 켜지게
+    box.querySelectorAll('.fbank').forEach(i => i.addEventListener('change', () => {
+      if (i.checked) i.closest('tr').querySelector('.fcard').checked = false;
+    }));
+    box.querySelectorAll('.fcard').forEach(i => i.addEventListener('change', () => {
+      if (i.checked) i.closest('tr').querySelector('.fbank').checked = false;
+    }));
+  });
+}
+
+// 알 수 없던 줄에 계좌/카드 표시를 남긴다
+async function markKind(box) {
+  const jobs = [];
+  box.querySelectorAll('tr[data-pid]').forEach(tr => {
+    const b = tr.querySelector('.fbank').checked;
+    const c = tr.querySelector('.fcard').checked;
+    if (!b && !c) return;
+    const pid = Number(tr.dataset.pid);
+    const p = PAYS.find(x => x.id === pid);
+    const tag = b ? ' [계좌확인]' : ' [카드확인]';
+    jobs.push({ id: pid, memo: (String(p && p.memo || '') + tag).trim() });
+  });
+  if (!jobs.length) { show($('msg2'), '고른 줄이 없습니다.', false); return; }
+  try {
+    for (const j of jobs) {
+      const { error } = await sb.from('nl_payments').update({ memo: j.memo }).eq('id', j.id);
+      if (error) throw error;
+      const p = PAYS.find(x => x.id === j.id);
+      if (p) p.memo = j.memo;
+    }
+    show($('msg2'), '✅ ' + jobs.length + '건 표시했습니다.', true);
+    render();
+  } catch (e) {
+    show($('msg2'), '❌ 표시 실패\n' + e.message, false);
+  }
+}
+
+async function saveKid(box) {
+  const cid = Number(box.dataset.child);
+  const y   = Number($('year').value);
+  const idn = box.querySelector('.fid').value.trim();
+  const day = box.querySelector('.fday').value || null;
+  const rno = box.querySelector('.fno').value.trim();
+
+  // 그 아동의 계좌 금액을 다시 셈해서 함께 저장
+  let bank = 0;
+  PAYS.forEach(p => {
+    if (p.child_id !== cid) return;
+    if (kindOf(p) === 'bank') bank += (p.amount || 0);
+  });
+
+  const btn = box.querySelector('.savebtn');
+  btn.disabled = true; btn.textContent = '저장 중...';
+  try {
+    const { data, error } = await sb.from('nl_cash_receipts')
+      .upsert({ child_id: cid, year: y, id_no: idn || null, amount: bank,
+                issued_on: day, receipt_no: rno || null, updated_at: new Date().toISOString() },
+              { onConflict: 'child_id,year' })
+      .select().maybeSingle();
+    if (error) throw error;
+    if (data) RECS[cid] = data;
+    show($('msg2'), '✅ 저장했습니다.', true);
+    render();
+  } catch (e) {
+    show($('msg2'), '❌ 저장 실패\n' + e.message, false);
+  } finally {
+    btn.disabled = false; btn.textContent = '저장';
+  }
+}
+
+document.addEventListener('wheel', () => {
+  const a = document.activeElement;
+  if (a && a.tagName === 'INPUT') a.blur();
+}, true);
+
+$('load').onclick = load;
+$('year').onchange = () => { if (PAYS.length) load(); };
+$('filt').onchange = () => { if (PAYS.length) render(); };
+$('q').addEventListener('input', () => { if (PAYS.length) render(); });
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+$('out').onclick = async () => {
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+};
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) { await afterLogin(data.session.user); }
+  // 로그인이 없으면 첫 화면으로 보내지 않고 이 자리에서 로그인 칸을 보여준다
+})();
+</script>
+</body>
+</html>

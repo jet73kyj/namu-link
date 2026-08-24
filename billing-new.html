@@ -51,6 +51,10 @@
   .ptab { padding:8px 14px; font-size:13px; background:#fff; color:#5a6156;
           border:1px solid #e8ebe4; border-radius:8px; cursor:pointer; }
   .ptab.on { background:#3c7a4a; color:#fff; border-color:#3c7a4a; }
+  .btn-cash { display:inline-block; padding:8px 15px; background:#8a5a2b; color:#fff;
+              font-size:13px; border-radius:8px; text-decoration:none;
+              white-space:nowrap; margin-left:4px; }
+  .btn-cash:hover { filter:brightness(1.12); }
   .tools label { margin:0; }
   .allsum { margin-left:auto; font-size:14px; color:var(--ink2); }
 
@@ -248,6 +252,7 @@
       <button class="ptab" data-pay="unpaid" id="tabUn">미납만</button>
       <button class="ptab" data-pay="paid" id="tabPd">완납만</button>
     </span>
+    <a href="cash-receipt.html" class="btn-cash">🧾 현금영수증</a>
     <span class="allsum" id="allsum"></span>
   </div>
 
@@ -1774,6 +1779,19 @@ document.addEventListener('wheel', () => {
 }, true);
 
 $('load').onclick = load;
+
+// 엔터를 치면 불러오기 (아동 목록의 입력 칸 안에서는 안 되게 — 적은 것이 날아가지 않도록)
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.isComposing) return;
+  if (!$('mainBox') || $('mainBox').style.display === 'none') return;
+  const a = e.target;
+  if (a && (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) return;
+  if (a && a.tagName === 'INPUT' && a.id !== 'mk' && a.id !== 'q') return;
+  if ($('load').disabled) return;
+  e.preventDefault();
+  load();
+});
 
 $('btn').onclick = async () => {
   const email = $('em').value.trim().toLowerCase();
