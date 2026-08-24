@@ -61,6 +61,9 @@
   .tag.off { background:#f0f1ee; color:#8b9186; }
   .tag.ab  { background:#fdeeee; color:#9c2b2b; }
   .tag.mk  { background:#fdf3e6; color:#a9701c; }
+  .row.rest { background:#f0f1ee; border-radius:8px; padding:9px 12px; margin:4px 0;
+              border-top:none; }
+  .row.rest .nm { color:#8b9186; font-size:13.5px; font-weight:600; }
 
   .none { padding:40px 18px; text-align:center; color:var(--ink3); font-size:14px;
           background:#fff; border:1px solid var(--line); border-radius:12px; }
@@ -247,6 +250,15 @@ async function loadMonth() {
     (ths || []).forEach(r => { T[r.id] = r.therapy_type_id; });
   }
 
+  // 공휴일 이름을 가져온다 (치료사 휴가는 표 잠금이 막아 안 내려온다)
+  const HOL = {};
+  const dates = [...new Set(data.map(r => r.plan_date))];
+  if (dates.length) {
+    const { data: offs } = await sb
+      .from('nl_offdays').select('off_date, reason').in('off_date', dates);
+    (offs || []).forEach(r => { HOL[r.off_date] = r.reason || '휴무'; });
+  }
+
   // 날짜별로 묶는다
   const byDay = {};
   data.forEach(r => { (byDay[r.plan_date] = byDay[r.plan_date] || []).push(r); });
@@ -259,10 +271,17 @@ async function loadMonth() {
       const tname = TYPES[T[r.therapy_id]] || '수업';
       const thn   = THRS[r.therapist_id] || '';
       const st    = String(r.status || '');
+
+      // 쉬는 날 — 시간을 보이지 않는다
+      if (st === '쉼' || st === '휴무') {
+        const txt = HOL[d] ? HOL[d] + ' · 휴무'
+                           : (thn ? thn + ' 휴무' : '휴무');
+        return '<div class="row rest"><div class="nm">' + esc(txt) + '</div></div>';
+      }
+
       let cls = 'tag', txt = st;
-      if (st === '쉼' || st === '휴무') { cls = 'tag off'; txt = '쉼'; }
-      else if (st === '결석')            { cls = 'tag ab'; }
-      else if (st === '보강')            { cls = 'tag mk'; }
+      if (st === '결석')      { cls = 'tag ab'; }
+      else if (st === '보강') { cls = 'tag mk'; }
       return '<div class="row">'
         + '<div class="tm">' + esc(hhmm(r.start_time)) + '</div>'
         + '<div class="nm">' + esc(tname)
