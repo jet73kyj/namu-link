@@ -1175,13 +1175,17 @@ function drawKid(c) {
         b += '<div class="r sub2"><span class="nm"></span>'
           + '<span class="de">지원금 제외</span><span class="ct"></span><span class="up"></span>'
           + '<span class="am">−' + g.deduction.toLocaleString() + '</span></div>';
+        b += coHtml(g.support_type_id, sv);
         b += '<div class="r sum gsum" data-st="' + g.support_type_id + '" data-ded="' + g.deduction + '">'
           + '<span class="nm"></span><span class="de"></span><span class="ct"></span>'
           + '<span class="up">' + esc(tn) + '</span>'
           + '<span class="am gamt">0</span></div>';
       } else {
-        b += '<div class="gsum" data-st="' + g.support_type_id + '" data-ded="0" hidden>'
-          + '<span class="gamt"></span></div>';
+        b += coHtml(g.support_type_id, sv);
+        b += '<div class="r sum gsum" data-st="' + g.support_type_id + '" data-ded="0">'
+          + '<span class="nm"></span><span class="de"></span><span class="ct"></span>'
+          + '<span class="up">' + esc(tn) + '</span>'
+          + '<span class="am gamt">0</span></div>';
       }
 
     } else if (g.calc_type === '치료사정액') {
@@ -1317,6 +1321,19 @@ function thrName(tid) {
   const t = THERAPISTS.find(x => String(x.id) === String(tid));
   return t ? t.name : ('치료사' + (tid == null ? '?' : tid));
 }
+// 전월 이월 입력 줄 — 그달 한 번만 쓰는 값이라 다음 달로 넘기지 않는다
+function coHtml(st, sv) {
+  const v = sv && sv[st] ? Number(sv[st].carry_over || 0) : 0;
+  return '<div class="r sub2 corow" data-st="' + st + '">'
+    + '<span class="nm"></span>'
+    + '<span class="de">전월 이월</span>'
+    + '<span class="ap"></span>'
+    + '<span class="ct"><input class="cnt co" type="text" inputmode="numeric" value="'
+    + (v ? v.toLocaleString() : '') + '" placeholder="0"></span>'
+    + '<span class="up"></span>'
+    + '<span class="am cotxt">0</span></div>';
+}
+
 // 그 치료사의 발추 단가
 function feeExtra(tid) {
   const f = FEES[tid];
@@ -1431,6 +1448,15 @@ function calcKid(childId) {
       box.querySelectorAll('.line[data-st="' + st + '"] .lineamt')
          .forEach(td => base += numOf(td.textContent));
       amt = Math.max(0, base - Number(tr.dataset.ded || 0));
+    }
+
+    // 전월 이월 빼기
+    {
+      const co = box.querySelector('.corow[data-st="' + st + '"] .co');
+      const cv = co ? numOf(co.value) : 0;
+      const tx = box.querySelector('.corow[data-st="' + st + '"] .cotxt');
+      if (tx) tx.textContent = cv ? '−' + cv.toLocaleString() : '0';
+      if (cv > 0) amt = Math.max(0, amt - cv);
     }
 
     if (tr.querySelector('.gamt')) tr.querySelector('.gamt').textContent = amt.toLocaleString();
@@ -1585,11 +1611,13 @@ async function saveKid(childId, btn) {
       if (cs.length) memo2 += ' [회기' + cs.join(',') + ']';
       if (us.some(x => x > 0)) memo2 += ' [적용단가' + us.join(',') + ']';
     }
+    const coEl = box.querySelector('.corow[data-st="' + p.st + '"] .co');
     return {
       child_id: childId,
       support_type_id: p.st,
       month_key: LOADED_MK,
       amount: p.amt,
+      carry_over: coEl ? numOf(coEl.value) : 0,
       is_paid: !!day,
       paid_on: day || null,
       memo: memo2
@@ -1663,7 +1691,8 @@ $('kids').addEventListener('input', e => {
   if (t.classList.contains('cnt') || t.classList.contains('evamt')
       || t.classList.contains('apu')) {
     const box = t.closest('.kid');
-    if (t.classList.contains('evamt') || t.classList.contains('apu')) {
+    if (t.classList.contains('evamt') || t.classList.contains('apu')
+        || t.classList.contains('co')) {
       const v = numOf(t.value);
       t.value = v === 0 ? '' : v.toLocaleString();
     }
