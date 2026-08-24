@@ -194,6 +194,7 @@ const sb = window.supabase.createClient(URL_, KEY_, {
 const $ = id => document.getElementById(id);
 
 const MAIL_TAIL = '@parent.namu';
+const PW_TAIL   = 'nl26';   // 4자리를 6자 이상으로 채우는 표시
 const DAYS = ['일','월','화','수','목','금','토'];
 
 let KIDS = [];      // 내 자녀 [{id, name}]
@@ -234,9 +235,16 @@ $('btn').onclick = async () => {
       return;
     }
 
-    const { error } = await sb.auth.signInWithPassword({
+    // 임시 비번은 4자리 그대로, 학부모가 바꾼 뒤에는 뒤에 표시가 붙는다
+    let { error } = await sb.auth.signInWithPassword({
       email: phone + MAIL_TAIL, password: pw
     });
+    if (error) {
+      const r2 = await sb.auth.signInWithPassword({
+        email: phone + MAIL_TAIL, password: pw + PW_TAIL
+      });
+      error = r2.error;
+    }
     if (error) {
       const n = await sb.rpc('nl_parent_fail', { p_phone: phone });
       const cnt = Number(n && n.data != null ? n.data : (n || 0));
@@ -283,7 +291,7 @@ $('npBtn').onclick = async () => {
   }
   $('npBtn').disabled = true; $('npBtn').textContent = '바꾸는 중...';
   try {
-    const { error } = await sb.auth.updateUser({ password: a });
+    const { error } = await sb.auth.updateUser({ password: a + PW_TAIL });
     if (error) throw error;
     await sb.rpc('nl_parent_done');
     $('pwBox').style.display = 'none';
