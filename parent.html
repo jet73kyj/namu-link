@@ -137,6 +137,22 @@
   <div id="msg" class="out"></div>
 </div>
 
+<!-- 첫 로그인 — 비밀번호 바꾸기 -->
+<div class="box" id="pwBox" style="display:none;">
+  <h1>🌿 비밀번호 정하기</h1>
+  <div class="sub">처음 들어오셨습니다.<br>쓰실 비밀번호를 정해 주세요.</div>
+  <label for="np1">새 비밀번호 (숫자 4자리)</label>
+  <input id="np1" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password">
+  <label for="np2">한 번 더</label>
+  <input id="np2" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password">
+  <button id="npBtn">이 번호로 정하기</button>
+  <div id="npMsg" class="out"></div>
+  <div style="margin-top:16px;font-size:12px;color:var(--ink3);line-height:1.8;">
+    정하신 번호는 휴대폰에 적어 두시면 좋습니다.<br>
+    잊으셨을 때는 센터(042-488-6011)로 연락 주세요.
+  </div>
+</div>
+
 <!-- 로그인 후 -->
 <div class="wrap" id="mainBox" style="display:none;">
   <div class="top">
@@ -208,18 +224,77 @@ $('btn').onclick = async () => {
   if (!phone || !pw) { show($('msg'), '휴대폰 번호와 비밀번호를 모두 넣어 주세요.', false); return; }
   $('btn').disabled = true; $('btn').textContent = '로그인 중...';
   try {
-    const { data, error } = await sb.auth.signInWithPassword({
+    // 잠겨 있는지 먼저 본다
+    const { data: g } = await sb.rpc('nl_parent_gate', { p_phone: phone });
+    const gate = Array.isArray(g) ? g[0] : g;
+    if (gate && gate.locked) {
+      const m = Math.ceil((gate.wait_sec || 0) / 60);
+      show($('msg'), '비밀번호를 여러 번 잘못 넣어 잠겼습니다.\n'
+        + m + '분 뒤에 다시 해 주세요.', false);
+      return;
+    }
+
+    const { error } = await sb.auth.signInWithPassword({
       email: phone + MAIL_TAIL, password: pw
     });
-    if (error) throw error;
+    if (error) {
+      const n = await sb.rpc('nl_parent_fail', { p_phone: phone });
+      const cnt = Number(n && n.data != null ? n.data : (n || 0));
+      const left = 5 - cnt;
+      show($('msg'), left > 0
+        ? '번호나 비밀번호가 맞지 않습니다.\n' + left + '번 더 틀리면 10분 잠깁니다.'
+        : '5번 틀려서 10분 잠겼습니다.\n잠시 뒤에 다시 해 주세요.', false);
+      return;
+    }
+
     try { localStorage.setItem('nl_parent_phone', phone); } catch (e) {}
+
+    // 성공 — 틀린 횟수를 되돌리고, 비번을 바꿔야 하는지 본다
+    let mustChange = false;
+    try {
+      const { data: ok } = await sb.rpc('nl_parent_ok');
+      const row = Array.isArray(ok) ? ok[0] : ok;
+      mustChange = !!(row && row.must_change);
+    } catch (e) {}
+
+    if (mustChange) { showChange(); return; }
     await afterLogin();
   } catch (e) {
-    show($('msg'), '로그인하지 못했습니다.\n번호와 비밀번호를 다시 확인해 주세요.', false);
+    show($('msg'), '로그인하지 못했습니다.\n잠시 뒤에 다시 해 주세요.', false);
   } finally {
     $('btn').disabled = false; $('btn').textContent = '로그인';
   }
 };
+
+// ── 첫 로그인 — 비밀번호 바꾸기 ─────────────────────────
+function showChange() {
+  $('loginBox').style.display = 'none';
+  $('pwBox').style.display    = 'block';
+  $('np1').focus();
+}
+
+$('npBtn').onclick = async () => {
+  const a = $('np1').value.replace(/[^0-9]/g, '');
+  const b = $('np2').value.replace(/[^0-9]/g, '');
+  if (a.length !== 4) { show($('npMsg'), '숫자 4자리로 정해 주세요.', false); return; }
+  if (a !== b)        { show($('npMsg'), '두 칸이 서로 다릅니다.', false); return; }
+  if (/^(\d)\1{3}$/.test(a) || a === '1234' || a === '0000') {
+    show($('npMsg'), '너무 쉬운 번호입니다. 다른 것으로 정해 주세요.', false); return;
+  }
+  $('npBtn').disabled = true; $('npBtn').textContent = '바꾸는 중...';
+  try {
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) throw error;
+    await sb.rpc('nl_parent_done');
+    $('pwBox').style.display = 'none';
+    await afterLogin();
+  } catch (e) {
+    show($('npMsg'), '바꾸지 못했습니다.\n잠시 뒤에 다시 해 주세요.', false);
+  } finally {
+    $('npBtn').disabled = false; $('npBtn').textContent = '이 번호로 정하기';
+  }
+};
+$('np2').addEventListener('keydown', e => { if (e.key === 'Enter') $('npBtn').click(); });
 
 $('out').onclick = async () => {
   $('out').disabled = true; $('out').textContent = '나가는 중...';
