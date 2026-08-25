@@ -1172,12 +1172,6 @@ function drawKid(c) {
           + '<span class="up upbox">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</span>'
           + '<span class="am lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</span>'
           + '</div>'
-          + ((it.tmemo && it.tmemo.indexOf('원본유형') !== 0)
-             ? '<div class="r tmemo"><span class="nm"></span>'
-               + '<span class="de">\u203B ' + esc(it.tmemo) + '</span>'
-               + '<span class="ap"></span><span class="ct"></span>'
-               + '<span class="up"></span><span class="am"></span></div>'
-             : '')
           + wkBoxHtml(it);
       });
       if (g.deduction > 0) {
