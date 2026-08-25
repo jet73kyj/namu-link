@@ -101,6 +101,10 @@
   .dtl span:last-child { font-weight:600; white-space:nowrap; }
   .pill.paid { background:var(--acc-bg); color:#2c5c37; }
   .pill.no   { background:#fdeaea; color:#9c2b2b; }
+  .pill.est  { background:#eef1f6; color:#3b5170; }
+  .estnote { font-size:12px; color:var(--ink2); line-height:1.75;
+             background:#eef1f6; border-radius:10px; padding:11px 13px;
+             margin-bottom:12px; }
   .psub { text-align:right; font-size:13px; color:var(--ink2);
           margin:8px 3px 0; font-weight:600; }
   .ptot { background:var(--acc); color:#fff; border-radius:14px;
@@ -472,7 +476,7 @@ async function loadPay() {
   const ids = KIDS.map(k => k.id);
 
   // 이 달 것 — 메모 칸은 가져오지 않는다
-  const { data: cur, error } = await sb
+  let { data: cur, error } = await sb
     .from('nl_payments')
     .select('child_id, support_type_id, amount, paid_on, month_key, carry_over')
     .in('child_id', ids).eq('month_key', CURMK);
@@ -488,6 +492,26 @@ async function loadPay() {
     .select('child_id, support_type_id, amount, month_key')
     .in('child_id', ids).is('paid_on', null).gt('amount', 0)
     .order('month_key');
+
+  // 저장된 것이 없는 자녀는 「예정」으로 채운다
+  if (!Array.isArray(cur)) cur = [];
+  const EST = {};
+  for (const k of KIDS) {
+    const has = (cur || []).some(r => r.child_id === k.id && Number(r.amount) > 0);
+    if (has) continue;
+    try {
+      const { data: e } = await sb.rpc('nl_parent_estimate',
+        { p_child: k.id, p_mk: CURMK });
+      (e || []).forEach(r => {
+        if (Number(r.amount) > 0) {
+          cur.push({ child_id: k.id, support_type_id: Number(r.support_type_id),
+                     amount: Number(r.amount), paid_on: null,
+                     month_key: CURMK, carry_over: 0, _est: true });
+          EST[k.id] = true;
+        }
+      });
+    } catch (e2) {}
+  }
 
   // 지원유형 이름표
   const { data: sts } = await sb.from('nl_support_types').select('id, name');
@@ -610,7 +634,8 @@ async function loadPay() {
            + '<div class="pa">' + won(r.amount) + '</div>'
            + (r.paid_on
               ? '<span class="pill paid">납부완료 ' + mmdd(r.paid_on) + '</span>'
-              : '<span class="pill no">미납</span>') + '</div>'
+              : (r._est ? '<span class="pill est">예정</span>'
+                        : '<span class="pill no">미납</span>')) + '</div>'
            + (inner ? '<div class="pdet">' + inner + '</div>' : '')
            + '</div>';
       });
@@ -632,7 +657,8 @@ async function loadPay() {
            + '<div class="pa">' + won(r.amount) + '</div>'
            + (r.paid_on
               ? '<span class="pill paid">납부완료 ' + mmdd(r.paid_on) + '</span>'
-              : '<span class="pill no">미납</span>') + '</div>'
+              : (r._est ? '<span class="pill est">예정</span>'
+                        : '<span class="pill no">미납</span>')) + '</div>'
            + (inner ? '<div class="pdet">' + inner + '</div>' : '')
            + '</div>';
       });
@@ -650,7 +676,13 @@ async function loadPay() {
     return;
   }
 
-  html += '<div class="ptot">' + (+CURMK.slice(5, 7)) + '월 합계 ' + won(allTot) + '</div>';
+  const anyEst = Object.keys(EST).length > 0;
+  html += '<div class="ptot">' + (+CURMK.slice(5, 7)) + '월 '
+        + (anyEst ? '예정 금액 ' : '합계 ') + won(allTot) + '</div>';
+  if (anyEst) {
+    html += '<div class="estnote">아직 결제 전이라 시간표를 보고 셈한 금액입니다.<br>'
+          + '리뷰 차감과 평가비는 결제하실 때 반영됩니다.</div>';
+  }
 
   // 아직 안 낸 것
   if (un && un.length) {
