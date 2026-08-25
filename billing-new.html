@@ -1150,8 +1150,11 @@ function drawKid(c) {
 
   // 전월 이월은 아동당 한 줄만, 회기계산 항목이 다 끝난 뒤에 그린다
   let lastCoSt = null;
+  const calcList = groups.filter(g => g.support_type_id !== 2);
+  let lastCalcIdx = -1;
+  calcList.forEach((g, k) => { if (g.calc_type === '회기계산') lastCalcIdx = k; });
 
-  groups.filter(g => g.support_type_id !== 2).forEach(g => {
+  calcList.forEach((g, gIdx) => {
     const tn = TYPES[g.support_type_id] || ('유형' + g.support_type_id);
     const sd = sv[g.support_type_id] !== undefined
       ? '<span class="saved">저장됨</span>' : '';
@@ -1193,6 +1196,7 @@ function drawKid(c) {
           + '<span class="am gamt">0</span></div>';
       }
       lastCoSt = g.support_type_id;
+      if (gIdx === lastCalcIdx) b += coHtml(g.support_type_id, sv);
 
     } else if (g.calc_type === '치료사정액') {
       const savedT = sv[8] ? extraTherapistOf(sv[8]) : null;
@@ -1237,7 +1241,6 @@ function drawKid(c) {
     + (ev ? Number(ev.amount).toLocaleString() : '') + '" placeholder="0"></span></div>';
 
   if (!noClass) {
-    if (lastCoSt !== null) b += coHtml(lastCoSt, sv);
     b += '<div class="r"><span class="nm">리뷰 차감</span>'
       + '<span class="de">1건 5,000원 · 4건까지</span>'
       + '<span class="ap"></span>'
