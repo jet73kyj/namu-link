@@ -1148,8 +1148,8 @@ function drawKid(c) {
 
   b += '<div class="sect">카드결제</div>';
 
-  // 전월 이월은 아동당 한 줄만 그린다 (항목마다 나오면 두 번 빼는 것처럼 보임)
-  let coDone = false;
+  // 전월 이월은 아동당 한 줄만, 회기계산 항목이 다 끝난 뒤에 그린다
+  let lastCoSt = null;
 
   groups.filter(g => g.support_type_id !== 2).forEach(g => {
     const tn = TYPES[g.support_type_id] || ('유형' + g.support_type_id);
@@ -1182,25 +1182,27 @@ function drawKid(c) {
         b += '<div class="r sub2"><span class="nm"></span>'
           + '<span class="de">지원금 제외</span><span class="ct"></span><span class="up"></span>'
           + '<span class="am">−' + g.deduction.toLocaleString() + '</span></div>';
-        if (!coDone) { b += coHtml(g.support_type_id, sv); coDone = true; }
         b += '<div class="r sum gsum" data-st="' + g.support_type_id + '" data-ded="' + g.deduction + '">'
           + '<span class="nm"></span><span class="de"></span><span class="ct"></span>'
-          + '<span class="up">' + esc(tn) + '</span>'
+          + '<span class="up"></span>'
           + '<span class="am gamt">0</span></div>';
       } else {
-        if (!coDone) { b += coHtml(g.support_type_id, sv); coDone = true; }
         b += '<div class="r sum gsum" data-st="' + g.support_type_id + '" data-ded="0">'
           + '<span class="nm"></span><span class="de"></span><span class="ct"></span>'
-          + '<span class="up">' + esc(tn) + '</span>'
+          + '<span class="up"></span>'
           + '<span class="am gamt">0</span></div>';
       }
+      lastCoSt = g.support_type_id;
 
     } else if (g.calc_type === '치료사정액') {
       const savedT = sv[8] ? extraTherapistOf(sv[8]) : null;
       const curT = savedT || LASTX[c.id] || g.extra_therapist;
 
-      // 적용방식 — 이번 달 저장분 → 지난달 → (저장된 게 있으면 매월, 없으면 적용없음)
-      const mode = xmodeOf(sv[8]) || xmodeOf(lastM[8]) || (sv[8] !== undefined ? 1 : 3);
+      // 적용방식 — 이번 달 저장분이 있으면 그것을 그대로 쓴다
+      // (「적용 없음」으로 저장한 것이 지난달 값에 덮이지 않게)
+      const mode = (sv[8] !== undefined)
+        ? (xmodeOf(sv[8]) || 3)
+        : (xmodeOf(lastM[8]) || 3);
       // 5주차 여부
       const five = g.extra_weekday ? (countWeekday(mk, g.extra_weekday) >= 5) : false;
       let cnt;
@@ -1235,6 +1237,7 @@ function drawKid(c) {
     + (ev ? Number(ev.amount).toLocaleString() : '') + '" placeholder="0"></span></div>';
 
   if (!noClass) {
+    if (lastCoSt !== null) b += coHtml(lastCoSt, sv);
     b += '<div class="r"><span class="nm">리뷰 차감</span>'
       + '<span class="de">1건 5,000원 · 4건까지</span>'
       + '<span class="ap"></span>'
@@ -1611,7 +1614,15 @@ async function saveKid(childId, btn) {
   const bankDay  = bEl ? bEl.value : '';
   const bankMemo = bMemo ? bMemo.value.trim() : '';
 
-  const rows = parts.filter(p => p.amt > 0 || p.st === 2).map(p => {
+  // 금액이 0이어도 남겨야 하는 것 —
+  // 발달추가비용은 「적용 없음」으로 고른 것을 기억해야 다음 달에 안 되살아난다
+  const x8mode = (() => {
+    const md = box.querySelector('.gsum[data-st="8"] .xmode');
+    return md ? Number(md.value) : 0;
+  })();
+  const rows = parts.filter(p =>
+    p.amt > 0 || p.st === 2 || (p.st === 8 && x8mode === 3)
+  ).map(p => {
     const isBank = (p.st === 2);
     const day  = isBank ? bankDay  : cardDay;
     const memo = isBank ? (bankMemo ? '계좌입금 ' + bankMemo : '계좌입금')
