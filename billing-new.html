@@ -1231,7 +1231,8 @@ function drawKid(c) {
     b += '<div class="r"><span class="nm">리뷰 차감</span>'
       + '<span class="de">1건 5,000원 · 4건까지</span>'
       + '<span class="ap"></span>'
-      + '<span class="ct"><input class="cnt rv" type="text" inputmode="numeric" value="0"></span>'
+      + '<span class="ct"><input class="cnt rv" type="text" inputmode="numeric" value="'
+      + savedReview(sv) + '"></span>'
       + '<span class="up"></span><span class="am rvtxt">0</span></div>';
   }
 
@@ -1340,6 +1341,17 @@ function feeExtra(tid) {
   return f ? (f.fee_extra || 0) : 0;
 }
 // 저장된 발추 메모에서 치료사 번호를 꺼낸다
+// 저장된 줄들 가운데 리뷰 건수가 적힌 것을 찾는다
+function savedReview(sv) {
+  let n = 0;
+  Object.keys(sv || {}).forEach(k => { n = Math.max(n, reviewOf(sv[k])); });
+  return n;
+}
+// 저장된 메모에서 리뷰 건수를 꺼낸다  [리뷰2]
+function reviewOf(p) {
+  const m = String((p && p.memo) || '').match(/\[리뷰([0-9]+)\]/);
+  return m ? Number(m[1]) : 0;
+}
 // 저장된 메모에서 회기 목록을 꺼낸다  [회기2,4,3]
 function countsOf(p) {
   const m = String((p && p.memo) || '').match(/\[회기([0-9,]+)\]/);
@@ -1591,6 +1603,11 @@ async function saveKid(childId, btn) {
     const memo = isBank ? (bankMemo ? '계좌입금 ' + bankMemo : '계좌입금')
                         : (cardMemo || '카드결제');
     let memo2 = memo;
+    {
+      const rv0 = box.querySelector('.rv');
+      const rvn = rv0 ? numOf(rv0.value) : 0;
+      if (rvn > 0) memo2 += ' [리뷰' + rvn + ']';
+    }
     if (p.st === 8) {
       const el = box.querySelector('.gsum[data-st="8"] .xthr');
       const md = box.querySelector('.gsum[data-st="8"] .xmode');
