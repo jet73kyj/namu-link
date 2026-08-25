@@ -575,9 +575,12 @@ async function loadPay() {
 
   // 아동 + 지원유형별로 「치료종류(치료사) 요일 · N회」 줄을 만든다
   function detailOf(childId, stId) {
+    // 발달재활은 무조건 월 4회. 쉬는 날도 보강해서 채우므로 그대로 4회로 적는다
+    const isDev = Number(stId) === 2;
     const rows = (ses || []).filter(r =>
       r.child_id === childId && Number(r.support_type_id) === Number(stId)
-      && String(r.status || '') !== '쉼' && String(r.status || '') !== '휴무');
+      && (isDev || (String(r.status || '') !== '쉼'
+                    && String(r.status || '') !== '휴무')));
     const bag = {};
     rows.forEach(r => {
       const tn  = TYPES[T2[r.therapy_id]] || '수업';
@@ -601,7 +604,8 @@ async function loadPay() {
 
     return Object.keys(bag).map((key, i) => {
       const p = key.split('|');
-      return p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ' ' + p[2] + ' · ' + bag[key] + '회'
+      const n = isDev ? 4 : bag[key];
+      return p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ' ' + p[2] + ' · ' + n + '회'
            + (i === 0 && tail ? ' (' + tail + ')' : '');
     });
   }
