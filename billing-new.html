@@ -1774,7 +1774,8 @@ $('kids').addEventListener('click', e => {
   // 「주차」 단추를 누르면 주차 상자가 펼쳐진다
   if (e.target.classList.contains('wkopen')) {
     const line = e.target.closest('.r.line');
-    const box  = line ? line.nextElementSibling : null;
+    let box = line ? line.nextElementSibling : null;
+    while (box && box.classList.contains('tmemo')) box = box.nextElementSibling;
     if (box && box.classList.contains('wkbox')) {
       const on = box.classList.toggle('on');
       e.target.classList.toggle('on', on);
@@ -1798,7 +1799,8 @@ $('kids').addEventListener('click', e => {
     b.classList.toggle('no', on);
 
     // 회기 칸을 켜진 주차 수에 맞춘다 (5주차가 있으면 더한다)
-    const line = box.previousElementSibling;
+    let line = box.previousElementSibling;
+    while (line && line.classList.contains('tmemo')) line = line.previousElementSibling;
     const cEl  = line ? line.querySelector('.cnt') : null;
     if (cEl) {
       const five = box.querySelector('.wkb.dim') ? 1 : 0;
