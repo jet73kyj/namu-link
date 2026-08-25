@@ -605,8 +605,7 @@ async function loadPay() {
     return Object.keys(bag).map((key, i) => {
       const p = key.split('|');
       const n = isDev ? 4 : bag[key];
-      return p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ' ' + p[2] + ' · ' + n + '회'
-           + (i === 0 && tail ? ' (' + tail + ')' : '');
+      return p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ' ' + p[2] + ' · ' + n + '회';
     });
   }
 
