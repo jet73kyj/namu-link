@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>결석·보강 신청 - 나무링크</title>
+<style>
+  body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:#f5f9f0;
+         margin:0; padding:24px; color:#333; }
+  .box { max-width:460px; margin:40px auto; background:#fff; border-radius:12px;
+         padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  .wide { max-width:900px; margin:20px auto; background:#fff; border-radius:12px;
+          padding:24px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  h1 { font-size:20px; color:#2e7d32; margin:0 0 4px; }
+  .sub { font-size:13px; color:#888; margin-bottom:22px; }
+  label { display:block; font-size:13px; font-weight:bold; margin:14px 0 5px; }
+  input { width:100%; padding:11px; border:1px solid #ddd; border-radius:7px;
+          font-size:15px; box-sizing:border-box; }
+  button { width:100%; padding:13px; margin-top:20px; background:#2e7d32; color:#fff;
+           border:none; border-radius:7px; font-size:15px; font-weight:bold; cursor:pointer; }
+  button:disabled { background:#bbb; cursor:default; }
+  .out { margin-top:20px; padding:14px; border-radius:8px; font-size:14px;
+         line-height:1.7; display:none; white-space:pre-wrap; }
+  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
+  .err { background:#ffebee; color:#b71c1c; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:center;
+         flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+  .who { font-size:13px; color:#666; }
+  .btn-out { width:auto; margin:0; padding:8px 16px; background:#757575; font-size:13px; }
+  .btn-home { display:inline-block; padding:8px 16px; background:#2e7d32; color:#fff;
+              font-size:13px; border-radius:7px; text-decoration:none; margin-right:8px; }
+
+  .tabs { display:flex; gap:8px; margin-bottom:18px; }
+  .tabs button { width:auto; margin:0; padding:8px 16px; background:#eee; color:#555;
+                 font-size:13px; font-weight:normal; }
+  .tabs button.on { background:#2e7d32; color:#fff; font-weight:bold; }
+
+  .rq { border:1px solid #e6e9e2; border-radius:10px; padding:16px; margin-bottom:12px; }
+  .rq.wait { border-color:#ffcc80; background:#fffdf7; }
+  .rqhead { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .rqkid { font-size:15px; font-weight:bold; color:#2e3d2c; }
+  .tag { font-size:11.5px; padding:2px 9px; border-radius:11px; }
+  .t-wait { background:#ffe0b2; color:#e65100; }
+  .t-ok   { background:#e8f5e9; color:#1b5e20; }
+  .t-no   { background:#eceff1; color:#546e7a; }
+  .rqline { font-size:14px; color:#555; line-height:1.8; margin-top:9px; }
+  .rqline b { color:#2e3d2c; }
+  .why { background:#f4f7f2; border-radius:8px; padding:9px 12px;
+         font-size:13.5px; color:#5a6156; margin-top:9px; }
+  .none2 { color:#c62828; font-weight:bold; }
+  .rqbtns { display:flex; gap:8px; margin-top:14px; }
+  .rqbtns button { width:auto; margin:0; padding:8px 18px; font-size:13px; }
+  .btn-no { background:#ef9a9a; color:#7f1d1d; font-weight:normal; }
+  .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
+</style>
+</head>
+<body>
+
+<div class="box" id="loginBox">
+  <h1>결석·보강 신청</h1>
+  <div class="sub">나무링크 · 학부모가 낸 신청을 확인합니다</div>
+  <label for="em">이메일</label>
+  <input id="em" type="email" autocomplete="username">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="btn">로그인</button>
+  <div class="out" id="msg"></div>
+</div>
+
+<div class="wide" id="mainBox" style="display:none">
+  <div class="top">
+    <div>
+      <h1>결석·보강 신청</h1>
+      <div class="who" id="who"></div>
+    </div>
+    <div>
+      <a class="btn-home" href="index.html">처음으로</a>
+      <button class="btn-out" id="out" style="display:inline-block">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button id="tabWait" class="on">확인할 것</button>
+    <button id="tabAll">전체</button>
+  </div>
+
+  <div class="out" id="msg2"></div>
+  <div id="list"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: {
+    storage: window.sessionStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false
+  }
+});
+const $ = id => document.getElementById(id);
+
+let ME = null;
+let REQS = [];        // 신청 목록
+let KIDS = {};        // 아동 번호 -> 이름
+let THRS = {};        // 치료사 번호 -> 이름
+let SESS = {};        // 수업 번호 -> 수업
+let TAB = 'wait';
+
+function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
+function hide(el) { el.className = 'out'; el.textContent = ''; }
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+const DAYS = ['일','월','화','수','목','금','토'];
+function dm(d) {
+  if (!d) return '';
+  const dd = new Date(d + 'T00:00:00');
+  return (+String(d).slice(5,7)) + '월 ' + (+String(d).slice(8,10)) + '일('
+       + DAYS[dd.getDay()] + ')';
+}
+function hm(t) { return t ? String(t).slice(0,5) : ''; }
+
+// ── 목록 그리기 ─────────────────────────────────────
+function draw() {
+  const list = (TAB === 'wait') ? REQS.filter(r => r.state === '신청') : REQS;
+  if (!list.length) {
+    $('list').innerHTML = '<div class="empty">'
+      + (TAB === 'wait' ? '확인할 신청이 없습니다.' : '아직 들어온 신청이 없습니다.')
+      + '</div>';
+    return;
+  }
+  let h = '';
+  list.forEach(r => {
+    const s   = SESS[r.session_id] || {};
+    const wait = r.state === '신청';
+    const tag = wait ? '<span class="tag t-wait">확인 필요</span>'
+              : (r.state === '확정' ? '<span class="tag t-ok">확정됨</span>'
+                                    : '<span class="tag t-no">반려</span>');
+
+    h += '<div class="rq' + (wait ? ' wait' : '') + '">'
+      + '<div class="rqhead"><span class="rqkid">' + esc(KIDS[r.child_id] || ('아동 ' + r.child_id))
+      + '</span>' + tag + '</div>'
+      + '<div class="rqline">못 오는 수업 · <b>' + dm(s.plan_date) + ' ' + hm(s.start_time) + '</b>'
+      + (s.therapist_id ? ' · ' + esc(THRS[s.therapist_id] || '') + ' 선생님' : '') + '</div>'
+      + '<div class="rqline">보강 · '
+      + (r.makeup_date
+          ? '<b>' + dm(r.makeup_date) + ' ' + hm(r.makeup_time) + '</b>'
+          : '<span class="none2">아직 안 정함</span>')
+      + '</div>'
+      + '<div class="why">' + esc(r.reason || '') + '</div>';
+
+    if (wait) {
+      h += '<div class="rqbtns">'
+        + '<button data-ok="' + r.id + '">확정하기</button>'
+        + '<button class="btn-no" data-no="' + r.id + '">반려</button>'
+        + '</div>';
+    } else if (r.staff_memo) {
+      h += '<div class="rqline" style="color:#888;font-size:13px;">센터 메모 · '
+         + esc(r.staff_memo) + '</div>';
+    }
+    h += '</div>';
+  });
+  $('list').innerHTML = h;
+
+  document.querySelectorAll('button[data-ok]').forEach(b => {
+    b.onclick = () => doConfirm(Number(b.dataset.ok));
+  });
+  document.querySelectorAll('button[data-no]').forEach(b => {
+    b.onclick = () => doReject(Number(b.dataset.no));
+  });
+}
+
+// ── 불러오기 ────────────────────────────────────────
+async function loadAll() {
+  hide($('msg2'));
+  const { data, error } = await sb
+    .from('nl_absence_requests')
+    .select('id, child_id, session_id, reason, makeup_date, makeup_time,'
+          + ' makeup_therapist_id, state, staff_memo')
+    .order('id', { ascending: false });
+  if (error) { show($('msg2'), '❌ 신청을 불러오지 못했습니다.\n' + error.message, false); return; }
+  REQS = data || [];
+
+  // 딸린 수업을 가져온다
+  SESS = {};
+  const sids = [...new Set(REQS.map(r => r.session_id).filter(Boolean))];
+  if (sids.length) {
+    const { data: ss } = await sb.from('nl_sessions')
+      .select('id, plan_date, start_time, therapist_id, status').in('id', sids);
+    (ss || []).forEach(s => { SESS[s.id] = s; });
+  }
+  draw();
+}
+
+// ── 확정 ───────────────────────────────────────────
+async function doConfirm(id) {
+  const r = REQS.find(x => x.id === id);
+  if (!r) return;
+  const s = SESS[r.session_id] || {};
+  let m = KIDS[r.child_id] + '\n\n'
+        + '결석 · ' + dm(s.plan_date) + ' ' + hm(s.start_time) + '\n';
+  m += r.makeup_date
+     ? '보강 · ' + dm(r.makeup_date) + ' ' + hm(r.makeup_time) + '\n\n시간표에 반영할까요?'
+     : '보강 · 아직 안 정함\n\n결석만 반영할까요?';
+  if (!confirm(m)) return;
+
+  try {
+    const { data, error } = await sb.rpc('nl_absence_confirm', { p_req_id: id });
+    if (error) throw error;
+    show($('msg2'), String(data || '확정했습니다.'), true);
+    await loadAll();
+  } catch (e) {
+    show($('msg2'), '❌ 확정하지 못했습니다.\n' + (e.message || e), false);
+  }
+}
+
+// ── 반려 ───────────────────────────────────────────
+async function doReject(id) {
+  const why = prompt('왜 반려하시는지 적어주세요.\n(학부모께는 따로 연락해 주셔야 합니다)');
+  if (why === null) return;
+  try {
+    const { error } = await sb.from('nl_absence_requests')
+      .update({ state: '반려', staff_memo: why || null,
+                decided_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+    show($('msg2'), '반려했습니다.', true);
+    await loadAll();
+  } catch (e) {
+    show($('msg2'), '❌ 반려하지 못했습니다.\n' + (e.message || e), false);
+  }
+}
+
+// ── 로그인 뒤 ──────────────────────────────────────
+async function afterLogin(user) {
+  const { data: me, error: e1 } = await sb
+    .from('nl_therapists')
+    .select('id, name, role, active')
+    .eq('login_email', user.email.toLowerCase())
+    .maybeSingle();
+
+  if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
+
+  const can = [8, 9].includes(Number(me.id)) || /관리자|행정/.test(me.role || '');
+  if (!can) {
+    show($('msg'), '⚠️ 관리자·행정 선생님만 볼 수 있습니다.', false);
+    try { await sb.auth.signOut(); } catch (e) {}
+    return;
+  }
+  ME = me;
+
+  try {
+    const [kd, th] = await Promise.all([
+      sb.from('nl_children').select('id, name'),
+      sb.from('nl_therapists').select('id, name')
+    ]);
+    (kd.data || []).forEach(k => { KIDS[k.id] = k.name; });
+    (th.data || []).forEach(t => { THRS[t.id] = t.name; });
+  } catch (e) {}
+
+  $('who').textContent = me.name + ' (' + me.role + ') 님으로 로그인됨';
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+  await loadAll();
+}
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+
+$('out').onclick = async () => {
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+};
+
+$('tabWait').onclick = () => {
+  TAB = 'wait';
+  $('tabWait').className = 'on'; $('tabAll').className = '';
+  draw();
+};
+$('tabAll').onclick = () => {
+  TAB = 'all';
+  $('tabAll').className = 'on'; $('tabWait').className = '';
+  draw();
+};
+
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+$('em').addEventListener('keydown', e => { if (e.key === 'Enter') $('pw').focus(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session && data.session.user) {
+    await afterLogin(data.session.user);
+  }
+})();
+</script>
+</body>
+</html>
