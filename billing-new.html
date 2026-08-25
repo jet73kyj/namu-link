@@ -1630,7 +1630,11 @@ async function saveKid(childId, btn) {
     const day  = isBank ? bankDay  : cardDay;
     const memo = isBank ? (bankMemo ? '계좌입금 ' + bankMemo : '계좌입금')
                         : (cardMemo || '카드결제');
-    let memo2 = memo;
+    // 승인번호 칸에 이미 붙어 있는 표시는 지우고 새로 붙인다
+    // (안 그러면 저장할 때마다 [리뷰4]가 계속 쌓인다)
+    let memo2 = String(memo)
+      .replace(/\s*\[(리뷰|회기|적용단가|발추치료사|발추방식|평가유형)[^\]]*\]/g, '')
+      .trim();
     {
       const rv0 = box.querySelector('.rv');
       const rvn = rv0 ? numOf(rv0.value) : 0;
