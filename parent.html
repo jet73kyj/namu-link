@@ -68,6 +68,32 @@
   /* 위쪽 갈래 단추 */
   .tabs { display:flex; gap:8px; margin-bottom:14px; }
 
+  /* 치료기록지 */
+  .rc { background:#fff; border:1px solid #e6e9e2; border-radius:12px;
+        padding:16px; margin-bottom:12px; }
+  .rchead { display:flex; align-items:center; justify-content:space-between;
+            gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .rctitle { font-size:15px; font-weight:700; color:#2e3d2c; }
+  .rcsub { font-size:12.5px; color:#9aa19c; margin-top:3px; }
+  .rcpdf { padding:7px 14px; border:1px solid #cfd8cc; border-radius:8px;
+           background:#fff; color:#4a7c59; font-size:12.5px; font-weight:600;
+           cursor:pointer; }
+  .rctbl { width:100%; border-collapse:collapse; font-size:13px; }
+  .rctbl th { background:#f4f7f2; color:#4a5a48; font-weight:600;
+              padding:8px 6px; border:1px solid #e6e9e2; white-space:nowrap; }
+  .rctbl td { padding:8px 6px; border:1px solid #eef1ec; vertical-align:top;
+              line-height:1.6; }
+  .rctbl td.ctr { text-align:center; white-space:nowrap; }
+  .abs { color:#c62828; font-weight:600; }
+  .mkup { color:#1565c0; font-weight:600; }
+  .rcnote { font-size:12.5px; color:#9aa19c; line-height:1.7; margin-top:14px;
+            padding-top:12px; border-top:1px solid #eef1ec; }
+  @media print {
+    .tabs, .bar, .kids, .top, .foot, .rcpdf, .rcnote { display:none !important; }
+    body { background:#fff; }
+    .rc { border:none; padding:0; margin-bottom:26px; page-break-inside:avoid; }
+  }
+
   /* 공지 */
   .dot { display:inline-block; min-width:17px; height:17px; line-height:17px;
          padding:0 5px; border-radius:9px; background:#e53935; color:#fff;
@@ -197,6 +223,7 @@
   <div class="tabs">
     <button id="tabSch" class="on">시간표</button>
     <button id="tabPay">교육비</button>
+    <button id="tabRec">기록지</button>
     <button id="tabNt">공지<span id="ntDot" class="dot" style="display:none;"></span></button>
   </div>
 
@@ -210,6 +237,7 @@
 
   <div id="list"></div>
   <div id="paylist" style="display:none;"></div>
+  <div id="reclist" style="display:none;"></div>
   <div id="ntlist" style="display:none;"></div>
 
   <div class="foot">
@@ -417,16 +445,19 @@ $('next').onclick = async () => { CURMK = shiftMonth(CURMK,  1); await reload();
 let TAB = 'sch';
 $('tabSch').onclick = async () => { TAB = 'sch'; drawTabs(); await reload(); };
 $('tabPay').onclick = async () => { TAB = 'pay'; drawTabs(); await reload(); };
+$('tabRec').onclick = async () => { TAB = 'rec'; drawTabs(); await reload(); };
 $('tabNt').onclick  = async () => { TAB = 'nt';  drawTabs(); await reload(); };
 
 function drawTabs() {
   $('tabSch').className = (TAB === 'sch' ? 'on' : '');
   $('tabPay').className = (TAB === 'pay' ? 'on' : '');
+  $('tabRec').className = (TAB === 'rec' ? 'on' : '');
   $('tabNt').className  = (TAB === 'nt'  ? 'on' : '');
   $('list').style.display    = (TAB === 'sch' ? 'block' : 'none');
   $('paylist').style.display = (TAB === 'pay' ? 'block' : 'none');
+  $('reclist').style.display = (TAB === 'rec' ? 'block' : 'none');
   $('ntlist').style.display  = (TAB === 'nt'  ? 'block' : 'none');
-  $('kids').style.display    = (TAB === 'sch' ? 'flex'  : 'none');
+  $('kids').style.display    = (TAB === 'nt' ? 'none' : 'flex');
   // 공지는 달과 상관없으므로 달 고르는 줄을 감춘다
   document.querySelector('.bar').style.display = (TAB === 'nt' ? 'none' : 'flex');
 }
@@ -434,7 +465,106 @@ function drawTabs() {
 async function reload() {
   if (TAB === 'sch')      await loadMonth();
   else if (TAB === 'pay') await loadPay();
+  else if (TAB === 'rec') await loadRecords();
   else                    await loadNotices();
+}
+
+// ── 치료기록지 ─────────────────────────────────────────
+// 표 잠금이 최근 2개월분만 내려준다. 그보다 옛것은 아예 오지 않는다.
+const ST_NAME = { 1:'센터 치료 기록지', 2:'발달재활서비스 제공기록지',
+                  3:'치료지원 누가기록서(언어)', 4:'치료지원 누가기록서(작업)',
+                  5:'방과후활동 기록지', 6:'방과후 치료지원 기록지(언어)',
+                  7:'방과후 치료지원 기록지(작업)' };
+
+function hm(t) { return t ? String(t).slice(0, 5) : ''; }
+function dm(d) {
+  if (!d) return '';
+  const p = String(d).split('-');
+  return p.length === 3 ? (+p[1]) + '월 ' + (+p[2]) + '일' : String(d);
+}
+
+async function loadRecords() {
+  $('mkLabel').textContent = CURMK.slice(0, 4) + '년 ' + (+CURMK.slice(5, 7)) + '월';
+  $('reclist').innerHTML = '<div class="none">불러오는 중...</div>';
+
+  const { data: logs, error } = await sb
+    .from('nl_session_logs')
+    .select('id, support_type_id, month_key, therapist_id')
+    .eq('child_id', CURKID)
+    .eq('month_key', CURMK);
+
+  if (error) {
+    $('reclist').innerHTML = '<div class="none">기록지를 가져오지 못했습니다.<br>센터로 연락해 주세요.</div>';
+    return;
+  }
+  if (!logs || !logs.length) {
+    $('reclist').innerHTML = '<div class="none">이 달 기록지는 아직 없습니다.<br>'
+      + '<span style="font-size:12.5px;">기록지는 최근 2개월분만 보실 수 있습니다.</span></div>';
+    return;
+  }
+
+  // 각 기록지의 회차 내용을 가져온다
+  const ids = logs.map(l => l.id);
+  const { data: items } = await sb
+    .from('nl_session_items')
+    .select('log_id, seq_no, service_date, start_time, end_time, therapist_id,'
+          + ' reaction, status, absent_reason, makeup_date, makeup_time')
+    .in('log_id', ids)
+    .order('seq_no');
+
+  const bag = {};
+  (items || []).forEach(r => { (bag[r.log_id] = bag[r.log_id] || []).push(r); });
+
+  let html = '';
+  logs.forEach(lg => {
+    const rows = bag[lg.id] || [];
+    if (!rows.length) return;
+    const nm = ST_NAME[lg.support_type_id] || '치료 기록지';
+
+    html += '<div class="rc">'
+      + '<div class="rchead"><div>'
+      + '<div class="rctitle">' + esc(nm) + '</div>'
+      + '<div class="rcsub">' + CURMK.slice(0,4) + '년 ' + (+CURMK.slice(5,7)) + '월 · '
+      + rows.length + '회</div></div>'
+      + '<button class="rcpdf" onclick="window.print()">PDF로 저장</button>'
+      + '</div>'
+      + '<table class="rctbl"><thead><tr>'
+      + '<th>회차</th><th>날짜</th><th>시간</th><th>치료사</th><th>수업 내용</th>'
+      + '</tr></thead><tbody>';
+
+    rows.forEach((r, i) => {
+      const absent = String(r.status || '') === '결석';
+      let day = dm(r.service_date);
+      if (absent) {
+        day = '<span class="abs">' + day + ' 결석</span>';
+        if (r.makeup_date) {
+          day += '<br><span class="mkup">→ ' + dm(r.makeup_date)
+               + (r.makeup_time ? ' ' + hm(r.makeup_time) : '') + ' 보강</span>';
+        }
+      }
+      const tm = (r.start_time || r.end_time)
+        ? hm(r.start_time) + (r.end_time ? '~' + hm(r.end_time) : '') : '';
+      html += '<tr>'
+        + '<td class="ctr">' + (r.seq_no || (i + 1)) + '</td>'
+        + '<td class="ctr">' + day + '</td>'
+        + '<td class="ctr">' + esc(tm) + '</td>'
+        + '<td class="ctr">' + esc(THRS[r.therapist_id] || THRS[lg.therapist_id] || '') + '</td>'
+        + '<td>' + esc(r.reaction || '') + '</td>'
+        + '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+  });
+
+  if (!html) {
+    $('reclist').innerHTML = '<div class="none">이 달 기록지는 아직 없습니다.</div>';
+    return;
+  }
+  html += '<div class="rcnote">기록지는 최근 2개월분만 보실 수 있습니다.<br>'
+       + '「PDF로 저장」을 누르면 인쇄 창이 열립니다. '
+       + '거기서 「PDF로 저장」을 고르시면 파일로 받으실 수 있습니다.<br>'
+       + '더 지난 기록지가 필요하시면 센터로 말씀해 주세요.</div>';
+  $('reclist').innerHTML = html;
 }
 
 // ── 공지사항 ───────────────────────────────────────────
