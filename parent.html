@@ -438,14 +438,22 @@ function drawKids() {
   });
 }
 
-$('prev').onclick = async () => { CURMK = shiftMonth(CURMK, -1); await reload(); };
-$('next').onclick = async () => { CURMK = shiftMonth(CURMK,  1); await reload(); };
+$('prev').onclick = async () => { CURMK = shiftMonth(CURMK, -1); drawTabs(); await reload(); };
+$('next').onclick = async () => {
+  // 기록지는 그 달이 끝나야 작성되므로 앞으로는 못 가게 한다
+  if (TAB === 'rec' && shiftMonth(CURMK, 1) > thisMonth()) return;
+  CURMK = shiftMonth(CURMK,  1); drawTabs(); await reload();
+};
 
 // ── 갈래 단추 ──────────────────────────────────────────
 let TAB = 'sch';
 $('tabSch').onclick = async () => { TAB = 'sch'; drawTabs(); await reload(); };
 $('tabPay').onclick = async () => { TAB = 'pay'; drawTabs(); await reload(); };
-$('tabRec').onclick = async () => { TAB = 'rec'; drawTabs(); await reload(); };
+$('tabRec').onclick = async () => {
+  TAB = 'rec';
+  if (CURMK > thisMonth()) CURMK = thisMonth();
+  drawTabs(); await reload();
+};
 $('tabNt').onclick  = async () => { TAB = 'nt';  drawTabs(); await reload(); };
 
 function drawTabs() {
@@ -460,6 +468,9 @@ function drawTabs() {
   $('kids').style.display    = (TAB === 'nt' ? 'none' : 'flex');
   // 공지는 달과 상관없으므로 달 고르는 줄을 감춘다
   document.querySelector('.bar').style.display = (TAB === 'nt' ? 'none' : 'flex');
+  // 기록지는 이번 달까지만 (그 달이 끝나야 작성되므로)
+  const stop = (TAB === 'rec' && shiftMonth(CURMK, 1) > thisMonth());
+  $('next').style.visibility = stop ? 'hidden' : 'visible';
 }
 
 async function reload() {
