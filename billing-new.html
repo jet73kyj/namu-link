@@ -1034,6 +1034,7 @@ function drawAll() {
   const q = $('q').value.trim().toLowerCase();
   let list = CHILDREN.filter(c => {
     if (!q) return true;
+    if (String(c.id) === q) return true;               // 아동 번호로 찾기
     if ((c.name || '').toLowerCase().includes(q)) return true;
     return payerOf(c.id).toLowerCase().includes(q);   // 입금자명으로도 찾기
   });
@@ -1072,7 +1073,7 @@ function drawKid(c) {
   const sv = SAVED[c.id] || {};
 
   const head = '<div class="kidhead">'
-    + '<span class="kidname">' + esc(c.name) + '</span>'
+    + '<span class="kidname">' + c.id + '. ' + esc(c.name) + '</span>'
     + '<span class="kidno">' + ymd(c.birth) + '</span>'
     + '<span class="kidno">' + esc(c.manager_no) + '</span>'
     + '<span class="ktotal">0원</span></div>';
@@ -1503,8 +1504,7 @@ function calcKid(childId) {
     p.amt -= take; cut -= take;
     const tr = box.querySelector('.gsum[data-st="' + p.st + '"]');
     if (tr && tr.querySelector('.gamt') && take > 0) {
-      tr.querySelector('.gamt').innerHTML = p.amt.toLocaleString()
-        + ' <span class="dim">(리뷰 −' + take.toLocaleString() + ')</span>';
+      tr.querySelector('.gamt').textContent = p.amt.toLocaleString();
     }
   });
 
