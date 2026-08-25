@@ -1337,7 +1337,14 @@ function thrName(tid) {
 }
 // 전월 이월 입력 줄 — 그달 한 번만 쓰는 값이라 다음 달로 넘기지 않는다
 function coHtml(st, sv) {
-  const v = sv && sv[st] ? Number(sv[st].carry_over || 0) : 0;
+  // 전월 이월은 아동당 하나. 어느 항목에 저장돼 있든 찾아서 보여준다
+  let v = 0;
+  if (sv) {
+    Object.keys(sv).forEach(k => {
+      const c = Number((sv[k] && sv[k].carry_over) || 0);
+      if (c > v) v = c;
+    });
+  }
   return '<div class="r sub2 corow" data-st="' + st + '">'
     + '<span class="nm"></span>'
     + '<span class="de">전월 이월</span>'
