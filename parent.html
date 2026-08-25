@@ -554,6 +554,17 @@ async function loadPay() {
     } catch (e) {}
   }
 
+  // 이 달 공휴일 이름 — 「연휴 제외」를 적어 주려고
+  const HOL2 = {};
+  {
+    const ds = [...new Set((ses || []).map(r => r.plan_date))];
+    if (ds.length) {
+      const { data: offs } = await sb
+        .from('nl_offdays').select('off_date, reason').in('off_date', ds);
+      (offs || []).forEach(r => { HOL2[r.off_date] = r.reason || '휴무'; });
+    }
+  }
+
   // 발추 요일 — 발달재활서비스(2번) 수업 요일을 그대로 쓴다
   function devWeekday(childId) {
     const r = (ses || []).find(x =>
@@ -575,9 +586,22 @@ async function loadPay() {
       const key = tn + '|' + thn + '|' + wd;
       bag[key] = (bag[key] || 0) + 1;
     });
-    return Object.keys(bag).map(key => {
+    // 쉬어서 빠진 회기 — 왜 회수가 적은지 알려 주려고
+    const off = (ses || []).filter(r =>
+      r.child_id === childId && Number(r.support_type_id) === Number(stId)
+      && (String(r.status || '') === '쉼' || String(r.status || '') === '휴무'));
+    const why = {};
+    off.forEach(r => {
+      const nm = HOL2[r.plan_date] || '휴무';
+      why[nm] = (why[nm] || 0) + 1;
+    });
+    const tail = Object.keys(why)
+      .map(nm => nm + ' ' + why[nm] + '회 제외').join(' · ');
+
+    return Object.keys(bag).map((key, i) => {
       const p = key.split('|');
-      return p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ' ' + p[2] + ' · ' + bag[key] + '회';
+      return p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ' ' + p[2] + ' · ' + bag[key] + '회'
+           + (i === 0 && tail ? ' (' + tail + ')' : '');
     });
   }
 
