@@ -1147,6 +1147,9 @@ function drawKid(c) {
 
   b += '<div class="sect">카드결제</div>';
 
+  // 전월 이월은 아동당 한 줄만 그린다 (항목마다 나오면 두 번 빼는 것처럼 보임)
+  let coDone = false;
+
   groups.filter(g => g.support_type_id !== 2).forEach(g => {
     const tn = TYPES[g.support_type_id] || ('유형' + g.support_type_id);
     const sd = sv[g.support_type_id] !== undefined
@@ -1178,13 +1181,13 @@ function drawKid(c) {
         b += '<div class="r sub2"><span class="nm"></span>'
           + '<span class="de">지원금 제외</span><span class="ct"></span><span class="up"></span>'
           + '<span class="am">−' + g.deduction.toLocaleString() + '</span></div>';
-        b += coHtml(g.support_type_id, sv);
+        if (!coDone) { b += coHtml(g.support_type_id, sv); coDone = true; }
         b += '<div class="r sum gsum" data-st="' + g.support_type_id + '" data-ded="' + g.deduction + '">'
           + '<span class="nm"></span><span class="de"></span><span class="ct"></span>'
           + '<span class="up">' + esc(tn) + '</span>'
           + '<span class="am gamt">0</span></div>';
       } else {
-        b += coHtml(g.support_type_id, sv);
+        if (!coDone) { b += coHtml(g.support_type_id, sv); coDone = true; }
         b += '<div class="r sum gsum" data-st="' + g.support_type_id + '" data-ded="0">'
           + '<span class="nm"></span><span class="de"></span><span class="ct"></span>'
           + '<span class="up">' + esc(tn) + '</span>'
@@ -1465,18 +1468,26 @@ function calcKid(childId) {
       amt = Math.max(0, base - Number(tr.dataset.ded || 0));
     }
 
-    // 전월 이월 빼기
-    {
-      const co = box.querySelector('.corow[data-st="' + st + '"] .co');
-      const cv = co ? numOf(co.value) : 0;
-      const tx = box.querySelector('.corow[data-st="' + st + '"] .cotxt');
-      if (tx) tx.textContent = cv ? '−' + cv.toLocaleString() : '0';
-      if (cv > 0) amt = Math.max(0, amt - cv);
-    }
-
     if (tr.querySelector('.gamt')) tr.querySelector('.gamt').textContent = amt.toLocaleString();
     parts.push({ st: st, amt: amt, review: st !== 2 });
   });
+
+  // 전월 이월 빼기 — 아동당 한 줄. 카드 항목에서 순서대로 뺀다
+  {
+    const co = box.querySelector('.corow .co');
+    let cv = co ? numOf(co.value) : 0;
+    const tx = box.querySelector('.corow .cotxt');
+    if (tx) tx.textContent = cv ? '−' + cv.toLocaleString() : '0';
+    parts.forEach(p => {
+      if (p.st === 2 || cv <= 0) return;
+      const take = Math.min(p.amt, cv);
+      p.amt -= take; cv -= take;
+      const g2 = box.querySelector('.gsum[data-st="' + p.st + '"]');
+      if (g2 && g2.querySelector('.gamt')) {
+        g2.querySelector('.gamt').textContent = p.amt.toLocaleString();
+      }
+    });
+  }
 
   // 3) 리뷰 차감 — 발달재활(2번) 빼고 나머지에서 순서대로 뺀다
   const rvEl = box.querySelector('.rv');
