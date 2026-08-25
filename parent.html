@@ -595,8 +595,9 @@ async function loadPay() {
       const nm = HOL2[r.plan_date] || '휴무';
       why[nm] = (why[nm] || 0) + 1;
     });
-    const tail = Object.keys(why)
-      .map(nm => nm + ' ' + why[nm] + '회 제외').join(' · ');
+    // 발달재활(2번)은 월 4회가 반드시 채워지므로 제외 표기를 하지 않는다
+    const tail = Number(stId) === 2 ? ''
+      : Object.keys(why).map(nm => nm + ' ' + why[nm] + '회 제외').join(' · ');
 
     return Object.keys(bag).map((key, i) => {
       const p = key.split('|');
