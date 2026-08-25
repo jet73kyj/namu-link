@@ -67,6 +67,36 @@
 
   /* 위쪽 갈래 단추 */
   .tabs { display:flex; gap:8px; margin-bottom:14px; }
+
+  /* 공지 */
+  .dot { display:inline-block; min-width:17px; height:17px; line-height:17px;
+         padding:0 5px; border-radius:9px; background:#e53935; color:#fff;
+         font-size:11.5px; font-weight:700; text-align:center;
+         margin-left:5px; vertical-align:middle; box-sizing:border-box; }
+  .nt { background:#fff; border:1px solid #e6e9e2; border-radius:12px;
+        padding:15px 16px; margin-bottom:10px; }
+  .nt.unread { border-color:#ffcc80; background:#fffdf7; }
+  .nthead { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+  .nttitle { font-size:15px; font-weight:700; color:#2e3d2c; }
+  .ntbody { font-size:14px; color:#5a6156; line-height:1.7; margin-top:8px;
+            white-space:pre-wrap; }
+  .ntday { font-size:12px; color:#9aa19c; margin-top:9px; }
+  .popwrap { position:fixed; inset:0; background:rgba(0,0,0,.45);
+             display:flex; align-items:center; justify-content:center;
+             padding:20px; z-index:100; }
+  .popbox { background:#fff; border-radius:16px; padding:24px 22px;
+            max-width:420px; width:100%; max-height:80vh; overflow:auto; }
+  .poptag { display:inline-block; font-size:11.5px; padding:3px 10px;
+            border-radius:11px; background:#ffe0b2; color:#e65100;
+            margin-bottom:10px; }
+  .poptitle { font-size:18px; font-weight:700; color:#2e3d2c; margin-bottom:10px; }
+  .popbody { font-size:14.5px; color:#5a6156; line-height:1.75;
+             white-space:pre-wrap; }
+  .popday { font-size:12px; color:#9aa19c; margin-top:14px; }
+  .popbtn { width:100%; margin-top:18px; padding:13px; border:none;
+            border-radius:10px; background:#4a7c59; color:#fff;
+            font-size:15px; font-weight:700; cursor:pointer; }
+  .popmore { text-align:center; font-size:12.5px; color:#9aa19c; margin-top:10px; }
   .tabs button { flex:1; background:#fff; color:var(--ink2);
                  border:1px solid var(--line); padding:11px; font-size:15px; }
   .tabs button.on { background:var(--acc); color:#fff; border-color:var(--acc);
@@ -167,6 +197,7 @@
   <div class="tabs">
     <button id="tabSch" class="on">시간표</button>
     <button id="tabPay">교육비</button>
+    <button id="tabNt">공지<span id="ntDot" class="dot" style="display:none;"></span></button>
   </div>
 
   <div class="kids" id="kids"></div>
@@ -179,6 +210,7 @@
 
   <div id="list"></div>
   <div id="paylist" style="display:none;"></div>
+  <div id="ntlist" style="display:none;"></div>
 
   <div class="foot">
     자라는나무 · 042-488-6011<br>
@@ -202,6 +234,7 @@ const PW_TAIL   = 'nl26';   // 4자리를 6자 이상으로 채우는 표시
 const DAYS = ['일','월','화','수','목','금','토'];
 
 let KIDS = [];      // 내 자녀 [{id, name}]
+let ACCID = null;   // 내 계정 번호 (공지 읽음 표시에 쓴다)
 let CURKID = null;  // 지금 보고 있는 자녀
 let CURMK = '';     // 지금 보고 있는 달 'YYYY-MM'
 let TYPES = {};     // 치료 종류 이름
@@ -350,6 +383,21 @@ async function afterLogin() {
   $('mainBox').style.display  = 'block';
   drawTabs();
   await reload();
+
+  // 공지 — 내 계정 번호를 알아두고, 안 읽은 중요 공지를 띄운다
+  try {
+    const em = (await sb.auth.getUser()).data.user.email;
+    const lid = String(em).split('@')[0];
+    const { data: acc } = await sb.from('nl_parent_accounts')
+      .select('id').eq('login_id', lid).maybeSingle();
+    ACCID = acc ? acc.id : null;
+  } catch (e) { ACCID = null; }
+
+  try {
+    await fetchNotices();
+    drawDot();
+    showPopups();
+  } catch (e) {}
 }
 
 function drawKids() {
@@ -369,18 +417,115 @@ $('next').onclick = async () => { CURMK = shiftMonth(CURMK,  1); await reload();
 let TAB = 'sch';
 $('tabSch').onclick = async () => { TAB = 'sch'; drawTabs(); await reload(); };
 $('tabPay').onclick = async () => { TAB = 'pay'; drawTabs(); await reload(); };
+$('tabNt').onclick  = async () => { TAB = 'nt';  drawTabs(); await reload(); };
 
 function drawTabs() {
   $('tabSch').className = (TAB === 'sch' ? 'on' : '');
   $('tabPay').className = (TAB === 'pay' ? 'on' : '');
+  $('tabNt').className  = (TAB === 'nt'  ? 'on' : '');
   $('list').style.display    = (TAB === 'sch' ? 'block' : 'none');
   $('paylist').style.display = (TAB === 'pay' ? 'block' : 'none');
+  $('ntlist').style.display  = (TAB === 'nt'  ? 'block' : 'none');
   $('kids').style.display    = (TAB === 'sch' ? 'flex'  : 'none');
+  // 공지는 달과 상관없으므로 달 고르는 줄을 감춘다
+  document.querySelector('.bar').style.display = (TAB === 'nt' ? 'none' : 'flex');
 }
 
 async function reload() {
-  if (TAB === 'sch') await loadMonth();
-  else               await loadPay();
+  if (TAB === 'sch')      await loadMonth();
+  else if (TAB === 'pay') await loadPay();
+  else                    await loadNotices();
+}
+
+// ── 공지사항 ───────────────────────────────────────────
+let NOTICES = [];      // 지금 볼 수 있는 공지
+let READIDS = {};      // 이미 읽은 공지 번호
+
+// 공지와 「읽음」을 가져온다
+async function fetchNotices() {
+  const { data, error } = await sb
+    .from('nl_notices')
+    .select('id, title, body, start_on, end_on, is_popup')
+    .order('id', { ascending: false });
+  if (error) { NOTICES = []; return; }
+  NOTICES = data || [];
+
+  READIDS = {};
+  try {
+    const { data: rd } = await sb.from('nl_notice_reads').select('notice_id');
+    (rd || []).forEach(r => { READIDS[r.notice_id] = true; });
+  } catch (e) {}
+}
+
+// 안 읽은 공지가 있으면 갈래 단추에 빨간 점을 붙인다
+function drawDot() {
+  const un = NOTICES.filter(n => !READIDS[n.id]).length;
+  $('ntDot').style.display = un ? 'inline-block' : 'none';
+  $('ntDot').textContent = un ? String(un) : '';
+}
+
+// 읽었다고 적어둔다
+async function markRead(id) {
+  if (READIDS[id] || !ACCID) return;
+  READIDS[id] = true;
+  try {
+    await sb.from('nl_notice_reads').insert({ notice_id: id, account_id: ACCID });
+  } catch (e) {}
+}
+
+function loadNotices() {
+  if (!NOTICES.length) {
+    $('ntlist').innerHTML = '<div class="none">올라온 공지가 없습니다.</div>';
+    drawDot();
+    return;
+  }
+  let h = '';
+  NOTICES.forEach(n => {
+    const unread = !READIDS[n.id];
+    h += '<div class="nt' + (unread ? ' unread' : '') + '">'
+      + '<div class="nthead"><span class="nttitle">' + esc(n.title) + '</span>'
+      + (unread ? '<span class="dot">새 글</span>' : '') + '</div>'
+      + '<div class="ntbody">' + esc(n.body) + '</div>'
+      + '<div class="ntday">' + esc(n.start_on) + '</div>'
+      + '</div>';
+  });
+  $('ntlist').innerHTML = h;
+
+  // 목록을 열면 다 읽은 것으로 본다
+  NOTICES.forEach(n => markRead(n.id));
+  setTimeout(drawDot, 400);
+}
+
+// ── 중요 공지 창 띄우기 ────────────────────────────────
+function showPopups() {
+  const list = NOTICES.filter(n => n.is_popup && !READIDS[n.id]);
+  if (!list.length) return;
+  let i = 0;
+
+  function one() {
+    if (i >= list.length) { drawDot(); return; }
+    const n = list[i];
+    const left = list.length - i - 1;
+    const w = document.createElement('div');
+    w.className = 'popwrap';
+    w.innerHTML =
+        '<div class="popbox">'
+      + '<div class="poptag">안내 말씀</div>'
+      + '<div class="poptitle">' + esc(n.title) + '</div>'
+      + '<div class="popbody">' + esc(n.body) + '</div>'
+      + '<div class="popday">' + esc(n.start_on) + '</div>'
+      + '<button class="popbtn">확인했습니다</button>'
+      + (left ? '<div class="popmore">안내가 ' + left + '개 더 있습니다</div>' : '')
+      + '</div>';
+    document.body.appendChild(w);
+    w.querySelector('.popbtn').onclick = async () => {
+      await markRead(n.id);
+      w.remove();
+      i++;
+      one();
+    };
+  }
+  one();
 }
 
 // ── 한 달 시간표 ────────────────────────────────────────
