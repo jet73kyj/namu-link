@@ -68,6 +68,11 @@
   /* 위쪽 갈래 단추 */
   .tabs { display:flex; gap:8px; margin-bottom:14px; }
 
+  /* 자녀가 하나일 때 이름 */
+  .onekid { font-size:15px; font-weight:700; color:#3c5a44;
+            background:#eef3ec; border-radius:9px;
+            padding:8px 14px; display:inline-block; }
+
   /* 결석·보강 신청 */
   .absbtn { margin-left:8px; padding:5px 11px; border:1px solid #cfd8cc;
             border-radius:7px; background:#fff; color:#4a7c59;
@@ -452,7 +457,13 @@ async function afterLogin() {
 }
 
 function drawKids() {
-  if (KIDS.length < 2) { $('kids').innerHTML = ''; return; }
+  if (KIDS.length < 2) {
+    // 자녀가 하나면 고르기 단추 대신 이름만 보여준다
+    const k = KIDS[0];
+    $('kids').innerHTML = k
+      ? '<div class="onekid">' + esc(k.name) + '</div>' : '';
+    return;
+  }
   $('kids').innerHTML = KIDS.map(k =>
     '<button class="kid' + (k.id === CURKID ? ' on' : '') + '" data-id="' + k.id + '">'
     + esc(k.name) + '</button>').join('');
