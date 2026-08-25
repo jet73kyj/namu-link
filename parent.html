@@ -841,8 +841,10 @@ async function loadMonth() {
       const stag = sname ? '<span class="sup s' + r.support_type_id + '">'
                          + esc(sname) + '</span>' : '';
 
-      // 회차 번호
-      const rn = RUN[r.id] ? '<span class="runno">' + RUN[r.id] + '회차</span>' : '';
+      // 회차 번호 — 시간표 화면과 같게 「9-1」 방식
+      const rn = RUN[r.id]
+        ? '<span class="runno">' + (+CURMK.slice(5, 7)) + '-' + RUN[r.id] + '</span>'
+        : '';
 
       // 전월에서 넘어온 보강인지
       let mtag = '';
