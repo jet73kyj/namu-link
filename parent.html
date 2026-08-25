@@ -786,7 +786,8 @@ async function loadMonth() {
   const byDay = {};
   data.forEach(r => { (byDay[r.plan_date] = byDay[r.plan_date] || []).push(r); });
 
-  // 회차 번호를 지원유형별로 다시 센다 (휴무·쉼은 빼고 날짜 순)
+  // 회차 번호를 지원유형별로 다시 센다
+  // 휴무·쉼·취소는 빼고, 보강도 번호에서 뺀다 (보강은 「○월 보강」으로 따로 적는다)
   const RUN = {};
   {
     const cnt = {};
@@ -794,8 +795,9 @@ async function loadMonth() {
       (a.plan_date + a.start_time) < (b.plan_date + b.start_time) ? -1 : 1
     ).forEach(r => {
       const st = String(r.status || '');
-      if (st === '쉼' || st === '휴무' || st === '취소') return;
-      const k = String(r.support_type_id || 0) + '|' + String(r.therapy_id || 0);
+      if (st === '쉼' || st === '휴무' || st === '취소' || st === '보강') return;
+      if (r.makeup_for) return;
+      const k = String(r.support_type_id || 0);
       cnt[k] = (cnt[k] || 0) + 1;
       RUN[r.id] = cnt[k];
     });
@@ -846,14 +848,20 @@ async function loadMonth() {
         ? '<span class="runno">' + (+CURMK.slice(5, 7)) + '-' + RUN[r.id] + '</span>'
         : '';
 
-      // 전월에서 넘어온 보강인지
+      // 보강이면 원래 어느 달 것인지 밝힌다
       let mtag = '';
-      if (r.makeup_for && ORIG[r.makeup_for]) {
+      if (r.makeup_for) {
         const o = ORIG[r.makeup_for];
-        mtag = (o.month_key && o.month_key !== CURMK)
-          ? '<span class="prevmk">지난달 ' + (+String(o.plan_date).slice(8,10)) + '일 보강</span>'
-          : '<span class="prevmk">' + (+String(o.plan_date).slice(5,7)) + '/'
-            + (+String(o.plan_date).slice(8,10)) + ' 보강</span>';
+        if (o && o.plan_date) {
+          const om = +String(o.plan_date).slice(5, 7);
+          const od = +String(o.plan_date).slice(8, 10);
+          const cm = +CURMK.slice(5, 7);
+          mtag = (om === cm)
+            ? '<span class="prevmk">' + om + '/' + od + ' 보강</span>'
+            : '<span class="prevmk">' + om + '월 보강</span>';
+        } else {
+          mtag = '<span class="prevmk">보강</span>';
+        }
       }
 
       return '<div class="row">'
@@ -1164,6 +1172,17 @@ async function loadPay() {
   let html = '';
   let allTot = 0;
 
+  // 리뷰 할인 — 납부 계산 화면이 저장한 건수를 그대로 가져온다
+  // (메모는 안 가져온다. 건수만 돌려주는 창구를 쓴다)
+  const RVC = {};
+  for (const k of KIDS) {
+    try {
+      const { data: rv } = await sb.rpc('nl_review_cnt',
+        { p_child: k.id, p_month: CURMK });
+      RVC[k.id] = Number(rv || 0) * 5000;
+    } catch (e) { RVC[k.id] = 0; }
+  }
+
   KIDS.forEach((k, ki) => {
     const mine = (cur || []).filter(r => r.child_id === k.id && Number(r.amount) > 0);
     if (!mine.length) return;
@@ -1179,6 +1198,20 @@ async function loadPay() {
 
     if (card.length) {
       s += '<div class="grpttl">\uD83D\uDCB3 신용카드 · 계좌입금</div>';
+
+      // 리뷰 할인을 카드 항목에 차례대로 나눈다
+      // (납부 계산 화면과 같은 규칙 — 발달재활은 대상이 아님)
+      let rvLeft = Number(RVC[k.id] || 0);
+      const RVOF = {};
+      card.forEach(r => {
+        if (rvLeft <= 0) { RVOF[r.support_type_id] = 0; return; }
+        const base = Number(r.amount) + Number(DED[r.support_type_id] || 0)
+                   + Number(r.carry_over || 0);
+        const take = Math.min(base, rvLeft);
+        RVOF[r.support_type_id] = take;
+        rvLeft -= take;
+      });
+
       card.forEach(r => {
         let det;
         if (Number(r.support_type_id) === 8) {
@@ -1191,7 +1224,8 @@ async function loadPay() {
           det = detailOf(k.id, r.support_type_id);
         }
         const ded = Number(DED[r.support_type_id] || 0);
-        const gross = Number(r.amount) + ded + Number(r.carry_over || 0);
+        const rvc = Number(RVOF[r.support_type_id] || 0);
+        const gross = Number(r.amount) + ded + Number(r.carry_over || 0) + rvc;
         let inner = '';
         det.forEach((t, i) => {
           inner += '<div class="dtl"><span>· ' + esc(t) + '</span><span>'
@@ -1203,6 +1237,10 @@ async function loadPay() {
         if (ded > 0) {
           inner += '<div class="dtl ded"><span>· 지원금 제외</span><span>−'
                  + Number(ded).toLocaleString() + '원</span></div>';
+        }
+        if (rvc > 0) {
+          inner += '<div class="dtl ded"><span>· 리뷰 할인</span><span>−'
+                 + rvc.toLocaleString() + '원</span></div>';
         }
         const co = Number(r.carry_over || 0);
         if (co > 0) {
