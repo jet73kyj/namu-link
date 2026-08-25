@@ -68,6 +68,29 @@
   /* 위쪽 갈래 단추 */
   .tabs { display:flex; gap:8px; margin-bottom:14px; }
 
+  /* 결석·보강 신청 */
+  .absbtn { margin-left:8px; padding:5px 11px; border:1px solid #cfd8cc;
+            border-radius:7px; background:#fff; color:#4a7c59;
+            font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .absbtn.wait { border-color:#ffcc80; background:#fff8ec; color:#e65100; }
+  .askinfo { font-size:13.5px; color:#5a6156; background:#f4f7f2;
+             border-radius:8px; padding:10px 12px; margin-bottom:14px; }
+  .asklb { display:block; font-size:12.5px; font-weight:700; color:#4a5a48;
+           margin:14px 0 6px; }
+  #askWhy { width:100%; padding:10px 12px; border:1px solid #dfe4dc;
+            border-radius:8px; font-size:14px; font-family:inherit;
+            box-sizing:border-box; }
+  .slots { display:flex; flex-wrap:wrap; gap:6px; max-height:190px;
+           overflow:auto; padding:2px; }
+  .slot { padding:7px 10px; border:1px solid #dfe4dc; border-radius:7px;
+          background:#fff; color:#5a6156; font-size:12.5px; cursor:pointer;
+          white-space:nowrap; }
+  .slot.on { background:#4a7c59; border-color:#4a7c59; color:#fff; font-weight:600; }
+  .askhint { font-size:12.5px; color:#9aa19c; padding:6px 2px; width:100%; }
+  .askbtns { display:flex; gap:8px; }
+  .askbtns .popbtn { flex:1; }
+  .popbtn.gray { background:#9aa19c; }
+
   /* 치료기록지 */
   .rc { background:#fff; border:1px solid #e6e9e2; border-radius:12px;
         padding:16px; margin-bottom:12px; }
@@ -676,7 +699,7 @@ async function loadMonth() {
 
   const { data, error } = await sb
     .from('nl_sessions')
-    .select('plan_date, start_time, status, therapist_id, therapy_id')
+    .select('id, plan_date, start_time, status, therapist_id, therapy_id')
     .eq('child_id', CURKID)
     .eq('month_key', CURMK)
     .order('plan_date').order('start_time');
@@ -712,6 +735,15 @@ async function loadMonth() {
     (offs || []).forEach(r => { HOL[r.off_date] = r.reason || '휴무'; });
   }
 
+  // 이 아동이 이미 낸 결석 신청을 가져온다
+  REQS = {};
+  try {
+    const { data: rq } = await sb.from('nl_absence_requests')
+      .select('id, session_id, state, makeup_date, makeup_time')
+      .eq('child_id', CURKID);
+    (rq || []).forEach(r => { REQS[r.session_id] = r; });
+  } catch (e) {}
+
   // 날짜별로 묶는다
   const byDay = {};
   data.forEach(r => { (byDay[r.plan_date] = byDay[r.plan_date] || []).push(r); });
@@ -735,15 +767,154 @@ async function loadMonth() {
       let cls = 'tag', txt = st;
       if (st === '결석')      { cls = 'tag ab'; }
       else if (st === '보강') { cls = 'tag mk'; }
+
+      // 결석 알림 단추 — 아직 안 낸 「예정」 수업에만
+      let btn = '';
+      const rq = REQS[r.id];
+      if (rq) {
+        btn = rq.state === '신청'
+          ? '<button class="absbtn wait" data-cancel="' + rq.id + '">신청 중 · 취소</button>'
+          : '';
+      } else if (st === '예정' && canAsk(d, r.start_time)) {
+        btn = '<button class="absbtn" data-ask="' + r.id + '"'
+            + ' data-thr="' + (r.therapist_id || '') + '"'
+            + ' data-d="' + d + '" data-t="' + esc(hhmm(r.start_time)) + '"'
+            + ' data-nm="' + esc(tname) + '">못 가요</button>';
+      }
+
       return '<div class="row">'
         + '<div class="tm">' + esc(hhmm(r.start_time)) + '</div>'
         + '<div class="nm">' + esc(tname)
         + (thn ? ' <span class="th">' + esc(thn) + ' 선생님</span>' : '') + '</div>'
         + (txt ? '<span class="' + cls + '">' + esc(txt) + '</span>' : '')
+        + btn
         + '</div>';
     }).join('');
     return '<div class="day"><div class="dt">' + esc(head) + '</div>' + rows + '</div>';
   }).join('');
+
+  bindAsk();
+}
+
+// ── 결석·보강 신청 ─────────────────────────────────────
+let REQS = {};      // 수업번호 -> 이미 낸 신청
+
+// 지금 신청할 수 있는 수업인가
+// 오후 수업(정오 뒤)은 그날 정오까지, 오전 수업은 전날까지
+function canAsk(dstr, stime) {
+  const now = new Date();
+  const t = String(stime || '00:00').slice(0, 5);
+  const isAfternoon = t >= '12:00';
+  const lim = new Date(dstr + 'T00:00:00');
+  if (isAfternoon) lim.setHours(12, 0, 0, 0);          // 그날 정오
+  else             lim.setDate(lim.getDate() - 1),
+                   lim.setHours(23, 59, 59, 0);        // 전날 밤까지
+  return now < lim;
+}
+
+function bindAsk() {
+  document.querySelectorAll('button[data-ask]').forEach(b => {
+    b.onclick = () => openAsk(b.dataset);
+  });
+  document.querySelectorAll('button[data-cancel]').forEach(b => {
+    b.onclick = () => cancelAsk(Number(b.dataset.cancel));
+  });
+}
+
+// 낸 신청 취소하기
+async function cancelAsk(id) {
+  if (!confirm('낸 신청을 취소할까요?')) return;
+  try {
+    const { error } = await sb.from('nl_absence_requests').delete().eq('id', id);
+    if (error) throw error;
+    await loadMonth();
+  } catch (e) {
+    alert('취소하지 못했습니다.\n센터로 연락해 주세요.');
+  }
+}
+
+// 신청 창 열기
+async function openAsk(d) {
+  const w = document.createElement('div');
+  w.className = 'popwrap';
+  w.innerHTML =
+      '<div class="popbox">'
+    + '<div class="poptitle">못 가는 수업 알리기</div>'
+    + '<div class="askinfo">' + esc(d.d.slice(5).replace('-', '월 ')) + '일 · '
+    + esc(d.t) + ' · ' + esc(d.nm) + '</div>'
+    + '<label class="asklb">왜 못 오시는지 짧게 적어주세요</label>'
+    + '<input id="askWhy" type="text" placeholder="예) 감기로 병원에 갑니다" maxlength="60">'
+    + '<label class="asklb">보강을 언제로 할까요?</label>'
+    + '<div id="askSlots" class="slots">빈 자리를 찾는 중...</div>'
+    + '<div class="askbtns">'
+    + '<button id="askGo" class="popbtn">신청하기</button>'
+    + '<button id="askNo" class="popbtn gray">닫기</button>'
+    + '</div>'
+    + '<div class="popmore">센터가 확인한 뒤 시간표에 반영됩니다.</div>'
+    + '</div>';
+  document.body.appendChild(w);
+
+  let pick = null;   // 고른 자리
+  w.querySelector('#askNo').onclick = () => w.remove();
+
+  // 빈 자리 가져오기
+  let slots = [];
+  try {
+    const { data: fs } = await sb.rpc('nl_free_slots', {
+      p_therapist_id: Number(d.thr)
+    });
+    slots = fs || [];
+  } catch (e) {}
+
+  let sh = '<button class="slot on" data-later="1">보강은 나중에 정할게요</button>';
+  slots.slice(0, 60).forEach(s => {
+    const dd = new Date(s.slot_date + 'T00:00:00');
+    sh += '<button class="slot" data-sd="' + s.slot_date + '" data-st="' + s.slot_time + '">'
+        + (+s.slot_date.slice(5, 7)) + '/' + (+s.slot_date.slice(8, 10))
+        + '(' + DAYS[dd.getDay()] + ') ' + String(s.slot_time).slice(0, 5)
+        + '</button>';
+  });
+  if (!slots.length) {
+    sh += '<div class="askhint">빈 자리가 없습니다. 센터로 말씀해 주세요.</div>';
+  }
+  const box = w.querySelector('#askSlots');
+  box.innerHTML = sh;
+  box.querySelectorAll('.slot').forEach(b => {
+    b.onclick = () => {
+      box.querySelectorAll('.slot').forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      pick = b.dataset.later ? null : { d: b.dataset.sd, t: b.dataset.st };
+    };
+  });
+
+  w.querySelector('#askGo').onclick = async () => {
+    const why = (w.querySelector('#askWhy').value || '').trim();
+    if (!why) { alert('왜 못 오시는지 짧게 적어주세요.'); return; }
+    const go = w.querySelector('#askGo');
+    go.disabled = true; go.textContent = '보내는 중...';
+    try {
+      const { error } = await sb.from('nl_absence_requests').insert({
+        child_id: CURKID,
+        session_id: Number(d.ask),
+        account_id: ACCID,
+        reason: why,
+        makeup_date: pick ? pick.d : null,
+        makeup_time: pick ? pick.t : null,
+        makeup_therapist_id: pick ? Number(d.thr) : null,
+        state: '신청'
+      });
+      if (error) throw error;
+      w.remove();
+      alert('신청했습니다.\n센터가 확인한 뒤 시간표에 반영됩니다.');
+      await loadMonth();
+    } catch (e) {
+      go.disabled = false; go.textContent = '신청하기';
+      const m = String(e.message || e);
+      alert(m.indexOf('duplicate') >= 0
+        ? '방금 다른 분이 그 자리를 먼저 잡으셨습니다.\n다른 자리를 골라주세요.'
+        : '신청하지 못했습니다.\n센터로 연락해 주세요.');
+    }
+  };
 }
 
 // ── 교육비 ─────────────────────────────────────────────
