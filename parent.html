@@ -68,6 +68,21 @@
   /* 위쪽 갈래 단추 */
   .tabs { display:flex; gap:8px; margin-bottom:14px; }
 
+  /* 시간표 — 지원유형·회차·전월보강 */
+  .sup { display:inline-block; font-size:11px; font-weight:700;
+         padding:2px 7px; border-radius:6px; margin-right:2px;
+         background:#eceff1; color:#546e7a; vertical-align:1px; }
+  .sup.s1 { background:#e8f5e9; color:#2e7d32; }
+  .sup.s2 { background:#e3f2fd; color:#1565c0; }
+  .sup.s3, .sup.s4 { background:#f3e5f5; color:#6a1b9a; }
+  .sup.s5 { background:#fff3e0; color:#e65100; }
+  .sup.s6, .sup.s7 { background:#fce4ec; color:#ad1457; }
+  .sup.s8 { background:#e0f2f1; color:#00695c; }
+  .runno { font-size:11.5px; color:#9aa19c; }
+  .prevmk { display:inline-block; font-size:11px; font-weight:600;
+            padding:2px 7px; border-radius:6px; margin-left:5px;
+            background:#e3f2fd; color:#1565c0; }
+
   /* 자녀가 하나일 때 이름 */
   .onekid { font-size:15px; font-weight:700; color:#3c5a44;
             background:#eef3ec; border-radius:9px;
@@ -710,7 +725,8 @@ async function loadMonth() {
 
   const { data, error } = await sb
     .from('nl_sessions')
-    .select('id, plan_date, start_time, status, therapist_id, therapy_id, support_type_id')
+    .select('id, plan_date, start_time, status, therapist_id, therapy_id,'
+          + ' support_type_id, run_no, makeup_for')
     .eq('child_id', CURKID)
     .eq('month_key', CURMK)
     .order('plan_date').order('start_time');
@@ -755,9 +771,35 @@ async function loadMonth() {
     (rq || []).forEach(r => { REQS[r.session_id] = r; });
   } catch (e) {}
 
+  // 보강 회기의 「원래 어느 날 것인지」를 가져온다 (전월 보강을 알려주려고)
+  const ORIG = {};
+  const mfs = [...new Set(data.map(r => r.makeup_for).filter(Boolean))];
+  if (mfs.length) {
+    try {
+      const { data: og } = await sb.from('nl_sessions')
+        .select('id, plan_date, month_key').in('id', mfs);
+      (og || []).forEach(o => { ORIG[o.id] = o; });
+    } catch (e) {}
+  }
+
   // 날짜별로 묶는다
   const byDay = {};
   data.forEach(r => { (byDay[r.plan_date] = byDay[r.plan_date] || []).push(r); });
+
+  // 회차 번호를 지원유형별로 다시 센다 (휴무·쉼은 빼고 날짜 순)
+  const RUN = {};
+  {
+    const cnt = {};
+    data.slice().sort((a, b) =>
+      (a.plan_date + a.start_time) < (b.plan_date + b.start_time) ? -1 : 1
+    ).forEach(r => {
+      const st = String(r.status || '');
+      if (st === '쉼' || st === '휴무' || st === '취소') return;
+      const k = String(r.support_type_id || 0) + '|' + String(r.therapy_id || 0);
+      cnt[k] = (cnt[k] || 0) + 1;
+      RUN[r.id] = cnt[k];
+    });
+  }
 
   $('list').innerHTML = Object.keys(byDay).sort().map(d => {
     const dd = new Date(d + 'T00:00:00');
@@ -794,10 +836,29 @@ async function loadMonth() {
             + ' data-nm="' + esc(tname) + '">못 가요</button>';
       }
 
+      // 지원유형 이름표
+      const sname = ST_LABEL[r.support_type_id] || '';
+      const stag = sname ? '<span class="sup s' + r.support_type_id + '">'
+                         + esc(sname) + '</span>' : '';
+
+      // 회차 번호
+      const rn = RUN[r.id] ? '<span class="runno">' + RUN[r.id] + '회차</span>' : '';
+
+      // 전월에서 넘어온 보강인지
+      let mtag = '';
+      if (r.makeup_for && ORIG[r.makeup_for]) {
+        const o = ORIG[r.makeup_for];
+        mtag = (o.month_key && o.month_key !== CURMK)
+          ? '<span class="prevmk">지난달 ' + (+String(o.plan_date).slice(8,10)) + '일 보강</span>'
+          : '<span class="prevmk">' + (+String(o.plan_date).slice(5,7)) + '/'
+            + (+String(o.plan_date).slice(8,10)) + ' 보강</span>';
+      }
+
       return '<div class="row">'
         + '<div class="tm">' + esc(hhmm(r.start_time)) + '</div>'
-        + '<div class="nm">' + esc(tname)
-        + (thn ? ' <span class="th">' + esc(thn) + ' 선생님</span>' : '') + '</div>'
+        + '<div class="nm">' + stag + ' ' + esc(tname) + ' ' + rn
+        + (thn ? ' <span class="th">' + esc(thn) + ' 선생님</span>' : '')
+        + mtag + '</div>'
         + (txt ? '<span class="' + cls + '">' + esc(txt) + '</span>' : '')
         + btn
         + '</div>';
@@ -807,6 +868,11 @@ async function loadMonth() {
 
   bindAsk();
 }
+
+// 지원유형 이름표 — 학부모께 보일 짧은 이름
+const ST_LABEL = { 1:'센터', 2:'발달재활', 3:'치료지원', 4:'치료지원',
+                   5:'방과후활동', 6:'방과후치료', 7:'방과후치료',
+                   8:'발달추가', 9:'평가' };
 
 // ── 결석·보강 신청 ─────────────────────────────────────
 let REQS = {};      // 수업번호 -> 이미 낸 신청
