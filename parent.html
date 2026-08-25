@@ -699,7 +699,7 @@ async function loadMonth() {
 
   const { data, error } = await sb
     .from('nl_sessions')
-    .select('id, plan_date, start_time, status, therapist_id, therapy_id')
+    .select('id, plan_date, start_time, status, therapist_id, therapy_id, support_type_id')
     .eq('child_id', CURKID)
     .eq('month_key', CURMK)
     .order('plan_date').order('start_time');
@@ -778,6 +778,7 @@ async function loadMonth() {
       } else if (st === '예정' && canAsk(d, r.start_time)) {
         btn = '<button class="absbtn" data-ask="' + r.id + '"'
             + ' data-thr="' + (r.therapist_id || '') + '"'
+            + ' data-st="' + (r.support_type_id || '') + '"'
             + ' data-d="' + d + '" data-t="' + esc(hhmm(r.start_time)) + '"'
             + ' data-nm="' + esc(tname) + '">못 가요</button>';
       }
@@ -858,10 +859,20 @@ async function openAsk(d) {
   w.querySelector('#askNo').onclick = () => w.remove();
 
   // 빈 자리 가져오기
+  // 발달재활서비스(2번)는 월 4회를 그 달 안에 채워야 하므로 그 달 말까지만 보여준다
+  const isDev = Number(d.st) === 2;
+  let last = null;
+  if (isDev) {
+    const y = +d.d.slice(0, 4), m = +d.d.slice(5, 7);
+    const e = new Date(y, m, 0);
+    last = y + '-' + String(m).padStart(2, '0') + '-'
+         + String(e.getDate()).padStart(2, '0');
+  }
+
   let slots = [];
   try {
     const { data: fs } = await sb.rpc('nl_free_slots', {
-      p_therapist_id: Number(d.thr)
+      p_therapist_id: Number(d.thr), p_last: last
     });
     slots = fs || [];
   } catch (e) {}
@@ -875,7 +886,12 @@ async function openAsk(d) {
         + '</button>';
   });
   if (!slots.length) {
-    sh += '<div class="askhint">빈 자리가 없습니다. 센터로 말씀해 주세요.</div>';
+    sh += '<div class="askhint">'
+        + (isDev ? '이 달 안에 빈 자리가 없습니다. 센터로 말씀해 주세요.'
+                 : '빈 자리가 없습니다. 센터로 말씀해 주세요.')
+        + '</div>';
+  } else if (isDev) {
+    sh += '<div class="askhint">발달재활서비스는 이 달 안에 보강해야 합니다.</div>';
   }
   const box = w.querySelector('#askSlots');
   box.innerHTML = sh;
