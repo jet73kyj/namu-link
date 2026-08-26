@@ -200,6 +200,8 @@
   .run .st { margin-left:auto; font-weight:bold; flex:0 0 auto; }
   .r-done { background:#c8e6c9; color:#1b5e20; }
   .r-abs  { background:#ffcdd2; color:#b71c1c; }
+  /* 결석·휴무 — 날짜와 회차 번호에 줄을 긋는다 */
+  .run.r-cut .dt { text-decoration:line-through; }
   .r-mk   { background:#ffe0b2; color:#e65100; }
   .r-off  { background:#e0e0e0; color:#555; }
   .r-rest { background:#f0f2f1; color:#8a908c; }
@@ -1064,10 +1066,11 @@ function drawFind(){
     const sl = nearest(toMin(r.start_time));
     const _rl = (byScd[r.id] || []);
     const _rh = _rl.map(x => {
-      const cls = x.status==='완료' ? 'r-done'
+      const cls = (x.status==='완료' ? 'r-done'
                 : x.status==='결석' ? 'r-abs'
                 : x.status==='휴무' ? 'r-off'
-                : x.status==='쉼' ? 'r-rest' : '';
+                : x.status==='쉼' ? 'r-rest' : '')
+                + ((x.status==='결석' || x.status==='휴무') ? ' r-cut' : '');
       const mk = mkOf[x.id];
       const tail = (x.status==='결석' || x.status==='휴무' || x.status==='쉼')
         ? (mk ? '→' + dayNo(mk.plan_date) + '일'
@@ -1280,10 +1283,11 @@ function drawWeek(){
                         ? ' <span class="dur">('+r.duration+')</span>' : '';
             const _rl = (byScd[r.id] || []).filter(x => !isBlankRest(x) && !isSplitRun(x));
             const _rh = _rl.map(x => {
-              const cls = x.status==='완료' ? 'r-done'
+              const cls = (x.status==='완료' ? 'r-done'
                         : x.status==='결석' ? 'r-abs'
                         : x.status==='휴무' ? 'r-off'
-                        : x.status==='쉼' ? 'r-rest' : '';
+                        : x.status==='쉼' ? 'r-rest' : '')
+                        + ((x.status==='결석' || x.status==='휴무') ? ' r-cut' : '');
               const mk = mkOf[x.id];
               const tail = (x.status==='쉼')
                 ? '<span class="st">쉼</span>'
@@ -1312,8 +1316,9 @@ function drawWeek(){
               + mergeRuns(_rl, _rh, wk5Pairs(r, byScd, d)) + '</span>';
           });
           mks.forEach(x => {
-            const mcls = x.status==='완료' ? 'r-done'
-                       : x.status==='결석' ? 'r-abs' : 'r-mk';
+            const mcls = (x.status==='완료' ? 'r-done'
+                       : x.status==='결석' ? 'r-abs' : 'r-mk')
+                       + (x.status==='결석' ? ' r-cut' : '');
             const _org = ROWS_ALL.find(function(rr){ return rr.id === x.schedule_id; });
             const _st2 = x.support_type_id || (_org ? _org.support_type_id : null);
             const _sp  = _st2 ? (STYPE[_st2] || '') + ' ' : '';
@@ -1510,8 +1515,9 @@ function drawPrev(){
 
 // 직접 넣은 보강 한 칸 (수업요일 없이 홀로 선 줄)
 function mnChip(x){
-  const cls = x.status==='완료' ? 'r-done'
-            : x.status==='결석' ? 'r-abs' : '';
+  const cls = (x.status==='완료' ? 'r-done'
+            : x.status==='결석' ? 'r-abs' : '')
+            + (x.status==='결석' ? ' r-cut' : '');
   const rs = String(x.memo || '').replace(/^직접 보강 · ?/, '');
   return '<span class="chip r-mk">'
     + '<span class="nm"><span class="mntag">' + (x._isEval ? '평가' : '보강') + '</span>'
