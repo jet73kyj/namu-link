@@ -730,7 +730,7 @@ async function load() {
 
     const [th, fe, ru, gr, pay, px, pv, ss] = await Promise.all([
       sb.from('nl_therapies')
-        .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode, memo, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration, week1, week2, week3, week4)')
+        .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode, memo, ended_on, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration, week1, week2, week3, week4, from_month, to_month)')
         .in('child_id', ids),
       sb.from('nl_therapist_fees').select('*'),
       sb.from('nl_support_rules').select('*'),
@@ -763,11 +763,16 @@ async function load() {
     SESSCNT = {};
     WKWAS   = {};
     sess.forEach(x => {
-      if (x.status === '휴무' || x.status === '보강' || x.status === '쉼') return;
+      if (x.status === '보강') return;
       const k = x.schedule_id;
       const sp = x.support_type_id || 0;
       (SESSCNT[k] = SESSCNT[k] || {});
-      SESSCNT[k][sp] = (SESSCNT[k][sp] || 0) + 1;
+      // 휴무·쉼은 자리만 만들어 둔다 (회기 수는 안 올린다).
+      // 그래야 「한 달 통째로 쉼」인 수업이 0회로 그려진다.
+      // 자리를 안 만들면 회기가 없는 것으로 보고 요일 수로 세어
+      // 쉬는 달에도 금액이 생긴다.
+      if (SESSCNT[k][sp] == null) SESSCNT[k][sp] = 0;
+      if (x.status !== '휴무' && x.status !== '쉼') SESSCNT[k][sp] += 1;
     });
 
     // 보강을 이미 잡은 결석 모으기
@@ -802,11 +807,17 @@ async function load() {
     //   발4+센1  : 발달재활 4. 5주인 달만 센터비용 1회가 더 붙음
     //   발4+발추1 : 발달재활 4 + 발추 1      (발추는 8번으로 따로 셈)
     //   매주     : 그 달에 그 요일이 몇 번 있는지 (4주면 4, 5주면 5)
+    // 그 달에 해당하는 수업요일만 고른다.
+    //   시작달이 그 달보다 늦으면 아직 시작 전 (예: 「이 달은 쉼」)
+    //   끝난달이 그 달보다 이르면 이미 끝난 수업
+    const liveScs = (t) => (t.nl_therapy_schedules || []).filter(s =>
+      (!s.from_month || s.from_month <= mk) && (!s.to_month || s.to_month >= mk));
+
     NEEDCNT = {};
     (th.data || []).forEach(t => {
       const st   = Number(t.support_type_id) || 0;
       const mode = String(t.count_mode || '').trim();
-      const scs  = t.nl_therapy_schedules || [];
+      const scs  = liveScs(t);
       let need   = Number(t.monthly_count) || 0;
       let plus1  = 0;                      // 센터비용에 얹을 1회
 
@@ -871,7 +882,7 @@ async function load() {
 
     SCHED = {};
     (th.data || []).forEach(t => {
-      (t.nl_therapy_schedules || []).forEach(s => {
+      liveScs(t).forEach(s => {
         (SCHED[t.child_id] = SCHED[t.child_id] || []).push({
           sched_id: s.id,
           therapy_type_id: t.therapy_type_id,
@@ -1028,7 +1039,10 @@ function hasBill(childId) {
 function isUnpaid(childId) {
   if (!hasBill(childId)) return false;            // 낼 것이 없으면 미납이 아니다
   const sv = SAVED[childId] || {};
-  const keys = Object.keys(sv);
+  // 발달재활서비스(2번)가 0원이면 받을 돈이 없으므로 미납으로 세지 않는다
+  // (다형 아동의 본인부담금 0원 등). 다른 항목의 0원은 그대로 미납으로 둔다
+  const keys = Object.keys(sv).filter(k =>
+    !(Number(k) === 2 && !(Number(sv[k].amount) > 0)));
   if (!keys.length) return true;                  // 낼 것은 있는데 저장 안 됨
   return keys.some(k => !sv[k].paid_on);          // 하나라도 날짜 없음
 }
@@ -1037,7 +1051,8 @@ function isUnpaid(childId) {
 function isPaid(childId) {
   if (!hasBill(childId)) return false;
   const sv = SAVED[childId] || {};
-  const keys = Object.keys(sv);
+  const keys = Object.keys(sv).filter(k =>
+    !(Number(k) === 2 && !(Number(sv[k].amount) > 0)));
   if (!keys.length) return false;
   return keys.every(k => !!sv[k].paid_on);
 }
@@ -1292,10 +1307,13 @@ function drawKid(c) {
       + '</span>'
       + '<span class="ct"></span><span class="up"></span>'
       + '<span class="am gamt">0</span></div>'
-      + '<div class="pay">'
-      + '<input class="dt bday" type="date" value="' + (ds && ds.paid_on ? ds.paid_on : '') + '">'
-      + '<input class="tx bmemo" type="text" placeholder="입금자명" value="'
-      + esc(payerOf(c.id)) + '"></div>'
+      // 본인부담금이 0원이면(다형 등) 낼 것이 없으므로
+      // 낸날·입금자명 칸을 내놓지 않는다. 줄 자체는 그대로 보인다.
+      + (Number(pv) === 0 ? ''
+         : '<div class="pay">'
+           + '<input class="dt bday" type="date" value="' + (ds && ds.paid_on ? ds.paid_on : '') + '">'
+           + '<input class="tx bmemo" type="text" placeholder="입금자명" value="'
+           + esc(payerOf(c.id)) + '"></div>')
       + '</div>';
   }
 
