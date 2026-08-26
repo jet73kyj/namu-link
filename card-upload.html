@@ -204,7 +204,7 @@ const NEED = 120000;            // 한 달에 다 내야 하는 금액
 const KIND = { 3:'치료지원', 5:'방과후' };
 
 let CHILDREN = [];              // 아동 목록
-let CARDMAP  = {};              // 카드번호|지원유형 -> 아동번호
+let CARDMAP  = {};              // 성명|지원유형 -> 아동번호
 let ROWS     = [];              // 이번에 읽은 줄
 let NEWCARDS = [];              // 처음 보는 카드
 let ST       = 3;               // 지금 고른 갈래 (3 치료지원 / 5 방과후)
@@ -215,7 +215,11 @@ function hide(el) { el.className = 'out'; el.textContent = ''; }
 function esc(s) { return String(s == null ? '' : s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function won(n) { return (Number(n) || 0).toLocaleString('ko-KR') + '원'; }
-function key(card, st) { return String(card) + '|' + st; }
+// 짝을 맺는 열쇠는 성명이다.
+// 카드번호는 가운데가 별표로 가려 나와 서로 다른 카드가 같아 보이고,
+// 분실해 재발급하면 번호가 바뀌므로 열쇠로 쓸 수 없다.
+function nmKey(name) { return String(name || '').replace(/\s/g, ''); }
+function key(name, st) { return nmKey(name) + '|' + st; }
 
 // ── 엑셀 값 다듬기 ────────────────────────────────
 // 2026.08.18 · 2026-08-18 · 엑셀 날짜숫자 → 2026-08-18
@@ -332,7 +336,8 @@ function parse(aoa) {
   const seen = {};
   NEWCARDS = [];
   out.forEach(r => {
-    const k = key(r.card_no, ST);
+    const k = key(r.person_name, ST);
+    if (!nmKey(r.person_name)) return;      // 성명이 없으면 이을 수 없다
     if (CARDMAP[k] || seen[k]) return;
     seen[k] = 1;
     const nm = String(r.person_name || '').replace(/\s/g, '');
@@ -356,8 +361,8 @@ function parse(aoa) {
   const left0 = NEWCARDS.filter(n => !n.child_id).length;
   $('readstat').innerHTML = '읽은 줄 <b>' + out.length + '</b>건 · '
     + KIND[ST] + ' · ' + mks.join(', ')
-    + (left0 ? ' · <span class="warn">아동을 고르지 않은 카드 ' + left0 + '개</span>'
-             : ' · <span class="good">카드 짝 다 맞음</span>');
+    + (left0 ? ' · <span class="warn">아동을 고르지 않은 성명 ' + left0 + '명</span>'
+             : ' · <span class="good">아동 짝 다 맞음</span>');
   $('saveCard').style.display = 'block';
 }
 
@@ -384,17 +389,17 @@ function drawMap() {
   }
   $('mapBody').innerHTML =
     '<div class="note" style="margin:0 0 12px;">'
-    + '이름이 딱 맞는 카드는 <b>저절로 이어졌습니다</b>. '
-    + '아래 <span class="warn">' + need.length + '개</span>만 골라 주세요.'
+    + '이름이 딱 맞는 분은 <b>저절로 이어졌습니다</b>. '
+    + '아래 <span class="warn">' + need.length + '명</span>만 골라 주세요.'
     + '</div>'
-    + '<table><thead><tr><th>카드번호</th><th>엑셀의 성명</th>'
+    + '<table><thead><tr><th>엑셀의 성명</th><th>왜 골라야 하나요</th>'
     + '<th>어느 아동인가요</th></tr></thead><tbody>'
     + need.map(i => {
         const n = NEWCARDS[i];
-        return '<tr><td class="dim">' + esc(n.card_no) + '</td>'
-        + '<td>' + esc(n.person_name)
-        + (n.many ? ' <span class="warn">같은 이름이 여럿입니다</span>'
-                  : ' <span class="warn">이름으로 못 찾았습니다</span>') + '</td>'
+        return '<tr><td>' + esc(n.person_name) + '</td>'
+        + '<td class="warn">'
+        + (n.many ? '같은 이름의 아동이 여럿입니다'
+                  : '이 이름의 아동을 못 찾았습니다') + '</td>'
         + '<td><select class="mapsel" data-i="' + i + '">'
         + kidOptions(n.child_id) + '</select></td></tr>';
       }).join('')
@@ -404,8 +409,8 @@ function drawMap() {
       NEWCARDS[Number(el.dataset.i)].child_id = el.value ? Number(el.value) : null;
       const left = NEWCARDS.filter(n => !n.child_id).length;
       $('readstat').innerHTML = '읽은 줄 <b>' + ROWS.length + '</b>건 · ' + KIND[ST]
-        + (left ? ' · <span class="warn">아동을 고르지 않은 카드 ' + left + '개</span>'
-                : ' · <span class="good">카드 짝 다 맞음</span>');
+        + (left ? ' · <span class="warn">아동을 고르지 않은 성명 ' + left + '명</span>'
+                : ' · <span class="good">아동 짝 다 맞음</span>');
       if (!left) drawMap();
     };
   });
@@ -419,7 +424,7 @@ $('save').onclick = async () => {
 
   const left = NEWCARDS.filter(n => !n.child_id);
   if (left.length) {
-    if (!confirm('아동을 고르지 않은 카드가 ' + left.length + '개 있습니다.\n'
+    if (!confirm('아동을 고르지 않은 성명이 ' + left.length + '명 있습니다.\n'
       + '그 줄은 아동 없이 저장되고, 미결제 점검에는 안 들어갑니다.\n\n그대로 저장할까요?')) return;
   }
 
@@ -427,26 +432,26 @@ $('save').onclick = async () => {
   try {
     // ① 새로 고른 짝을 사전에 넣는다
     const maps = NEWCARDS.filter(n => n.child_id).map(n => ({
-      card_no: n.card_no, support_type_id: ST,
-      child_id: n.child_id, person_name: n.person_name || null
+      person_name: n.person_name, support_type_id: ST,
+      child_id: n.child_id, card_no: n.card_no || null
     }));
     if (maps.length) {
       const { error } = await sb.from('nl_card_map')
-        .upsert(maps, { onConflict: 'card_no,support_type_id' });
+        .upsert(maps, { onConflict: 'person_name,support_type_id' });
       if (error) throw error;
-      maps.forEach(m => { CARDMAP[key(m.card_no, ST)] = m.child_id; });
+      maps.forEach(m => { CARDMAP[key(m.person_name, ST)] = m.child_id; });
     }
 
     // ② 결제 줄을 넣는다
     const rows = ROWS.map(r => Object.assign({}, r, {
-      child_id: CARDMAP[key(r.card_no, ST)] || null
+      child_id: CARDMAP[key(r.person_name, ST)] || null
     }));
 
     let done = 0;
     for (let i = 0; i < rows.length; i += 200) {
       const part = rows.slice(i, i + 200);
       const { error } = await sb.from('nl_card_rows')
-        .upsert(part, { onConflict: 'card_no,appr_no,paid_on' });
+        .upsert(part, { onConflict: 'appr_no,paid_on' });
       if (error) throw error;
       done += part.length;
     }
@@ -454,7 +459,7 @@ $('save').onclick = async () => {
     NEWCARDS = [];
     drawMap();
     show($('msg3'), '✅ ' + done + '줄 저장했습니다.\n'
-      + (maps.length ? '카드 ' + maps.length + '개를 아동과 이어 두었습니다. 다음부터는 저절로 붙습니다.\n' : '')
+      + (maps.length ? '성명 ' + maps.length + '명을 아동과 이어 두었습니다. 다음부터는 저절로 붙습니다.\n' : '')
       + '같은 파일을 다시 올려도 중복으로 쌓이지 않습니다.', true);
   } catch (e) {
     show($('msg3'), '❌ 저장하지 못했습니다.\n' + (e.message || e), false);
@@ -482,8 +487,9 @@ $('ckGo').onclick = async () => {
 
   try {
     // 그 달에 그 갈래 수업이 있는 아동을 모은다
-    //   치료지원은 언어(3)·작업(4)을 하나로 본다
-    const sts = (st === 3) ? [3, 4] : [5];
+    //   치료지원 = 치료지원(언어·작업) + 방과후 치료지원(언어·작업)
+    //   방과후    = 방과후활동비
+    const sts = (st === 3) ? [3, 4, 6, 7] : [5];
     const { data: th, error: e1 } = await sb.from('nl_therapies')
       .select('id, child_id, support_type_id, started_on, ended_on')
       .in('support_type_id', sts);
@@ -639,14 +645,14 @@ async function afterLogin(user) {
 
   const [c, m, tn] = await Promise.all([
     sb.from('nl_children').select('id, name, birth, status').order('id'),
-    sb.from('nl_card_map').select('card_no, support_type_id, child_id'),
+    sb.from('nl_card_map').select('person_name, support_type_id, child_id'),
     sb.from('nl_therapists').select('id, name')
   ]);
   if (c.error) { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
 
   CHILDREN = c.data || [];
   CARDMAP = {};
-  (m.data || []).forEach(r => { CARDMAP[key(r.card_no, r.support_type_id)] = r.child_id; });
+  (m.data || []).forEach(r => { CARDMAP[key(r.person_name, r.support_type_id)] = r.child_id; });
   THNAME = {};
   (tn.data || []).forEach(t => { THNAME[t.id] = t.name; });
 
@@ -655,7 +661,7 @@ async function afterLogin(user) {
       + Number(k.slice(5,7)) + '월</option>').join('');
 
   $('who').textContent = me.name + ' (' + me.role + ') 님 · 아동 ' + CHILDREN.length + '명'
-    + ' · 이어둔 카드 ' + Object.keys(CARDMAP).length + '개';
+    + ' · 이어둔 성명 ' + Object.keys(CARDMAP).length + '개';
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
 }
