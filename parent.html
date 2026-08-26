@@ -171,6 +171,15 @@
   .tabs button.on { background:var(--acc); color:#fff; border-color:var(--acc);
                     font-weight:600; }
 
+  /* 기록지 안쪽 갈래 단추 (발달재활 · 치료지원 · 센터치료) */
+  .rtabs { display:flex; gap:6px; margin-bottom:12px; }
+  .rtabs button { flex:1; background:#fff; color:var(--ink2);
+                  border:1px solid var(--line); border-radius:9px;
+                  padding:9px 4px; font-size:13.5px; cursor:pointer;
+                  white-space:nowrap; }
+  .rtabs button.on { background:var(--acc); color:#fff; border-color:var(--acc);
+                     font-weight:700; }
+
   /* 교육비 */
   .pkid { border-radius:16px; padding:16px 17px 14px; margin-bottom:12px;
           border:1px solid rgba(0,0,0,.05); }
@@ -277,6 +286,8 @@
     <div class="mk" id="mkLabel"></div>
     <button id="next" class="ghost">다음달 ›</button>
   </div>
+
+  <div id="rectabs" class="rtabs" style="display:none;"></div>
 
   <div id="list"></div>
   <div id="paylist" style="display:none;"></div>
@@ -483,7 +494,7 @@ function drawKids() {
     '<button class="kid' + (k.id === CURKID ? ' on' : '') + '" data-id="' + k.id + '">'
     + esc(k.name) + '</button>').join('');
   $('kids').querySelectorAll('.kid').forEach(b => {
-    b.onclick = async () => { CURKID = +b.dataset.id; drawKids(); await loadMonth(); };
+    b.onclick = async () => { CURKID = +b.dataset.id; drawKids(); await reload(); };
   });
 }
 
@@ -515,6 +526,7 @@ function drawTabs() {
   $('reclist').style.display = (TAB === 'rec' ? 'block' : 'none');
   $('ntlist').style.display  = (TAB === 'nt'  ? 'block' : 'none');
   $('kids').style.display    = (TAB === 'nt' ? 'none' : 'flex');
+  if (TAB !== 'rec') $('rectabs').style.display = 'none';
   // 공지는 달과 상관없으므로 달 고르는 줄을 감춘다
   document.querySelector('.bar').style.display = (TAB === 'nt' ? 'none' : 'flex');
   // 기록지는 이번 달까지만 (그 달이 끝나야 작성되므로)
@@ -543,9 +555,24 @@ function dm(d) {
   return p.length === 3 ? (+p[1]) + '월 ' + (+p[2]) + '일' : String(d);
 }
 
+// 기록지 갈래 — 발달재활 · 치료지원 · 센터치료
+// ※ 방과후활동비(5)는 기록지를 쓰지 않으므로 어디에도 넣지 않는다
+const REC_GRP = [
+  { key:'dev',  name:'발달재활', sts:[2] },
+  { key:'sup',  name:'치료지원', sts:[3, 4, 6, 7] },
+  { key:'ctr',  name:'센터치료', sts:[1] }
+];
+let REC_G = 'dev';   // 지금 고른 갈래
+
+function pickRecGrp(k) {
+  REC_G = k;
+  loadRecords();
+}
+
 async function loadRecords() {
   $('mkLabel').textContent = CURMK.slice(0, 4) + '년 ' + (+CURMK.slice(5, 7)) + '월';
   $('reclist').innerHTML = '<div class="none">불러오는 중...</div>';
+  $('rectabs').style.display = 'none';
 
   const { data: logs, error } = await sb
     .from('nl_session_logs')
@@ -557,14 +584,48 @@ async function loadRecords() {
     $('reclist').innerHTML = '<div class="none">기록지를 가져오지 못했습니다.<br>센터로 연락해 주세요.</div>';
     return;
   }
-  if (!logs || !logs.length) {
+
+  // 그 달에 수업이 있었던 지원유형을 가져온다 (단추를 만들기 위해)
+  const { data: sess } = await sb
+    .from('nl_sessions')
+    .select('support_type_id')
+    .eq('child_id', CURKID)
+    .eq('month_key', CURMK);
+
+  const have = {};
+  (sess || []).forEach(r => { if (r.support_type_id) have[r.support_type_id] = 1; });
+  (logs || []).forEach(r => { if (r.support_type_id) have[r.support_type_id] = 1; });
+
+  const grps = REC_GRP.filter(g => g.sts.some(s => have[s]));
+
+  if (!grps.length) {
     $('reclist').innerHTML = '<div class="none">이 달 기록지는 아직 없습니다.<br>'
       + '<span style="font-size:12.5px;">기록지는 최근 2개월분만 보실 수 있습니다.</span></div>';
     return;
   }
 
+  // 고른 갈래가 이 달에 없으면 첫 단추로
+  if (!grps.some(g => g.key === REC_G)) REC_G = grps[0].key;
+
+  let btn = '';
+  grps.forEach(g => {
+    btn += '<button class="' + (g.key === REC_G ? 'on' : '') + '"'
+         + ' onclick="pickRecGrp(\'' + g.key + '\')">' + g.name + '</button>';
+  });
+  $('rectabs').innerHTML = btn;
+  $('rectabs').style.display = 'flex';
+
+  // 고른 갈래에 드는 기록지만 남긴다
+  const now = REC_GRP.find(g => g.key === REC_G);
+  const mine = (logs || []).filter(l => now.sts.indexOf(l.support_type_id) >= 0);
+
+  if (!mine.length) {
+    $('reclist').innerHTML = '<div class="none">아직 작성 전입니다.</div>';
+    return;
+  }
+
   // 각 기록지의 회차 내용을 가져온다
-  const ids = logs.map(l => l.id);
+  const ids = mine.map(l => l.id);
   const { data: items } = await sb
     .from('nl_session_items')
     .select('log_id, seq_no, service_date, start_time, end_time, therapist_id,'
@@ -576,7 +637,7 @@ async function loadRecords() {
   (items || []).forEach(r => { (bag[r.log_id] = bag[r.log_id] || []).push(r); });
 
   let html = '';
-  logs.forEach(lg => {
+  mine.forEach(lg => {
     const rows = bag[lg.id] || [];
     if (!rows.length) return;
     const nm = ST_NAME[lg.support_type_id] || '치료 기록지';
@@ -617,7 +678,7 @@ async function loadRecords() {
   });
 
   if (!html) {
-    $('reclist').innerHTML = '<div class="none">이 달 기록지는 아직 없습니다.</div>';
+    $('reclist').innerHTML = '<div class="none">아직 작성 전입니다.</div>';
     return;
   }
   html += '<div class="rcnote">기록지는 최근 2개월분만 보실 수 있습니다.<br>'

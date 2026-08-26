@@ -1,0 +1,11 @@
+﻿  <div class="bar">
+    <button id="prev" class="ghost">‹ 지난달</button>
+    <div class="mk" id="mkLabel"></div>
+    <button id="next" class="ghost">다음달 ›</button>
+  </div>
+
+  <div id="list"></div>
+  <div id="paylist" style="display:none;"></div>
+  <div id="reclist" style="display:none;"></div>
+  <div id="ntlist" style="display:none;"></div>
+

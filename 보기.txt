@@ -1,0 +1,71 @@
+﻿                  5:'방과후활동 기록지', 6:'방과후 치료지원 기록지(언어)',
+                  7:'방과후 치료지원 기록지(작업)' };
+
+function hm(t) { return t ? String(t).slice(0, 5) : ''; }
+function dm(d) {
+  if (!d) return '';
+  const p = String(d).split('-');
+  return p.length === 3 ? (+p[1]) + '월 ' + (+p[2]) + '일' : String(d);
+}
+
+async function loadRecords() {
+  $('mkLabel').textContent = CURMK.slice(0, 4) + '년 ' + (+CURMK.slice(5, 7)) + '월';
+  $('reclist').innerHTML = '<div class="none">불러오는 중...</div>';
+
+  const { data: logs, error } = await sb
+    .from('nl_session_logs')
+    .select('id, support_type_id, month_key, therapist_id')
+    .eq('child_id', CURKID)
+    .eq('month_key', CURMK);
+
+  if (error) {
+    $('reclist').innerHTML = '<div class="none">기록지를 가져오지 못했습니다.<br>센터로 연락해 주세요.</div>';
+    return;
+  }
+  if (!logs || !logs.length) {
+    $('reclist').innerHTML = '<div class="none">이 달 기록지는 아직 없습니다.<br>'
+      + '<span style="font-size:12.5px;">기록지는 최근 2개월분만 보실 수 있습니다.</span></div>';
+    return;
+  }
+
+  // 각 기록지의 회차 내용을 가져온다
+  const ids = logs.map(l => l.id);
+  const { data: items } = await sb
+    .from('nl_session_items')
+    .select('log_id, seq_no, service_date, start_time, end_time, therapist_id,'
+          + ' reaction, status, absent_reason, makeup_date, makeup_time')
+    .in('log_id', ids)
+    .order('seq_no');
+
+  const bag = {};
+  (items || []).forEach(r => { (bag[r.log_id] = bag[r.log_id] || []).push(r); });
+
+  let html = '';
+  logs.forEach(lg => {
+    const rows = bag[lg.id] || [];
+    if (!rows.length) return;
+    const nm = ST_NAME[lg.support_type_id] || '치료 기록지';
+
+    html += '<div class="rc">'
+      + '<div class="rchead"><div>'
+      + '<div class="rctitle">' + esc(nm) + '</div>'
+      + '<div class="rcsub">' + CURMK.slice(0,4) + '년 ' + (+CURMK.slice(5,7)) + '월 · '
+      + rows.length + '회</div></div>'
+      + '<button class="rcpdf" onclick="window.print()">PDF로 저장</button>'
+      + '</div>'
+      + '<table class="rctbl"><thead><tr>'
+      + '<th>회차</th><th>날짜</th><th>시간</th><th>치료사</th><th>수업 내용</th>'
+      + '</tr></thead><tbody>';
+
+    rows.forEach((r, i) => {
+      const absent = String(r.status || '') === '결석';
+      let day = dm(r.service_date);
+      if (absent) {
+        day = '<span class="abs">' + day + ' 결석</span>';
+        if (r.makeup_date) {
+          day += '<br><span class="mkup">→ ' + dm(r.makeup_date)
+               + (r.makeup_time ? ' ' + hm(r.makeup_time) : '') + ' 보강</span>';
+        }
+      }
+      const tm = (r.start_time || r.end_time)
+        ? hm(r.start_time) + (r.end_time ? '~' + hm(r.end_time) : '') : '';
