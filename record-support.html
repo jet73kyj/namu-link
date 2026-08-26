@@ -431,16 +431,17 @@ function drawAll(saved) {
 }
 
 function buildSeq() {
-  const days = _classDays();
-  const tt = _timeText();
   const tb = $('seqBody');
   tb.innerHTML = '';
   for (let i = 0; i < SESSIONS; i++) {
     const it = ITEMS[i] || {};
-    const d  = it.service_date ? parseInt(String(it.service_date).slice(8,10),10) : days[i];
+    // 수업일자·시간은 자동으로 채우지 않는다.
+    // 실제 수업한 날과 카드 결제일이 다를 수 있어,
+    // 치료사분이 직접 적으시도록 비워 둔다.
+    const d  = it.service_date ? parseInt(String(it.service_date).slice(8,10),10) : '';
     const st = it.start_time ? String(it.start_time).slice(0,5) : '';
     const en = it.end_time   ? String(it.end_time).slice(0,5)   : '';
-    const timeVal = (st && en) ? (st + '-' + en) : tt;
+    const timeVal = (st && en) ? (st + '-' + en) : (st || en || '');
     const tr = document.createElement('tr');
     tr.innerHTML =
         '<td style="text-align:center;">'
