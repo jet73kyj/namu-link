@@ -439,6 +439,7 @@
     <button id="findJump" class="jumpbtn" style="display:none;">›</button>
     <div id="findPick" class="findpick" style="display:none;"></div>
     <button id="offBtn" class="offbtn-top">🏖 휴무 관리</button>
+    <button id="xlsBtn" class="offbtn-top" style="background:#eef3ec;color:#2c5c37;">📄 엑셀로 저장</button>
     <span class="count" id="count"></span>
   </div>
 
@@ -793,6 +794,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
@@ -2737,9 +2739,106 @@ $('edFrom').onclick = async () => {
   await changeFromThisMonth(nw, slot, th, du);
 };
 
+// ===== 요일별 시간표를 엑셀로 저장 =====
+// 화면에 그려진 표를 그대로 읽어 요일마다 시트 한 장으로 만든다.
+// (화면과 똑같이 나오게 하려고 새로 계산하지 않고 화면을 읽는다)
+// 한 칸 안의 글을 줄바꿈까지 살려서 읽는다
+function cellText(td) {
+  const c = td.cloneNode(true);
+  // 단추 글자는 뺀다 (＋ 수업 넣기 · 수정 · 되돌리기 등)
+  c.querySelectorAll('button, .mkfix, .del, .mnedit, .lnedit, .lnadd').forEach(b => b.remove());
+
+  const out = [];
+  // 줄 하나가 되는 덩어리들 — 회기 줄(.ln)과 수업 묶음(.chip)
+  const parts = c.querySelectorAll('.ln, .chip');
+  if (parts.length) {
+    parts.forEach(el => {
+      const bits = [];
+      el.querySelectorAll('span, b, div').forEach(s => {
+        if (s.querySelector('span, b, div')) return;   // 안에 또 있으면 건너뛴다
+        const v = (s.textContent || '').trim();
+        if (v) bits.push(v);
+      });
+      const line = bits.join(' ').replace(/\s{2,}/g, ' ').trim();
+      if (line) out.push(line);
+    });
+  } else {
+    const v = (c.textContent || '').trim();
+    if (v) out.push(v);
+  }
+  return out.join('\n');
+}
+
+function gridToRows() {
+  const head = ['교시'];
+  document.querySelectorAll('#ghead th').forEach((th2, i) => {
+    if (i === 0) return;
+    head.push((th2.innerText || '').replace(/\n+/g, ' ').trim());
+  });
+  const out = [head];
+  document.querySelectorAll('#gbody tr').forEach(tr => {
+    const line = [];
+    tr.querySelectorAll('td').forEach((td, i) => {
+      if (i === 0) {
+        // 교시 칸은 「1교시 9:00~9:40」 처럼 한 줄로
+        line.push((td.textContent || '').replace(/\s+/g, ' ').trim());
+      } else {
+        line.push(cellText(td));
+      }
+    });
+    out.push(line);
+  });
+  return out;
+}
+
+$('xlsBtn').onclick = () => {
+  if (VIEW !== 'day') {
+    show('요일별 보기에서 눌러 주세요.', false);
+    return;
+  }
+  const keep = wd;
+  try {
+    const wb = XLSX.utils.book_new();
+    ['월','화','수','목','금','토'].forEach(w => {
+      wd = w;
+      drawDay();
+      const rows = gridToRows();
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = rows[0].map((_, i) => ({ wch: i === 0 ? 14 : 26 }));
+      // 칸 안에서 줄이 바뀌게 하고, 줄 수에 맞춰 높이를 준다
+      ws['!rows'] = rows.map(r => {
+        const n = Math.max.apply(null,
+          r.map(v => String(v == null ? '' : v).split('\n').length));
+        return { hpt: Math.max(18, n * 14) };
+      });
+      Object.keys(ws).forEach(k => {
+        if (k[0] === '!') return;
+        ws[k].s = { alignment: { wrapText: true, vertical: 'top' } };
+      });
+      XLSX.utils.book_append_sheet(wb, ws, w + '요일');
+    });
+    XLSX.writeFile(wb, '시간표_' + mon + '.xlsx');
+    show('✅ 엑셀로 저장했습니다. 내려받기 폴더를 보세요.', true);
+  } catch (e) {
+    show('❌ 엑셀을 만들지 못했습니다.\n' + (e.message || e), false);
+  } finally {
+    wd = keep;
+    draw();
+  }
+};
+
 $('edEnd').onclick = async () => {
   if (!edRow) return;
-  const d = prompt('이 수업을 그만둡니다.\n\n'
+
+  // 무엇을 끝내는지 눈으로 확인하시게 이름을 적어 보여준다
+  const _what = (edRow._name || '') + ' · '
+    + (TTYPE[edRow._tt] || '') + '치료 · '
+    + (STYPE[edRow.support_type_id] || '') + ' · '
+    + (edRow.weekday || '') + '요일 '
+    + String(edRow.start_time || '').slice(0, 5);
+
+  const d = prompt('❗ 아래 수업을 그만둡니다.\n\n'
+    + '  ' + _what + '\n\n'
     + '⚠️ 시작하는 날이 아니라 「마지막 수업 날짜」를 적으세요.\n'
     + '이 날짜 뒤의 회기는 지워지고 요일줄도 없어집니다.\n\n'
     + '날짜를 2026-09-30 모양으로 적으세요.',
@@ -2759,7 +2858,11 @@ $('edEnd').onclick = async () => {
       + '정말 ' + d + ' 로 그만둘까요?')) return;
   }
 
-  if (!confirm('이 수업을 ' + d + ' 로 그만둘까요?\n지난 기록은 그대로 남습니다.')) return;
+  if (!confirm('아래 수업을 정말 그만둘까요?\n\n'
+    + '  ' + _what + '\n'
+    + '  마지막 수업 날짜 · ' + d + '\n\n'
+    + '이 아동의 이 수업이 맞는지 한 번 더 봐 주세요.\n'
+    + '지난 기록은 그대로 남습니다.')) return;
 
   $('edEnd').disabled = true;
   try {
