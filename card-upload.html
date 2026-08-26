@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지원 결제 내역 올리기 - 나무링크</title>
+<style>
+  :root {
+    --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
+    --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system, "Malgun Gothic", sans-serif; background:var(--bg);
+         margin:0; padding:28px 20px; color:var(--ink);
+         font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+
+  .box  { max-width:400px; margin:56px auto; background:#fff; border-radius:14px;
+          padding:32px; border:1px solid var(--line); }
+  .wide { max-width:900px; margin:0 auto; }
+
+  h1 { font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0; color:var(--ink); }
+  .sub { font-size:13px; color:var(--ink3); margin:6px 0 24px; }
+  label { display:block; font-size:12px; color:var(--ink2); margin:16px 0 6px; }
+
+  input, select { font:inherit; font-size:14px; padding:9px 11px; color:var(--ink);
+                  border:1px solid var(--line); border-radius:8px; background:#fff; }
+  input:focus, select:focus { outline:2px solid var(--acc); outline-offset:-1px;
+                              border-color:transparent; }
+  .box input { width:100%; }
+
+  button { font:inherit; font-size:14px; font-weight:500; padding:10px 16px;
+           background:var(--acc); color:#fff; border:none; border-radius:8px; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  button:disabled { background:#c3c8c0; cursor:default; }
+  .box button { width:100%; padding:12px; margin-top:24px; }
+  .ghost { background:none; color:var(--ink2); border:1px solid var(--line); }
+
+  .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
+         line-height:1.6; display:none; white-space:pre-wrap; }
+  .ok  { background:var(--acc-bg); color:#2c5c37; display:block; }
+  .err { background:#fdeeee; color:#9c2b2b; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:flex-start;
+         gap:12px; margin-bottom:24px; }
+  .who { font-size:13px; color:var(--ink3); margin-top:4px; }
+
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px;
+          padding:22px 24px; margin-bottom:14px; }
+  .card h2 { font-size:14px; font-weight:600; margin:0 0 14px; }
+
+  .kinds { display:flex; gap:8px; margin-bottom:14px; }
+  .kinds button { flex:1; background:#fff; color:var(--ink2);
+                  border:1px solid var(--line); padding:11px; }
+  .kinds button.on { background:var(--acc); color:#fff; border-color:var(--acc);
+                     font-weight:600; }
+
+  .drop { border:2px dashed var(--line); border-radius:12px; padding:34px 20px;
+          text-align:center; color:var(--ink3); font-size:14px; cursor:pointer;
+          background:#fcfdfb; }
+  .drop:hover { border-color:var(--acc); color:var(--ink2); }
+  .drop b { color:var(--acc); font-weight:600; }
+
+  .note { font-size:12.5px; color:var(--ink3); line-height:1.9; margin:12px 0 0; }
+  .note b { color:var(--ink2); font-weight:600; }
+
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th { text-align:left; font-weight:600; color:var(--ink2); font-size:12px;
+       padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td { padding:9px 10px; border-bottom:1px solid #f2f4f0; vertical-align:middle; }
+  tr:last-child td { border-bottom:none; }
+  td.num { text-align:right; }
+  .warn { color:#9c2b2b; font-weight:600; }
+  .good { color:#2c5c37; font-weight:600; }
+  .dim  { color:var(--ink3); }
+
+  .mapsel { font-size:13px; padding:6px 8px; max-width:230px; }
+  .kidbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+            margin-bottom:14px; }
+  .kidbar select, .kidbar input { font-size:13.5px; }
+  .empty { padding:34px 10px; text-align:center; color:var(--ink3); font-size:14px; }
+  .sum { font-size:13px; color:var(--ink2); margin-bottom:10px; }
+  .sum b { color:var(--ink); }
+
+  .pdfbtn { background:none; color:var(--ink2); border:1px solid var(--line);
+            font-size:13px; padding:8px 14px; }
+  .thrgrp { margin-bottom:22px; }
+  .thrhead { font-size:14px; font-weight:700; color:var(--ink);
+             padding:8px 10px; background:var(--acc-bg); border-radius:8px;
+             margin-bottom:6px; }
+  .thrsum { font-weight:500; font-size:12.5px; color:var(--ink2); }
+  .phead { display:none; }
+
+  /* 인쇄(PDF로 저장)할 때 — 점검 결과만 나오게 한다 */
+  @media print {
+    body { padding:0; background:#fff; }
+    .top, .kinds, .drop, .note, .out, .kidbar, .pdfbtn { display:none !important; }
+    #loginBox, #mapCard, #saveCard { display:none !important; }
+    .card { border:none; padding:0; margin:0; }
+    .card h2 { display:none; }
+    .wide { max-width:100%; }
+    .phead { display:block; margin-bottom:14px; }
+    .phead h3 { font-size:16px; font-weight:700; margin:0 0 4px; }
+    .phead .pw { font-size:11.5px; color:#666; }
+    table { font-size:11.5px; }
+    th, td { padding:5px 6px; }
+    tr { break-inside:avoid; }
+    .thrgrp { break-inside:avoid; margin-bottom:14px; }
+    .thrhead { background:#f0f2ee; font-size:12.5px; padding:5px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 로그인 전 -->
+<div class="box" id="loginBox">
+  <h1>지원 결제 내역 올리기</h1>
+  <div class="sub">치료지원 · 방과후 카드 결제 내역</div>
+  <label for="em">이메일</label>
+  <input id="em" type="email" autocomplete="username">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="btn">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<!-- 로그인 후 -->
+<div class="wide" id="mainBox" style="display:none;">
+  <div class="top">
+    <div>
+      <h1>지원 결제 내역 올리기</h1>
+      <div class="who" id="who"></div>
+    </div>
+    <div>
+      <a href="index.html"><button class="ghost" type="button">처음으로</button></a>
+      <button id="out" class="ghost">로그아웃</button>
+    </div>
+  </div>
+
+  <!-- 1. 파일 올리기 -->
+  <div class="card">
+    <h2>① 엑셀 고르기</h2>
+    <div class="kinds">
+      <button id="kTr" class="on" type="button">치료지원</button>
+      <button id="kAf" type="button">방과후</button>
+    </div>
+    <div class="drop" id="drop">
+      가맹점 거래조회 <b>.xlsx</b> 파일을 여기에 끌어다 놓거나 눌러서 고르세요
+    </div>
+    <input id="file" type="file" accept=".xlsx,.xls" style="display:none;">
+    <div class="note">
+      <b>거래일자 · 카드번호 · 성명 · 승인번호 · 거래금액</b> 칸이 있는 파일입니다.<br>
+      같은 파일을 다시 올려도 중복으로 쌓이지 않습니다.
+    </div>
+    <div id="msg2" class="out"></div>
+  </div>
+
+  <!-- 2. 카드 짝 맺기 -->
+  <div class="card" id="mapCard" style="display:none;">
+    <h2>② 처음 보는 카드 — 아동 고르기</h2>
+    <div class="note" style="margin:0 0 12px;">
+      한 번 골라 저장하면 다음부터는 저절로 이어집니다.
+    </div>
+    <div id="mapBody"></div>
+  </div>
+
+  <!-- 3. 저장 -->
+  <div class="card" id="saveCard" style="display:none;">
+    <h2>③ 저장</h2>
+    <div id="readstat" class="sum"></div>
+    <button id="save" type="button">저장하기</button>
+    <div id="msg3" class="out"></div>
+  </div>
+
+  <!-- 4. 미결제 점검 -->
+  <div class="card">
+    <h2>④ 미결제 점검</h2>
+    <div class="kidbar">
+      <select id="ckMk"></select>
+      <select id="ckKind">
+        <option value="3">치료지원</option>
+        <option value="5">방과후</option>
+      </select>
+      <button id="ckGo" type="button">점검하기</button>
+      <button id="ckPdf" class="pdfbtn" type="button" style="display:none;">PDF로 저장</button>
+      <span class="note" style="margin:0;">한 아동이 그 달에 <b>120,000원</b>을 다 냈는지 봅니다.</span>
+    </div>
+    <div id="ckBody"><div class="empty">달과 갈래를 고르고 「점검하기」를 누르세요.</div></div>
+    <div id="msg4" class="out"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: window.sessionStorage, persistSession: true,
+          autoRefreshToken: true, detectSessionInUrl: false }
+});
+const $ = id => document.getElementById(id);
+
+const NEED = 120000;            // 한 달에 다 내야 하는 금액
+const KIND = { 3:'치료지원', 5:'방과후' };
+
+let CHILDREN = [];              // 아동 목록
+let CARDMAP  = {};              // 카드번호|지원유형 -> 아동번호
+let ROWS     = [];              // 이번에 읽은 줄
+let NEWCARDS = [];              // 처음 보는 카드
+let ST       = 3;               // 지금 고른 갈래 (3 치료지원 / 5 방과후)
+let THNAME   = {};              // 치료사 번호 -> 이름
+
+function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
+function hide(el) { el.className = 'out'; el.textContent = ''; }
+function esc(s) { return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function won(n) { return (Number(n) || 0).toLocaleString('ko-KR') + '원'; }
+function key(card, st) { return String(card) + '|' + st; }
+
+// ── 엑셀 값 다듬기 ────────────────────────────────
+// 2026.08.18 · 2026-08-18 · 엑셀 날짜숫자 → 2026-08-18
+function dOf(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') {
+    const d = new Date(Date.UTC(1899, 11, 30) + v * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
+  const s = String(v).trim().replace(/[.\/]/g, '-');
+  const m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return null;
+  return m[1] + '-' + String(m[2]).padStart(2,'0') + '-' + String(m[3]).padStart(2,'0');
+}
+function tOf(v) {
+  if (v == null || v === '') return null;
+  const s = String(v).trim();
+  const m = s.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return String(m[1]).padStart(2,'0') + ':' + m[2] + ':00';
+}
+function nOf(v) {
+  const n = Number(String(v == null ? '' : v).replace(/[^\d-]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+// 칸 이름이 조금 달라도 찾아준다 (거래일 / 거래일자 등)
+function pick(row, ...names) {
+  for (const nm of names) {
+    for (const k of Object.keys(row)) {
+      if (String(k).replace(/\s/g,'') === nm) return row[k];
+    }
+  }
+  return null;
+}
+
+// ── 갈래 단추 ─────────────────────────────────────
+function setKind(st) {
+  ST = st;
+  $('kTr').className = (st === 3 ? 'on' : '');
+  $('kAf').className = (st === 5 ? 'on' : '');
+  ROWS = []; NEWCARDS = [];
+  $('mapCard').style.display = 'none';
+  $('saveCard').style.display = 'none';
+  hide($('msg2')); hide($('msg3'));
+}
+$('kTr').onclick = () => setKind(3);
+$('kAf').onclick = () => setKind(5);
+
+// ── 엑셀 읽기 ─────────────────────────────────────
+$('drop').onclick = () => $('file').click();
+$('drop').addEventListener('dragover', e => { e.preventDefault(); });
+$('drop').addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+});
+$('file').onchange = e => { if (e.target.files[0]) readFile(e.target.files[0]); };
+
+function readFile(f) {
+  hide($('msg2')); hide($('msg3'));
+  const fr = new FileReader();
+  fr.onload = ev => {
+    try {
+      const wb = XLSX.read(new Uint8Array(ev.target.result), { type:'array' });
+      const sh = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(sh, { defval:'' });
+      parse(aoa);
+    } catch (err) {
+      show($('msg2'), '❌ 파일을 읽지 못했습니다.\n' + (err.message || err), false);
+    }
+  };
+  fr.readAsArrayBuffer(f);
+}
+
+function parse(aoa) {
+  if (!aoa.length) { show($('msg2'), '읽을 줄이 없습니다.', false); return; }
+
+  const out = [];
+  let skipped = 0, canceled = 0;
+  aoa.forEach(r => {
+    const card = String(pick(r, '카드번호') || '').trim();
+    const day  = dOf(pick(r, '거래일자', '거래일', '/'));
+    const appr = String(pick(r, '승인번호') || '').trim();
+    if (!card || !day || !appr) { skipped++; return; }
+
+    const gubun = String(pick(r, '거래구분') || '').trim();
+    const isCancel = /취소/.test(gubun) || String(pick(r, '취소') || '').trim() !== '';
+    if (isCancel) canceled++;
+
+    out.push({
+      card_no: card,
+      person_name: String(pick(r, '성명') || '').trim(),
+      support_type_id: ST,
+      month_key: day.slice(0, 7),
+      paid_on: day,
+      paid_time: tOf(pick(r, '거래시간')),
+      appr_no: appr,
+      amount: nOf(pick(r, '거래금액')),
+      fee: nOf(pick(r, '수수료')),
+      canceled: isCancel
+    });
+  });
+
+  if (!out.length) {
+    show($('msg2'), '❌ 카드번호·거래일자·승인번호가 있는 줄이 없습니다.\n'
+      + '다른 파일인지 확인해 주세요.', false);
+    return;
+  }
+
+  ROWS = out;
+
+  // 처음 보는 카드 모으기
+  //   이름이 정확히 맞는 아동이 딱 한 명이면 미리 골라 둔다.
+  //   같은 이름이 여럿이거나 없으면 빈칸으로 두어 직접 고르시게 한다.
+  const seen = {};
+  NEWCARDS = [];
+  out.forEach(r => {
+    const k = key(r.card_no, ST);
+    if (CARDMAP[k] || seen[k]) return;
+    seen[k] = 1;
+    const nm = String(r.person_name || '').replace(/\s/g, '');
+    const hit = nm ? CHILDREN.filter(c =>
+      String(c.name || '').replace(/\s/g, '') === nm) : [];
+    NEWCARDS.push({
+      card_no: r.card_no, person_name: r.person_name,
+      child_id: (hit.length === 1) ? hit[0].id : null,
+      auto: (hit.length === 1),
+      many: (hit.length > 1)
+    });
+  });
+
+  const mks = Array.from(new Set(out.map(r => r.month_key))).sort();
+  show($('msg2'), '✅ ' + out.length + '줄 읽었습니다. (' + KIND[ST] + ')\n'
+    + '달 ' + mks.join(', ')
+    + (canceled ? '\n취소 ' + canceled + '줄 (금액에서 뺍니다)' : '')
+    + (skipped ? '\n' + skipped + '줄은 카드번호·날짜·승인번호가 없어 건너뜁니다.' : ''), true);
+
+  drawMap();
+  const left0 = NEWCARDS.filter(n => !n.child_id).length;
+  $('readstat').innerHTML = '읽은 줄 <b>' + out.length + '</b>건 · '
+    + KIND[ST] + ' · ' + mks.join(', ')
+    + (left0 ? ' · <span class="warn">아동을 고르지 않은 카드 ' + left0 + '개</span>'
+             : ' · <span class="good">카드 짝 다 맞음</span>');
+  $('saveCard').style.display = 'block';
+}
+
+// ── 짝 맺기 ───────────────────────────────────────
+function kidOptions(sel) {
+  return '<option value="">— 아동 고르기 —</option>'
+    + CHILDREN.map(c => '<option value="' + c.id + '"'
+        + (String(sel) === String(c.id) ? ' selected' : '') + '>'
+        + c.id + '번 · ' + esc(c.name)
+        + (c.birth ? ' (' + String(c.birth).slice(2,10).replace(/-/g,'') + ')' : '')
+        + '</option>').join('');
+}
+
+function drawMap() {
+  // 확인이 필요한 것만 보여준다.
+  //   같은 이름이 여럿이거나, 이름으로 못 찾은 카드
+  //   이름이 딱 맞아 저절로 이어진 카드는 굳이 내놓지 않는다
+  const need = [];
+  NEWCARDS.forEach((n, i) => { if (!n.child_id) need.push(i); });
+
+  if (!NEWCARDS.length || !need.length) {
+    $('mapCard').style.display = 'none';
+    return;
+  }
+  $('mapBody').innerHTML =
+    '<div class="note" style="margin:0 0 12px;">'
+    + '이름이 딱 맞는 카드는 <b>저절로 이어졌습니다</b>. '
+    + '아래 <span class="warn">' + need.length + '개</span>만 골라 주세요.'
+    + '</div>'
+    + '<table><thead><tr><th>카드번호</th><th>엑셀의 성명</th>'
+    + '<th>어느 아동인가요</th></tr></thead><tbody>'
+    + need.map(i => {
+        const n = NEWCARDS[i];
+        return '<tr><td class="dim">' + esc(n.card_no) + '</td>'
+        + '<td>' + esc(n.person_name)
+        + (n.many ? ' <span class="warn">같은 이름이 여럿입니다</span>'
+                  : ' <span class="warn">이름으로 못 찾았습니다</span>') + '</td>'
+        + '<td><select class="mapsel" data-i="' + i + '">'
+        + kidOptions(n.child_id) + '</select></td></tr>';
+      }).join('')
+    + '</tbody></table>';
+  $('mapBody').querySelectorAll('.mapsel').forEach(el => {
+    el.onchange = () => {
+      NEWCARDS[Number(el.dataset.i)].child_id = el.value ? Number(el.value) : null;
+      const left = NEWCARDS.filter(n => !n.child_id).length;
+      $('readstat').innerHTML = '읽은 줄 <b>' + ROWS.length + '</b>건 · ' + KIND[ST]
+        + (left ? ' · <span class="warn">아동을 고르지 않은 카드 ' + left + '개</span>'
+                : ' · <span class="good">카드 짝 다 맞음</span>');
+      if (!left) drawMap();
+    };
+  });
+  $('mapCard').style.display = 'block';
+}
+
+// ── 저장 ──────────────────────────────────────────
+$('save').onclick = async () => {
+  hide($('msg3'));
+  if (!ROWS.length) { show($('msg3'), '먼저 엑셀을 올려 주세요.', false); return; }
+
+  const left = NEWCARDS.filter(n => !n.child_id);
+  if (left.length) {
+    if (!confirm('아동을 고르지 않은 카드가 ' + left.length + '개 있습니다.\n'
+      + '그 줄은 아동 없이 저장되고, 미결제 점검에는 안 들어갑니다.\n\n그대로 저장할까요?')) return;
+  }
+
+  $('save').disabled = true; $('save').textContent = '저장 중...';
+  try {
+    // ① 새로 고른 짝을 사전에 넣는다
+    const maps = NEWCARDS.filter(n => n.child_id).map(n => ({
+      card_no: n.card_no, support_type_id: ST,
+      child_id: n.child_id, person_name: n.person_name || null
+    }));
+    if (maps.length) {
+      const { error } = await sb.from('nl_card_map')
+        .upsert(maps, { onConflict: 'card_no,support_type_id' });
+      if (error) throw error;
+      maps.forEach(m => { CARDMAP[key(m.card_no, ST)] = m.child_id; });
+    }
+
+    // ② 결제 줄을 넣는다
+    const rows = ROWS.map(r => Object.assign({}, r, {
+      child_id: CARDMAP[key(r.card_no, ST)] || null
+    }));
+
+    let done = 0;
+    for (let i = 0; i < rows.length; i += 200) {
+      const part = rows.slice(i, i + 200);
+      const { error } = await sb.from('nl_card_rows')
+        .upsert(part, { onConflict: 'card_no,appr_no,paid_on' });
+      if (error) throw error;
+      done += part.length;
+    }
+
+    NEWCARDS = [];
+    drawMap();
+    show($('msg3'), '✅ ' + done + '줄 저장했습니다.\n'
+      + (maps.length ? '카드 ' + maps.length + '개를 아동과 이어 두었습니다. 다음부터는 저절로 붙습니다.\n' : '')
+      + '같은 파일을 다시 올려도 중복으로 쌓이지 않습니다.', true);
+  } catch (e) {
+    show($('msg3'), '❌ 저장하지 못했습니다.\n' + (e.message || e), false);
+  } finally {
+    $('save').disabled = false; $('save').textContent = '저장하기';
+  }
+};
+
+// ── 미결제 점검 ───────────────────────────────────
+function mkList() {
+  const now = new Date();
+  const out = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+  return out;
+}
+
+$('ckGo').onclick = async () => {
+  hide($('msg4'));
+  const mk = $('ckMk').value;
+  const st = Number($('ckKind').value);
+  $('ckBody').innerHTML = '<div class="empty">보는 중...</div>';
+
+  try {
+    // 그 달에 그 갈래 수업이 있는 아동을 모은다
+    //   치료지원은 언어(3)·작업(4)을 하나로 본다
+    const sts = (st === 3) ? [3, 4] : [5];
+    const { data: th, error: e1 } = await sb.from('nl_therapies')
+      .select('id, child_id, support_type_id, started_on, ended_on')
+      .in('support_type_id', sts);
+    if (e1) throw e1;
+
+    const lastDay = new Date(Number(mk.slice(0,4)), Number(mk.slice(5,7)), 0)
+      .toISOString().slice(0,10);
+    const kids = {}, tpIds = [];
+    (th || []).forEach(t => {
+      if (t.started_on && String(t.started_on) > lastDay) return;   // 아직 시작 전
+      if (t.ended_on && String(t.ended_on) < mk + '-01') return;    // 이미 끝남
+      kids[t.child_id] = 1;
+      tpIds.push(t.id);
+    });
+
+    // 담당 치료사 — 그 달에 살아 있는 수업요일에서 가져온다
+    const thrOf = {};
+    if (tpIds.length) {
+      const { data: sc } = await sb.from('nl_therapy_schedules')
+        .select('therapy_id, therapist_id, from_month, to_month')
+        .in('therapy_id', tpIds);
+      const tpKid = {}; (th || []).forEach(t => { tpKid[t.id] = t.child_id; });
+      (sc || []).forEach(s => {
+        if (s.from_month && s.from_month > mk) return;
+        if (s.to_month && s.to_month < mk) return;
+        const cid = tpKid[s.therapy_id];
+        const nm = THNAME[s.therapist_id];
+        if (!cid || !nm) return;
+        (thrOf[cid] = thrOf[cid] || {})[nm] = 1;
+      });
+    }
+
+    // 그 달 결제를 모은다
+    const { data: cd, error: e2 } = await sb.from('nl_card_rows')
+      .select('child_id, amount, canceled, paid_on')
+      .eq('month_key', mk).eq('support_type_id', st).order('paid_on');
+    if (e2) throw e2;
+
+    const paid = {}, cnt = {}, days = {};
+    (cd || []).forEach(r => {
+      if (!r.child_id) return;
+      const v = r.canceled ? -Number(r.amount || 0) : Number(r.amount || 0);
+      paid[r.child_id] = (paid[r.child_id] || 0) + v;
+      if (!r.canceled) {
+        cnt[r.child_id] = (cnt[r.child_id] || 0) + 1;
+        (days[r.child_id] = days[r.child_id] || []).push(
+          Number(String(r.paid_on).slice(5,7)) + '/' + Number(String(r.paid_on).slice(8,10)));
+      }
+    });
+
+    const nmOf = {}; CHILDREN.forEach(c => { nmOf[c.id] = c.name; });
+    const list = Object.keys(kids).map(Number).map(id => ({
+      id: id, name: nmOf[id] || '',
+      thr: Object.keys(thrOf[id] || {}).join(', '),
+      got: paid[id] || 0, cnt: cnt[id] || 0,
+      days: (days[id] || []).join(', ')
+    })).sort((a, b) => (a.got - b.got) || (a.id - b.id));
+
+    if (!list.length) {
+      $('ckBody').innerHTML = '<div class="empty">' + mk + '에 ' + KIND[st]
+        + ' 수업이 있는 아동이 없습니다.</div>';
+      $('ckPdf').style.display = 'none';
+      return;
+    }
+
+    const bad = list.filter(x => x.got < NEED);
+    const shortSum = bad.reduce((s, x) => s + (NEED - x.got), 0);
+
+    const head = '<div class="phead">'
+      + '<h3>' + mk.slice(0,4) + '년 ' + Number(mk.slice(5,7)) + '월 · '
+      + KIND[st] + ' 결제 점검</h3>'
+      + '<div class="pw">자라는나무 아동발달치료센터 · 뽑은 날 '
+      + new Date().toISOString().slice(0,10) + '</div></div>'
+      + '<div class="sum">' + mk + ' · ' + KIND[st]
+      + ' — 아동 <b>' + list.length + '</b>명 중 '
+      + (bad.length ? '<span class="warn">덜 낸 아동 ' + bad.length + '명 · 모자란 금액 '
+          + won(shortSum) + '</span>'
+                    : '<span class="good">모두 다 냈습니다</span>')
+      + '</div>';
+
+    // 담당 치료사별로 묶는다 (치료사가 여럿이면 첫 분 묶음에 넣는다)
+    const byThr = {};
+    list.forEach(x => {
+      const k = (x.thr || '').split(',')[0].trim() || '담당 치료사 없음';
+      (byThr[k] = byThr[k] || []).push(x);
+    });
+    const thrKeys = Object.keys(byThr).sort((a, b) => {
+      const ba = byThr[a].filter(x => x.got < NEED).length;
+      const bb = byThr[b].filter(x => x.got < NEED).length;
+      if (ba !== bb) return bb - ba;                 // 덜 낸 아동이 많은 분부터
+      if (a === '담당 치료사 없음') return 1;
+      if (b === '담당 치료사 없음') return -1;
+      return a.localeCompare(b, 'ko');
+    });
+
+    const oneRow = x => {
+      const short = NEED - x.got;
+      const left = short > 0 ? Math.ceil(short / 40000) : 0;
+      return '<tr><td>' + x.id + '번</td><td>' + esc(x.name) + '</td>'
+        + '<td class="dim">' + esc(x.days || '—') + '</td>'
+        + '<td class="num dim">' + (x.cnt ? x.cnt + '회' : '없음') + '</td>'
+        + '<td class="num">' + won(x.got) + '</td>'
+        + '<td class="num ' + (left ? 'warn' : 'good') + '">'
+        + (left ? left + '건' : '—') + '</td>'
+        + '<td class="num ' + (short > 0 ? 'warn' : 'good') + '">'
+        + (short > 0 ? won(short) : '다 냄') + '</td></tr>';
+    };
+
+    $('ckBody').innerHTML = head + thrKeys.map(k => {
+      const arr = byThr[k].slice().sort((a, b) => (a.got - b.got) || (a.id - b.id));
+      const nb = arr.filter(x => x.got < NEED).length;
+      const sb2 = arr.reduce((s, x) => s + Math.max(0, NEED - x.got), 0);
+      return '<div class="thrgrp">'
+        + '<div class="thrhead">' + esc(k)
+        + (k === '담당 치료사 없음' ? '' : ' 선생님')
+        + ' <span class="thrsum">— 아동 ' + arr.length + '명'
+        + (nb ? ' · <span class="warn">덜 낸 아동 ' + nb + '명 · '
+                + won(sb2) + ' 모자람</span>'
+              : ' · <span class="good">모두 다 냈습니다</span>')
+        + '</span></div>'
+        + '<table><thead><tr><th>아동</th><th>이름</th>'
+        + '<th>결제일자</th><th class="num">결제</th>'
+        + '<th class="num">받은 금액</th><th class="num">미결제</th>'
+        + '<th class="num">모자란 금액</th></tr></thead><tbody>'
+        + arr.map(oneRow).join('')
+        + '</tbody></table></div>';
+    }).join('');
+    $('ckPdf').style.display = 'inline-block';
+  } catch (e) {
+    $('ckBody').innerHTML = '<div class="empty">보지 못했습니다.</div>';
+    $('ckPdf').style.display = 'none';
+    show($('msg4'), '❌ ' + (e.message || e), false);
+  }
+};
+
+// 점검 결과를 PDF로 — 인쇄 창에서 「PDF로 저장」을 고르시면 됩니다
+$('ckPdf').onclick = () => { window.print(); };
+
+// ── 로그인 ────────────────────────────────────────
+async function afterLogin(user) {
+  const { data: me, error: e1 } = await sb
+    .from('nl_therapists').select('id, name, role')
+    .eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+
+  const can = [8, 9].includes(Number(me.id)) || /관리자|행정/.test(me.role || '');
+  if (!can) {
+    show($('msg'), '⚠️ 관리자·행정 선생님만 볼 수 있습니다.', false);
+    try { await sb.auth.signOut(); } catch (e) {}
+    return;
+  }
+
+  const [c, m, tn] = await Promise.all([
+    sb.from('nl_children').select('id, name, birth, status').order('id'),
+    sb.from('nl_card_map').select('card_no, support_type_id, child_id'),
+    sb.from('nl_therapists').select('id, name')
+  ]);
+  if (c.error) { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
+
+  CHILDREN = c.data || [];
+  CARDMAP = {};
+  (m.data || []).forEach(r => { CARDMAP[key(r.card_no, r.support_type_id)] = r.child_id; });
+  THNAME = {};
+  (tn.data || []).forEach(t => { THNAME[t.id] = t.name; });
+
+  $('ckMk').innerHTML = mkList()
+    .map(k => '<option value="' + k + '">' + k.slice(0,4) + '년 '
+      + Number(k.slice(5,7)) + '월</option>').join('');
+
+  $('who').textContent = me.name + ' (' + me.role + ') 님 · 아동 ' + CHILDREN.length + '명'
+    + ' · 이어둔 카드 ' + Object.keys(CARDMAP).length + '개';
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+$('out').onclick = async () => {
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+};
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+$('em').addEventListener('keydown', e => { if (e.key === 'Enter') $('pw').focus(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session && data.session.user) await afterLogin(data.session.user);
+})();
+</script>
+</body>
+</html>
