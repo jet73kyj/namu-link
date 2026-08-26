@@ -77,12 +77,21 @@
   .atab tr.bad td { background:#fff4f2; }
   .atab tr.warn td { background:#fffaf0; }
 
+  /* 담당 치료사별 묶음 */
+  .thrgrp { margin-bottom:16px; }
+  .thrhead { font-size:13.5px; font-weight:700; color:var(--ink1);
+             padding:7px 10px; background:var(--acc-bg); border-radius:8px;
+             margin-bottom:5px; }
+  .thrsum { font-weight:500; font-size:12px; color:var(--ink2); }
+
   @media print {
     .noprint, .top, #loginBox, .drop, .drop2, .two, #empty,
     #unmatchCard, .foot, .out { display:none !important; }
     body { background:#fff; }
     .card { border:none; box-shadow:none; padding:0 0 10px; page-break-inside:avoid; }
     .asec { page-break-inside:avoid; }
+    .thrgrp { page-break-inside:avoid; margin-bottom:12px; }
+    .thrhead { background:#f0f2ee; font-size:12px; padding:5px 8px; }
   }
 
   .stat { display:flex; gap:10px; flex-wrap:wrap; margin:16px 0 4px; }
@@ -153,7 +162,7 @@
       <div>
         <div class="lbl">당월 (점검할 달)</div>
         <div class="drop" id="drop">
-          여기를 눌러 엑셀 파일을 고르세요<br>
+          엑셀 파일을 여기에 <b>끌어다 놓거나</b> 눌러서 고르세요<br>
           <b>.xlsx</b> 파일
         </div>
         <input id="file" type="file" accept=".xlsx,.xls" style="display:none;">
@@ -161,7 +170,7 @@
       <div>
         <div class="lbl">전월 (비교용 · 안 올려도 됨)</div>
         <div class="drop drop2" id="drop0">
-          여기를 눌러 전월 엑셀을 고르세요<br>
+          전월 엑셀을 여기에 <b>끌어다 놓거나</b> 눌러서 고르세요<br>
           <span style="font-size:12px;">한 번 올리면 계속 보관됩니다</span>
         </div>
         <input id="file0" type="file" accept=".xlsx,.xls" style="display:none;">
@@ -495,6 +504,23 @@ async function loadPrevIfNeeded() {
   drawAudit();
 }
 
+// 담당 치료사별로 묶어서 그린다 (줄마다 thr 칸이 있어야 한다)
+function tabByThr(head, rows) {
+  if (!rows.length) return '<div class="anone">해당 없음</div>';
+  const by = {};
+  rows.forEach(r => { (by[r.thr || '담당 치료사 없음'] = by[r.thr || '담당 치료사 없음'] || []).push(r); });
+  const keys = Object.keys(by).sort((a, b) => {
+    if (a === '담당 치료사 없음') return 1;
+    if (b === '담당 치료사 없음') return -1;
+    return b.length - a.length || a.localeCompare(b, 'ko');
+  });
+  return keys.map(k =>
+    '<div class="thrgrp"><div class="thrhead">' + esc(k)
+    + (k === '담당 치료사 없음' ? '' : ' 선생님')
+    + ' <span class="thrsum">— 아동 ' + by[k].length + '명</span></div>'
+    + tab(head, by[k]) + '</div>').join('');
+}
+
 function tab(head, rows) {
   if (!rows.length) return '<div class="anone">해당 없음</div>';
   return '<table class="atab"><tr>'
@@ -604,11 +630,13 @@ function drawAudit() {
   Object.keys(cnt).forEach(tid => {
     const g = cnt[tid];
     if (g.ds.length < MONTH_NEED)
-      e4.push({ cls:'warn', v:[ nameOf(tid), Object.keys(g.th).join(', ') || thOf(tid) || '확인 불가',
+      e4.push({ cls:'warn',
+        thr: Object.keys(g.th).join(', ') || thOf(tid) || '담당 치료사 없음',
+        v:[ nameOf(tid),
         g.ds.length + '회', g.ds.sort().join(', '),
         (MONTH_NEED - g.ds.length) + '회 부족' ] });
   });
-  e4.sort((a,b) => Number(b.v[4].replace(/\D/g,'')) - Number(a.v[4].replace(/\D/g,'')));
+  e4.sort((a,b) => Number(b.v[3].replace(/\D/g,'')) - Number(a.v[3].replace(/\D/g,'')));
 
   // --- 5·7·8. 전월 대비 ---
   const e5 = [], e7 = [], e8 = [];
@@ -674,9 +702,11 @@ function drawAudit() {
 
   // --- 10. 월별 총괄 ---
   const e10 = Object.keys(cnt)
-    .map(tid => ({ nm: nameOf(tid), c: cnt[tid].ds.length }))
+    .map(tid => ({ nm: nameOf(tid), c: cnt[tid].ds.length,
+                   thr: Object.keys(cnt[tid].th).join(', ') || thOf(tid) || '담당 치료사 없음' }))
     .sort((a,b) => a.nm.localeCompare(b.nm, 'ko'))
-    .map(x => ({ cls: (x.c < MONTH_NEED ? 'warn' : ''), v:[ x.nm, x.c + '회' ] }));
+    .map(x => ({ cls: (x.c < MONTH_NEED ? 'warn' : ''),
+                 thr: x.thr, v:[ x.nm, x.c + '회' ] }));
 
   // --- 11. 예외·일괄결제 ---
   const e11 = live.filter(r => r.pay_kind && r.pay_kind !== '정상결제')
@@ -698,8 +728,8 @@ function drawAudit() {
       ['아동','날짜','치료사A · 시간','치료사B · 시간','간격'], e2, true],
     ['3. 주 3회 이상 초과 결제',
       ['아동','주차','결제일','횟수'], e3, true],
-    ['4. 월 ' + MONTH_NEED + '회 미달 아동',
-      ['아동','담당 치료사','현재','결제일','부족'], e4, true],
+    ['4. 월 ' + MONTH_NEED + '회 미달 아동 — 담당 치료사별',
+      ['아동','현재','결제일','부족'], e4, true, true],
     ['5-1. 담당 치료사 변경 (전월 → 당월)',
       ['아동','전월','당월'], e5, true],
     ['5-2. 당월 내 담당 치료사 변경',
@@ -714,8 +744,8 @@ function drawAudit() {
       ['아동','날짜','반납구분','지급보류','승인번호'], e12, true],
     ['10. 치료사별 월 실적',
       ['치료사','수업 건수','근무일수'], e9, false],
-    ['11. 월별 결제 총괄',
-      ['아동','결제 건수'], e10, false]
+    ['11. 월별 결제 총괄 — 담당 치료사별',
+      ['아동','결제 건수'], e10, false, true]
   ];
 
   const errN = e0.length + e1.length + e2.length + e3.length + e4.length + e5.length
@@ -738,7 +768,8 @@ function drawAudit() {
 
   $('auditSum').innerHTML = sum;
   $('auditBody').innerHTML = S.map(x =>
-    '<div class="asec"><h3>' + esc(x[0]) + '</h3>' + tab(x[1], x[2]) + '</div>').join('');
+    '<div class="asec"><h3>' + esc(x[0]) + '</h3>'
+    + (x[4] ? tabByThr(x[1], x[2]) : tab(x[1], x[2])) + '</div>').join('');
 }
 
 // 아동 짝맞추기
@@ -903,20 +934,42 @@ $('save').onclick = async () => {
 
 $('drop').onclick = () => $('file').click();
 $('drop0').onclick = () => $('file0').click();
-$('file0').onchange = e => {
-  const f = e.target.files[0];
+
+function takeCur(f) {
+  if (!f) return;
+  $('drop').innerHTML = '고른 파일<br><b>' + esc(f.name) + '</b><br>'
+    + '<span style="font-size:12px;">다시 고르려면 여기를 누르거나 새 파일을 끌어다 놓으세요</span>';
+  readExcel(f, 'cur');
+}
+function takePrev(f) {
   if (!f) return;
   $('drop0').innerHTML = '고른 전월 파일<br><b>' + esc(f.name) + '</b>';
   readExcel(f, 'prev');
-};
+}
+
+$('file').onchange  = e => takeCur(e.target.files[0]);
+$('file0').onchange = e => takePrev(e.target.files[0]);
+
+// 엑셀 파일을 끌어다 놓아도 되게 한다
+[['drop', takeCur], ['drop0', takePrev]].forEach(([id, fn]) => {
+  const el = $(id);
+  el.addEventListener('dragover', ev => {
+    ev.preventDefault();
+    el.style.borderColor = 'var(--acc)';
+  });
+  el.addEventListener('dragleave', () => { el.style.borderColor = ''; });
+  el.addEventListener('drop', ev => {
+    ev.preventDefault();
+    el.style.borderColor = '';
+    if (ev.dataTransfer.files && ev.dataTransfer.files[0]) fn(ev.dataTransfer.files[0]);
+  });
+});
+
+// 화면 아무 데나 떨어뜨렸을 때 브라우저가 파일을 열어버리지 않게 막는다
+document.addEventListener('dragover', ev => ev.preventDefault());
+document.addEventListener('drop', ev => ev.preventDefault());
+
 $('pdfBtn').onclick = () => window.print();
-$('file').onchange = e => {
-  const f = e.target.files[0];
-  if (!f) return;
-  $('drop').innerHTML = '고른 파일<br><b>' + esc(f.name) + '</b><br>'
-    + '<span style="font-size:12px;">다시 고르려면 여기를 누르세요</span>';
-  readExcel(f, 'cur');
-};
 
 $('btn').onclick = async () => {
   const email = $('em').value.trim().toLowerCase();
