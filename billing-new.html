@@ -798,6 +798,7 @@ async function load() {
 
     // 유형별 기준 회기 — 셈방식(count_mode)에 따라 계산한다
     //   4회만    : 4
+    //   주차선택 : 켜둔 주차 개수 (5주차는 안 셈)
     //   발4+센1  : 발달재활 4. 5주인 달만 센터비용 1회가 더 붙음
     //   발4+발추1 : 발달재활 4 + 발추 1      (발추는 8번으로 따로 셈)
     //   매주     : 그 달에 그 요일이 몇 번 있는지 (4주면 4, 5주면 5)
@@ -824,6 +825,17 @@ async function load() {
         if (n) need = n;
       } else if (mode === '4회만') {
         need = 4;
+      } else if (mode === '주차선택') {
+        // 3주 이하 — 켜둔 주차만 센다 (5주차는 세지 않는다)
+        let n = 0;
+        scs.forEach(sc => {
+          if (!sc.weekday) return;
+          const wc = Math.min(countWeekday(mk, sc.weekday), 4);
+          for (let i = 1; i <= wc; i++) {
+            if (sc['week' + i] !== false) n++;
+          }
+        });
+        need = n;
       } else if (mode === '발4+발추1') {
         need = 4;                          // 나머지 1회는 발추(8번)로 따로 센다
       } else if (mode === '발4+센1') {

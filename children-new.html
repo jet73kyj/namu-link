@@ -582,7 +582,13 @@ const SLOTS = [
 const STYPES = { 1:'센터비용', 2:'발달재활', 3:'치료지원(언어)', 4:'치료지원(작업)',
                  5:'방과후활동비', 6:'방과후치료(언어)', 7:'방과후치료(작업)' };
 const TTYPES = { 1:'언어', 2:'작업', 3:'전산화인지', 4:'감각통합', 5:'음악', 6:'일상자립' };
-const MODES  = ['매주', '4회만', '발4+발추1', '발4+센1'];
+const MODES  = [
+  { v:'매주',      t:'매주 (5주차 있으면 5회)' },
+  { v:'4회만',     t:'매달 4회 (5주차 있어도 4회)' },
+  { v:'주차선택',  t:'3주 이하 — 오는 주차만' },
+  { v:'발4+발추1', t:'매달 4회 + 발추 1회' },
+  { v:'발4+센1',   t:'매달 4회 + 5주차는 센터비용 1회' }
+];
 
 function opts(obj, sel) {
   return Object.keys(obj).map(function (k) {
@@ -615,7 +621,7 @@ function lessonRow() {
       + '</select></div>'
     + '<div><label>회기 방식</label><select class="l_md">'
       + MODES.map(function (m) {
-          return '<option value="' + m + '">' + m + '</option>'; }).join('')
+          return '<option value="' + m.v + '">' + m.t + '</option>'; }).join('')
       + '</select></div>'
     + '<div><label>시작 날짜</label><input class="l_from" type="date"></div>'
     + '<div><label>마지막 날짜</label><input class="l_to" type="date"></div>'
@@ -765,7 +771,7 @@ $('saveNew').onclick = async () => {
         child_id: data.id, therapy_type_id: L.tt, support_type_id: L.st,
         duration_min: L.du, started_on: L.from,
         count_mode: L.md,
-        monthly_count: (L.md === '4회만') ? 4 : 5
+        monthly_count: (L.md === '4회만' || L.md === '주차선택') ? 4 : 5
       }).select('id').single();
       if (te) { extra += '\n⚠️ 수업을 넣지 못했습니다. ' + te.message; continue; }
 

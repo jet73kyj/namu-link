@@ -568,14 +568,15 @@
       <div>
         <label for="ad_cnt">회기 방식</label>
         <select id="ad_cnt">
-          <option value="매주">매주 — 5주면 5회, 4주면 4회</option>
-          <option value="4회만">4회만 — 5주차여도 4회</option>
-          <option value="발4+발추1">발4+발추1 — 4주여도 5회, 보강 필요</option>
-          <option value="발4+센1">발4+센1 — 1~4주차는 그대로, 5주차 1회만 센터비용</option>
+          <option value="매주">매주 (5주차 있으면 5회)</option>
+          <option value="4회만">매달 4회 (5주차 있어도 4회)</option>
+          <option value="주차선택">3주 이하 — 오는 주차만</option>
+          <option value="발4+발추1">매달 4회 + 발추 1회</option>
+          <option value="발4+센1">매달 4회 + 5주차는 센터비용 1회</option>
         </select>
       </div>
-      <div style="grid-column:1 / -1;">
-        <label>오는 주차 <span style="color:#7cb342;">(2·3회 아동만 손대세요)</span></label>
+      <div style="grid-column:1 / -1;" id="ad_wkbox">
+        <label>오는 주차</label>
         <div id="ad_wks" class="wks"></div>
       </div>
     </div>
@@ -648,7 +649,7 @@
     <div id="mnMsg" class="out"></div>
   </div>
 
-  <!-- 수업 고치기 창 -->
+  <!-- 수정 창 -->
   <div id="edBox" class="panel blue" style="display:none;">
     <div class="panel-t" id="edTitle"></div>
     <div class="pgrid">
@@ -709,14 +710,15 @@
       <div>
         <label for="ed_cnt">회기 방식</label>
         <select id="ed_cnt">
-          <option value="매주">매주 — 5주면 5회, 4주면 4회</option>
-          <option value="4회만">4회만 — 5주차여도 4회</option>
-          <option value="발4+발추1">발4+발추1 — 4주여도 5회, 보강 필요</option>
-          <option value="발4+센1">발4+센1 — 1~4주차는 그대로, 5주차 1회만 센터비용</option>
+          <option value="매주">매주 (5주차 있으면 5회)</option>
+          <option value="4회만">매달 4회 (5주차 있어도 4회)</option>
+          <option value="주차선택">3주 이하 — 오는 주차만</option>
+          <option value="발4+발추1">매달 4회 + 발추 1회</option>
+          <option value="발4+센1">매달 4회 + 5주차는 센터비용 1회</option>
         </select>
       </div>
-      <div style="grid-column:1 / -1;">
-        <label>오는 주차 <span style="color:#7cb342;">(2·3회 아동만 손대세요)</span></label>
+      <div style="grid-column:1 / -1;" id="ed_wkbox">
+        <label>오는 주차</label>
         <div id="ed_wks" class="wks"></div>
       </div>
     </div>
@@ -842,12 +844,12 @@ function splitMin(x){
 let EVALS = [];   // 그 달 평가 일정 (nl_evaluations 에서 읽어 온다)
 let SPLIT = {};
 function buildSplit(){ SPLIT = {}; }
-// 회기에 붙는 +N 딱지 (수업 고치기 창에서 켠다)
+// 회기에 붙는 +N 딱지 (수정 창에서 켠다)
 function splitTag(x){
   const n = splitMin(x);
   if (!n) return '';
   return '<b class="sptag" data-edsp="' + (x.schedule_id || '')
-       + '" title="수업 고치기에서 바꿉니다">+' + n + '</b>';
+       + '" title="수정 창에서 바꿉니다">+' + n + '</b>';
 }
 // 사유가 안 적힌 '쉼' — 원래 수업이 없는 주차로 보고 화면에 안 그린다
 function isBlankRest(x){
@@ -2079,7 +2081,7 @@ $('gbody').addEventListener('click', async e => {
   if (mkb) { e.stopPropagation(); openMk(Number(mkb.dataset.mk)); return; }
   // 보강 줄의 ✕ — 보강 창을 연다 (날짜 바꾸기·보강 취소)
   // 직접 넣은 보강의 「수정」 — 고치기 창을 연다
-  // +N 딱지 — 수업 고치기 창을 연다
+  // +N 딱지 — 수정 창을 연다
   const spl = e.target.closest('[data-edsp]');
   if (spl) { e.stopPropagation(); openEd(Number(spl.dataset.edsp)); return; }
   const mne = e.target.closest('[data-mned]');
@@ -2148,15 +2150,19 @@ function wkSum(arr, mode){
 }
 
 function drawWks(){
-  $('ad_wks').innerHTML = [1,2,3,4].map(n => wkOne(n, wkOn[n-1])).join('')
-    + wkSum(wkOn, $('ad_cnt').value);
-  $('ad_wks').querySelectorAll('.wkbox').forEach(el => {
-    el.onclick = () => {
-      const n = Number(el.dataset.wk);
-      wkOn[n-1] = !wkOn[n-1];
-      drawWks();
-    };
-  });
+  // 「3주 이하」를 고른 수업만 오는 주차를 보여준다.
+  // 주차를 고치는 곳은 납부 계산 화면이므로 여기서는 글자로만 보여준다.
+  const box = $('ad_wkbox');
+  if ($('ad_cnt').value !== '주차선택') {
+    box.style.display = 'none';
+    $('ad_wks').innerHTML = '';
+    return;
+  }
+  box.style.display = '';
+  $('ad_wks').innerHTML = wkText(wkOn)
+    + '<div class="wklock">처음에는 매주로 넣습니다. '
+    + '오는 주차는 <b>납부 계산 화면</b>에서 정해 주세요. '
+    + '거기서 회기 칸 옆 「주차」 단추를 누르시면 됩니다.</div>';
 }
 $('ad_cnt').onchange = drawWks;
 
@@ -2291,19 +2297,31 @@ async function refreshRuns(scheduleId){
   }
 }
 
-// ===== 수업 고치기 =====
+// ===== 수정 =====
 let edWk = [true,true,true,true];   // 고치기 창의 오는 주차
 
+// 오는 주차를 한 줄 글자로 (예: 1주, 3주 (월 2회))
+function wkText(arr){
+  const on = [1,2,3,4].filter(n => arr[n-1]);
+  if (!on.length) return '<div class="wksum" style="color:#c62828;">'
+    + '⚠️ 오는 주차가 정해지지 않았습니다. 납부 계산 화면에서 골라 주세요.</div>';
+  if (on.length === 4) return '<div class="wksum">매주</div>';
+  return '<div class="wksum">' + on.join('주, ') + '주 (월 ' + on.length + '회)</div>';
+}
+
 function drawEdWks(){
-  // 주차는 납부 화면에서 정한다. 여기서는 보기만 한다.
-  $('ed_wks').innerHTML = [1,2,3,4].map(n => wkOne(n, edWk[n-1])).join('')
-    + wkSum(edWk, $('ed_cnt').value)
+  // 「3주 이하」를 고른 수업만 오는 주차를 보여준다.
+  // 주차를 고치는 곳은 납부 계산 화면이므로 여기서는 글자로만 보여준다.
+  const box = $('ed_wkbox');
+  if ($('ed_cnt').value !== '주차선택') {
+    box.style.display = 'none';
+    $('ed_wks').innerHTML = '';
+    return;
+  }
+  box.style.display = '';
+  $('ed_wks').innerHTML = wkText(edWk)
     + '<div class="wklock">주차는 <b>납부 계산 화면</b>에서 정합니다. '
     + '거기서 회기 칸 옆 「주차」 단추를 누르세요.</div>';
-  $('ed_wks').querySelectorAll('.wkbox').forEach(el => {
-    el.classList.add('lock');
-    el.onclick = null;
-  });
 }
 
 $('ed_cnt').onchange = drawEdWks;
@@ -2751,7 +2769,7 @@ $('edEnd').onclick = async () => {
 
 // ===== 창을 띄우고 끌어 옮기기 =====
 const FLOATS = ['addBox','edBox','mkBox','mnBox','offBox','w5Box'];
-const FLOATNM = { addBox:'수업 넣기', edBox:'수업 고치기', mkBox:'보강 잡기',
+const FLOATNM = { addBox:'수업 넣기', edBox:'수정', mkBox:'보강 잡기',
                   mnBox:'보강 넣기', offBox:'휴무 관리', w5Box:'이 자리에 보강' };
 
 function floatOn(id, ev){
