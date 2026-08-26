@@ -1057,7 +1057,43 @@ function isPaid(childId) {
   return keys.every(k => !!sv[k].paid_on);
 }
 
+// 저장하지 않고 적어둔 값을 기억해 둔다.
+// 화면을 다시 그리면 칸이 저장된 값으로 되돌아가므로,
+// 다시 그린 뒤 적어두신 것을 그대로 되돌려 넣기 위함이다.
+// (「미납만」 단추를 누르면 적어둔 낸날이 사라지던 문제)
+let TYPED = {};
+
+function keepTyped() {
+  TYPED = {};
+  document.querySelectorAll('#kids .kid').forEach(box => {
+    const kid = box.dataset.child;
+    if (!kid) return;
+    const one = {};
+    box.querySelectorAll('input, select').forEach((el, i) => {
+      const nm = (el.className || '').split(' ')[0] || el.tagName;
+      const st = el.closest('[data-st]');
+      const key = nm + '|' + (st ? st.dataset.st : '') + '|' + i;
+      one[key] = el.value;
+    });
+    TYPED[kid] = one;
+  });
+}
+
+function putTyped() {
+  document.querySelectorAll('#kids .kid').forEach(box => {
+    const one = TYPED[box.dataset.child];
+    if (!one) return;
+    box.querySelectorAll('input, select').forEach((el, i) => {
+      const nm = (el.className || '').split(' ')[0] || el.tagName;
+      const st = el.closest('[data-st]');
+      const key = nm + '|' + (st ? st.dataset.st : '') + '|' + i;
+      if (one[key] != null && one[key] !== '') el.value = one[key];
+    });
+  });
+}
+
 function drawAll() {
+  keepTyped();
   const q = $('q').value.trim().toLowerCase();
   let list = CHILDREN.filter(c => {
     if (!q) return true;
@@ -1088,6 +1124,7 @@ function drawAll() {
   }
 
   $('kids').innerHTML = list.map(c => drawKid(c)).join('');
+  putTyped();
   list.forEach(c => calcKid(c.id));
   sumAll();
 }
@@ -1726,6 +1763,7 @@ async function saveKid(childId, btn) {
     show($('msg2'), '✅ ' + rows.length + '건 저장했습니다.'
       + (unpaid ? ' (그중 ' + unpaid + '건은 날짜가 없어 미납으로 저장)' : '')
       + wkMsg + evMsg, true);
+    delete TYPED[String(childId)];
     btn.textContent = '저장됨';
     setTimeout(() => { btn.textContent = '저장'; btn.disabled = false; }, 1200);
   } catch (e) {
