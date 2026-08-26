@@ -819,9 +819,25 @@ const SLOTS = [
   { no:10, t:'16:50~17:30', m:16*60+50,  hm:'16:50' },
   { no:11, t:'17:40~18:20', m:17*60+40,  hm:'17:40' },
   { no:12, t:'18:30~19:10', m:18*60+30,  hm:'18:30' },
-  { no:13, t:'19:20~20:00', m:19*60+20,  hm:'19:20' }
+  { no:13, t:'19:20~20:00', m:19*60+20,  hm:'19:20' },
+  { no:14, t:'20:00~20:40', m:20*60,     hm:'20:00' }
 ];
 const LUNCH_NO = 5;
+
+// 14교시만 치료사에 따라 시각이 다르다.
+// 3번 치료사는 마지막 아동이 60분 수업이라 20:20에 시작한다.
+const LATE_SLOT = 14;
+const LATE_TH   = { 3: { t:'20:20~21:00', hm:'20:20' } };
+
+// 그 치료사가 볼 14교시 시각 (다른 교시는 그대로)
+function slotT(s, thId){
+  const x = (s && s.no === LATE_SLOT) ? LATE_TH[thId] : null;
+  return x ? x.t : (s ? s.t : '');
+}
+function slotHm(s, thId){
+  const x = (s && s.no === LATE_SLOT) ? LATE_TH[thId] : null;
+  return x ? x.hm : (s ? s.hm : '');
+}
 const WDS = ['일','월','화','수','목','금','토'];
 
 const TTYPE = {1:'언어',2:'작업',3:'전산',4:'감통',5:'음악',6:'일상'};
@@ -1255,7 +1271,7 @@ function drawWeek(){
   $('gbody').innerHTML = SLOTS.map(s => {
     return '<tr>'
       + '<td class="hcol"><div class="hno">'+s.no+'교시</div>'
-        + '<div class="htime">'+s.t+'</div></td>'
+        + '<div class="htime">'+slotT(s, th)+'</div></td>'
       + DAYS.map(d => {
           const lunch = (d !== '토' && s.no === LUNCH_NO);
           const list = cell[s.no+'_'+d] || [];
@@ -2250,7 +2266,7 @@ $('adSave').onclick = async () => {
     if (e1) throw e1;
 
     const { data: sc, error: e2 } = await sb.from('nl_therapy_schedules').insert({
-      therapy_id: th.id, weekday: wd, start_time: slot.hm + ':00',
+      therapy_id: th.id, weekday: wd, start_time: slotHm(slot, thId) + ':00',
       therapist_id: thId, duration: Number($('ad_dur').value),
       week1: wkOn[0], week2: wkOn[1], week3: wkOn[2], week4: wkOn[3],
       // 시작·마지막 날짜를 요일줄에 넣어야 회기가 그 사이에만 깔린다
@@ -2558,10 +2574,11 @@ $('edSave').onclick = async () => {
 
   // 요일이나 시간이 바뀌면 지난 달은 건드리지 않고 이번 달부터 갈라 준다
   const oldWd = edRow.weekday;
-  const oldHm = nearest(toMin(edRow.start_time)).hm;
-  if (oldWd !== nw || oldHm !== slot.hm) {
+  const oldHm = String(edRow.start_time || '').slice(0,5);
+  const newHm = slotHm(slot, th);
+  if (oldWd !== nw || oldHm !== newHm) {
     if (!confirm('요일·시간이 바뀝니다.\n\n'
-      + '· ' + oldWd + '요일 ' + oldHm + '  →  ' + nw + '요일 ' + slot.hm + '\n\n'
+      + '· ' + oldWd + '요일 ' + oldHm + '  →  ' + nw + '요일 ' + newHm + '\n\n'
       + monNo(mon) + '월부터 바뀌고, 지난 달 시간표는 그대로 남습니다.\n계속할까요?')) return;
     const scId0 = edRow.id;
     await changeFromThisMonth(nw, slot, th, du);
@@ -2573,7 +2590,7 @@ $('edSave').onclick = async () => {
   $('edSave').disabled = true; $('edSave').textContent = '옮기는 중...';
   try {
     const { data, error } = await sb.from('nl_therapy_schedules')
-      .update({ weekday: nw, start_time: slot.hm + ':00',
+      .update({ weekday: nw, start_time: slotHm(slot, th) + ':00',
                 therapist_id: th, duration: du,
                 from_date: $('ed_start').value || null,
                 to_date:   $('ed_end').value   || null })
@@ -2603,7 +2620,7 @@ $('edSave').onclick = async () => {
     // 아직 안 지난 회기의 치료사·시각도 함께 고친다
     const today = new Date().toISOString().slice(0,10);
     await sb.from('nl_sessions')
-      .update({ therapist_id: th, start_time: slot.hm + ':00' })
+      .update({ therapist_id: th, start_time: slotHm(slot, th) + ':00' })
       .eq('schedule_id', edRow.id).gte('plan_date', today).neq('status','보강');
 
     // 회기를 새로 맞춘다 (예정만 다시 깔고 완료·결석·휴무·보강은 그대로)
@@ -2653,7 +2670,7 @@ async function changeFromThisMonth(nw, slot, th, du){
     // ② 새 요일 줄을 이번 달부터로 만든다
     const { data: ns, error: e2 } = await sb.from('nl_therapy_schedules')
       .insert({ therapy_id: edRow.therapy_id, weekday: nw,
-                start_time: slot.hm + ':00', therapist_id: th,
+                start_time: slotHm(slot, th) + ':00', therapist_id: th,
                 duration: du, from_month: mon,
                 week1: edWk[0], week2: edWk[1],
                 week3: edWk[2], week4: edWk[3] })
@@ -2852,7 +2869,8 @@ function openPlan(scId){
   if (!r) return;
   const slot = nearest(toMin(r.start_time));
   openMn(slot.no + '_' + r.therapist_id + '_' + r.weekday);
-  $('mnTitle').textContent = monNo(mon) + '월 ' + r.weekday + '요일 ' + slot.hm
+  $('mnTitle').textContent = monNo(mon) + '월 ' + r.weekday + '요일 '
+    + slotHm(slot, r.therapist_id)
     + ' — 회기가 모자라 한 자리 더 잡기';
   if (r._cid) pickMnKid(r._cid);
 }
@@ -3004,7 +3022,7 @@ $('mnSave').onclick = async () => {
   const fixing = !!mnEditId;
 
   if (!confirm(mnKid.name + ' 아동 보강을\n'
-      + dayNo(d) + '일(' + mnKey.wd + ') ' + mnKey.slot.hm
+      + dayNo(d) + '일(' + mnKey.wd + ') ' + slotHm(mnKey.slot, mnKey.th)
       + (fixing ? ' 로 고칠까요?' : ' 로 넣을까요?') + '\n\n'
       + '이 줄은 회기 수·납부에는 안 들어가고,\n'
       + '완료로 표시하면 그 치료사 급여에만 들어갑니다.')) return;
@@ -3021,7 +3039,7 @@ $('mnSave').onclick = async () => {
       month_key: mon,
       plan_date: d,
       therapist_id: mnKey.th,
-      start_time: mnKey.slot.hm + ':00',
+      start_time: slotHm(mnKey.slot, mnKey.th) + ':00',
       makeup_for: null,                // 메울 결석 회기가 없다
       support_type_id: ($('mn_sp').value ? Number($('mn_sp').value)
                       : (tp[1] ? Number(tp[1]) : null)),
@@ -3048,7 +3066,7 @@ $('mnSave').onclick = async () => {
     }
 
     mnmsg('✅ ' + mnKid.name + ' 아동 보강을 ' + dayNo(d) + '일 '
-      + mnKey.slot.hm + (fixing ? ' 로 고쳤습니다.' : ' 로 넣었습니다.'), true);
+      + slotHm(mnKey.slot, mnKey.th) + (fixing ? ' 로 고쳤습니다.' : ' 로 넣었습니다.'), true);
     $('mn_name').value=''; $('mn_pick').innerHTML='';
     $('mn_tp').innerHTML='<option value="">아동을 먼저 고르세요</option>';
     $('mn_memo').value=''; mnKid=null; mnEditId=null;
@@ -3317,7 +3335,7 @@ $('mkFind').onclick = () => {
   }
   $('mkFree').innerHTML = top.map(c =>
     '<span class="freeone" data-d="'+c.date+'" data-s="'+c.slot.no+'">'
-    + dayNo(c.date) + '일(' + c.dw + ') ' + c.slot.hm + '</span>').join('');
+    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm(c.slot, th) + '</span>').join('');
   $('mkFree').querySelectorAll('.freeone').forEach(el => {
     el.onclick = () => {
       $('mk_date').value = el.dataset.d;
@@ -3341,7 +3359,7 @@ $('mkSave').onclick = async () => {
   // 결석한 그 날 그 시각에 그대로 보강을 잡을 수는 없다
   // (교시가 아니라 실제 시각으로 견준다. 15:10 과 14:20 은 다른 시각)
   if (slot && String(d) === String(mkSess.plan_date)
-      && (slot.hm + ':00') === String(mkSess.start_time)) {
+      && (slotHm(slot, th) + ':00') === String(mkSess.start_time)) {
     mkmsg('결석한 날(' + dayNo(mkSess.plan_date) + '일 '
       + String(mkSess.start_time).slice(0,5) + ')과 똑같은 날·똑같은 시각입니다.\n'
       + '다른 날이나 다른 시각을 고르세요.', false);
@@ -3372,7 +3390,7 @@ $('mkSave').onclick = async () => {
     plan_date:  d,
     status:     '보강',
     therapist_id: th,
-    start_time: slot.hm + ':00',
+    start_time: slotHm(slot, th) + ':00',
     makeup_for: mkSess.id,
     memo:       $('mk_memo').value.trim() || null
   };
@@ -3394,7 +3412,7 @@ $('mkSave').onclick = async () => {
       SESS.push(data);
       if (data.month_key !== mon) PREV.push(data);
     }
-    mkmsg('✅ 보강을 ' + dayNo(d) + '일 ' + slot.hm + '으로 잡았습니다.', true);
+    mkmsg('✅ 보강을 ' + dayNo(d) + '일 ' + slotHm(slot, th) + '으로 잡았습니다.', true);
     $('mkDel').style.display = '';
     draw();
   } catch (e) {
@@ -3584,7 +3602,8 @@ async function afterLogin(user){
   + '<option value="7">7 방과후치료지원(작업)</option>';
   $('ed_wd').innerHTML   = ['월','화','수','목','금','토']
     .map(w=>'<option value="'+w+'">'+w+'요일</option>').join('');
-  $('ed_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t+'</option>').join('');
+  $('ed_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t
+    + (s.no === LATE_SLOT ? ' (3번 치료사는 20:20)' : '') + '</option>').join('');
   $('ed_tt').innerHTML   = Object.keys(TTYPE)
     .map(k=>'<option value="'+k+'">'+k+' '+TTYPE[k]+'치료</option>').join('');
   $('ed_st2').innerHTML  =
