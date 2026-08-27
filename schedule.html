@@ -539,7 +539,7 @@
         <label for="mk_slot">시간</label>
         <select id="mk_slot"></select>
       </div>
-      <div>
+      <div style="display:none;">
         <label for="mk_th">치료사</label>
         <select id="mk_th"></select>
       </div>
@@ -623,11 +623,11 @@
     <div id="mnHow" class="mnhow"></div>
     <div class="pgrid">
       <div>
-        <label for="mn_date">날짜</label>
-        <select id="mn_date"></select>
+        <label for="mn_date">보강 날짜</label>
+        <input id="mn_date" type="date">
       </div>
       <div>
-        <label for="mn_slot">시간 (교시)</label>
+        <label for="mn_slot">시간</label>
         <select id="mn_slot"></select>
       </div>
       <div style="position:relative;">
@@ -675,9 +675,12 @@
       </div>
     </div>
     <div class="pbtns">
+      <button id="mnFind" class="pbtn" style="background:#00695c;">빈 자리 찾기</button>
       <button id="mnSave" class="pbtn ok-btn">저장</button>
+      <button id="mnDel"  class="pbtn grey">보강 취소</button>
       <button id="mnClose" class="pbtn grey">닫기</button>
     </div>
+    <div id="mnFree" class="freewrap"></div>
     <div id="mnMsg" class="out"></div>
   </div>
 
@@ -3266,19 +3269,17 @@ function openMn(key){
   $('mnTitle').textContent = monNo(mon) + '월 ' + wdn + '요일 ' + slot.t + ' · '
     + (t ? t.name : '') + ' — 보강 직접 넣기';
 
-  // 날짜 — 그 달 모든 날을 담는다 (요일도 함께). 기본은 원래 요일의 첫날
+  // 날짜 — 달력에서 고른다. 보고 있는 달 밖은 못 고르게 막는다
   const yy = Number(String(mon).slice(0,4)), mm = Number(String(mon).slice(5,7));
   const lastDay = new Date(yy, mm, 0).getDate();
+  $('mn_date').min = mon + '-01';
+  $('mn_date').max = mon + '-' + String(lastDay).padStart(2, '0');
   const allD = [];
   for (let i = 1; i <= lastDay; i++)
     allD.push(mon + '-' + String(i).padStart(2, '0'));
-  $('mn_date').innerHTML = allD.map(d =>
-      '<option value="' + d + '">' + dayNo(d) + '일(' + wdOf(d) + ')'
-      + (OFF.has(d) || OFF.has(d + '#' + thId) ? ' — 쉬는 날' : '')
-      + '</option>').join('');
   const firstD = allD.find(d => wdOf(d) === wdn);
-  if (firstD) $('mn_date').value = firstD;
-  if (p[3]) $('mn_date').value = p[3];
+  $('mn_date').value = p[3] || firstD || (mon + '-01');
+  $('mnFree').innerHTML = '';
 
   // 시간 — 교시를 고를 수 있게 한다
   $('mn_slot').innerHTML = SLOTS.map(sl =>
@@ -3300,6 +3301,7 @@ function openMn(key){
   $('mkBox').style.display='none';  $('offBox').style.display='none';
   $('w5Box').style.display='none';
   drawMnHow();
+  $('mnDel').style.display = 'none';   // 고치기로 열 때만 보인다
   $('mnBox').style.display = 'block';
   floatOn('mnBox', lastClick);
 }
@@ -3334,7 +3336,8 @@ async function openMnEdit(sid){
       .find(o => String(o.value) === String(x.schedule_id));
     if (o2) $('mn_scd').value = String(x.schedule_id);
   }
-  mnmsg('고치는 중입니다. 바꾼 뒤 「저장」를 누르세요.', true);
+  $('mnDel').style.display = '';
+  mnmsg('고치는 중입니다. 바꾼 뒤 「저장」을 누르세요.', true);
 }
 
 // 아동 이름 찾기 (치료중만)
@@ -3413,6 +3416,70 @@ async function pickMnKid(kid){
       }).join('');
   drawMnHow();
 }
+
+// 그 달에서 담당 치료사가 비는 자리 찾기 (보강 잡기와 같은 방식)
+$('mnFind').onclick = () => {
+  if (!mnKey) return;
+  const th = mnKey.th;
+  const base = $('mn_date').value || (mon + '-01');
+  const pmn = String(mon).split('-');
+  const y = Number(pmn[0]), m = Number(pmn[1]);
+
+  const cand = [];
+  const d = new Date(y, m - 1, 1);
+  while (d.getMonth() === m - 1) {
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+              + '-' + String(d.getDate()).padStart(2,'0');
+    const dw = WDS[d.getDay()];
+    if (dw !== '일' && !OFF.has(key) && !OFF.has(key + '#' + th)) {
+      SLOTS.forEach(sl => {
+        const isSat = (dw === '토');
+        if (!isSat && sl.no === LUNCH_NO) return;
+        const busy = ROWS.some(r => r.therapist_id === th && r.weekday === dw
+                       && nearest(toMin(r.start_time)).no === sl.no)
+                  || SESS.some(v => v.plan_date === key
+                       && v.therapist_id === th
+                       && v.status !== '결석' && v.status !== '휴무' && v.status !== '쉼'
+                       && nearest(toMin(v.start_time)).no === sl.no);
+        if (!busy) cand.push({ date:key, dw:dw, slot:sl,
+                     gap: Math.abs(new Date(key) - new Date(base)) });
+      });
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  cand.sort((a,b) => a.gap - b.gap);
+  const top = cand.slice(0, 12);
+
+  if (!top.length) {
+    $('mnFree').innerHTML = '<div class="freenone">이 달에 빈 자리가 없습니다.</div>';
+    return;
+  }
+  $('mnFree').innerHTML = top.map(c =>
+    '<span class="freeone" data-d="'+c.date+'" data-s="'+c.slot.no+'">'
+    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm(c.slot, th) + '</span>').join('');
+  $('mnFree').querySelectorAll('.freeone').forEach(el => {
+    el.onclick = () => {
+      $('mn_date').value = el.dataset.d;
+      $('mn_slot').value = el.dataset.s;
+      $('mnFree').innerHTML = '';
+      mnmsg('자리를 골랐습니다. 아래 「저장」을 누르세요.', true);
+    };
+  });
+};
+
+// 보강 취소 — 이 줄을 지운다 (고치기로 열었을 때만 보인다)
+$('mnDel').onclick = async () => {
+  if (!mnEditId) { mnmsg('취소할 보강이 없습니다.', false); return; }
+  if (!confirm('이 보강을 취소할까요?\n\n지운 뒤에는 되돌릴 수 없습니다.')) return;
+  const { error } = await sb.from('nl_sessions').delete().eq('id', mnEditId);
+  if (error) { mnmsg('❌ 취소하지 못했습니다.\n' + error.message, false); return; }
+  SESS = SESS.filter(v => v.id !== mnEditId);
+  PREV = PREV.filter(v => v.id !== mnEditId);
+  mnEditId = null;
+  mnmsg('✅ 보강을 취소했습니다.', true);
+  $('mnBox').style.display = 'none';
+  draw();
+};
 
 $('mnSave').onclick = async () => {
   if (!mnKey) return;
@@ -3692,25 +3759,29 @@ function openMk(absId){
   // 왜 비었는지 — 상태에 따라 색을 달리해 알려준다
   const why = $('mkWhy');
   const rs  = String(s.memo || '').trim();
+  const _thn = thName(has ? has.therapist_id : s.therapist_id);
   if (s.status === '쉼') {
     why.style.background = '#eceff1';
     why.style.border     = '1px solid #b0bec5';
     why.style.color      = '#37474f';
-    why.innerHTML = '<b>쉼</b> · ' + dayNo(s.plan_date) + '일'
+    why.innerHTML = '<b>쉼</b> · ' + dayNo(s.plan_date) + '일 · '
+      + esc(_thn) + ' 치료사'
       + (rs ? ' — ' + esc(rs) : ' — 사유가 적혀 있지 않습니다');
     why.style.display = 'block';
   } else if (s.status === '휴무') {
     why.style.background = '#fff3e0';
     why.style.border     = '1px solid #ffb74d';
     why.style.color      = '#8a5200';
-    why.innerHTML = '<b>휴무</b> · ' + dayNo(s.plan_date) + '일'
+    why.innerHTML = '<b>휴무</b> · ' + dayNo(s.plan_date) + '일 · '
+      + esc(_thn) + ' 치료사'
       + (rs ? ' — ' + esc(rs) : '');
     why.style.display = 'block';
   } else if (s.status === '결석') {
     why.style.background = '#fdeeee';
     why.style.border     = '1px solid #e79b9b';
     why.style.color      = '#8c2b2b';
-    why.innerHTML = '<b>결석</b> · ' + dayNo(s.plan_date) + '일'
+    why.innerHTML = '<b>결석</b> · ' + dayNo(s.plan_date) + '일 · '
+      + esc(_thn) + ' 치료사'
       + (rs ? ' — ' + esc(rs) : '');
     why.style.display = 'block';
   } else {
