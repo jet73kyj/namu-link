@@ -952,7 +952,18 @@ function thName(tid){
 }
 
 // ===== 그 달 회기가 모자란 아동 =====
-function drawShort(byScd, mkOf){
+function drawShort(_byScd, _mkOf){
+  // 화면마다 넘겨주는 자료가 달라 결과가 어긋나던 문제가 있었다.
+  // 이제 상자가 스스로 그 달 회기를 모은다. 어느 화면에서 보든 같다.
+  const byScd = {}, mkOf = {};
+  SESS.forEach(x => {
+    if (isMk(x)) { mkOf[x.makeup_for] = x; return; }
+    if (!x.schedule_id) return;
+    (byScd[x.schedule_id] = byScd[x.schedule_id] || []).push(x);
+  });
+  Object.values(byScd).forEach(a =>
+    a.sort((x, y) => String(x.plan_date).localeCompare(String(y.plan_date))));
+
   const bad = [];
   ROWS.forEach(r => {
     const runs = byScd[r.id] || [];
