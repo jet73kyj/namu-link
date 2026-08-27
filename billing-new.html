@@ -275,6 +275,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
@@ -282,7 +283,7 @@ const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 // 로그인을 창(탭) 안에서만 유지한다. 창을 닫으면 자동으로 끊긴다.
 const sb = window.supabase.createClient(URL_, KEY_, {
   auth: {
-    storage: window.sessionStorage,
+    storage: nlStore,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false
@@ -294,6 +295,7 @@ const REVIEW_UNIT = 5000;   // 리뷰 1건당 차감액
 const REVIEW_MAX  = 4;      // 월 최대 건수
 
 let CHILDREN = [], TYPES = {}, TTYPES = {}, THERAPISTS = [];
+let ALLKIDS  = [];          // 종결까지 다 담은 아동 목록
 let FEES = {}, RULES = {}, GRADES = {};
 let NOMAKEUP = {};          // 아동번호 -> 보강 못 잡은 결석 목록
 let SHORTCNT = {};          // 아동|유형 -> { 실제 회기, 빠진 날 }
@@ -683,10 +685,11 @@ function pickLatest(rows, mk, keyName) {
 
 async function afterLogin(user) {
   const { data: me, error: e1 } = await sb
-    .from('nl_therapists').select('name, role')
+    .from('nl_therapists').select('id, name, role')
     .eq('login_email', user.email.toLowerCase()).maybeSingle();
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+  nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
 
   const [c, st, tt, th, ef] = await Promise.all([
     sb.from('nl_children').select('id, name, birth, manager_no, status').order('name'),
@@ -698,8 +701,11 @@ async function afterLogin(user) {
   if (c.error)  { show($('msg'), '❌ 아동 조회 실패\n' + c.error.message, false); return; }
   if (st.error) { show($('msg'), '❌ 지원유형 조회 실패\n' + st.error.message, false); return; }
 
-  // 치료중 + 대기중 (대기중 아동도 평가비를 받는 일이 있음)
-  CHILDREN = (c.data || []).filter(x => x.status === '치료중' || x.status === '대기중');
+  // 종결한 아동도 함께 담아 둔다.
+  //   종결 아동은 지난 달 납부 내역을 봐야 하므로 여기서 버리지 않고,
+  //   달마다 「그 달에 수업이나 납부가 있는지」로 가린다 (아래 load)
+  ALLKIDS  = c.data || [];
+  CHILDREN = ALLKIDS.filter(x => x.status === '치료중' || x.status === '대기중');
   (st.data || []).forEach(x => TYPES[x.id] = x.name);
   (tt.data || []).forEach(x => TTYPES[x.id] = x.name);
   THERAPISTS = (th.data || []).filter(x => x.active !== false);
@@ -724,7 +730,9 @@ async function load() {
   $('load').disabled = true;
   $('load').textContent = '불러오는 중...';
   try {
-    const ids = CHILDREN.map(c => c.id);
+    // 자료는 종결한 아동까지 다 가져온다.
+    // (지난 달 수업·납부를 봐야 하므로. 화면에 그릴 아동은 아래에서 가린다)
+    const ids = ALLKIDS.map(c => c.id);
 
     const pmk = prevMonth(mk);
 
@@ -920,6 +928,18 @@ async function load() {
     });
 
     LOADED_MK = mk;
+
+    // 그 달에 볼 아동을 정한다.
+    //   치료중·대기중은 늘 보이고,
+    //   종결한 아동은 그 달에 수업이나 저장된 납부가 있을 때만 보인다
+    //   (지난 달 납부 내역을 확인하실 수 있게)
+    CHILDREN = ALLKIDS.filter(x => {
+      if (x.status === '치료중' || x.status === '대기중') return true;
+      if (SCHED[x.id] && SCHED[x.id].length) return true;
+      if (SAVED[x.id] && Object.keys(SAVED[x.id]).length) return true;
+      return false;
+    });
+
     drawAll();
     show($('msg2'), mk + ' 계산했습니다. 회기와 리뷰를 확인하고 아동별로 저장하세요.', true);
   } catch (e) {
@@ -1964,6 +1984,7 @@ $('btn').onclick = async () => {
   }
 };
 $('out').onclick = async () => {
+  nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
   location.replace('index.html');

@@ -733,6 +733,8 @@
     <div class="ednote">
       요일이나 시간을 바꾸고 「저장」를 누르면
       <b>보고 있는 달부터</b> 바뀝니다. 지난 달 시간표는 그대로 남습니다.
+      <br>※ <b>「이 달은 쉼」</b>과 <b>「이 수업 종결」</b>은 누르면 바로 적용됩니다.
+      따로 「저장」을 누르지 않으셔도 됩니다.
     </div>
     <div id="edMsg" class="out"></div>
   </div>
@@ -794,13 +796,14 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
 const sb = window.supabase.createClient(URL_, KEY_, {
   auth: {
-    storage: window.sessionStorage,
+    storage: nlStore,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false
@@ -2502,6 +2505,8 @@ async function undoRest(){
     await loadMonth(); draw();
     edmsg('✅ ' + monNo(mon) + '월 수업을 다시 살렸습니다.', true);
     $('edBox').style.display = 'none';
+    alert('✅ ' + monNo(mon) + '월 수업을 다시 살렸습니다.\n\n'
+      + '바로 적용되었습니다. 따로 「저장」을 누르지 않으셔도 됩니다.');
   } catch (e) {
     edmsg('❌ 되돌리지 못했습니다.\n' + (e.message || e), false);
   } finally {
@@ -2553,6 +2558,9 @@ $('edRest').onclick = async () => {
     edmsg('✅ ' + monNo(mon) + '월 한 달 쉼으로 처리했습니다.\n'
       + monNo(nextM) + '월부터 다시 나옵니다.', true);
     $('edBox').style.display = 'none';
+    alert('✅ ' + monNo(mon) + '월 한 달 쉼으로 처리했습니다.\n\n'
+      + '바로 적용되었습니다. 따로 「저장」을 누르지 않으셔도 됩니다.\n'
+      + monNo(nextM) + '월부터 다시 나옵니다.');
   } catch (e) {
     edmsg('❌ 쉼 처리를 하지 못했습니다.\n' + (e.message || e), false);
   } finally {
@@ -2840,7 +2848,7 @@ $('edEnd').onclick = async () => {
   const d = prompt('❗ 아래 수업을 그만둡니다.\n\n'
     + '  ' + _what + '\n\n'
     + '⚠️ 시작하는 날이 아니라 「마지막 수업 날짜」를 적으세요.\n'
-    + '이 날짜 뒤의 회기는 지워지고 요일줄도 없어집니다.\n\n'
+    + '이 날짜 뒤의 회기는 지워지고, 다음 달부터 시간표에 안 나옵니다.\n\n'
     + '날짜를 2026-09-30 모양으로 적으세요.',
                    mon + '-30');
   if (!d) return;
@@ -2858,9 +2866,31 @@ $('edEnd').onclick = async () => {
       + '정말 ' + d + ' 로 그만둘까요?')) return;
   }
 
+  // 이 아동에게 남는 수업이 무엇인지 세어 보여준다 (끝나지 않은 치료 전부)
+  const _kid = edRow._cid || edRow.child_id;
+  let _rest = [];
+  try {
+    const { data: others } = await sb.from('nl_therapies')
+      .select('id, support_type_id, therapy_type_id,'
+            + ' nl_therapy_schedules(weekday, start_time, to_month)')
+      .eq('child_id', _kid)
+      .is('ended_on', null);
+    _rest = (others || []).filter(o => Number(o.id) !== Number(edRow.therapy_id));
+  } catch (e) {}
+
+  const _restTxt = _rest.length
+    ? '\n이 아동은 다른 수업 ' + _rest.length + '개가 남아 있습니다.\n'
+      + _rest.map(o => '  · ' + (STYPE[o.support_type_id] || '')
+          + ' ' + ((o.nl_therapy_schedules || [])
+              .map(s => (s.weekday || '') + '요일 '
+                + String(s.start_time || '').slice(0,5)).join(', ') || '')).join('\n')
+      + '\n남은 수업은 그대로 진행됩니다.\n'
+    : '\n이 아동의 마지막 수업입니다.\n';
+
   if (!confirm('아래 수업을 정말 그만둘까요?\n\n'
     + '  ' + _what + '\n'
-    + '  마지막 수업 날짜 · ' + d + '\n\n'
+    + '  마지막 수업 날짜 · ' + d + '\n'
+    + _restTxt + '\n'
     + '이 아동의 이 수업이 맞는지 한 번 더 봐 주세요.\n'
     + '지난 기록은 그대로 남습니다.')) return;
 
@@ -2869,8 +2899,10 @@ $('edEnd').onclick = async () => {
     const { error: e1 } = await sb.from('nl_therapies')
       .update({ ended_on: d, end_reason: '수업 종료' }).eq('id', edRow.therapy_id);
     if (e1) throw e1;
+    // ⚠️ 요일줄을 지우지 않는다. 지우면 그 달 납부 계산 화면에서
+    //    수업이 사라져 납부 내역이 안 보인다. 끝난달만 넣어 다음 달부터 안 나오게 한다
     const { error: e2 } = await sb.from('nl_therapy_schedules')
-      .delete().eq('id', edRow.id);
+      .update({ to_month: String(d).slice(0, 7) }).eq('id', edRow.id);
     if (e2) throw e2;
     await sb.from('nl_sessions').delete()
       .eq('schedule_id', edRow.id).gt('plan_date', d);
@@ -2880,6 +2912,23 @@ $('edEnd').onclick = async () => {
     edRow = null;
     await loadMonth();
     draw();
+    // 처리가 끝났음을 확실히 알린다 (저장을 또 누르실까 봐)
+    alert('✅ 이 수업을 ' + d + ' 로 끝냈습니다.\n\n'
+      + '바로 적용되었습니다. 따로 「저장」을 누르지 않으셔도 됩니다.\n'
+      + '지난 회기와 납부 기록은 그대로 남습니다.');
+
+    // 마지막 수업이었으면 아동도 종결로 바꿀지 묻는다 (누락 막기)
+    if (!_rest.length && _kid) {
+      if (confirm('이 아동의 마지막 수업이었습니다.\n\n'
+        + '아동 상태를 「종결」로 바꿀까요?\n\n'
+        + '확인 = 종결로 바꿈\n'
+        + '취소 = 그대로 둠 (곧 다른 수업을 시작하실 때)')) {
+        const { error: e3 } = await sb.from('nl_children')
+          .update({ status: '종결' }).eq('id', _kid);
+        alert(e3 ? '❌ 아동 상태를 바꾸지 못했습니다.\n' + e3.message
+                 : '✅ 아동을 「종결」로 바꿨습니다.');
+      }
+    }
   } catch (e) {
     edmsg('❌ 끝내지 못했습니다.\n' + e.message, false);
   } finally {
@@ -3633,6 +3682,7 @@ async function afterLogin(user){
     .select('id, name, role').eq('login_email', user.email.toLowerCase()).maybeSingle();
   if (e1)  { show('❌ 직원 조회 실패\n'+e1.message, false); return; }
   if (!me) { show('⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
+  nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
   if (CAN_SEE.indexOf(me.id) < 0) { show('이 화면을 볼 권한이 없습니다.', false); return; }
 
   // 권한을 먼저 정한다 (아래에서 걸러낼 때 쓰이므로 순서가 중요)
@@ -3648,8 +3698,11 @@ async function afterLogin(user){
   if (e3) { show('❌ 시간표 조회 실패\n'+e3.message, false); return; }
   const { data: tp } = await sb.from('nl_therapies')
     .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode');
+  // 종결한 아동도 함께 가져온다.
+  //   종결하면 지난 달 시간표까지 사라지던 문제가 있었다.
+  //   그 달에 수업요일이 살아 있는지(끝난달)로 갈리므로 상태로 거르지 않는다
   const { data: kids } = await sb.from('nl_children')
-    .select('id, name, birth, status').eq('status','치료중');
+    .select('id, name, birth, status');
 
   const tpMap={}; (tp||[]).forEach(x=>tpMap[x.id]=x);
   const kdMap={}; (kids||[]).forEach(x=>kdMap[x.id]=x);
@@ -3804,7 +3857,7 @@ $('btn').onclick = async () => {
   }catch(e){ show('❌ 로그인 실패\n'+e.message, false); }
   finally{ $('btn').disabled=false; $('btn').textContent='로그인'; }
 };
-$('out').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('out').onclick = async () => { nlKeepOff(); await sb.auth.signOut(); location.reload(); };
 $('pw').addEventListener('keydown', e=>{ if(e.key==='Enter') $('btn').click(); });
 
 (async()=>{  const { data } = await sb.auth.getSession();

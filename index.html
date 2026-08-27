@@ -125,6 +125,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
@@ -132,7 +133,7 @@ const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 // 창을 닫으면 자동으로 끊긴다. 공용 PC에 로그인이 남지 않게 하기 위함.
 const sb = window.supabase.createClient(URL_, KEY_, {
   auth: {
-    storage: window.sessionStorage,
+    storage: nlStore,
     persistSession: true,
     autoRefreshToken: true
   }
@@ -197,10 +198,11 @@ function esc(s) { return String(s == null ? '' : s)
 
 async function afterLogin(user) {
   const { data: me, error } = await sb
-    .from('nl_therapists').select('name, role')
+    .from('nl_therapists').select('id, name, role')
     .eq('login_email', user.email.toLowerCase()).maybeSingle();
   if (error) { show($('msg'), '❌ 직원 조회 실패\n' + error.message, false); return; }
   if (!me)   { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
+  nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
 
   const role = String(me.role || '').trim();
   $('who').textContent = me.name + ' (' + role + ') 님';
@@ -322,6 +324,7 @@ $('btn').onclick = async () => {
 $('out').onclick = async () => {
   $('out').disabled = true;
   $('out').textContent = '로그아웃 중...';
+  nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
   location.replace('index.html');
