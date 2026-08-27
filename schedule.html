@@ -915,6 +915,10 @@ let KIDS = [];          // 아동 목록 (치료중 · 대기중)
 let addKey = null;      // 지금 넣으려는 빈 칸
 let edRow  = null;      // 지금 고치는 수업
 let OFF    = new Set(); // 쉬는 날. 날짜 또는 날짜#치료사번호
+// 점선 ＋(보강 넣기)는 2026년 8월 화면에서만 쓴다.
+// 7월에는 시스템에 회기가 없어 메울 회기를 못 고르기 때문이다.
+// 9월부터는 주황색 ＋(보강 잡기)로만 넣는다.
+function canOpenAdd() { return mon <= '2026-08'; }
 // 그 날짜가 그 치료사에게 쉬는 날인지
 //   공휴일이면 모든 치료사, 치료사 휴무면 그 치료사만
 function isOffFor(dd, thId) {
@@ -957,7 +961,8 @@ function drawShort(byScd, mkOf){
     const miss = runs.filter(x =>
       (x.status === '결석' || x.status === '휴무') && !mkOf[x.id]);
     // 「발4+발추1」인데 그 달에 5주차가 없어 회기가 하나 모자란 경우
-    const short5 = (r._mode === '발4+발추1' && runs.length < (r._wks + 1)) ? 1 : 0;
+    // 「발4+발추1」은 요일 수와 상관없이 발달 4회 + 발추 1회 = 5회가 기준이다
+    const short5 = (r._mode === '발4+발추1' && runs.length < 5) ? 1 : 0;
     if (!miss.length && !short5) return;
     if (r._mode === '발4+센1' && !miss.length) return;
     const need = r._cnt || (runs.length + short5);
@@ -1308,8 +1313,8 @@ function drawWeek(){
                 return '<div class="ln ln-open'
                   + (isOffFor(dd, th) ? ' ln-holi' : '') + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
-                  + '<button class="lnadd" data-mn="'
-                  + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>'
+                  + (canOpenAdd() ? '<button class="lnadd" data-mn="'
+                     + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>' : '')
                   + '</div>';
               }).join('');
             }
@@ -1392,8 +1397,8 @@ function drawWeek(){
                 return '<div class="ln ln-open'
                   + (isOffFor(dd, th) ? ' ln-holi' : '') + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
-                  + '<button class="lnadd" data-mn="'
-                  + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>'
+                  + (canOpenAdd() ? '<button class="lnadd" data-mn="'
+                     + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>' : '')
                   + '</div>';
               }).join('');
           }
@@ -1900,8 +1905,8 @@ function drawDay(){
                   + (isOffFor(dd, t.id) ? ' ln-holi' : '') + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
                   + '<span class="n">빈 자리</span>'
-                  + '<button class="lnadd" data-mn="'
-                  + s.no + '_' + t.id + '_' + wd + '_' + dd + '">＋</button>'
+                  + (canOpenAdd() ? '<button class="lnadd" data-mn="'
+                     + s.no + '_' + t.id + '_' + wd + '_' + dd + '">＋</button>' : '')
                   + '</div>';
               }).join('');
             }
@@ -1993,7 +1998,7 @@ function drawDay(){
                 + (isOffFor(L2.d, t.id) ? ' ln-holi' : '') + '">'
                 + '<span class="d">' + day + '</span>'
                 + '<span class="n">빈 자리</span>'
-                + (CAN_EDIT ? '<button class="lnadd" data-mn="'
+                + (CAN_EDIT && canOpenAdd() ? '<button class="lnadd" data-mn="'
                     + s.no + '_' + t.id + '_' + wd + '_' + L2.d + '" title="보강 넣기">＋</button>' : '')
                 + '</div>';
               return;
