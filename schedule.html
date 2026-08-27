@@ -2905,6 +2905,14 @@ async function changeFromThisMonth(nw, slot, th, du){
     await sb.from('nl_sessions').delete()
       .eq('schedule_id', edRow.id).gte('month_key', mon).eq('status', '예정');
 
+    // ④-2 요일줄과 연결이 끊긴 예정 회기도 함께 지운다
+    //     옛날에 요일줄을 지우던 시절의 흔적이 남아 있으면
+    //     요일을 옮겨도 옛 자리가 그대로 보인다
+    await sb.from('nl_sessions').delete()
+      .eq('therapy_id', edRow.therapy_id)
+      .is('schedule_id', null)
+      .gte('month_key', mon).eq('status', '예정');
+
     // ⑤ 새 요일로 이번 달 회기를 깐다
     await sb.rpc('nl_make_sessions', { p_month: mon });
 
