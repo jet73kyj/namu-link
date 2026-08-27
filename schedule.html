@@ -3497,6 +3497,29 @@ $('mnSave').onclick = async () => {
 
   const fixing = !!mnEditId;
 
+  // 발추는 어느 달이든 한 번뿐이다. 이미 있으면 또 넣지 않는다
+  {
+    const spv = $('mn_sp').value
+      ? Number($('mn_sp').value)
+      : Number(($('mn_tp').value || '').split('_')[1] || 0);
+    if (spv === 8) {
+      const had = SESS.filter(v =>
+           Number(v.child_id) === Number(mnKid.id)
+        && v.support_type_id === 8
+        && String(v.month_key) === String(mon)
+        && v.status !== '쉼' && v.status !== '휴무'
+        && Number(v.id) !== Number(mnEditId || 0));
+      if (had.length) {
+        const w = had.map(v => dayNo(v.plan_date) + '일 '
+                    + String(v.start_time).slice(0,5)).join(', ');
+        mnmsg('❌ 이 아동은 ' + monNo(mon) + '월에 발추가 이미 있습니다.\n'
+          + '  ' + w + '\n'
+          + '발추는 한 달에 한 번입니다. 자리를 옮기시려면 그 줄을 고치세요.', false);
+        return;
+      }
+    }
+  }
+
   // 다른 아동이 그 자리에 있으면 아예 넣지 않는다 (겹쳐 예약 막기)
   {
     const busy = SESS.filter(v =>
