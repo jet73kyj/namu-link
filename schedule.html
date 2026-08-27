@@ -2313,7 +2313,7 @@ function showPick(k){
   $('ad_hits').innerHTML = '';
   $('ad_pick').style.display = 'block';
   $('ad_pick').innerHTML = '고른 아동 — ' + esc(k.name) + ' (' + k.id + '번 · '
-    + esc(k.status) + ')<span class="x" id="ad_x">✕ 지우기</span>';
+    + esc(k.status) + ')<span class="x" id="ad_x">✕ 다시 고르기</span>';
   $('ad_x').onclick = clearPick;
 }
 $('ad_name').addEventListener('input', () => {
@@ -2373,7 +2373,31 @@ $('adSave').onclick = async () => {
     if (!confirm('이 치료사는 그 치료 담당이 아닙니다.\n그래도 넣을까요?')) return;
   }
 
+  // 저장을 여러 번 눌러도 한 번만 들어가게 한다
+  if ($('adSave').disabled) return;
   $('adSave').disabled = true; $('adSave').textContent = '넣는 중...';
+
+  // 이미 같은 수업이 있으면 넣지 않는다
+  //   같은 아동 · 같은 요일 · 같은 시간 · 같은 담당 · 아직 안 끝난 수업
+  try {
+    const hm0 = slotHm(slot, thId) + ':00';
+    const { data: dup } = await sb.from('nl_therapy_schedules')
+      .select('id, weekday, start_time, therapist_id, to_month,'
+            + ' nl_therapies!inner(id, child_id, ended_on)')
+      .eq('weekday', wd)
+      .eq('start_time', hm0)
+      .eq('therapist_id', thId)
+      .eq('nl_therapies.child_id', cid)
+      .is('nl_therapies.ended_on', null);
+    const live = (dup || []).filter(x => !x.to_month || x.to_month >= mon);
+    if (live.length) {
+      $('adSave').disabled = false; $('adSave').textContent = '저장';
+      admsg('⚠️ 이 아동은 같은 요일·같은 시간에 이 치료사 수업이 이미 있습니다.\n'
+          + '두 번 넣지 않도록 그대로 두었습니다.', false);
+      return;
+    }
+  } catch (e) {}
+
   try {
     const { data: th, error: e1 } = await sb.from('nl_therapies').insert({
       child_id: cid, therapy_type_id: tt, support_type_id: st,
