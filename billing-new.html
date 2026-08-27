@@ -1732,6 +1732,10 @@ async function saveKid(childId, btn) {
   // 발달추가비용은 「적용 없음」으로 고른 것을 기억해야 다음 달에 안 되살아난다
   const x8mode = (() => {
     const md = box.querySelector('.gsum[data-st="8"] .xmode');
+    const xc = box.querySelector('.gsum[data-st="8"] .xcnt');
+    // 회기가 0이면 방식이 무엇이든 「적용 없음」으로 본다
+    // (그래야 0원 줄이 저장되어 옛 금액을 덮는다)
+    if (xc && numOf(xc.value) === 0) return 3;
     return md ? Number(md.value) : 0;
   })();
   const rows = parts.filter(p =>
@@ -1756,7 +1760,7 @@ async function saveKid(childId, btn) {
       const md = box.querySelector('.gsum[data-st="8"] .xmode');
       const xc = box.querySelector('.gsum[data-st="8"] .xcnt');
       if (el) memo2 += ' [발추치료사' + el.value + ']';
-      if (md) memo2 += ' [발추방식' + md.value + ']';
+      if (md) memo2 += ' [발추방식' + (x8mode || md.value) + ']';
       if (xc) memo2 += ' [회기' + numOf(xc.value) + ']';
     } else if (p.st === 9) {
       const es = box.querySelector('.evsel');
@@ -1856,6 +1860,16 @@ $('kids').addEventListener('input', e => {
         || t.classList.contains('co')) {
       const v = numOf(t.value);
       t.value = v === 0 ? '' : v.toLocaleString();
+    }
+    // 발추 회기를 0으로 고치면 방식도 「적용 없음」으로 맞춘다
+    // (방식만 남아 있으면 그 줄이 저장에서 빠져 옛 금액이 그대로 남는다)
+    if (t.classList.contains('xcnt')) {
+      const md = box.querySelector('.gsum[data-st="8"] .xmode');
+      if (md) {
+        const n = numOf(t.value);
+        if (n === 0) md.value = '3';
+        else if (Number(md.value) === 3) md.value = '1';
+      }
     }
     calcKid(Number(box.dataset.child));
     sumAll();
