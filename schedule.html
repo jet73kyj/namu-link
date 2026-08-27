@@ -944,6 +944,13 @@ let OFF    = new Set(); // 쉬는 날. 날짜 또는 날짜#치료사번호
 // 7월에는 시스템에 회기가 없어 메울 회기를 못 고르기 때문이다.
 // 9월부터는 주황색 ＋(보강 잡기)로만 넣는다.
 function canOpenAdd() { return mon <= '2026-08'; }
+// 「회기로 안 셈(그냥 보강)」은 2026년 8월 화면까지만 고를 수 있다.
+// 7월에는 시스템에 회기가 없어 메울 줄을 못 골랐기 때문이다.
+// 9월부터는 메울 줄이 늘 있으므로 회기로 세는 것이 맞다.
+function noCountOpt() {
+  return canOpenAdd()
+    ? '<option value="">회기로 안 셈 (그냥 보강)</option>' : '';
+}
 // 그 날짜가 그 치료사에게 쉬는 날인지
 //   공휴일이면 모든 치료사, 치료사 휴무면 그 치료사만
 function isOffFor(dd, thId) {
@@ -3277,7 +3284,7 @@ function openMn(key){
   $('mn_tp').innerHTML = '<option value="">아동을 먼저 고르세요</option>';
   $('mn_sp').value = '';
   $('mn_run').value = '';
-  $('mn_scd').innerHTML = '<option value="">회기로 안 셈 (그냥 보강)</option>';
+  $('mn_scd').innerHTML = noCountOpt();
   $('mn_memo').value = '';
   mnmsg('', true); $('mnMsg').className = 'out';
 
@@ -3355,7 +3362,7 @@ async function pickMnKid(kid){
   if (!list.length) {
     // 치료 기록이 없는 아동(평가만 받는 대기중 아동)도 넣을 수 있게 한다
     $('mn_tp').innerHTML = '<option value="0_9">평가 (치료 기록 없음)</option>';
-    $('mn_scd').innerHTML = '<option value="">회기로 안 셈 (그냥 보강)</option>';
+    $('mn_scd').innerHTML = noCountOpt();
     $('mn_sp').value = '9';
     return;
   }
@@ -3367,7 +3374,7 @@ async function pickMnKid(kid){
   // 그 아동의 수업요일 줄 — 회기로 셀 때 고른다
   const tids = list.map(t => t.id);
   const scds = ROWS_ALL.filter(r => tids.indexOf(r.therapy_id) >= 0);
-  $('mn_scd').innerHTML = '<option value="">회기로 안 셈 (그냥 보강)</option>'
+  $('mn_scd').innerHTML = noCountOpt()
     + scds.map(r => {
         const t2 = list.find(v => v.id === r.therapy_id);
         return '<option value="' + r.id + '">'
