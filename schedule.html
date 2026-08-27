@@ -3199,7 +3199,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ===== 회기가 모자란 수업에 한 자리 더 잡기 =====
-function openPlan(scId){
+async function openPlan(scId){
   const r = ROWS_ALL.find(x => x.id === scId);
   if (!r) return;
   const slot = nearest(toMin(r.start_time));
@@ -3207,7 +3207,28 @@ function openPlan(scId){
   $('mnTitle').textContent = monNo(mon) + '월 ' + r.weekday + '요일 '
     + slotHm(slot, r.therapist_id)
     + ' — 회기가 모자라 한 자리 더 잡기';
-  if (r._cid) pickMnKid(r._cid);
+  if (!r._cid) return;
+  await pickMnKid(r._cid);
+
+  // 어느 수업이 모자란지 이미 알고 열리므로 화면이 알아서 채운다.
+  // (안 채우면 「회기로 안 셈」으로 저장되어 모자람이 안 없어진다)
+  const opt = Array.from($('mn_tp').options)
+    .find(o => String(o.value).split('_')[0] === String(r.therapy_id));
+  if (opt) $('mn_tp').value = opt.value;
+  const o2 = Array.from($('mn_scd').options)
+    .find(o => String(o.value) === String(scId));
+  if (o2) $('mn_scd').value = String(scId);
+
+  // 발달재활에서 모자란 한 자리는 발추(8번) 5회차다
+  if (Number(r.support_type_id) === 2) {
+    $('mn_sp').value  = '8';
+    $('mn_run').value = '5';
+    mnmsg('이 자리는 발추(5회차)로 채워 두었습니다. '
+        + '그대로 저장하면 그 수업의 회기로 셉니다.', true);
+  } else {
+    mnmsg('이 자리는 「' + r.weekday + ' '
+        + String(r.start_time).slice(0,5) + '」 수업의 회기로 셉니다.', true);
+  }
 }
 
 // ===== 보강 직접 넣기 =====
