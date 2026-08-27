@@ -3372,6 +3372,24 @@ $('mnSave').onclick = async () => {
 
   const fixing = !!mnEditId;
 
+  // 다른 아동이 그 자리에 있으면 아예 넣지 않는다 (겹쳐 예약 막기)
+  {
+    const busy = SESS.filter(v =>
+         String(v.plan_date) === String(d)
+      && Number(v.therapist_id) === Number(mnKey.th)
+      && Number(v.id) !== Number(mnEditId || 0)
+      && v.status !== '결석' && v.status !== '휴무' && v.status !== '쉼'
+      && nearest(toMin(v.start_time)).no === slot2.no
+      && Number(v.child_id) !== Number(mnKid.id));
+    if (busy.length) {
+      const who = busy.map(v => (v._name || ('아동 ' + v.child_id))).join(', ');
+      mnmsg('❌ 그 시간에는 이미 다른 아동 수업이 있습니다.\n'
+        + '  ' + dayNo(d) + '일 ' + slotHm(slot2, mnKey.th) + ' · ' + who + '\n'
+        + '다른 날이나 다른 시간을 고르세요.', false);
+      return;
+    }
+  }
+
   if (!confirm(mnKid.name + ' 아동 보강을\n'
       + dayNo(d) + '일(' + wd2 + ') ' + slotHm(slot2, mnKey.th)
       + (fixing ? ' 로 고칠까요?' : ' 로 넣을까요?') + '\n\n'
@@ -3727,8 +3745,21 @@ $('mkSave').onclick = async () => {
                   && s.therapist_id === th
                   && nearest(toMin(s.start_time)).no === slot.no
                   && s.makeup_for !== mkSess.id);
-  if (taken.length || takenMk.length) {
-    if (!confirm('그 시간에 이미 ' + (taken.length + takenMk.length)
+  // 다른 아동이 그 자리에 있으면 아예 넣지 않는다 (겹쳐 예약 막기)
+  const busy = taken.concat(takenMk)
+    .filter(s => Number(s.child_id) !== Number(mkSess.child_id));
+  if (busy.length) {
+    const who = busy.map(s => (s._name || ('아동 ' + s.child_id))).join(', ');
+    mkmsg('❌ 그 시간에는 이미 다른 아동 수업이 있습니다.\n'
+      + '  ' + dayNo(d) + '일 ' + slotHm(slot, th) + ' · ' + who + '\n'
+      + '다른 날이나 다른 시간을 고르세요.', false);
+    return;
+  }
+  // 같은 아동 것이 겹치면 한 번 물어본다
+  const mine = taken.concat(takenMk)
+    .filter(s => Number(s.child_id) === Number(mkSess.child_id));
+  if (mine.length) {
+    if (!confirm('이 아동은 그 시간에 이미 ' + mine.length
         + '건이 있습니다.\n그래도 보강을 넣을까요?')) return;
   }
 
