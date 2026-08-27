@@ -125,6 +125,8 @@
   .ln-mk   { background:#e8f5e9; color:#1b5e20; }
   .ln-plan { border:1px solid #cfd4d0; color:#333; }
   .ln-open { border:1px dashed #90a4ae; color:#607d8b; cursor:default; }
+  /* 공휴일·치료사 휴무인 날의 빈 자리 — 회색으로 알려 준다 */
+  .ln-open.ln-holi { background:#dcdfdd; color:#5c625e; border:1px solid #c4cac6; }
   .ln-nosess { border:1px dotted #d6d9d7; color:#9aa09c; }
   .ln-nosess .nosl { font-size:10.5px; }
   .ln-cut  { text-decoration:line-through; }
@@ -913,6 +915,12 @@ let KIDS = [];          // 아동 목록 (치료중 · 대기중)
 let addKey = null;      // 지금 넣으려는 빈 칸
 let edRow  = null;      // 지금 고치는 수업
 let OFF    = new Set(); // 쉬는 날. 날짜 또는 날짜#치료사번호
+// 그 날짜가 그 치료사에게 쉬는 날인지
+//   공휴일이면 모든 치료사, 치료사 휴무면 그 치료사만
+function isOffFor(dd, thId) {
+  const d = String(dd);
+  return OFF.has(d) || (thId != null && OFF.has(d + '#' + thId));
+}
 let OFFTXT = {};        // 날짜 -> 사유
 let OFFTH  = {};        // 날짜#치료사 -> 사유
 let PREV   = [];        // 지난 달 회기 (이월 보강에 쓴다)
@@ -1297,7 +1305,8 @@ function drawWeek(){
               eh2 += '<button class="addbtn" data-add2="'
                    + s.no + '_' + th + '">＋ 수업 넣기</button>';
               eh2 += wdDates(mon, d).map(function(dd){
-                return '<div class="ln ln-open">'
+                return '<div class="ln ln-open'
+                  + (isOffFor(dd, th) ? ' ln-holi' : '') + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
                   + '<button class="lnadd" data-mn="'
                   + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>'
@@ -1380,7 +1389,8 @@ function drawWeek(){
 
             html += wdDates(mon, d).filter(function(dd){ return !usedD[dd]; })
               .map(function(dd){
-                return '<div class="ln ln-open">'
+                return '<div class="ln ln-open'
+                  + (isOffFor(dd, th) ? ' ln-holi' : '') + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
                   + '<button class="lnadd" data-mn="'
                   + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>'
@@ -1886,7 +1896,8 @@ function drawDay(){
             if (lunch) eh += '<span class="lunchtxt">점심 / 보강</span>';
             if (CAN_EDIT) {
               eh += wdDates(mon, wd).map(function(dd){
-                return '<div class="ln ln-open">'
+                return '<div class="ln ln-open'
+                  + (isOffFor(dd, t.id) ? ' ln-holi' : '') + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
                   + '<span class="n">빈 자리</span>'
                   + '<button class="lnadd" data-mn="'
@@ -1978,7 +1989,8 @@ function drawDay(){
             if (L2.kind === 'run' && isBlankRest(x)) return;
 
             if (L2.kind === 'open') {
-              html += '<div class="ln ln-open">'
+              html += '<div class="ln ln-open'
+                + (isOffFor(L2.d, t.id) ? ' ln-holi' : '') + '">'
                 + '<span class="d">' + day + '</span>'
                 + '<span class="n">빈 자리</span>'
                 + (CAN_EDIT ? '<button class="lnadd" data-mn="'
