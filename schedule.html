@@ -1874,12 +1874,12 @@ function drawCal(){
 
 // 달 넘기기 — 목록에 있는 달만 (회기를 깔아둔 달)
 async function calMove(n){
-  keepSet('nl_sched_mon', $('mon').value);
   const sel = $('mon');
   const idx = Array.from(sel.options).findIndex(o => o.value === mon);
   const nx = idx + n;
   if (nx < 0 || nx >= sel.options.length) return;
   sel.value = sel.options[nx].value;
+  keepSet('nl_sched_mon', sel.value);
   mon = sel.value;
   oneDate = '';
   await loadMonth();
@@ -3002,7 +3002,7 @@ $('xlsBtn').onclick = () => {
   try {
     const wb = XLSX.utils.book_new();
     ['월','화','수','목','금','토'].forEach(w => {
-      wd = w; keepSet('nl_sched_wd', w);
+      wd = w;
       drawDay();
       const rows = gridToRows();
       const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -4079,6 +4079,7 @@ async function afterLogin(user){
 }
 
 $('mon').onchange = async () => { mon=$('mon').value; oneDate=''; calOpen=true;
+  keepSet('nl_sched_mon', mon);
   $('mkBox').style.display='none'; $('addBox').style.display='none';
   $('edBox').style.display='none'; $('offBox').style.display='none';
   await loadMonth(); draw(); };
@@ -4111,6 +4112,7 @@ $('oneBack').onclick = () => { calOpen = true; showCal(); drawCal(); };
 document.querySelectorAll('.tab[data-wd]').forEach(b=>{
   b.onclick=()=>{ document.querySelectorAll('.tab[data-wd]').forEach(x=>x.classList.remove('on'));
     b.classList.add('on'); wd=b.dataset.wd;
+    keepSet('nl_sched_wd', wd);
     $('addBox').style.display='none'; $('edBox').style.display='none';
     draw(); };
 });
