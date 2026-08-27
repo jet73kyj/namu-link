@@ -22,7 +22,8 @@
   .shorttop:hover { background:#ffcdd2; }
   .shorttop .go { float:right; font-weight:normal; font-size:12.5px; }
   /* 요약 줄에 붙는 아동 찾기 칸 */
-  .topf { margin-left:12px; width:150px; padding:2px 8px; font-size:12px;
+  .topt { display:inline-block; min-width:330px; }
+  .topf { margin-left:0; width:150px; padding:2px 8px; font-size:12px;
           font-weight:normal; border:1px solid #c4cac6; border-radius:5px;
           vertical-align:middle; }
   .topf:focus { outline:2px solid #9ccc65; outline-offset:-1px; }
@@ -1014,9 +1015,10 @@ function drawShort(_byScd, _mkOf){
     $('shortTop').style.display = 'none';
   } else {
     $('shortTop').style.display = 'block';
-    $('shortTop').innerHTML = '⚠️ ' + monNo(mon) + '월 결석·휴무 보강 '
+    $('shortTop').innerHTML = '<span class="topt">⚠️ ' + monNo(mon)
+      + '월 결석·휴무 보강 '
       + nMiss + '건 (아동 ' + nMissKid + '명)'
-      + (nMissDev ? ' · 발달재활 ' + nMissDev + '건' : '')
+      + (nMissDev ? ' · 발달재활 ' + nMissDev + '건' : '') + '</span>'
       + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
       + '<span class="go">아래 목록 보기 ↓</span>';
     $('shortTop').onclick = (ev) => {
@@ -1060,8 +1062,9 @@ function drawShort(_byScd, _mkOf){
     $('gapTop').style.display = 'none';
   } else {
     $('gapTop').style.display = 'block';
-    $('gapTop').innerHTML = '📌 ' + monNo(mon) + '월 회기가 모자란 수업 '
-      + gapRows.length + '건 (아동 ' + nGapKid + '명)'
+    $('gapTop').innerHTML = '<span class="topt">📌 ' + monNo(mon)
+      + '월 회기가 모자란 수업 '
+      + gapRows.length + '건 (아동 ' + nGapKid + '명)</span>'
       + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
       + '<span class="go">아래 목록 보기 ↓</span>';
     $('gapTop').onclick = (ev) => {
@@ -1599,8 +1602,8 @@ function drawPrev(){
   const pm = prevMon(mon);
 
   $('prevHint').style.display = 'block';
-  $('prevHint').innerHTML = '⏪ ' + monNo(prevMon(mon)) + '월에서 넘어온 보강 '
-    + need.length + '건'
+  $('prevHint').innerHTML = '<span class="topt">⏪ ' + monNo(prevMon(mon))
+    + '월에서 넘어온 보강 ' + need.length + '건</span>'
     + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
     + '<span class="go">아래 목록 보기 ↓</span>';
   $('prevHint').onclick = (ev) => {
