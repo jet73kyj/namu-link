@@ -524,6 +524,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
@@ -531,7 +532,7 @@ const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 // 로그인을 창(탭) 안에서만 유지한다. 창을 닫으면 자동으로 끊긴다.
 const sb  = window.supabase.createClient(URL_, KEY_, {
   auth: {
-    storage: window.sessionStorage,
+    storage: nlStore,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false
@@ -1661,6 +1662,7 @@ async function afterLogin(user) {
 
   if (e1)  { show('❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show('⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
+  nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
   if (CAN_SEE.indexOf(me.id) < 0) {
     show('이 화면은 관리자와 행정만 볼 수 있습니다.', false); return;
   }
@@ -1730,6 +1732,7 @@ $('btn').onclick = async () => {
 };
 
 $('out').onclick = async () => {
+  nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
   location.replace('index.html');
