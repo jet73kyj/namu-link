@@ -21,6 +21,12 @@
               margin-bottom:12px; cursor:pointer; }
   .shorttop:hover { background:#ffcdd2; }
   .shorttop .go { float:right; font-weight:normal; font-size:12.5px; }
+  /* 요약 줄에 붙는 아동 찾기 칸 */
+  .topf { margin-left:12px; width:150px; padding:2px 8px; font-size:12px;
+          font-weight:normal; border:1px solid #c4cac6; border-radius:5px;
+          vertical-align:middle; }
+  .topf:focus { outline:2px solid #9ccc65; outline-offset:-1px; }
+  .prevhint .go { float:right; font-weight:normal; font-size:12.5px; }
   .shortbox { background:#ffebee; border:1px solid #ef9a9a; border-radius:10px;
               padding:14px 16px; margin-bottom:14px; }
   .short-t { font-size:15px; font-weight:bold; color:#b71c1c; margin-bottom:8px; }
@@ -1011,9 +1017,13 @@ function drawShort(_byScd, _mkOf){
     $('shortTop').innerHTML = '⚠️ ' + monNo(mon) + '월 결석·휴무 보강 '
       + nMiss + '건 (아동 ' + nMissKid + '명)'
       + (nMissDev ? ' · 발달재활 ' + nMissDev + '건' : '')
+      + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
       + '<span class="go">아래 목록 보기 ↓</span>';
-    $('shortTop').onclick = () =>
+    $('shortTop').onclick = (ev) => {
+      if (ev.target.classList.contains('topf')) return;   // 찾기 칸은 그냥 둔다
       $('short').scrollIntoView({ behavior:'smooth', block:'start' });
+    };
+    topFind('shortTop', 'short');
 
     let h1 = '<div class="short-t">⚠️ ' + monNo(mon)
       + '월 결석·휴무 보강 ' + nMiss + '건 (아동 ' + nMissKid + '명)'
@@ -1052,9 +1062,13 @@ function drawShort(_byScd, _mkOf){
     $('gapTop').style.display = 'block';
     $('gapTop').innerHTML = '📌 ' + monNo(mon) + '월 회기가 모자란 수업 '
       + gapRows.length + '건 (아동 ' + nGapKid + '명)'
+      + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
       + '<span class="go">아래 목록 보기 ↓</span>';
-    $('gapTop').onclick = () =>
+    $('gapTop').onclick = (ev) => {
+      if (ev.target.classList.contains('topf')) return;
       $('gapBox').scrollIntoView({ behavior:'smooth', block:'start' });
+    };
+    topFind('gapTop', 'gapBox');
 
     let h2 = '<div class="short-t">📌 ' + monNo(mon)
       + '월 회기가 모자란 수업 ' + gapRows.length + '건 (아동 ' + nGapKid + '명)'
@@ -1091,6 +1105,21 @@ function drawShort(_byScd, _mkOf){
     el.onclick = () => openPlan(Number(el.dataset.plan));
   });
   boxFind('short'); boxFind('gapBox');
+}
+
+// 요약 줄의 찾기 칸이 아래 목록을 거른다 (이름 앞부터 맞을 때만)
+function topFind(topId, boxId){
+  const top = $(topId), box = $(boxId);
+  if (!top || !box) return;
+  const inp = top.querySelector('.topf'); if (!inp) return;
+  inp.onclick = (ev) => ev.stopPropagation();
+  inp.oninput = () => {
+    const q = inp.value.trim();
+    box.querySelectorAll('.short-line, .prevone').forEach(el => {
+      const nm = String(el.dataset.kid || '');
+      el.style.display = (!q || nm.indexOf(q) === 0) ? '' : 'none';
+    });
+  };
 }
 
 // 상자 안에서 아동 이름으로 걸러보기 (이름 앞부터 맞을 때만)
@@ -1570,11 +1599,15 @@ function drawPrev(){
   const pm = prevMon(mon);
 
   $('prevHint').style.display = 'block';
-  $('prevHint').innerHTML = '⏪ ' + monNo(prevMon(mon)) + '월에서 넘어온 보강 <b>'
-    + need.length + '건</b> 이 있습니다 — <u>아래에서 잡기 ▾</u>';
-  $('prevHint').onclick = () => {
-    $('prevBox').scrollIntoView({ behavior:'smooth', block:'center' });
+  $('prevHint').innerHTML = '⏪ ' + monNo(prevMon(mon)) + '월에서 넘어온 보강 '
+    + need.length + '건'
+    + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
+    + '<span class="go">아래 목록 보기 ↓</span>';
+  $('prevHint').onclick = (ev) => {
+    if (ev.target.classList.contains('topf')) return;
+    $('prevBox').scrollIntoView({ behavior:'smooth', block:'start' });
   };
+  topFind('prevHint', 'prevBox');
 
   $('prevBox').style.display = 'block';
   $('prevBox').innerHTML = '<div class="prev-t">⏪ ' + monNo(pm)
