@@ -23,6 +23,13 @@
   .shorttop .go { float:right; font-weight:normal; font-size:12.5px; }
   /* 요약 줄에 붙는 아동 찾기 칸 */
   .topt { display:inline-block; min-width:330px; }
+  /* 찾기 결과 — 요약 줄 바로 아래에 뜬다 */
+  .topres { display:none; margin-top:8px; background:#fff; cursor:default;
+            border:1px solid #e0e0e0; border-radius:6px; padding:6px 8px;
+            max-height:260px; overflow:auto; font-weight:normal;
+            color:#333; font-size:12.5px; }
+  .topres .short-line, .topres .prevone { margin:0 0 5px; }
+  .topnone { color:#8a908c; font-size:12px; padding:4px 2px; }
   .topf { margin-left:0; width:150px; padding:2px 8px; font-size:12px;
           font-weight:normal; border:1px solid #c4cac6; border-radius:5px;
           vertical-align:middle; }
@@ -1026,7 +1033,8 @@ function drawShort(_byScd, _mkOf){
       + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
       + '<span class="go">아래 목록 보기 ↓</span>';
     $('shortTop').onclick = (ev) => {
-      if (ev.target.classList.contains('topf')) return;   // 찾기 칸은 그냥 둔다
+      // 찾기 칸이나 그 결과를 눌렀을 때는 화면을 안 옮긴다
+      if (ev.target.closest('.topf, .topres')) return;
       $('short').scrollIntoView({ behavior:'smooth', block:'start' });
     };
     topFind('shortTop', 'short');
@@ -1072,7 +1080,7 @@ function drawShort(_byScd, _mkOf){
       + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
       + '<span class="go">아래 목록 보기 ↓</span>';
     $('gapTop').onclick = (ev) => {
-      if (ev.target.classList.contains('topf')) return;
+      if (ev.target.closest('.topf, .topres')) return;
       $('gapBox').scrollIntoView({ behavior:'smooth', block:'start' });
     };
     topFind('gapTop', 'gapBox');
@@ -1120,11 +1128,43 @@ function topFind(topId, boxId){
   if (!top || !box) return;
   const inp = top.querySelector('.topf'); if (!inp) return;
   inp.onclick = (ev) => ev.stopPropagation();
+
+  // 결과를 담을 칸을 요약 줄 안에 만들어 둔다
+  let res = top.querySelector('.topres');
+  if (!res) {
+    res = document.createElement('div');
+    res.className = 'topres';
+    top.appendChild(res);
+  }
+  res.onclick = (ev) => ev.stopPropagation();
+
   inp.oninput = () => {
     const q = inp.value.trim();
-    box.querySelectorAll('.short-line, .prevone').forEach(el => {
-      const nm = String(el.dataset.kid || '');
-      el.style.display = (!q || nm.indexOf(q) === 0) ? '' : 'none';
+    const rows = Array.from(box.querySelectorAll('.short-line, .prevone'));
+    if (!q) {
+      rows.forEach(el => { el.style.display = ''; });
+      res.style.display = 'none';
+      res.innerHTML = '';
+      return;
+    }
+    const hit = rows.filter(el =>
+      String(el.dataset.kid || '').indexOf(q) === 0);
+    rows.forEach(el => {
+      el.style.display = (hit.indexOf(el) >= 0) ? '' : 'none';
+    });
+    res.innerHTML = hit.length
+      ? hit.map(el => el.outerHTML).join('')
+      : '<div class="topnone">그 이름으로 시작하는 아동이 없습니다.</div>';
+    res.style.display = 'block';
+    // 옮겨 담은 단추도 눌리게 이어 붙인다
+    res.querySelectorAll('.sbtn[data-mk]').forEach(el => {
+      el.onclick = (ev) => { ev.stopPropagation(); openMk(Number(el.dataset.mk)); };
+    });
+    res.querySelectorAll('.sbtn[data-plan]').forEach(el => {
+      el.onclick = (ev) => { ev.stopPropagation(); openPlan(Number(el.dataset.plan)); };
+    });
+    res.querySelectorAll('.prevbtn[data-pmk]').forEach(el => {
+      el.onclick = (ev) => { ev.stopPropagation(); openMk(Number(el.dataset.pmk)); };
     });
   };
 }
@@ -1611,7 +1651,7 @@ function drawPrev(){
     + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
     + '<span class="go">아래 목록 보기 ↓</span>';
   $('prevHint').onclick = (ev) => {
-    if (ev.target.classList.contains('topf')) return;
+    if (ev.target.closest('.topf, .topres')) return;
     $('prevBox').scrollIntoView({ behavior:'smooth', block:'start' });
   };
   topFind('prevHint', 'prevBox');
