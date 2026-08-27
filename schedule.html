@@ -125,6 +125,11 @@
   .ln-mk   { background:#e8f5e9; color:#1b5e20; }
   .ln-plan { border:1px solid #cfd4d0; color:#333; }
   .ln-open { border:1px dashed #90a4ae; color:#607d8b; cursor:default; }
+  /* 상자마다 붙는 아동 찾기 칸 */
+  .bxfw { margin:4px 0 8px; }
+  .bxf { width:190px; padding:3px 8px; font-size:12px;
+         border:1px solid #c4cac6; border-radius:5px; }
+  .bxf:focus { outline:2px solid #9ccc65; outline-offset:-1px; }
   /* 공휴일·치료사 휴무인 날의 빈 자리 — 회색으로 알려 준다 */
   .ln-open.ln-holi { background:#dcdfdd; color:#5c625e; border:1px solid #c4cac6; }
   .ln-nosess { border:1px dotted #d6d9d7; color:#9aa09c; }
@@ -488,6 +493,7 @@
   <div id="noSess" class="nosess" style="display:none;"></div>
   <div id="holi" class="holibox" style="display:none;"></div>
   <div id="shortTop" class="shorttop" style="display:none;"></div>
+  <div id="gapTop" class="shorttop" style="display:none;"></div>
   <div id="prevHint" class="prevhint" style="display:none;"></div>
 
   <!-- 빈 자리에 보강 넣기 창 -->
@@ -757,6 +763,7 @@
 
   <div id="prevBox" class="prevbox" style="display:none;"></div>
   <div id="short" class="shortbox" style="display:none;"></div>
+  <div id="gapBox" class="shortbox" style="display:none;"></div>
   <div id="allok" class="allok" style="display:none;"></div>
 
   <div class="legend">
@@ -964,101 +971,139 @@ function drawShort(_byScd, _mkOf){
   Object.values(byScd).forEach(a =>
     a.sort((x, y) => String(x.plan_date).localeCompare(String(y.plan_date))));
 
-  const bad = [];
+  // 두 가지를 따로 모은다
+  //   miss  — 결석·휴무인데 보강을 못 잡은 것
+  //   gap   — 「발4+발추1」인데 발추 자리가 없어 한 회 모자란 것
+  const missRows = [], gapRows = [];
   ROWS.forEach(r => {
     const runs = byScd[r.id] || [];
     if (!runs.length) return;
-    // 보강을 못 잡은 결석·휴무
     const miss = runs.filter(x =>
       (x.status === '결석' || x.status === '휴무') && !mkOf[x.id]);
-    // 「발4+발추1」인데 그 달에 5주차가 없어 회기가 하나 모자란 경우
     // 「발4+발추1」은 요일 수와 상관없이 발달 4회 + 발추 1회 = 5회가 기준이다
-    const short5 = (r._mode === '발4+발추1' && runs.length < 5) ? 1 : 0;
-    if (!miss.length && !short5) return;
-    if (r._mode === '발4+센1' && !miss.length) return;
-    const need = r._cnt || (runs.length + short5);
-    bad.push({ row:r, need:need,
-               have:need - miss.length - short5,
-               miss:miss, short5:short5 });
+    const short5 = (r._mode === '발4+발추1' && runs.length < 5);
+    if (miss.length) missRows.push({ row:r, miss:miss });
+    if (short5)      gapRows.push({ row:r, have:runs.length });
   });
 
-  if (!bad.length) {
-    $('short').style.display = 'none';
-    $('shortTop').style.display = 'none';
-    $('allok').style.display = SESS.length ? 'block' : 'none';
-    $('allok').textContent = '✅ ' + monNo(mon) + '월 — 보강을 못 잡은 결석·휴무가 없습니다.';
-    return;
-  }
-  $('allok').style.display = 'none';
-  $('short').style.display = 'block';
   // 발달재활(2번)을 맨 앞으로. 반드시 4회를 채워야 하므로
-  bad.sort((a,b) => {
+  const byDev = (a, b) => {
     const pa = (a.row.support_type_id === 2) ? 0 : 1;
     const pb = (b.row.support_type_id === 2) ? 0 : 1;
-    if (pa !== pb) return pa - pb;
-    return b.miss.length - a.miss.length;
-  });
+    return pa - pb;
+  };
+  missRows.sort(byDev); gapRows.sort(byDev);
 
-  const nBal = bad.filter(b => b.row.support_type_id === 2).length;
-  const nKid = new Set(bad.map(b => b.row._cid)).size;
+  const findBar = '<div class="bxfw">'
+    + '<input class="bxf" type="text" placeholder="🔍 아동 이름으로 걸러보기"></div>';
 
-  $('shortTop').style.display = 'block';
-  $('shortTop').innerHTML = '⚠️ ' + monNo(mon) + '월 보강이 필요한 수업 '
-    + bad.length + '건 (아동 ' + nKid + '명)'
-    + (nBal ? ' · 발달재활 ' + nBal + '건' : '')
-    + '<span class="go">아래 목록 보기 ↓</span>';
-  $('shortTop').onclick = () =>
-    $('short').scrollIntoView({ behavior:'smooth', block:'start' });
+  // ── ① 결석·휴무 보강 ──────────────────────────
+  const nMiss = missRows.reduce((n, b) => n + b.miss.length, 0);
+  const nMissKid = new Set(missRows.map(b => b.row._cid)).size;
+  const nMissDev = missRows.filter(b => b.row.support_type_id === 2)
+                           .reduce((n, b) => n + b.miss.length, 0);
 
-  $('short').innerHTML = '<div class="short-t">⚠️ ' + monNo(mon)
-    + '월 회기가 모자란 수업 ' + bad.length + '건 (아동 ' + nKid + '명)'
-    + (nBal ? ' <span class="mustdo">— 발달재활 ' + nBal + '건은 반드시 4회</span>' : '')
-    + '</div>'
-    + bad.map(b => {
-        const r = b.row;
-        const must = (r.support_type_id === 2);
-        const thn = esc(thName(r.therapist_id));
-        const left = b.miss.length + b.short5;
+  if (!nMiss) {
+    $('short').style.display = 'none';
+    $('shortTop').style.display = 'none';
+  } else {
+    $('shortTop').style.display = 'block';
+    $('shortTop').innerHTML = '⚠️ ' + monNo(mon) + '월 결석·휴무 보강 '
+      + nMiss + '건 (아동 ' + nMissKid + '명)'
+      + (nMissDev ? ' · 발달재활 ' + nMissDev + '건' : '')
+      + '<span class="go">아래 목록 보기 ↓</span>';
+    $('shortTop').onclick = () =>
+      $('short').scrollIntoView({ behavior:'smooth', block:'start' });
 
-        // 첫 줄: 결석·휴무를 하나씩 문장으로. 각자 보강 잡기 단추를 가진다
-        let head = b.miss.map(x =>
-            '<div class="sline1">'
+    let h1 = '<div class="short-t">⚠️ ' + monNo(mon)
+      + '월 결석·휴무 보강 ' + nMiss + '건 (아동 ' + nMissKid + '명)'
+      + (nMissDev ? ' <span class="mustdo">— 발달재활 ' + nMissDev
+                    + '건은 반드시 그 달에</span>' : '')
+      + '</div>' + findBar;
+    missRows.forEach(b => {
+      const r = b.row, thn = esc(thName(r.therapist_id));
+      const must = (r.support_type_id === 2);
+      b.miss.forEach(x => {
+        h1 += '<div class="short-line' + (must ? ' must' : '') + '"'
+          + ' data-kid="' + esc(r._name || '') + '"'
+          + ' data-cid="' + (r._cid || '') + '">'
+          + '<div class="sline1">'
           + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
           + monNo(mon) + '월 ' + dayNo(x.plan_date) + '일 '
           + (x.status === '휴무' ? '휴무' : '결석') + '입니다.</span>'
           + '<button class="sbtn" data-mk="' + x.id + '" title="보강 잡기">＋</button>'
-          + '</div>').join('');
-
-        // 결석은 없는데 회기만 모자란 경우 (5주차 없는 달 등)
-        if (!b.miss.length) {
-          head = '<div class="sline1">'
-               + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
-               + monNo(mon) + '월 회기가 모자랍니다.</span>'
-               + '<button class="sbtn" data-plan="' + r.id + '">일정 잡기</button>'
-               + '</div>';
-        }
-
-        // 둘째 줄: 어떤 수업인지와 남은 회기
-        const s5 = b.short5
-          ? ' <span class="s5">이 달은 5주차가 없어 1회 모자람</span>' : '';
-
-        return '<div class="short-line' + (must ? ' must' : '') + '"'
-          + ' data-kid="' + esc(r._name || '') + '"'
-          + ' data-cid="' + (r._cid || '') + '">'
-          + head
+          + '</div>'
           + '<div class="sline2">'
-            + (STYPE[r.support_type_id]||'') + ' · ' + (TTYPE[r._tt]||'')
-            + ' · ' + r.weekday + '요일 · ' + b.need + '회 중 ' + b.have + '회 · '
-            + '<b class="sgap">' + left + '회 더 잡아야 합니다</b>' + s5
+            + (STYPE[r.support_type_id] || '') + ' · ' + (TTYPE[r._tt] || '')
+            + ' · ' + r.weekday + '요일'
           + '</div></div>';
-      }).join('');
+      });
+    });
+    $('short').style.display = 'block';
+    $('short').innerHTML = h1;
+  }
+
+  // ── ② 회기가 모자란 수업 ──────────────────────
+  const nGapKid = new Set(gapRows.map(b => b.row._cid)).size;
+  if (!gapRows.length) {
+    $('gapBox').style.display = 'none';
+    $('gapTop').style.display = 'none';
+  } else {
+    $('gapTop').style.display = 'block';
+    $('gapTop').innerHTML = '📌 ' + monNo(mon) + '월 회기가 모자란 수업 '
+      + gapRows.length + '건 (아동 ' + nGapKid + '명)'
+      + '<span class="go">아래 목록 보기 ↓</span>';
+    $('gapTop').onclick = () =>
+      $('gapBox').scrollIntoView({ behavior:'smooth', block:'start' });
+
+    let h2 = '<div class="short-t">📌 ' + monNo(mon)
+      + '월 회기가 모자란 수업 ' + gapRows.length + '건 (아동 ' + nGapKid + '명)'
+      + ' <span class="mustdo">— 발추 자리를 넣어 주세요</span></div>' + findBar;
+    gapRows.forEach(b => {
+      const r = b.row, thn = esc(thName(r.therapist_id));
+      h2 += '<div class="short-line must"'
+        + ' data-kid="' + esc(r._name || '') + '"'
+        + ' data-cid="' + (r._cid || '') + '">'
+        + '<div class="sline1">'
+        + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
+        + monNo(mon) + '월 발추 자리가 없습니다.</span>'
+        + '<button class="sbtn" data-plan="' + r.id + '">일정 잡기</button>'
+        + '</div>'
+        + '<div class="sline2">'
+          + (STYPE[r.support_type_id] || '') + ' · ' + (TTYPE[r._tt] || '')
+          + ' · ' + r.weekday + '요일 · 5회 중 ' + b.have + '회 · '
+          + '<b class="sgap">1회 더 잡아야 합니다</b>'
+        + '</div></div>';
+    });
+    $('gapBox').style.display = 'block';
+    $('gapBox').innerHTML = h2;
+  }
+
+  $('allok').style.display = (!nMiss && !gapRows.length && SESS.length)
+                             ? 'block' : 'none';
+  $('allok').textContent = '✅ ' + monNo(mon)
+    + '월 — 보강할 것도, 모자란 회기도 없습니다.';
 
   $('short').querySelectorAll('.sbtn[data-mk]').forEach(el => {
     el.onclick = () => openMk(Number(el.dataset.mk));
   });
-  $('short').querySelectorAll('.sbtn[data-plan]').forEach(el => {
+  $('gapBox').querySelectorAll('.sbtn[data-plan]').forEach(el => {
     el.onclick = () => openPlan(Number(el.dataset.plan));
   });
+  boxFind('short'); boxFind('gapBox');
+}
+
+// 상자 안에서 아동 이름으로 걸러보기 (이름 앞부터 맞을 때만)
+function boxFind(boxId){
+  const box = $(boxId); if (!box) return;
+  const inp = box.querySelector('.bxf'); if (!inp) return;
+  inp.oninput = () => {
+    const q = inp.value.trim();
+    box.querySelectorAll('.short-line, .prevone').forEach(el => {
+      const nm = String(el.dataset.kid || '');
+      el.style.display = (!q || nm.indexOf(q) === 0) ? '' : 'none';
+    });
+  };
 }
 
 // 그 달 마지막 날 (2026-09 -> 2026-09-30)
@@ -1534,6 +1579,8 @@ function drawPrev(){
   $('prevBox').style.display = 'block';
   $('prevBox').innerHTML = '<div class="prev-t">⏪ ' + monNo(pm)
     + '월에서 넘어온 보강 ' + need.length + '건 — ' + monNo(mon) + '월에 잡을 수 있습니다</div>'
+    + '<div class="bxfw"><input class="bxf" type="text"'
+    + ' placeholder="🔍 아동 이름으로 걸러보기"></div>'
     + need.map(s => {
         const sc = ROWS.find(x => x.id === s.schedule_id);
         const t2 = THS_ALL.find(x => x.id === s.therapist_id);
@@ -1560,6 +1607,7 @@ function drawPrev(){
     + '<div class="prevnote">※ 여기서 잡은 보강은 <b>납부는 ' + monNo(pm)
       + '월</b>, <b>급여는 ' + monNo(mon) + '월</b>로 셉니다.</div>';
 
+  boxFind('prevBox');
   $('prevBox').querySelectorAll('.prevbtn').forEach(el => {
     el.onclick = () => {
       const why = el.dataset.no;
@@ -1839,14 +1887,9 @@ function drawDay(){
       const t = THS.find(x => x.id === Number(p[1]));
       return dayNo(p[0]) + '일 ' + (t ? t.name : p[1]+'번') + ' ' + OFFTH[k];
     });
-  const all = holi.concat(thOff);
-  if (all.length) {
-    $('holi').style.display = 'block';
-    $('holi').innerHTML = '🏖 ' + monNo(mon) + '월 ' + wd + '요일 중 쉬는 날 — '
-      + all.join(' · ') + ' (그날 수업은 휴무로 표시됩니다)';
-  } else {
-    $('holi').style.display = 'none';
-  }
+  // 「○요일 중 쉬는 날」 줄은 없앴다.
+  // 그 일은 「결석·휴무 보강」 상자가 대신한다.
+  $('holi').style.display = 'none';
 
   // 고정 수업을 칸에 담기
   const cell = {};
