@@ -29,6 +29,11 @@
   textarea.opin { min-height:92px; }
   .sign { text-align:center; font-size:12.5px; line-height:2.4; margin-top:22px; }
   .sign .line { margin-top:6px; }
+  /* 직인 — 「(인)」 글자 위에 겹쳐 찍는다 */
+  .ins { position:relative; display:inline-block; }
+  .ins img { position:absolute; left:50%; top:50%;
+             transform:translate(-50%, -50%);
+             width:44px; height:auto; opacity:0.92; display:none; }
   .radio { font-size:12px; }
   .radio span { cursor:pointer; padding:2px 8px; border-radius:4px; }
   .radio span.on { color:#c62828; background:#ffebee; font-weight:bold; }
@@ -51,6 +56,7 @@
     @page { size: A4 portrait; margin: 8mm 15mm; }
     header, .form-actions, .page-title, .picker, .no-print { display:none !important; }
     body { background:white; }
+    .ins img { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     .container { max-width:none; margin:0; padding:0; }
     .sheet { border:none; box-shadow:none; padding:0; margin:0; }
     .rec-tbl { font-size:10.5px; }
@@ -179,7 +185,7 @@
       상기 내용이 이상 없음을 확인합니다.
       <div class="line" id="signDate">20&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일</div>
       <div class="line">담당치료사 <span id="signThr" style="display:inline-block;min-width:110px;border-bottom:1px solid #999;">&nbsp;</span> (인)</div>
-      <div class="line">치료지원담당(기관장) <span style="display:inline-block;min-width:110px;border-bottom:1px solid #999;">자라는나무</span> (인)</div>
+      <div class="line">치료지원담당(기관장) <span style="display:inline-block;min-width:110px;border-bottom:1px solid #999;">자라는나무</span> <span class="ins">(인)<img id="stampImg" alt=""></span></div>
     </div>
   </div>
 </div>
@@ -263,6 +269,19 @@ function _blockScreen(role) {
 }
 
 // ── 로그인 ──
+// 직인 — Supabase 비공개 자리에서 받아온다.
+// 로그인하지 않은 사람은 받을 수 없다.
+async function loadStamp() {
+  try {
+    const { data, error } = await sb.storage.from('nl-private').download('stamp.png');
+    if (error || !data) return;
+    const img = $('stampImg');
+    if (!img) return;
+    img.src = URL.createObjectURL(data);
+    img.style.display = 'inline';
+  } catch (e) {}
+}
+
 async function afterLogin(user) {
   const { data: me, error: e1 } = await sb
     .from('nl_therapists').select('id, name, role')
@@ -270,6 +289,7 @@ async function afterLogin(user) {
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
+  loadStamp();     // 직인 받아오기 (로그인한 직원만 받을 수 있다)
   ME = me;
   if (_isBlocked(me.role)) { _blockScreen(me.role); return; }
 
