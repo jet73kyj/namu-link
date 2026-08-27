@@ -453,6 +453,13 @@ async function afterLogin() {
   KIDS = kids;
   CURKID = kids[0].id;
   CURMK = thisMonth();
+  // 지난번에 보던 달·갈래가 있으면 그대로 연다
+  try {
+    const km = localStorage.getItem('nl_parent_mon');
+    if (km && /^\d{4}-\d{2}$/.test(km) && km <= thisMonth()) CURMK = km;
+    const kt = localStorage.getItem('nl_parent_tab');
+    if (kt && ['sch','pay','rec','nt'].indexOf(kt) >= 0) TAB = kt;
+  } catch (e) {}
 
   // 이름표 미리 담아둔다
   const { data: tt } = await sb.from('nl_therapy_types').select('id, name');
@@ -498,23 +505,29 @@ function drawKids() {
   });
 }
 
-$('prev').onclick = async () => { CURMK = shiftMonth(CURMK, -1); drawTabs(); await reload(); };
+function keepParent(){
+  try {
+    localStorage.setItem('nl_parent_mon', CURMK);
+    localStorage.setItem('nl_parent_tab', TAB);
+  } catch (e) {}
+}
+$('prev').onclick = async () => { CURMK = shiftMonth(CURMK, -1); keepParent(); drawTabs(); await reload(); };
 $('next').onclick = async () => {
   // 기록지는 그 달이 끝나야 작성되므로 앞으로는 못 가게 한다
   if (TAB === 'rec' && shiftMonth(CURMK, 1) > thisMonth()) return;
-  CURMK = shiftMonth(CURMK,  1); drawTabs(); await reload();
+  CURMK = shiftMonth(CURMK,  1); keepParent(); drawTabs(); await reload();
 };
 
 // ── 갈래 단추 ──────────────────────────────────────────
 let TAB = 'sch';
-$('tabSch').onclick = async () => { TAB = 'sch'; drawTabs(); await reload(); };
-$('tabPay').onclick = async () => { TAB = 'pay'; drawTabs(); await reload(); };
+$('tabSch').onclick = async () => { TAB = 'sch'; keepParent(); drawTabs(); await reload(); };
+$('tabPay').onclick = async () => { TAB = 'pay'; keepParent(); drawTabs(); await reload(); };
 $('tabRec').onclick = async () => {
   TAB = 'rec';
   if (CURMK > thisMonth()) CURMK = thisMonth();
-  drawTabs(); await reload();
+  keepParent(); drawTabs(); await reload();
 };
-$('tabNt').onclick  = async () => { TAB = 'nt';  drawTabs(); await reload(); };
+$('tabNt').onclick  = async () => { TAB = 'nt';  keepParent(); drawTabs(); await reload(); };
 
 function drawTabs() {
   $('tabSch').className = (TAB === 'sch' ? 'on' : '');

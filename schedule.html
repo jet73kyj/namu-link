@@ -932,6 +932,9 @@ let THS_ALL = [];       // 치료사 1~7 전부
 let SESS = [];          // 그 달 회기 전체
 let BAL  = new Set();   // 그 달 발추 아동
 let wd = '월', mon = '';
+// 보던 달·요일을 기억해 둔다. 새로고침해도 그 자리로 돌아온다
+function keepGet(k){ try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } }
+function keepSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
 let VIEW = 'day';       // day = 요일별, week = 치료사별 주간
 let mkSess = null;      // 지금 보강 잡는 결석 회기
 let CAN_EDIT = false;   // 수업을 넣고 고칠 수 있는 사람인가 (관리자 8 · 행정 9)
@@ -1871,6 +1874,7 @@ function drawCal(){
 
 // 달 넘기기 — 목록에 있는 달만 (회기를 깔아둔 달)
 async function calMove(n){
+  keepSet('nl_sched_mon', $('mon').value);
   const sel = $('mon');
   const idx = Array.from(sel.options).findIndex(o => o.value === mon);
   const nx = idx + n;
@@ -2998,7 +3002,7 @@ $('xlsBtn').onclick = () => {
   try {
     const wb = XLSX.utils.book_new();
     ['월','화','수','목','금','토'].forEach(w => {
-      wd = w;
+      wd = w; keepSet('nl_sched_wd', w);
       drawDay();
       const rows = gridToRows();
       const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -3996,6 +4000,9 @@ async function afterLogin(user){
   }
   $('mon').innerHTML = opts;
   mon = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  // 지난번에 보던 달이 있으면 그 달로 연다
+  const _keepM = keepGet('nl_sched_mon');
+  if (_keepM && Array.from($('mon').options).some(o => o.value === _keepM)) mon = _keepM;
   $('mon').value = mon;
 
   $('mk_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t+'</option>').join('');
@@ -4033,7 +4040,8 @@ async function afterLogin(user){
   await loadMonth();
 
   // 이번 달에 회기가 없으면 다음 달로 옮겨 본다
-  if (!SESS.length) {
+  // (지난번에 보던 달로 연 것이면 그대로 둔다)
+  if (!SESS.length && !_keepM) {
     const d2 = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const nk = d2.getFullYear()+'-'+String(d2.getMonth()+1).padStart(2,'0');
     const save = mon;
@@ -4045,6 +4053,9 @@ async function afterLogin(user){
 
   const nm = WDS[new Date().getDay()];
   wd = (nm==='일') ? '월' : nm;
+  // 지난번에 보던 요일이 있으면 그 요일로
+  const _keepW = keepGet('nl_sched_wd');
+  if (_keepW && WDS.indexOf(_keepW) >= 0) wd = _keepW;
   document.querySelectorAll('.tab[data-wd]').forEach(b=>b.classList.toggle('on', b.dataset.wd===wd));
 
   $('who').textContent = me.name+' ('+me.role+') 님으로 로그인됨'

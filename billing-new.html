@@ -726,6 +726,8 @@ async function afterLogin(user) {
 async function load() {
   const mk = $('mk').value;
   if (!mk) { show($('msg2'), '달을 골라주세요.', false); return; }
+  // 보던 달을 기억해 둔다. 새로고침해도 그 달로 열린다
+  try { localStorage.setItem('nl_bill_mon', mk); } catch (e) {}
 
   $('load').disabled = true;
   $('load').textContent = '불러오는 중...';
@@ -1985,6 +1987,11 @@ document.addEventListener('wheel', () => {
 }, true);
 
 $('load').onclick = load;
+// 지난번에 보던 달이 있으면 그 달로 맞춰 둔다
+try {
+  const _km = localStorage.getItem('nl_bill_mon');
+  if (_km) $('mk').value = _km;
+} catch (e) {}
 
 // 엔터를 치면 불러오기 (아동 목록의 입력 칸 안에서는 안 되게 — 적은 것이 날아가지 않도록)
 document.addEventListener('keydown', (e) => {

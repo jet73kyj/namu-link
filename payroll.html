@@ -569,10 +569,14 @@ async function afterLogin(user){
   }
   $('mon').innerHTML = opts;
   mon = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  // 지난번에 보던 달이 있으면 그 달로 연다
+  let _keepM = '';
+  try { _keepM = localStorage.getItem('nl_payroll_mon') || ''; } catch(e) {}
+  if (_keepM && Array.from($('mon').options).some(o => o.value === _keepM)) mon = _keepM;
   $('mon').value = mon;
 
   await loadMonth();
-  if (!SESS.length) {
+  if (!SESS.length && !_keepM) {
     const d2 = new Date(now.getFullYear(), now.getMonth()+1, 1);
     const nk = d2.getFullYear()+'-'+String(d2.getMonth()+1).padStart(2,'0');
     const save = mon; mon = nk; await loadMonth();
@@ -587,6 +591,7 @@ async function afterLogin(user){
 }
 
 $('mon').onchange = async () => { mon = $('mon').value;
+  try { localStorage.setItem('nl_payroll_mon', mon); } catch(e) {}
   await loadMonth(); calc(); };
 $('th').onchange  = () => { thId = Number($('th').value); calc(); };
 
