@@ -613,6 +613,10 @@
         <label for="mn_date">날짜</label>
         <select id="mn_date"></select>
       </div>
+      <div>
+        <label for="mn_slot">시간 (교시)</label>
+        <select id="mn_slot"></select>
+      </div>
       <div style="position:relative;">
         <label for="mn_name">아동 (치료중·대기중)</label>
         <input id="mn_name" type="text" autocomplete="off"
@@ -3186,12 +3190,25 @@ function openMn(key){
   $('mnTitle').textContent = monNo(mon) + '월 ' + wdn + '요일 ' + slot.t + ' · '
     + (t ? t.name : '') + ' — 보강 직접 넣기';
 
-  const ds = wdDates(mon, wdn);
-  $('mn_date').innerHTML = ds.length
-    ? ds.map(d => '<option value="'+d+'">' + dayNo(d) + '일(' + wdn + ')'
-        + (OFF.has(d) || OFF.has(d + '#' + thId) ? ' — 쉬는 날' : '') + '</option>').join('')
-    : '<option value="">이 달에 그 요일이 없습니다</option>';
+  // 날짜 — 그 달 모든 날을 담는다 (요일도 함께). 기본은 원래 요일의 첫날
+  const yy = Number(String(mon).slice(0,4)), mm = Number(String(mon).slice(5,7));
+  const lastDay = new Date(yy, mm, 0).getDate();
+  const allD = [];
+  for (let i = 1; i <= lastDay; i++)
+    allD.push(mon + '-' + String(i).padStart(2, '0'));
+  $('mn_date').innerHTML = allD.map(d =>
+      '<option value="' + d + '">' + dayNo(d) + '일(' + wdOf(d) + ')'
+      + (OFF.has(d) || OFF.has(d + '#' + thId) ? ' — 쉬는 날' : '')
+      + '</option>').join('');
+  const firstD = allD.find(d => wdOf(d) === wdn);
+  if (firstD) $('mn_date').value = firstD;
   if (p[3]) $('mn_date').value = p[3];
+
+  // 시간 — 교시를 고를 수 있게 한다
+  $('mn_slot').innerHTML = SLOTS.map(sl =>
+      '<option value="' + sl.no + '">' + sl.no + '교시 · '
+      + slotHm(sl, thId) + '</option>').join('');
+  $('mn_slot').value = String(slot.no);
 
   $('mn_name').value = '';
   $('mn_hits').innerHTML = '';
@@ -3304,6 +3321,9 @@ $('mnSave').onclick = async () => {
   if (!mnKid) { mnmsg('아동 이름을 치고 아래에 뜬 이름을 눌러 고르세요.', false); return; }
   const d = $('mn_date').value;
   if (!d) { mnmsg('날짜를 고르세요.', false); return; }
+  // 창에서 고른 교시를 쓴다 (안 고르면 열 때 자리)
+  const slot2 = SLOTS.find(x => x.no === Number($('mn_slot').value)) || mnKey.slot;
+  const wd2 = wdOf(d);
   const tv = $('mn_tp').value;
   if (!tv) { mnmsg('치료를 고르세요.', false); return; }
   if (tv === '0_9' && !$('mn_sp').value) $('mn_sp').value = '9';
@@ -3313,7 +3333,7 @@ $('mnSave').onclick = async () => {
   const fixing = !!mnEditId;
 
   if (!confirm(mnKid.name + ' 아동 보강을\n'
-      + dayNo(d) + '일(' + mnKey.wd + ') ' + slotHm(mnKey.slot, mnKey.th)
+      + dayNo(d) + '일(' + wd2 + ') ' + slotHm(slot2, mnKey.th)
       + (fixing ? ' 로 고칠까요?' : ' 로 넣을까요?') + '\n\n'
       + '이 줄은 회기 수·납부에는 안 들어가고,\n'
       + '완료로 표시하면 그 치료사 급여에만 들어갑니다.')) return;
@@ -3330,7 +3350,7 @@ $('mnSave').onclick = async () => {
       month_key: mon,
       plan_date: d,
       therapist_id: mnKey.th,
-      start_time: slotHm(mnKey.slot, mnKey.th) + ':00',
+      start_time: slotHm(slot2, mnKey.th) + ':00',
       makeup_for: null,                // 메울 결석 회기가 없다
       support_type_id: ($('mn_sp').value ? Number($('mn_sp').value)
                       : (tp[1] ? Number(tp[1]) : null)),
