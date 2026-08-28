@@ -632,6 +632,7 @@ function _statusRows() {
   return ITEMS.slice(0, SESSIONS).map((r, i) => {
     const v = vo[i] || {};
     return {
+      // 서비스 제공일자는 치료사가 적은 것만 보여준다 (바우처에서 채우지 않는다)
       provDate: r.service_date ? String(r.service_date).replace(/-/g,'.') : '',
       // ↓ 이 두 칸만 바우처가 주인이다. 바우처에 값이 없으면 저장된 것을 쓴다
       apprDate: v.apprDate
@@ -648,7 +649,8 @@ function _statusRows() {
 // 바우처 결제내역에서 승인일자·승인번호 자동 채움
 function _prefillStatusFromVoucher() {
   const rows = VOUCHER.slice(0, SESSIONS).map(v => ({
-    provDate: v.service_date ? String(v.service_date).replace(/-/g,'.') : '',
+    // 서비스 제공일자는 손으로 적는 칸이라 비워 둔다
+    provDate: '',
     apprDate: v.service_date ? String(v.service_date).replace(/-/g,'.') : '',
     apprNo:   v.appr_no || '',
     cloth:'', sock:'', wear:'', face:'', health:'', result:'', note:''
