@@ -155,6 +155,9 @@
     border:1px solid #e0cfa0; border-radius:5px; background:#fff; }
   .rsn input { flex:1; min-width:140px; }
   .rsnwhy { font-weight:bold; white-space:nowrap; }
+  .rsnwk .wkopen2 { font:inherit; font-size:11.5px; padding:2px 8px; cursor:pointer;
+    border:1px solid #e0cfa0; border-radius:5px; background:#fff; color:#8a6116; }
+  .rsnwk .wkopen2.on { background:#f0e2c0; }
   .kfix { font-size:11px; font-weight:bold; padding:2px 8px; border-radius:10px;
     margin-left:6px; white-space:nowrap; }
   .kfix.no  { background:#eceff1; color:#78838c; border:1px solid #d5dde2; }
@@ -1376,17 +1379,16 @@ function drawKid(c) {
           + '<span class="up upbox">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</span>'
           + '<span class="am lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</span>'
           + '</div>'
-          + wkBoxHtml(it);
-      });
-      // 사유 줄 — 회기가 기준과 다를 때만 나타난다
-      {
-        const baseN = g.items.reduce((n, it) => n + (Number(it.count) || 0), 0);
-        const rsn   = reasonOf(sv[g.support_type_id]);
-        b += '<div class="r rsn" data-st="' + g.support_type_id + '"'
-          + ' data-base="' + baseN + '" style="display:none;">'
+          // 사유 줄 — 이 수업의 회기가 기준과 다를 때만 나타난다
+          + '<div class="r rsn" data-st="' + g.support_type_id + '"'
+          +   ' data-scd="' + (it.sched_id || '') + '"'
+          +   ' data-base="' + (Number(it.count) || 0) + '"'
+          +   ' data-lbl="' + esc(it.label + ' · ' + it.therapist_name) + '"'
+          +   ' style="display:none;">'
           + '<span class="nm"></span>'
           + '<span class="de">'
-          +   '<span class="rsnwhy">📝 기준 ' + baseN + '회와 다릅니다 — 사유</span>'
+          +   '<span class="rsnwhy">📝 사유</span>'
+          +   '<span class="rsnwk"></span>'
           +   '<select class="rsnsel">'
           +     '<option value="">— 고르기 —</option>'
           +     '<option>추석·명절 수업</option>'
@@ -1395,12 +1397,12 @@ function drawKid(c) {
           +     '<option>보호자 요청</option>'
           +     '<option>전월 이월</option>'
           +   '</select>'
-          +   '<input class="rsntx" type="text" placeholder="사유를 적으세요" value="'
-          +     esc(rsn) + '">'
+          +   '<input class="rsntx" type="text" placeholder="사유를 적으세요">'
           + '</span>'
           + '<span class="ap"></span><span class="ct"></span>'
-          + '<span class="up"></span><span class="am"></span></div>';
-      }
+          + '<span class="up"></span><span class="am"></span></div>'
+          + wkBoxHtml(it);
+      });
       if (g.deduction > 0) {
         b += '<div class="r sub2"><span class="nm"></span>'
           + '<span class="de">지원금 제외</span><span class="ct"></span><span class="up"></span>'
@@ -1663,6 +1665,16 @@ function numOf(v) {
 }
 
 // 한 아동의 금액을 다시 계산한다
+// 수업 줄에 딸린 주차 상자를 찾는다 (메모 줄·사유 줄을 건너뛴다)
+function wkBoxOf(tr) {
+  let el = tr ? tr.nextElementSibling : null;
+  while (el && !el.classList.contains('wkbox')) {
+    if (el.classList.contains('line')) return null;
+    el = el.nextElementSibling;
+  }
+  return el;
+}
+
 function calcKid(childId) {
   const box = document.querySelector('.kid[data-child="' + childId + '"]');
   if (!box) return;
@@ -1692,17 +1704,26 @@ function calcKid(childId) {
     tr.classList.toggle('hasap', ap > 0);
   });
 
-  // 1-2) 회기가 기준과 다르면 사유 줄을 연다
+  // 1-2) 회기가 기준과 다르면 그 수업 아래 사유 줄을 연다
   box.querySelectorAll('.rsn').forEach(rw => {
-    const st = rw.dataset.st;
+    const scd = rw.dataset.scd || '';
     const baseN = Number(rw.dataset.base) || 0;
-    let now = 0;
-    box.querySelectorAll('.line[data-st="' + st + '"] .cnt')
-       .forEach(el => { now += numOf(el.value); });
+    const tr = box.querySelector('.line[data-scd="' + scd + '"]');
+    const now = tr ? numOf(tr.querySelector('.cnt').value) : baseN;
     const diff = (now !== baseN);
     rw.style.display = diff ? '' : 'none';
     const why = rw.querySelector('.rsnwhy');
-    if (why) why.textContent = '📝 기준 ' + baseN + '회 → ' + now + '회 · 사유';
+    if (why) why.textContent = '📝 ' + (rw.dataset.lbl || '')
+      + ' · ' + baseN + '회 → ' + now + '회 · 사유';
+    // 주차 단추도 옆에 붙여 그 자리에서 켜고 끌 수 있게
+    const wkEl = rw.querySelector('.rsnwk');
+    if (wkEl && !wkEl.dataset.done && tr) {
+      const wb = wkBoxOf(tr);
+      if (wb) {
+        wkEl.innerHTML = '<button type="button" class="wkopen2">주차</button>';
+        wkEl.dataset.done = '1';
+      }
+    }
   });
 
   // 2) 유형별 합계
@@ -1915,13 +1936,15 @@ async function saveKid(childId, btn) {
       });
       if (cs.length) memo2 += ' [회기' + cs.join(',') + ']';
       if (us.some(x => x > 0)) memo2 += ' [적용단가' + us.join(',') + ']';
-      // 회기가 기준과 다르면 사유도 함께 남긴다
-      const rw = box.querySelector('.rsn[data-st="' + p.st + '"]');
-      if (rw && rw.style.display !== 'none') {
+      // 회기가 기준과 다르면 사유도 함께 남긴다 (수업 줄이 여럿이면 합친다)
+      const rvs = [];
+      box.querySelectorAll('.rsn[data-st="' + p.st + '"]').forEach(rw => {
+        if (rw.style.display === 'none') return;
         const rt = rw.querySelector('.rsntx');
-        const rv2 = rt ? rt.value.trim() : '';
-        if (rv2) memo2 += ' [사유' + rv2.replace(/[\[\]]/g, '') + ']';
-      }
+        const v = rt ? rt.value.trim() : '';
+        if (v) rvs.push((rw.dataset.lbl || '') + ' — ' + v);
+      });
+      if (rvs.length) memo2 += ' [사유' + rvs.join(' · ').replace(/[\[\]]/g, '') + ']';
     }
     const coEl = box.querySelector('.corow[data-st="' + p.st + '"] .co');
     return {
@@ -1985,7 +2008,7 @@ async function saveKid(childId, btn) {
         return;
       }
 
-      const rw = box.querySelector('.rsn[data-st="' + st + '"]');
+      const rw = box.querySelector('.rsn[data-scd="' + scd + '"]');
       const rt = rw ? rw.querySelector('.rsntx') : null;
       const why = (rt && rt.value.trim()) || '납부에서 회기를 줄임';
       if (rt && !rt.value.trim()) rt.value = why;
@@ -2200,6 +2223,7 @@ async function markNoMakeup(btn) {
       const tx = rw.querySelector('.rsntx');
       if (tx && !tx.value.trim()) tx.value = why;
     }
+    void 0;
     calcKid(Number(kid.dataset.child));
     sumAll();
   }
@@ -2244,12 +2268,24 @@ $('kids').addEventListener('click', e => {
     return;
   }
 
+  // 사유 줄의 「주차」 단추 — 그 수업의 주차 상자를 펼친다
+  if (e.target.classList.contains('wkopen2')) {
+    const rw = e.target.closest('.rsn');
+    const tr = rw ? rw.parentElement.querySelector(
+      '.line[data-scd="' + rw.dataset.scd + '"]') : null;
+    const wb = wkBoxOf(tr);
+    if (wb) {
+      const on = wb.classList.toggle('on');
+      e.target.classList.toggle('on', on);
+    }
+    return;
+  }
+
   // 「주차」 단추를 누르면 주차 상자가 펼쳐진다
   if (e.target.classList.contains('wkopen')) {
     const line = e.target.closest('.r.line');
-    let box = line ? line.nextElementSibling : null;
-    while (box && box.classList.contains('tmemo')) box = box.nextElementSibling;
-    if (box && box.classList.contains('wkbox')) {
+    const box = wkBoxOf(line);
+    if (box) {
       const on = box.classList.toggle('on');
       e.target.classList.toggle('on', on);
     }
@@ -2273,7 +2309,7 @@ $('kids').addEventListener('click', e => {
 
     // 회기 칸을 켜진 주차 수에 맞춘다 (5주차가 있으면 더한다)
     let line = box.previousElementSibling;
-    while (line && line.classList.contains('tmemo')) line = line.previousElementSibling;
+    while (line && !line.classList.contains('line')) line = line.previousElementSibling;
     const cEl  = line ? line.querySelector('.cnt') : null;
     if (cEl) {
       const five = box.querySelector('.wkb.dim') ? 1 : 0;
