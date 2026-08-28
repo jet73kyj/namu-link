@@ -1241,6 +1241,10 @@ function drawKid(c) {
     const saved = savedCnt(sv[st]);
     if (saved !== null && saved === g.cnt) return;
 
+    // 발달재활(2번)은 시간표가 보강·결석·모자란 수업을 다 알려주므로
+    // 여기서는 띄우지 않는다
+    if (st === 2) return;
+
     shorts.push({ st: st, need: need - (g.skip || 0), cnt: g.cnt, miss: g.miss });
   });
 
@@ -1258,28 +1262,22 @@ function drawKid(c) {
     b += '<div class="shortc">'
       + shorts.map(x =>
           '<div class="shortline" data-nmst="' + x.st + '" data-nmids="'
-          + x.miss.map(m => m.id).join(',') + '"><b>'
-          + (TYPES[x.st] || ('유형'+x.st)) + '</b> — '
+          + x.miss.map(m => m.id).join(',') + '" data-nmdays="'
+          + x.miss.map(m => dayOnly(m.d) + '일').join(' · ') + '"><b>'
+          + (TYPES[x.st] || ('유형'+x.st)) + '</b> '
           + (x.x8
               ? '<b class="sred">발추 1회 청구가 빠져 있습니다</b>'
-              : '기준 ' + x.need + '회인데 <b class="sred">' + x.cnt + '회</b> '
+              : x.need + '회 → <b class="sred">' + x.cnt + '회</b> '
                 + '(' + (x.need - x.cnt) + '회 적음)')
           + (x.miss.length
-              ? '<div class="shortwhy">빠진 날 — '
+              ? ' · 빠진 날 '
                 + x.miss.map(m => dayOnly(m.d) + '일 ' + m.s).join(' · ')
-                + '</div>'
               : '')
-          // 발추(8) — 시간표에서 자리를 잡으라고만 알려준다
+          // 발추(8) — 청구가 빠졌다는 것만 알려준다
           + (x.x8
-              ? '<div class="shortmust">발추 1회는 일정을 다음 달로 넘길 수 있어도<br>'
-                + '납부는 이 달에 해야 합니다. 「적용 없음」을 「매월 1회」로 바꿔 주세요.</div>'
+              ? '<div class="shortmust">「적용 없음」을 「매월 1회」로 바꿔 주세요.</div>'
               : '')
-          // 발달재활(2) — 반드시 그 달에 4회를 채워야 하므로 이대로 청구를 막는다
-          + (!x.x8 && x.st === 2
-              ? '<div class="shortmust">발달재활은 반드시 그 달에 4회를 채워야 합니다.<br>'
-                + '이대로 청구할 수 없습니다. 보강을 잡아 주세요.</div>'
-              : '')
-          + (!x.x8 && x.st !== 2 && x.miss.length
+          + (!x.x8 && x.miss.length
               ? '<div class="shortact">'
                 + '<select class="nmwhy">'
                 +   '<option value="치료사 휴무">치료사 휴무</option>'
@@ -1289,13 +1287,12 @@ function drawKid(c) {
                 +   '<option value="아동 사정">아동 사정</option>'
                 +   '<option value="기타">기타 (직접 적기)</option>'
                 + '</select>'
-                + '<button type="button" class="nmbtn">이대로 청구</button>'
+                + '<button type="button" class="nmbtn"'
+                +   ' title="보강을 잡지 않고 이 회기를 뺀 금액으로 청구합니다.'
+                +   ' 시간표의 보강 목록에서도 빠집니다.">이대로 청구</button>'
                 + '</div>'
               : '')
           + '</div>').join('')
-      + '<div class="shortnote">보강을 잡을지, 이대로 청구할지 정하세요.<br>'
-      + '「이대로 청구」를 누르면 시간표의 보강 목록에서도 빠집니다.<br>'
-      + '발달재활은 그 달에 4회를 채워야 하므로 이대로 청구를 할 수 없습니다.</div>'
       + '</div>';
   }
 
@@ -2040,15 +2037,11 @@ async function markNoMakeup(btn) {
     return;
   }
 
-  // 화면에서 그 줄을 지우고, 상자가 비면 상자도 지운다
-  const box = line.closest('.shortc');
-  line.remove();
-  if (box && !box.querySelector('.shortline')) box.remove();
-  else if (box) {
-    const note = box.querySelector('.shortnote');
-    if (note) note.insertAdjacentHTML('beforebegin',
-      '<div class="shortdone">✅ 이대로 청구로 정했습니다 — ' + why + '</div>');
-  }
+  // 그 줄을 짧은 한 줄로 바꾼다 —  ✅ 8일 보강 없음 · 치료사 휴무
+  const days = String(line.dataset.nmdays || '');
+  line.innerHTML = '<span class="shortdone">✅ '
+    + (days ? days + ' ' : '') + '보강 없음 · ' + esc(why) + '</span>';
+  line.removeAttribute('data-nmids');
 }
 
 $('kids').addEventListener('click', e => {
