@@ -2748,10 +2748,19 @@ $('edRest').onclick = async () => {
       .eq('schedule_id', edRow.id).eq('month_key', mon);
     const done = (had || []).filter(v =>
       v.status === '완료' || v.status === '결석' || v.status === '보강');
-    if (done.length && !confirm('이 달에 완료·결석·보강으로 표시한 회기가 '
-        + done.length + '개 있습니다.\n그것까지 함께 지울까요?')) {
-      $('edRest').disabled = false; $('edRest').textContent = '이 달은 쉼';
-      return;
+    // 지울 회기가 있으면 언제나 한 번 물어본다
+    //   (예정만 있을 때도 조용히 지워지면 잘못 눌러도 알아채지 못한다)
+    const nAll = (had || []).length;
+    if (nAll) {
+      let q = monNo(mon) + '월 회기 ' + nAll + '개를 지웁니다.\n'
+        + monNo(nextM) + '월부터 다시 나옵니다.';
+      if (done.length) q += '\n\n⚠️ 그중 ' + done.length
+        + '개는 완료·결석·보강으로 표시한 것입니다.\n그것까지 함께 지웁니다.';
+      q += '\n\n계속할까요?';
+      if (!confirm(q)) {
+        $('edRest').disabled = false; $('edRest').textContent = '이 달은 쉼';
+        return;
+      }
     }
     const { error: e2 } = await sb.from('nl_sessions').delete()
       .eq('schedule_id', edRow.id).eq('month_key', mon);

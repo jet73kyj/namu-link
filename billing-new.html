@@ -1884,6 +1884,14 @@ async function saveKid(childId, btn) {
     show($('msg2'), '저장할 내용이 없습니다.', false); return;
   }
 
+  // 지울 것이 있으면 한 번 물어본다
+  if (deadSt.length) {
+    const names = deadSt.map(st => TYPES[st] || ('유형' + st)).join(' · ');
+    if (!confirm(names + ' 이(가) 0원이 되었습니다.\n\n'
+      + '저장된 줄 ' + deadSt.length + '건을 지웁니다.\n'
+      + '지운 뒤에는 되돌릴 수 없습니다.\n\n계속할까요?')) return;
+  }
+
   btn.disabled = true; btn.textContent = '저장 중...';
   try {
     if (rows.length) {
