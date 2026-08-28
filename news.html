@@ -36,19 +36,26 @@
   .ok { color:#2c5c37; } .err { color:#9c2b2b; }
   .hint { font-size:11.5px; color:var(--ink3); margin-top:5px; line-height:1.6; }
 
-  .row { border:1px solid var(--line); border-radius:10px; padding:13px 15px;
-         margin-bottom:9px; background:#fff; }
+  .row { border:1px solid var(--line); border-radius:14px;
+         margin-bottom:12px; background:#fff; overflow:hidden; }
+  .rin { padding:17px 18px; }
+  .nwbtn { display:flex; align-items:center; justify-content:center; gap:9px;
+    padding:16px; text-decoration:none; background:#E2703A; color:#fff;
+    font-size:16px; font-weight:700; letter-spacing:-0.2px; }
+  .nwbtn .ico { font-size:18px; line-height:1; }
+  .nwbtn .ar  { font-size:20px; opacity:0.8; line-height:1; }
+  .nwbtn:active { background:#c25a28; }
   .row.pin { background:#fffaf2; border-color:#e8c9a4; }
   .row.off { opacity:0.55; }
-  .r1 { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .kind { font-size:11px; font-weight:bold; padding:2px 8px; border-radius:10px;
+  .r1 { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+  .kind { font-size:12px; font-weight:bold; padding:3px 10px; border-radius:10px;
           background:var(--acc-bg); color:#2c5c37; white-space:nowrap; }
   .kind.k2 { background:#eef2ff; color:#3a4a8a; }
   .kind.k3 { background:#fdf0f5; color:#8a3a5a; }
   .kind.k4 { background:#f0f7ff; color:#2a5a8a; }
-  .tt { font-weight:600; font-size:14.5px; }
-  .day { font-size:11.5px; color:var(--ink3); margin-left:auto; white-space:nowrap; }
-  .bd { font-size:13px; color:var(--ink2); margin-top:6px; line-height:1.7;
+  .tt { font-weight:700; font-size:17px; letter-spacing:-0.3px; }
+  .day { font-size:12.5px; color:var(--ink3); margin-top:5px; }
+  .bd { font-size:14.5px; color:#4a5250; margin-top:9px; line-height:1.8;
         white-space:pre-wrap; }
   .lk { font-size:12px; color:#2a5a8a; margin-top:6px; word-break:break-all; }
   .rb { display:flex; gap:6px; margin-top:9px; }
@@ -58,7 +65,7 @@
   .tab { font-size:12.5px; padding:6px 12px; border-radius:8px; border:1px solid var(--line);
          background:#fff; color:var(--ink2); cursor:pointer; }
   .tab.on { background:var(--acc); color:#fff; border-color:var(--acc); }
-  .vid { margin-top:9px; }
+  .vid { margin-top:11px; }
   .vid iframe { width:100%; aspect-ratio:16/9; border:0; border-radius:8px; }
 </style>
 </head>
@@ -207,23 +214,28 @@ function draw() {
             && (!r.to_date || r.to_date >= td);
     const yid = ytId(r.url);
     return '<div class="row' + (r.pinned ? ' pin' : '') + (on ? '' : ' off') + '">'
-      + '<div class="r1">'
-      +   '<span class="kind ' + kindCls(r.kind) + '">' + esc(r.kind) + '</span>'
-      +   '<span class="tt">' + (r.pinned ? '📌 ' : '') + esc(r.title) + '</span>'
-      +   '<span class="day">' + esc(r.from_date || '')
+      + '<div class="rin">'
+      +   '<div class="r1">'
+      +     '<span class="kind ' + kindCls(r.kind) + '">' + esc(r.kind) + '</span>'
+      +     '<span class="tt">' + (r.pinned ? '📌 ' : '') + esc(r.title) + '</span>'
+      +   '</div>'
+      +   '<div class="day">' + esc(r.from_date || '')
       +     (r.to_date ? ' ~ ' + esc(r.to_date) : '')
-      +     (on ? '' : ' · 안 보임') + '</span>'
+      +     (on ? '' : ' · 아직 안 보임') + '</div>'
+      +   (r.body ? '<div class="bd">' + esc(r.body) + '</div>' : '')
+      +   (yid ? '<div class="vid"><iframe src="https://www.youtube.com/embed/'
+                 + esc(yid) + '" allowfullscreen loading="lazy"></iframe></div>' : '')
+      +   (canEdit()
+            ? '<div class="rb">'
+              + '<button data-ed="' + r.id + '">고치기</button>'
+              + '<button data-del="' + r.id + '" style="color:#c62828;">지우기</button>'
+              + '</div>'
+            : '')
       + '</div>'
-      + (r.body ? '<div class="bd">' + esc(r.body) + '</div>' : '')
-      + (yid ? '<div class="vid"><iframe src="https://www.youtube.com/embed/'
-               + esc(yid) + '" allowfullscreen loading="lazy"></iframe></div>'
-             : (r.url ? '<div class="lk"><a href="' + esc(r.url)
-                        + '" target="_blank" rel="noopener">' + esc(r.url) + '</a></div>' : ''))
-      + (canEdit()
-          ? '<div class="rb">'
-            + '<button data-ed="' + r.id + '">고치기</button>'
-            + '<button data-del="' + r.id + '" style="color:#c62828;">지우기</button>'
-            + '</div>'
+      + (r.url && !yid
+          ? '<a class="nwbtn" href="' + esc(r.url) + '" target="_blank" rel="noopener">'
+            + '<span class="ico">🔗</span><span>구경하러 가기</span>'
+            + '<span class="ar">›</span></a>'
           : '')
       + '</div>';
   }).join('');
