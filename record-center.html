@@ -248,31 +248,43 @@ async function afterLogin(user) {
   const [th, tp] = await Promise.all([
     sb.from('nl_therapists').select('id, name'),
     sb.from('nl_therapies')
-      .select('id, child_id, therapy_type_id, nl_children!inner(id, name, birth, manager_no, status), nl_therapy_schedules(weekday, start_time, therapist_id, duration)')
+      .select('id, child_id, therapy_type_id, ended_on, nl_children!inner(id, name, birth, manager_no, status), nl_therapy_schedules(weekday, start_time, therapist_id, duration, to_month)')
       .eq('support_type_id', SUPPORT)
   ]);
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
 
   const mineOnly = !_isAllView(me.role);
+  const _mk0 = mkNow();
 
-  PAIRS = [];
+  // 기록지는 한 달에 아동당 한 장이다. 요일이 여럿이어도 한 줄로 모은다.
+  const byKid = {};
   (tp.data || []).forEach(r => {
     const c = r.nl_children;
     if (!c || c.status === '종결') return;
-    const sc = r.nl_therapy_schedules || [];
-    // 치료사면 자기가 담당인 치료만
+    if (r.ended_on && String(r.ended_on).slice(0,7) < _mk0) return;   // 끝난 수업
+    const sc = (r.nl_therapy_schedules || [])
+      .filter(s => !s.to_month || s.to_month >= _mk0);
+    if (!sc.length) return;
+    // 치료사면 자기가 담당인 수업이 하나라도 있어야 한다
     if (mineOnly && !sc.some(x => String(x.therapist_id) === String(me.id))) return;
-    PAIRS.push({ child: c, therapy_id: r.id, therapy_type_id: r.therapy_type_id, sched: sc });
+
+    const g = byKid[c.id] = byKid[c.id] || {
+      child: c, therapy_id: r.id, therapy_type_id: r.therapy_type_id,
+      tts: [], sched: [] };
+    if (g.tts.indexOf(r.therapy_type_id) < 0) g.tts.push(r.therapy_type_id);
+    sc.forEach(s => g.sched.push(s));
   });
-  PAIRS.sort((a,b) => (a.child.name||'').localeCompare(b.child.name||'')
-                   || a.therapy_type_id - b.therapy_type_id);
+
+  PAIRS = Object.keys(byKid).map(k => byKid[k]);
+  PAIRS.sort((a,b) => (a.child.name||'').localeCompare(b.child.name||''));
 
   $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
     + PAIRS.map((p,i) => {
-        const s = p.sched[0];
-        const when = s ? (' · ' + s.weekday + ' ' + String(s.start_time).slice(0,5)) : '';
-        return '<option value="' + i + '">' + esc(p.child.name) + ' · '
-             + esc(TTYPE[p.therapy_type_id] || '') + when + '</option>';
+        const tt = p.tts.map(v => TTYPE[v] || '').filter(v => v).join('·');
+        const wd = [...new Set(p.sched.map(s => s.weekday).filter(v => v))].join('·');
+        return '<option value="' + i + '">' + esc(p.child.name)
+             + (tt ? ' · ' + esc(tt) : '')
+             + (wd ? ' · ' + esc(wd) : '') + '</option>';
       }).join('');
   $('pMonth').value = mkNow();
   $('who').textContent = me.name + ' (' + me.role + ') 님 · 센터비용 ' + PAIRS.length + '건'

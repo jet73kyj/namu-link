@@ -297,26 +297,27 @@ async function afterLogin(user) {
     sb.from('nl_therapists').select('id, name'),
     sb.from('nl_support_types').select('id, name'),
     sb.from('nl_therapies')
-      .select('id, child_id, therapy_type_id, support_type_id, nl_children!inner(id, name, birth, manager_no, status, disability, school, grade_year)')
+      .select('id, child_id, therapy_type_id, support_type_id, ended_on, nl_children!inner(id, name, birth, manager_no, status, disability, school, grade_year), nl_therapy_schedules(therapist_id, to_month)')
       .in('support_type_id', SUPPORTS)
   ]);
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
   (st.data || []).forEach(s => SUPNAME[s.id] = s.name);
 
-  // 치료사면 자기가 담당인 치료만 (수업 시간표의 담당 기준)
-  let myTherapyIds = null;
-  if (!_isAllView(me.role)) {
-    const all = await sb.from('nl_therapy_schedules')
-      .select('therapy_id').eq('therapist_id', me.id);
-    myTherapyIds = new Set((all.data || []).map(r => r.therapy_id));
-  }
+  const allView = _isAllView(me.role);
+  const _mk0 = mkNow();
 
   PAIRS = [];
   const seen = {};
   (tp.data || []).forEach(r => {
     const c = r.nl_children;
     if (!c || c.status === '종결') return;
-    if (myTherapyIds && !myTherapyIds.has(r.id)) return;
+    // 이 달 기준으로 아직 살아 있는 수업만
+    if (r.ended_on && String(r.ended_on).slice(0,7) < _mk0) return;
+    const sc = (r.nl_therapy_schedules || [])
+      .filter(s => !s.to_month || s.to_month >= _mk0);
+    if (!sc.length) return;
+    // 치료사는 「이 수업」의 담당인 아동만 본다
+    if (!allView && !sc.some(s => String(s.therapist_id) === String(me.id))) return;
     const k = c.id + '-' + r.support_type_id;
     if (seen[k]) return;
     seen[k] = true;

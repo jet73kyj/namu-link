@@ -393,28 +393,31 @@ async function afterLogin(user) {
   const [th, ch] = await Promise.all([
     sb.from('nl_therapists').select('id, name'),
     sb.from('nl_therapies')
-      .select('child_id, nl_children!inner(id, name, birth, manager_no, status), nl_therapy_schedules(therapist_id)')
+      .select('id, child_id, ended_on, nl_children!inner(id, name, birth, manager_no, status), nl_therapy_schedules(therapist_id, to_month)')
       .eq('support_type_id', 2)
   ]);
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
 
-  // 치료사면 자기가 담당인 아동만 추린다 (수업 시간표의 담당 기준)
-  let myChildIds = null;
-  if (!_isAllView(me.role)) {
-    const all = await sb.from('nl_therapy_schedules')
-      .select('therapist_id, nl_therapies!inner(child_id)')
-      .eq('therapist_id', me.id);
-    myChildIds = new Set((all.data || []).map(r => r.nl_therapies && r.nl_therapies.child_id)
-                                          .filter(v => v != null));
-  }
+  // 이 달 기준으로 아직 살아 있는 수업만 본다
+  const _mk0 = mkNow();
+  const _live = (r) => {
+    if (r.ended_on && String(r.ended_on).slice(0,7) < _mk0) return false;
+    const sc = (r.nl_therapy_schedules || [])
+      .filter(s => !s.to_month || s.to_month >= _mk0);
+    return sc.length > 0 ? sc : false;
+  };
 
   const seen = {};
-  const mine = _isAllView(me.role) ? null : (myChildIds || new Set());
+  const allView = _isAllView(me.role);
   (ch.data || []).forEach(r => {
     const c = r.nl_children;
     if (!c || seen[c.id]) return;
     if (c.status === '종결') return;
-    if (mine && !mine.has(c.id)) return;      // 치료사는 담당 아동만
+    const sc = _live(r);
+    if (!sc) return;                          // 끝난 수업은 뺀다
+    // 치료사는 「이 발달재활 수업」의 담당인 아동만 본다
+    //   (다른 지원유형만 담당인데 이 화면에 나오던 것을 막는다)
+    if (!allView && !sc.some(s => String(s.therapist_id) === String(me.id))) return;
     seen[c.id] = true;
     CHILDREN.push(c);
   });
