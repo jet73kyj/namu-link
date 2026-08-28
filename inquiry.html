@@ -159,15 +159,15 @@
 
   <div class="tools">
     <button class="tab on" data-st="전체">전체</button>
-    <button class="tab" data-st="연락 대기">연락 대기</button>
+    <button class="tab" data-st="연락대기">연락대기</button>
     <button id="wlBtn" class="tab" style="background:#00695c;color:#fff;font-weight:bold;">⏳ 자리 대기 명단</button>
-    <button class="tab" data-st="그룹 대기">그룹 대기</button>
-    <button id="addBtn" class="tab" style="background:#2e7d32;color:#fff;font-weight:bold;">＋ 새 문의 등록</button>
+    <button class="tab" data-st="그룹대기">그룹대기</button>
+    <button id="wlGBtn" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">👥 그룹 대기 명단</button>
     <span class="count" id="count"></span>
   </div>
 
   <!-- 새 문의 등록 창 -->
-  <div id="addBox" class="panel" style="display:none;">
+  <div id="addBox" class="panel" style="display:block;">
     <div class="panel-t">새 문의 등록</div>
     <div class="grid">
       <div style="grid-column:1 / -1;">
@@ -261,7 +261,7 @@
 
   <!-- 자리 대기 명단 창 -->
   <div id="wlBox" class="panel" style="display:none;">
-    <div class="panel-t">자리 대기 명단</div>
+    <div class="panel-t" id="wlTitle">자리 대기 명단</div>
 
     <div class="grid">
       <div style="grid-column:1 / -1; position:relative;">
@@ -270,6 +270,12 @@
         <input id="w_kidq" type="text" placeholder="이름 두 글자만 쳐도 됩니다" autocomplete="off">
         <div id="w_kidlist" class="kidlist" style="display:none;"></div>
         <div id="w_kidpick" class="kidpick"></div>
+      </div>
+
+      <div id="w_groupWrap" style="grid-column:1 / -1; display:none;">
+        <label for="w_group">그룹 이름
+          <span style="font-weight:normal;color:#888;">— 예: 사회성그룹 / 언어그룹</span></label>
+        <input id="w_group" type="text" placeholder="어떤 그룹을 기다리는지 적으세요" autocomplete="off">
       </div>
 
       <div style="grid-column:1 / -1;">
@@ -551,11 +557,13 @@ function memoOf() {
 }
 const msg = $('msg');
 
-// 상태 8가지
-const STATUS = ['연락 대기','회신 대기','평가 대기','자리 대기','그룹 대기',
-                '일정 조율 중','치료 시작','종료'];
-// 아직 결론이 안 난 상태 (= 진행중)
-const LIVE = ['연락 대기','회신 대기','평가 대기','자리 대기','그룹 대기','일정 조율 중'];
+// 문의 단계 7가지
+const STATUS = ['연락대기','상담문의중','평가중','자리대기','그룹대기',
+                '일정조율중','치료시작'];
+// 아직 결론이 안 난 단계 (= 진행중)
+const LIVE = ['연락대기','상담문의중','평가중','자리대기','그룹대기','일정조율중'];
+// 「오늘까지 확인할 문의」 상자에 늘 띄울 단계
+const URGENT = ['평가중','일정조율중','자리대기'];
 
 // 이 화면을 볼 수 있는 직원 번호. 8=관리자 9=행정
 // 나중에 치료사도 보게 하려면 아래 줄에 번호를 더하면 됩니다.
@@ -603,10 +611,9 @@ function hasEval(cid) {
   return EVALS.some(e => e.child_id === cid && e.status !== '취소');
 }
 function badge(st) {
-  const c = (st === '평가 대기') ? 's-eval'
-          : (st === '자리 대기' || st === '그룹 대기') ? 's-seat'
-          : (st === '치료 시작') ? 's-go'
-          : (st === '종료') ? 's-end' : 's-wait';
+  const c = (st === '평가중') ? 's-eval'
+          : (st === '자리대기' || st === '그룹대기') ? 's-seat'
+          : (st === '치료시작') ? 's-go' : 's-wait';
   return '<span class="badge ' + c + '">' + esc(st || '미지정') + '</span>';
 }
 // 상태 고르는 칸 채우기
@@ -614,25 +621,51 @@ function fillStatus(id) {
   $(id).innerHTML = STATUS.map(s => '<option value="' + s + '">' + s + '</option>').join('');
 }
 
+// 「치료시작」으로 바뀌면 아동 상태도 「치료중」으로 (한 번 물어본 뒤)
+async function kidToActive(cid) {
+  const k = KIDS.find(x => x.id === cid);
+  if (!k) return;
+  if (k.status === '치료중') return;          // 이미 치료중이면 묻지 않는다
+  if (!confirm(k.name + ' 아동은 아직 「' + (k.status || '미지정') + '」 입니다.\n\n'
+    + '아동 상태도 「치료중」으로 바꿀까요?')) return;
+  const { error } = await sb.from('nl_children')
+    .update({ status: '치료중', updated_at: new Date().toISOString() })
+    .eq('id', cid);
+  if (error) { alert('⚠️ 아동 상태를 바꾸지 못했습니다.\n' + error.message); return; }
+  k.status = '치료중';
+}
+
 // ===== 오늘 확인할 건 =====
 function drawAlert() {
   const td = today();
+  // 평가중·일정조율중·자리대기 는 날짜와 상관없이 늘 띄운다
   const list = ALL.filter(r =>
-    LIVE.indexOf(r.status) >= 0 && r.next_check_date && r.next_check_date <= td
-  ).sort((a, b) => (a.next_check_date < b.next_check_date ? -1 : 1));
+    LIVE.indexOf(r.status) >= 0 &&
+    ( URGENT.indexOf(r.status) >= 0 ||
+      (r.next_check_date && r.next_check_date <= td) )
+  ).sort((a, b) => {
+    const ua = URGENT.indexOf(a.status) >= 0 ? 0 : 1;
+    const ub = URGENT.indexOf(b.status) >= 0 ? 0 : 1;
+    if (ua !== ub) return ua - ub;              // 세 단계를 맨 위로
+    const da = a.next_check_date || '9999-99-99';
+    const db = b.next_check_date || '9999-99-99';
+    return da < db ? -1 : (da > db ? 1 : 0);
+  });
 
   if (!list.length) { $('alertBox').style.display = 'none'; return; }
 
   $('alertBox').style.display = 'block';
   $('alertTitle').textContent = '⏰ 오늘까지 확인할 문의 ' + list.length + '건';
   $('alertRows').innerHTML = list.map(r => {
-    const late = r.next_check_date < td;
+    const late = r.next_check_date && r.next_check_date < td;
     const days = late ? Math.round((new Date(td) - new Date(r.next_check_date)) / 86400000) : 0;
+    const when = late ? days + '일 지남'
+               : (r.next_check_date === td ? '오늘' : (r.next_check_date || '날짜 없음'));
     return '<div class="alert-line" data-open="' + r.id + '">'
       + '<b>' + esc(kidName(r.child_id)) + '</b> — ' + esc(r.status)
       + ' · ' + esc(r.next_action || '할 일 안 적힘')
       + ' <span class="' + (late ? 'late' : '') + '">('
-      + (late ? days + '일 지남' : '오늘') + ')</span>'
+      + when + ')</span>'
       + '</div>';
   }).join('');
 
@@ -646,6 +679,8 @@ function draw() {
   const q = ($('pastQ') ? $('pastQ').value : '').trim().toLowerCase();
 
   const list = ALL.filter(r => {
+    // 치료시작은 아동 목록으로 넘어간 것이므로 평소엔 감춘다
+    if (r.status === '치료시작' && stFilter !== '치료시작') return false;
     if (q) return kidName(r.child_id).toLowerCase().includes(q);
     if (stFilter === '전체') return true;
     if (stFilter === '진행중') return LIVE.indexOf(r.status) >= 0;
@@ -665,8 +700,21 @@ function draw() {
     return String(b.inquiry_date || '').localeCompare(String(a.inquiry_date || ''));
   });
 
-  $('count').textContent = list.length + '건 / 전체 ' + ALL.length + '건'
-    + (q ? ' · 「' + esc(q) + '」 로 찾는 중' : '');
+  const goneN = ALL.filter(r => r.status === '치료시작').length;
+  $('count').innerHTML = list.length + '건 / 전체 ' + ALL.length + '건'
+    + (q ? ' · 「' + esc(q) + '」 로 찾는 중' : '')
+    + (goneN && stFilter !== '치료시작'
+        ? ' · <a href="#" id="goneLink" style="color:#00695c;">치료시작 '
+          + goneN + '건 보기</a>' : '')
+    + (stFilter === '치료시작'
+        ? ' · <a href="#" id="backLink" style="color:#00695c;">전체로 돌아가기</a>' : '');
+  const gl = document.getElementById('goneLink');
+  if (gl) gl.onclick = (ev) => { ev.preventDefault(); stFilter = '치료시작';
+    document.querySelectorAll('.tab[data-st]').forEach(x => x.classList.remove('on')); draw(); };
+  const bl = document.getElementById('backLink');
+  if (bl) bl.onclick = (ev) => { ev.preventDefault(); stFilter = '전체';
+    document.querySelectorAll('.tab[data-st]').forEach(x =>
+      x.classList.toggle('on', x.dataset.st === '전체')); draw(); };
   $('empty').style.display = list.length ? 'none' : 'block';
 
   const td = today();
@@ -702,7 +750,7 @@ async function openDetail(id) {
   $('detBox').style.display = 'block';
   $('detTitle').textContent = '문의 ' + r.id + '번 — ' + kidName(r.child_id);
 
-  $('d_status').value    = r.status || '연락 대기';
+  $('d_status').value    = r.status || '연락대기';
   $('d_next').value      = r.next_check_date || '';
   $('d_action').value    = r.next_action || '';
   $('d_date').value      = r.inquiry_date || '';
@@ -757,7 +805,8 @@ async function loadLogs(id) {
   ).join('');
 }
 
-$('closeDet').onclick = () => { $('detBox').style.display = 'none'; openId = null; };
+$('closeDet').onclick = () => { $('detBox').style.display = 'none'; openId = null;
+  $('addBox').style.display = 'block'; };
 
 $('saveDet').onclick = async () => {
   if (!openId) return;
@@ -824,6 +873,13 @@ $('saveDet').onclick = async () => {
     }
 
     draw();
+    if (up.status === '치료시작') {
+      await kidToActive(data.child_id);
+      if (confirm(kidName(data.child_id) + ' — 「치료시작」으로 저장했습니다.\n\n'
+        + '문의 목록에서는 감춰집니다.\n아동 목록으로 갈까요?')) {
+        location.href = 'children-new.html'; return;
+      }
+    }
     showBox('msgD', '✅ 저장했습니다.'
       + (evN ? '\n평가 ' + evN + '건' : '')
       + (evErr ? '\n⚠️ 평가는 저장하지 못했습니다: ' + evErr : ''), true);
@@ -1147,6 +1203,7 @@ let WL = [];          // 대기 명단 (희망 시간 포함)
 let wlKid = null;     // 고른 아동
 let wlEditId = null;  // 고치는 중인 대기 번호
 let wlFilter = '전체';
+let wlKind   = '자리';   // 지금 보고 있는 갈래 — '자리' 또는 '그룹'
 
 function wlmsg(t, ok){ $('msgW').textContent = t;
   $('msgW').className = 'out ' + (ok ? 'ok' : 'err'); }
@@ -1189,6 +1246,7 @@ function clearWlForm(){
   $('w_status').value = '대기중';
   $('w_contact').value = '';
   $('w_memo').value = '';
+  $('w_group').value = '';
   $('msgW').className = 'out'; $('msgW').textContent = '';
 }
 
@@ -1238,8 +1296,9 @@ function wlSlotText(w){
 }
 
 function drawWl(){
-  const list = WL.filter(w => wlFilter === '전체' || w.status === wlFilter);
-  $('wlCount').textContent = list.length + '명 / 전체 ' + WL.length + '명';
+  const mine = WL.filter(w => (w.kind || '자리') === wlKind);
+  const list = mine.filter(w => wlFilter === '전체' || w.status === wlFilter);
+  $('wlCount').textContent = list.length + '명 / 전체 ' + mine.length + '명';
   if (!list.length) { $('wlRows').innerHTML =
     '<div class="evnone">해당하는 아동이 없습니다.</div>'; return; }
 
@@ -1249,6 +1308,8 @@ function drawWl(){
               : w.status === '보류'   ? '#8a6116' : '#5a625c';
     return '<div class="evrow" style="cursor:pointer;" data-wlid="' + w.id + '">'
       + '<span class="kn">' + esc(k ? k.name : '(' + w.child_id + '번)') + '</span>'
+      + (wlKind === '그룹'
+          ? '<span class="d">' + esc(w.group_name || '(그룹 미정)') + '</span>' : '')
       + '<span class="d">' + (k && k.phone ? esc(k.phone) : '연락처 없음') + '</span>'
       + '<span>' + wlSlotText(w) + '</span>'
       + '<span style="font-weight:bold;color:' + cls + ';">' + esc(w.status) + '</span>'
@@ -1276,6 +1337,7 @@ function openWl(id){
   $('w_status').value  = w.status || '대기중';
   $('w_contact').value = w.last_contact || '';
   $('w_memo').value    = w.memo || '';
+  $('w_group').value   = w.group_name || '';
   wlmsg('고치는 중입니다. 바꾼 뒤 「저장」를 누르세요.', true);
   $('wlBox').scrollIntoView({ behavior:'smooth', block:'start' });
 }
@@ -1293,11 +1355,15 @@ $('w_save').onclick = async () => {
   });
   if (!slots.length) { wlmsg('희망 시간을 하나 이상 넣으세요.', false); return; }
 
-  const dup = WL.find(w => w.child_id === wlKid.id && w.id !== wlEditId);
-  if (dup && !confirm(wlKid.name + ' 아동은 이미 대기 명단에 있습니다.\n그래도 새로 넣을까요?')) return;
+  const dup = WL.find(w => w.child_id === wlKid.id && w.id !== wlEditId
+                        && (w.kind || '자리') === wlKind);
+  if (dup && !confirm(wlKid.name + ' 아동은 이미 ' + wlKind
+    + ' 대기 명단에 있습니다.\n그래도 새로 넣을까요?')) return;
 
   const row = {
     child_id:     wlKid.id,
+    kind:         wlKind,
+    group_name:   wlKind === '그룹' ? ($('w_group').value.trim() || null) : null,
     status:       $('w_status').value,
     last_contact: $('w_contact').value || null,
     memo:         $('w_memo').value.trim() || null,
@@ -1322,8 +1388,8 @@ $('w_save').onclick = async () => {
     if (e2) throw e2;
 
     await loadWl(); drawWl();
-    wlmsg('✅ ' + esc(wlKid.name) + ' 아동 대기를 저장했습니다. (희망 시간 '
-      + slots.length + '개)', true);
+    wlmsg('✅ ' + esc(wlKid.name) + ' 아동을 ' + wlKind
+      + ' 대기 명단에 저장했습니다. (희망 시간 ' + slots.length + '개)', true);
     clearWlForm();
   } catch (e) {
     wlmsg('❌ 저장하지 못했습니다.\n' + e.message, false);
@@ -1344,7 +1410,8 @@ $('w_del').onclick = async () => {
   wlmsg('✅ 대기 명단에서 뺐습니다.', true);
 };
 
-$('w_close').onclick = () => { $('wlBox').style.display = 'none'; };
+$('w_close').onclick = () => { $('wlBox').style.display = 'none';
+  $('addBox').style.display = 'block'; };
 
 // 걸러 보기
 document.querySelectorAll('.wltab').forEach(el => {
@@ -1356,16 +1423,25 @@ document.querySelectorAll('.wltab').forEach(el => {
   };
 });
 
-$('wlBtn').onclick = async () => {
+async function openWlBox(kind) {
+  wlKind = kind;
+  $('wlTitle').textContent = kind + ' 대기 명단';
+  $('w_groupWrap').style.display = (kind === '그룹') ? 'block' : 'none';
   $('addBox').style.display = 'none';
   $('detBox').style.display = 'none';
   $('evBox').style.display  = 'none';
   $('wlBox').style.display  = 'block';
   clearWlForm();
+  wlFilter = '전체';
+  document.querySelectorAll('.wltab').forEach(x =>
+    x.classList.toggle('on', x.dataset.wl === '전체'));
   await loadWl();
   drawWl();
   $('wlBox').scrollIntoView({ behavior:'smooth', block:'start' });
-};
+}
+
+$('wlBtn').onclick  = () => openWlBox('자리');
+$('wlGBtn').onclick = () => openWlBox('그룹');
 
 
 // 달을 바꾸면 다시 그린다
@@ -1448,14 +1524,12 @@ function nvEnsureOne() {
   if (!document.querySelector('#nvRows .nvrow')) nvAddRow();
 }
 
-$('addBtn').onclick = () => {
-  const open = $('addBox').style.display !== 'none';
-  if (open) { $('addBox').style.display = 'none'; return; }
+function resetAddBox() {
   $('detBox').style.display = 'none';
   $('a_date').value = today();
   $('dateTxt').textContent = today();
   $('a_next').value = today();
-  $('a_status').value = '연락 대기';
+  $('a_status').value = '연락대기';
   $('nvRows').innerHTML = '';
   nvEnsureOne();
   ['a_channel','a_area','a_day','a_time','a_action','a_memo',
@@ -1469,13 +1543,11 @@ $('addBtn').onclick = () => {
   $('pastBox').style.display = 'none';
   $('msgA').className = 'out'; $('msgA').textContent = '';
   $('addBox').style.display = 'block';
-  $('k_name').focus();
-};
+}
 
+// 「취소」 — 창은 그대로 두고 적은 것만 비운다 (단추가 없어 다시 못 열기 때문)
 $('cancelNew').onclick = () => {
-  $('addBox').style.display = 'none';
-  $('pastQ').value = '';
-  $('pastBox').style.display = 'none';
+  resetAddBox();
   draw();
 };
 
@@ -1630,6 +1702,13 @@ $('saveNew').onclick = async () => {
     }
 
     draw();
+    if (row.status === '치료시작') {
+      await kidToActive(cid);
+      if (confirm(kid.name + ' — 「치료시작」으로 등록했습니다.\n\n'
+        + '문의 목록에서는 감춰집니다.\n아동 목록으로 갈까요?')) {
+        location.href = 'children-new.html'; return;
+      }
+    }
     showBox('msgA', '✅ 등록했습니다.\n아동 ' + esc(kid.name) + ' (' + cid + '번 · '
       + kid.manager_no + ')\n문의 ' + data.id + '번'
       + (evN ? '\n평가 ' + evN + '건' : '')
@@ -1708,7 +1787,7 @@ async function afterLogin(user) {
   $('listBox').style.display  = 'block';
 
   // 화면을 열면 「새 문의 등록」 창을 바로 펼쳐 둔다
-  $('addBtn').click();
+  resetAddBox();
   draw();
 }
 
