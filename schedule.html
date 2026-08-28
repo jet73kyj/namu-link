@@ -2414,6 +2414,7 @@ function clearPick(){
   $('ad_pick').innerHTML = '';
 }
 function showPick(k){
+  if (!kidReady(k)) return;
   pickKid = k;
   $('ad_name').value = '';
   $('ad_hits').innerHTML = '';
@@ -2466,6 +2467,7 @@ $('adClose').onclick = () => { $('addBox').style.display='none'; addKey=null; };
 $('adSave').onclick = async () => {
   if (!addKey) return;
   if (!pickKid) { admsg('아동 이름을 치고 아래에 뜬 이름을 눌러 고르세요.', false); return; }
+  if (!kidReady(pickKid)) return;
   const cid = pickKid.id;
   const p = addKey.split('_');
   const slot = SLOTS.find(x => x.no === Number(p[0]));
@@ -3427,17 +3429,31 @@ async function openMnEdit(sid){
   mnmsg('고치는 중입니다. 바꾼 뒤 「저장」을 누르세요.', true);
 }
 
+// 아동이 지금 수업을 넣을 수 있는 상태인가
+//   종결 아동은 아동 목록에서 「치료중」으로 먼저 바꿔야 한다
+function kidReady(k) {
+  if (!k) return false;
+  if (k.status === '치료중' || k.status === '대기중') return true;
+  if (confirm(k.name + ' 아동은 지금 「' + k.status + '」 상태입니다.\n\n'
+    + '수업을 넣으시려면 아동 목록에서\n「치료중」으로 먼저 바꿔 주세요.\n\n'
+    + '확인 = 아동 목록으로 가기\n'
+    + '취소 = 그대로 두기')) {
+    location.href = 'children-new.html';
+  }
+  return false;
+}
+
 // 아동 이름 찾기 (치료중만)
 $('mn_name').oninput = () => {
   const q = $('mn_name').value.trim();
   if (q.length < 1) { $('mn_hits').innerHTML=''; return; }
   // 치료중 · 대기중 둘 다 찾는다 (평가만 받는 아동은 대기중이므로)
-  const hit = KIDS.filter(k => (k.status === '치료중' || k.status === '대기중')
-                          && (k.name||'').includes(q)).slice(0, 8);
+  const hit = KIDS.filter(k => (k.name||'').includes(q)).slice(0, 8);
   $('mn_hits').innerHTML = hit.length
     ? hit.map(k => '<span class="hit" data-mnk="'+k.id+'">'+esc(k.name)
-        + ' <span style="color:#7a827d;font-size:11px;">'+esc(k.status)+'</span></span>').join('')
-    : '<span class="hit">치료중·대기중 아동 중에 없습니다</span>';
+        + ' <span style="color:' + (k.status === '종결' ? '#c62828' : '#7a827d')
+        + ';font-size:11px;">'+esc(k.status)+'</span></span>').join('')
+    : '<span class="hit">그런 이름의 아동이 없습니다</span>';
   $('mn_hits').querySelectorAll('.hit[data-mnk]').forEach(el => {
     el.onclick = () => pickMnKid(Number(el.dataset.mnk));
   });
@@ -3466,6 +3482,7 @@ $('mn_scd').onchange = drawMnHow;
 async function pickMnKid(kid){
   const k = KIDS.find(x => x.id === kid);
   if (!k) return;
+  if (!kidReady(k)) return;
   mnKid = k;
   $('mn_hits').innerHTML = '';
   $('mn_name').value = k.name;
@@ -4268,9 +4285,10 @@ async function afterLogin(user){
 
   // 수업 넣기·고치기 권한은 위에서 이미 정했다
 
-  // 아동 목록 (치료중 + 대기중)
+  // 아동 목록 (치료중 · 대기중 · 종결)
+  //   종결 아동도 담아 두어야, 수업을 넣으려 할 때 「먼저 치료중으로 바꾸세요」라고 알릴 수 있다
   const { data: allKids } = await sb.from('nl_children')
-    .select('id, name, status').in('status', ['치료중','대기중']).order('name');
+    .select('id, name, status').in('status', ['치료중','대기중','종결']).order('name');
   KIDS = allKids || [];
   $('ad_tt').innerHTML = Object.keys(TTYPE)
     .map(k=>'<option value="'+k+'">'+k+' '+TTYPE[k]+'치료</option>').join('');

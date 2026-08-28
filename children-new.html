@@ -978,6 +978,18 @@ $('saveEdit').onclick = async () => {
       + (before && before.status !== newSt
          ? '\n상태를 ' + newSt + ' 로 바꿨습니다. 시간표와 납부 내역에도 반영됩니다.' : '')
       + gmsg, true);
+
+    // 종결·대기중이던 아동을 다시 「치료중」으로 바꾼 경우
+    //   옛 수업은 종결된 채 남아 있으므로 시간표에서 새로 넣어야 한다
+    if (before && before.status !== '치료중' && newSt === '치료중') {
+      if (confirm(name + ' 아동을 「치료중」으로 바꿨습니다.\n\n'
+        + '옛 수업은 종결된 채로 남아 있습니다.\n'
+        + '지난 기록은 그대로 두고, 시간표에서 수업을 새로 넣어 주세요.\n\n'
+        + '확인 = 시간표로 가기\n'
+        + '취소 = 아동 목록에 머물기')) {
+        location.href = 'schedule.html';
+      }
+    }
   } catch (e) {
     show4('❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally {
