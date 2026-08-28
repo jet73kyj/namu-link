@@ -2434,7 +2434,8 @@ $('ad_name').addEventListener('input', () => {
   }
   $('ad_hits').innerHTML = hit.map(k =>
     '<span class="hit" data-kid="'+k.id+'">'+esc(k.name)
-    + '<span class="sm">'+k.id+'번 · '+esc(k.status)+'</span></span>').join('');
+    + '<span class="sm"' + (k.status === '종결' ? ' style="color:#c62828;font-weight:bold;"' : '')
+    + '>'+k.id+'번 · '+esc(k.status)+'</span></span>').join('');
   $('ad_hits').querySelectorAll('.hit').forEach(el => {
     el.onclick = () => showPick(KIDS.find(k => k.id === Number(el.dataset.kid)));
   });
@@ -3653,7 +3654,7 @@ $('mnSave').onclick = async () => {
     const scd0 = $('mn_scd').value;
     const st0  = $('mn_sp').value ? Number($('mn_sp').value)
                : (tp[1] ? Number(tp[1]) : null);
-    if (scd0 && st0 && !fixing) {
+    if (scd0 && st0 && !fixing && mon >= '2026-09') {
       const cap = PAYCNT[mnKid.id + '|' + st0];
       if (cap != null) {
         // 지금 그 아동·그 지원유형의 정규 회기 수 (보강·쉼은 안 셈)
