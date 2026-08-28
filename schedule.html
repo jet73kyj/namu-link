@@ -321,6 +321,19 @@
   .mnown .del { margin-left:6px; color:#c62828; cursor:pointer; font-weight:bold; }
   .mntag  { background:#ef6c00; color:#fff; border-radius:8px; padding:0 6px;
             font-size:10px; font-weight:bold; margin-right:3px; }
+  .findonly { margin:10px 0; padding:11px 13px; background:#eef3ff;
+    border:1px solid #b9c6ea; border-radius:9px; }
+  .findonly .fo-t { font-weight:bold; color:#2a3f7a; font-size:13.5px;
+    display:flex; justify-content:space-between; align-items:center; }
+  .findonly .fo-x { font-size:12px; color:#5a6a92; cursor:pointer; font-weight:normal; }
+  .findonly .fo-sub { font-size:12px; color:#4a5a82; margin:6px 0 8px; }
+  .findonly .fo-list { display:flex; gap:6px; flex-wrap:wrap; }
+  .findonly .fo-one { font-size:12.5px; padding:5px 10px; background:#fff;
+    border:1px solid #b9c6ea; border-radius:6px; color:#2a3f7a; }
+  .findonly .fo-none { font-size:12.5px; color:#5a6a92; margin-top:7px; }
+  .findonly .fo-note { font-size:11.5px; color:#5a6a92; margin-top:9px; line-height:1.6; }
+  .findbtn { font:inherit; font-size:11px; padding:0 4px; margin-left:3px;
+    border:1px solid #b9c6ea; border-radius:4px; background:#eef3ff; cursor:pointer; }
   .prevbox { background:#ede7f6; border:2px solid #9575cd; border-radius:10px;
              padding:10px 14px; margin-bottom:10px; }
   .prev-t  { font-size:14px; font-weight:bold; color:#4527a0; margin-bottom:7px; }
@@ -809,6 +822,7 @@
     </table>
   </div>
 
+  <div id="findOnly" class="findonly" style="display:none;"></div>
   <div id="prevBox" class="prevbox" style="display:none;"></div>
   <div id="short" class="shortbox" style="display:none;"></div>
   <div id="gapBox" class="shortbox" style="display:none;"></div>
@@ -1022,7 +1036,25 @@ function thName(tid){
 }
 
 // ===== 그 달 회기가 모자란 아동 =====
+// 결석 줄의 🔍 단추를 이어준다 (치료사용)
+function bindFindBtns(){
+  document.querySelectorAll('.findbtn[data-find]').forEach(el => {
+    el.onclick = (ev) => { ev.stopPropagation();
+      findPairOnly(Number(el.dataset.find)); };
+  });
+}
+
 function drawShort(_byScd, _mkOf){
+  // 치료사에게는 보강·모자란 수업 상자를 안 보여준다
+  //   (자기 담당 회기만 보이므로 셈이 어긋나고, 잡는 것은 관리자·행정이 한다)
+  if (MY_TH) {
+    ['short','shortTop','gapBox','gapTop'].forEach(id => {
+      const el = $(id); if (el) el.style.display = 'none';
+    });
+    const ok0 = $('allok'); if (ok0) ok0.style.display = 'none';
+    bindFindBtns();
+    return;
+  }
   // 화면마다 넘겨주는 자료가 달라 결과가 어긋나던 문제가 있었다.
   // 이제 상자가 스스로 그 달 회기를 모은다. 어느 화면에서 보든 같다.
   const byScd = {}, mkOf = {};
@@ -1565,7 +1597,10 @@ function drawWeek(){
                 : (x.status==='결석' || x.status==='휴무')
                 ? ((mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>' : '')
                    + (CAN_EDIT ? '<button class="mkbtn" data-mk="'+x.id+'"'
-                     + ' title="'+(mk ? '보강 고치기' : '보강 잡기')+'">＋</button>' : ''))
+                     + ' title="'+(mk ? '보강 고치기' : '보강 잡기')+'">＋</button>' : '')
+                   + ((MY_TH && !mk && pairMateOf(x))
+                     ? '<button class="findbtn" data-find="'+x.id+'"'
+                       + ' title="연달아 가능한 자리 찾기">🔍</button>' : ''))
                 : '<span class="st">'+x.status+'</span>';
               const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
                 ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
@@ -1730,6 +1765,12 @@ function seqInPrev(s) {
 
 // ===== 지난 달에서 넘어온 보강 =====
 function drawPrev(){
+  if (MY_TH) {
+    ['prevBox','prevHint'].forEach(id => {
+      const el = $(id); if (el) el.style.display = 'none';
+    });
+    return;
+  }
   const need = prevNeed();
   if (!need.length) {
     $('prevBox').style.display = 'none';
@@ -4049,6 +4090,52 @@ $('mkFind').onclick = () => {
   });
 };
 
+// 치료사용 — 연달아 가능한 자리를 「보기만」 한다 (잡지는 못한다)
+async function findPairOnly(sid) {
+  const s = findSess(sid);
+  if (!s) return;
+  const mate = pairMateOf(s);
+  if (!mate) return;
+
+  const box = $('findOnly');
+  box.style.display = 'block';
+  box.innerHTML = '<div class="fo-t">🔍 찾는 중입니다...</div>';
+  box.scrollIntoView({ behavior:'smooth', block:'center' });
+
+  try {
+    const pairs = await pairFreeSlots(s.therapist_id, mate.therapist_id,
+                                      s.child_id, s.plan_date);
+    if (!pairs.length) {
+      box.innerHTML = '<div class="fo-t">🔍 ' + esc(s._name || '') + ' 아동 · '
+        + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? '휴무' : '결석')
+        + '<span class="fo-x">✕ 닫기</span></div>'
+        + '<div class="fo-none">' + monNo(mon)
+        + '월에 두 선생님이 나란히 비는 자리가 없습니다.</div>';
+    } else {
+      box.innerHTML = '<div class="fo-t">🔍 ' + esc(s._name || '') + ' 아동 · '
+        + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? '휴무' : '결석')
+        + '<span class="fo-x">✕ 닫기</span></div>'
+        + '<div class="fo-sub">' + esc(thName(s.therapist_id)) + ' + '
+        + esc(thName(mate.therapist_id)) + ' 선생님이 잇달아 비는 자리 '
+        + pairs.length + '곳 — 가까운 날부터</div>'
+        + '<div class="fo-list">'
+        + pairs.map(c => '<span class="fo-one">'
+            + dayNo(c.date) + '일(' + WDS[new Date(c.date).getDay()] + ') '
+            + slotHm(c.a, s.therapist_id) + ' → '
+            + slotHm(c.b, mate.therapist_id) + '</span>').join('')
+        + '</div>'
+        + '<div class="fo-note">보호자와 정하신 뒤 행정 선생님께 알려주세요. '
+        + '여기서는 잡을 수 없습니다.</div>';
+    }
+  } catch (e) {
+    box.innerHTML = '<div class="fo-t">🔍 찾지 못했습니다'
+      + '<span class="fo-x">✕ 닫기</span></div>'
+      + '<div class="fo-none">' + esc(e.message) + '</div>';
+  }
+  const x = box.querySelector('.fo-x');
+  if (x) x.onclick = () => { box.style.display = 'none'; box.innerHTML = ''; };
+}
+
 // ===== 연달아 가능한 자리 찾기 =====
 //   한 아동이 같은 날 두 수업을 잇달아 받는 경우, 보강도 잇달아 잡아야 한다.
 //   두 치료사가 「바로 다음 교시」로 나란히 비는 날만 찾아 준다.
@@ -4074,6 +4161,64 @@ function pairMateOf(s) {
   return mate || null;
 }
 
+// 두 치료사가 바로 이웃한 교시로 나란히 비는 자리를 찾는다
+async function pairFreeSlots(thA, thB, childId, baseDate) {
+  const last = monEnd(mon);                       // 그 달 말일까지
+  const [fa, fb] = await Promise.all([
+    sb.rpc('nl_free_slots', { p_therapist_id: thA, p_last: last }),
+    sb.rpc('nl_free_slots', { p_therapist_id: thB, p_last: last })
+  ]);
+  if (fa.error) throw fa.error;
+  if (fb.error) throw fb.error;
+
+  // 날짜별로 교시 번호를 모은다. 그 달 것만, 점심은 뺀다
+  const put = (rows) => {
+    const m = {};
+    (rows || []).forEach(v => {
+      const d = String(v.slot_date);
+      if (d.slice(0, 7) !== mon) return;         // 그 달만
+      const dw = WDS[new Date(d).getDay()];
+      if (dw === '일') return;
+      const no = nearest(toMin(v.slot_time)).no;
+      if (dw !== '토' && no === LUNCH_NO) return;   // 주중 점심은 뺀다
+      (m[d] = m[d] || {})[no] = 1;
+    });
+    return m;
+  };
+  const A = put(fa.data), B = put(fb.data);
+
+  // 이 아동이 이미 수업을 받는 자리는 뺀다 (그 시간엔 못 온다)
+  const busyKid = {};
+  SESS.forEach(x => {
+    if (x.child_id !== childId) return;
+    if (x.status === '쉼') return;
+    const d = String(x.plan_date);
+    (busyKid[d] = busyKid[d] || {})[nearest(toMin(x.start_time)).no] = 1;
+  });
+
+  const out = [];
+  Object.keys(A).forEach(d => {
+    if (!B[d]) return;
+    const kb = busyKid[d] || {};
+    Object.keys(A[d]).map(Number).forEach(n => {
+      if (kb[n]) return;
+      [n + 1, n - 1].forEach(n2 => {
+        if (!B[d][n2] || kb[n2]) return;
+        if (n2 < n) return;                      // 같은 짝을 두 번 담지 않는다
+        const s1 = SLOTS.find(x => x.no === n);
+        const s2 = SLOTS.find(x => x.no === n2);
+        if (!s1 || !s2) return;
+        out.push({ date: d, a: s1, b: s2,
+                   gap: Math.abs(new Date(d) - new Date(baseDate)) });
+      });
+    });
+  });
+  out.sort((x, y) => x.gap - y.gap
+                  || String(x.date).localeCompare(String(y.date))
+                  || x.a.no - y.a.no);
+  return out;
+}
+
 $('mkPair').onclick = async () => {
   if (!mkSess) return;
   const mate = pairMateOf(mkSess);
@@ -4081,64 +4226,10 @@ $('mkPair').onclick = async () => {
 
   const thA = Number($('mk_th').value) || mkSess.therapist_id;
   const thB = mate.therapist_id;
-  const last = monEnd(mon);                       // 그 달 말일까지
 
   $('mkPair').disabled = true; $('mkPair').textContent = '찾는 중...';
   try {
-    const [fa, fb] = await Promise.all([
-      sb.rpc('nl_free_slots', { p_therapist_id: thA, p_last: last }),
-      sb.rpc('nl_free_slots', { p_therapist_id: thB, p_last: last })
-    ]);
-    if (fa.error) throw fa.error;
-    if (fb.error) throw fb.error;
-
-    // 날짜별로 교시 번호를 모은다. 그 달 것만, 점심은 뺀다
-    const put = (rows) => {
-      const m = {};
-      (rows || []).forEach(v => {
-        const d = String(v.slot_date);
-        if (d.slice(0, 7) !== mon) return;         // 그 달만
-        const dw = WDS[new Date(d).getDay()];
-        if (dw === '일') return;
-        const no = nearest(toMin(v.slot_time)).no;
-        if (dw !== '토' && no === LUNCH_NO) return;   // 주중 점심은 뺀다
-        (m[d] = m[d] || {})[no] = 1;
-      });
-      return m;
-    };
-    const A = put(fa.data), B = put(fb.data);
-
-    // 이 아동이 이미 수업을 받는 자리는 뺀다 (그 시간엔 못 온다)
-    const busyKid = {};
-    SESS.forEach(x => {
-      if (x.child_id !== mkSess.child_id) return;
-      if (x.status === '쉼') return;
-      const d = String(x.plan_date);
-      (busyKid[d] = busyKid[d] || {})[nearest(toMin(x.start_time)).no] = 1;
-    });
-
-    // 두 치료사가 바로 이웃한 교시로 나란히 비는 날
-    const base = mkSess.plan_date;
-    const out = [];
-    Object.keys(A).forEach(d => {
-      if (!B[d]) return;
-      const kb = busyKid[d] || {};
-      Object.keys(A[d]).map(Number).forEach(n => {
-        if (kb[n]) return;
-        [n + 1, n - 1].forEach(n2 => {
-          if (!B[d][n2] || kb[n2]) return;
-          if (n2 < n) return;                      // 같은 짝을 두 번 담지 않는다
-          const s1 = SLOTS.find(x => x.no === n);
-          const s2 = SLOTS.find(x => x.no === n2);
-          if (!s1 || !s2) return;
-          out.push({ date: d, a: s1, b: s2,
-                     gap: Math.abs(new Date(d) - new Date(base)) });
-        });
-      });
-    });
-    out.sort((x, y) => x.gap - y.gap
-                    || String(x.date).localeCompare(String(y.date))
-                    || x.a.no - y.a.no);
+    const out = await pairFreeSlots(thA, thB, mkSess.child_id, mkSess.plan_date);
 
     if (!out.length) {
       $('mkFree').innerHTML = '<div class="freenone">'
