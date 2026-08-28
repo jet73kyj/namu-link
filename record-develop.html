@@ -621,20 +621,28 @@ function _fillSheet1Times() {
   }
 }
 
-// 상태·결과 표에 넣을 줄 만들기 — 저장된 것 우선, 없으면 바우처에서
+// 상태·결과 표에 넣을 줄 만들기
+//   치료 내용(반응·메모·상태)은 치료사가 적은 것을 그대로 둔다.
+//   승인번호·승인일자는 결제 자료에서 오는 것이라 늘 바우처 값으로 덮는다.
+//   (오류 결제를 취소하고 다시 승인받으면 번호가 바뀌기 때문)
 function _statusRows() {
-  if (ITEMS.length) {
-    return ITEMS.slice(0, SESSIONS).map(r => ({
+  const vo = _prefillStatusFromVoucher();          // 바우처에서 뽑은 줄
+  if (!ITEMS.length) return vo;
+
+  return ITEMS.slice(0, SESSIONS).map((r, i) => {
+    const v = vo[i] || {};
+    return {
       provDate: r.service_date ? String(r.service_date).replace(/-/g,'.') : '',
-      apprDate: r.voucher_date ? String(r.voucher_date).replace(/-/g,'.') : '',
-      apprNo:   r.voucher_no || '',
+      // ↓ 이 두 칸만 바우처가 주인이다. 바우처에 값이 없으면 저장된 것을 쓴다
+      apprDate: v.apprDate
+                || (r.voucher_date ? String(r.voucher_date).replace(/-/g,'.') : ''),
+      apprNo:   v.apprNo || r.voucher_no || '',
       cloth: (r.state_json||{}).cloth || '', sock: (r.state_json||{}).sock || '',
       wear:  (r.state_json||{}).wear  || '', face: (r.state_json||{}).face || '',
       health:(r.state_json||{}).health|| '',
       result: r.reaction || '', note: r.staff_memo || ''
-    }));
-  }
-  return _prefillStatusFromVoucher();
+    };
+  });
 }
 
 // 바우처 결제내역에서 승인일자·승인번호 자동 채움
