@@ -63,8 +63,42 @@
     }
   };
 
+  // 휴대폰에서 쓰면 안 되는 직원 번호
+  //   행정(9번) 화면에는 납부·보호자 연락처가 다 있어 센터 컴퓨터에서만 쓴다
+  var PC_ONLY = [9];
+
+  // 휴대폰인데 그러면 안 되는 직원이면 화면을 막고 로그인을 끊는다
+  function blockIfMobile(id) {
+    if (PC_ONLY.indexOf(Number(id)) < 0) return false;
+    if (!w.nlIsMobile()) return false;
+    w.nlKeepOff();
+    try {
+      for (var i = w.sessionStorage.length - 1; i >= 0; i--) {
+        var k = w.sessionStorage.key(i);
+        if (k && k.indexOf('sb-') === 0) w.sessionStorage.removeItem(k);
+      }
+    } catch (e) {}
+    try {
+      document.body.innerHTML =
+        '<div style="max-width:420px;margin:60px auto;padding:28px;'
+        + 'background:#fff;border:1px solid #e8ebe4;border-radius:14px;'
+        + 'font-family:-apple-system,\'Malgun Gothic\',sans-serif;'
+        + 'color:#1c1f1a;line-height:1.8;text-align:center;">'
+        + '<div style="font-size:36px;margin-bottom:12px;">🌿</div>'
+        + '<div style="font-size:17px;font-weight:600;margin-bottom:14px;">'
+        + '센터 컴퓨터에서 이용해 주세요</div>'
+        + '<div style="font-size:14px;color:#5a6156;">'
+        + '이 화면에는 아동과 보호자의 개인정보가 담겨 있어<br>'
+        + '휴대폰에서는 열 수 없습니다.<br><br>'
+        + '센터 컴퓨터에서 로그인해 주세요.</div>'
+        + '</div>';
+    } catch (e) {}
+    return true;
+  }
+
   // 로그인해서 누구인지 알아낸 뒤 부른다
   w.nlKeep = function (id) {
+    if (blockIfMobile(id)) return;
     var keep = (Number(id) === BOSS) || w.nlIsMobile();
     if (!keep) { w.nlKeepOff(); return; }
     try {
