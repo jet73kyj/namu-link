@@ -1947,7 +1947,9 @@ async function saveKid(childId, btn) {
        .forEach(el => { now += numOf(el.value); });
 
     // 아직 표시가 안 붙은 줄만 뺄 수 있다
-    const cand = all.filter(v => !v.no);
+    //   휴무는 이미 회기로 안 세므로 후보에서 뺀다
+    //   (넣어 두면 「이미 한 회 줄어 있는 것」으로 보여 창이 안 뜬다)
+    const cand = all.filter(v => !v.no && v.s !== '휴무');
     const cut = cand.length - now;
 
     // 늘리셨으면 — 시간표에 자리를 더 잡아야 한다고 알려준다
