@@ -1012,10 +1012,13 @@ function drawShort(_byScd, _mkOf){
   ROWS.forEach(r => {
     const runs = byScd[r.id] || [];
     if (!runs.length) return;
+    // 「이대로 청구」로 정한 회기는 보강 목록에서 뺀다
     const miss = runs.filter(x =>
-      (x.status === '결석' || x.status === '휴무') && !mkOf[x.id]);
+      (x.status === '결석' || x.status === '휴무') && !mkOf[x.id] && !x.no_makeup);
     // 「발4+발추1」은 요일 수와 상관없이 발달 4회 + 발추 1회 = 5회가 기준이다
-    const short5 = (r._mode === '발4+발추1' && runs.length < 5);
+    // 이대로 청구로 정한 회기만큼 기준을 낮춘다
+    const nmN = runs.filter(x => x.no_makeup).length;
+    const short5 = (r._mode === '발4+발추1' && runs.length < 5 - nmN);
     if (miss.length) missRows.push({ row:r, miss:miss });
     if (short5)      gapRows.push({ row:r, have:runs.length });
   });
@@ -4006,7 +4009,7 @@ async function loadMonth(){
   if (pay) pay.forEach(p => BAL.add(p.child_id));
 
   const { data, error } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
     .eq('month_key', mon);
   SESS = error ? [] : (data || []);
   if (MY_TH) SESS = SESS.filter(s => s.therapist_id === MY_TH);
@@ -4014,7 +4017,7 @@ async function loadMonth(){
   // 지난 달 회기도 불러온다 (이월 보강 때문)
   const pm = prevMon(mon);
   const { data: pv } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
     .eq('month_key', pm);
   PREV = pv || [];
   if (MY_TH) PREV = PREV.filter(s => s.therapist_id === MY_TH);
