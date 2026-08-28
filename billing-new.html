@@ -830,7 +830,8 @@ async function load() {
       {
         const kk = x.child_id + '|' + (x.support_type_id || 0);
         (SESSLIST[kk] = SESSLIST[kk] || []).push({
-          id: x.id, d: x.plan_date, s: x.status, no: !!x.no_makeup });
+          id: x.id, d: x.plan_date, s: x.status, no: !!x.no_makeup,
+          scd: x.schedule_id });
       }
       const k = x.child_id + '|' + (x.support_type_id || 0);
       const g = SHORTCNT[k] = SHORTCNT[k] || { cnt: 0, miss: [], skip: 0 };
@@ -1361,7 +1362,9 @@ function drawKid(c) {
         const cnt = (savedCnt && savedCnt[i] != null && !isNaN(savedCnt[i]))
                     ? savedCnt[i] : it.count;
         const ap = (apList && apList[i] > 0) ? apList[i] : '';
-        b += '<div class="r line' + (ap ? ' hasap' : '') + '" data-st="' + g.support_type_id + '">'
+        b += '<div class="r line' + (ap ? ' hasap' : '') + '" data-st="' + g.support_type_id + '"'
+          + ' data-scd="' + (it.sched_id || '') + '"'
+          + ' data-lbl="' + esc(it.label + ' · ' + it.therapist_name) + '">'
           + '<span class="nm">' + (i === 0 ? esc(tn) + sd : '') + '</span>'
           + '<span class="de">' + esc(it.label)
           + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
@@ -1935,65 +1938,68 @@ async function saveKid(childId, btn) {
 
   // 회기를 손으로 줄였으면 어느 날 수업을 빼는지 고르게 한다
   //   그 줄에 「보강 안 함」 표시를 남겨야 시간표도 함께 맞아진다
+  //   수업 줄(요일·시간·담당) 하나씩 따로 본다. 그래야 어느 담당 수업인지 분명하다
   for (const p of parts) {
     const st = Number(p.st);
     if (st === 2 || st === 8 || st === 9) continue;   // 발달재활·발추·평가비는 제외
-    const g = SHORTCNT[childId + '|' + st];
     const all = SESSLIST[childId + '|' + st];
-    if (!g || !all) continue;
+    if (!all) continue;
 
-    let now = 0;
-    box.querySelectorAll('.line[data-st="' + st + '"] .cnt')
-       .forEach(el => { now += numOf(el.value); });
+    const lines = Array.from(box.querySelectorAll('.line[data-st="' + st + '"]'));
+    for (const tr of lines) {
+      const scd = Number(tr.dataset.scd) || 0;
+      if (!scd) continue;
+      const lbl = tr.dataset.lbl || (TYPES[st] || ('유형' + st));
+      const now = numOf(tr.querySelector('.cnt').value);
 
-    // 아직 표시가 안 붙은 줄만 뺄 수 있다
-    //   휴무는 이미 회기로 안 세므로 후보에서 뺀다
-    //   (넣어 두면 「이미 한 회 줄어 있는 것」으로 보여 창이 안 뜬다)
-    const cand = all.filter(v => !v.no && v.s !== '휴무');
-    const cut = cand.length - now;
+      // 그 수업 줄에 딸린 회기만 고른다
+      //   이미 표시가 붙은 줄과 휴무는 뺀다 (휴무는 회기로 안 세므로)
+      const cand = all.filter(v => v.scd === scd && !v.no && v.s !== '휴무');
+      const cut = cand.length - now;
 
-    // 늘리셨으면 — 시간표에 자리를 더 잡아야 한다고 알려준다
-    if (cut < 0) {
-      const nm0 = TYPES[st] || ('유형' + st);
-      if (!confirm(nm0 + ' 을 ' + cand.length + '회 → ' + now + '회 로 늘리셨습니다.\n\n'
-        + '시간표에 ' + (-cut) + '회 자리를 더 잡아야 합니다.\n'
-        + '저장한 뒤 시간표 화면의\n'
-        + '「회기가 모자란 수업」 상자에서 「일정 잡기」로 넣어 주세요.\n\n'
-        + '이대로 저장할까요?')) return;
-      continue;
+      // 늘리셨으면 — 시간표에 자리를 더 잡아야 한다고 알려준다
+      if (cut < 0) {
+        if (!confirm(lbl + '\n\n'
+          + cand.length + '회 → ' + now + '회 로 늘리셨습니다.\n\n'
+          + '시간표에 ' + (-cut) + '회 자리를 더 잡아야 합니다.\n'
+          + '저장한 뒤 시간표 화면의\n'
+          + '「회기가 모자란 수업」 상자에서 「일정 잡기」로 넣어 주세요.\n\n'
+          + '이대로 저장할까요?')) return;
+        continue;
+      }
+      if (cut === 0) continue;
+
+      const list = cand.map((v, i) =>
+        '  ' + (i + 1) + '. ' + dayOnly(v.d) + '일 (' + v.s + ')').join('\n');
+      const ans = prompt(lbl + '\n\n'
+        + cand.length + '회 → ' + now + '회 로 줄이셨습니다.\n\n'
+        + '어느 날 수업을 뺄까요?\n\n' + list + '\n\n'
+        + (cut === 1 ? '번호 하나를 적어주세요.'
+                     : cut + '개를 골라 번호를 쉼표로 적어주세요. 예: 1,3'), '');
+      if (ans === null) return;                      // 취소하면 저장을 멈춘다
+
+      const pick = String(ans).split(',').map(v => Number(v.trim()))
+        .filter(v => v >= 1 && v <= cand.length);
+      if (pick.length !== cut) {
+        show($('msg2'), '번호를 ' + cut + '개 골라주세요. 저장하지 않았습니다.', false);
+        return;
+      }
+
+      const rw = box.querySelector('.rsn[data-st="' + st + '"]');
+      const rt = rw ? rw.querySelector('.rsntx') : null;
+      const why = (rt && rt.value.trim()) || '납부에서 회기를 줄임';
+      if (rt && !rt.value.trim()) rt.value = why;
+
+      const ids = pick.map(i => cand[i - 1].id);
+      const { error: eN } = await sb.from('nl_sessions')
+        .update({ no_makeup: true, no_makeup_why: why }).in('id', ids);
+      if (eN) {
+        show($('msg2'), '뺄 날을 저장하지 못했습니다.\n' + eN.message, false); return;
+      }
+      ids.forEach(id => {
+        const v = all.find(z => z.id === id); if (v) v.no = true;
+      });
     }
-    if (cut === 0) continue;
-
-    const nm = TYPES[st] || ('유형' + st);
-    const list = cand.map((v, i) =>
-      '  ' + (i + 1) + '. ' + dayOnly(v.d) + '일 (' + v.s + ')').join('\n');
-    const ans = prompt(nm + ' 을 ' + cand.length + '회 → ' + now + '회 로 줄이셨습니다.\n\n'
-      + '어느 날 수업을 뺄까요?\n\n' + list + '\n\n'
-      + (cut === 1 ? '번호 하나를 적어주세요.'
-                   : cut + '개를 골라 번호를 쉼표로 적어주세요. 예: 1,3'), '');
-    if (ans === null) return;                        // 취소하면 저장을 멈춘다
-
-    const pick = String(ans).split(',').map(v => Number(v.trim()))
-      .filter(v => v >= 1 && v <= cand.length);
-    if (pick.length !== cut) {
-      show($('msg2'), '번호를 ' + cut + '개 골라주세요. 저장하지 않았습니다.', false);
-      return;
-    }
-
-    const rw = box.querySelector('.rsn[data-st="' + st + '"]');
-    const rt = rw ? rw.querySelector('.rsntx') : null;
-    const why = (rt && rt.value.trim()) || '납부에서 회기를 줄임';
-    if (rt && !rt.value.trim()) rt.value = why;
-
-    const ids = pick.map(i => cand[i - 1].id);
-    const { error: eN } = await sb.from('nl_sessions')
-      .update({ no_makeup: true, no_makeup_why: why }).in('id', ids);
-    if (eN) {
-      show($('msg2'), '뺄 날을 저장하지 못했습니다.\n' + eN.message, false); return;
-    }
-    ids.forEach(id => {
-      const v = all.find(z => z.id === id); if (v) v.no = true;
-    });
   }
 
   // 화면에 있는데 0원이 되어 저장에서 빠진 항목은, 옛 줄을 지운다
