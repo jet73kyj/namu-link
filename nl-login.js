@@ -63,14 +63,29 @@
     }
   };
 
-  // 휴대폰에서 쓰면 안 되는 직원 번호
-  //   행정(9번) 화면에는 납부·보호자 연락처가 다 있어 센터 컴퓨터에서만 쓴다
+  // 센터 컴퓨터에서만 쓸 수 있는 직원 번호
+  //   행정(9번) 화면에는 납부·보호자 연락처가 다 있어
+  //   휴대폰에서도, 열쇠가 없는 컴퓨터에서도 열리지 않게 한다
   var PC_ONLY = [9];
+  var PCKEY   = 'nl_office_pc';    // 이 컴퓨터가 센터 컴퓨터라는 표시
 
-  // 휴대폰인데 그러면 안 되는 직원이면 화면을 막고 로그인을 끊는다
+  // 이 컴퓨터에 열쇠가 심어져 있는가
+  w.nlHasPcKey = function () {
+    try { return w.localStorage.getItem(PCKEY) === '1'; } catch (e) { return false; }
+  };
+  // 열쇠 심기 / 빼기 (관리자가 그 컴퓨터에서 한 번만 한다)
+  w.nlSetPcKey = function (on) {
+    try {
+      if (on) w.localStorage.setItem(PCKEY, '1');
+      else    w.localStorage.removeItem(PCKEY);
+    } catch (e) {}
+  };
+
+  // 센터 컴퓨터가 아니면 화면을 막고 로그인을 끊는다
+  //   ① 휴대폰·태블릿이거나  ② 열쇠가 안 심어진 컴퓨터
   function blockIfMobile(id) {
     if (PC_ONLY.indexOf(Number(id)) < 0) return false;
-    if (!w.nlIsMobile()) return false;
+    if (!w.nlIsMobile() && w.nlHasPcKey()) return false;
     w.nlKeepOff();
     try {
       for (var i = w.sessionStorage.length - 1; i >= 0; i--) {
@@ -89,7 +104,8 @@
         + '센터 컴퓨터에서 이용해 주세요</div>'
         + '<div style="font-size:14px;color:#5a6156;">'
         + '이 화면에는 아동과 보호자의 개인정보가 담겨 있어<br>'
-        + '휴대폰에서는 열 수 없습니다.<br><br>'
+        + '센터 컴퓨터에서만 열 수 있습니다.<br><br>'
+        + '휴대폰이나 집 컴퓨터에서는 열리지 않습니다.<br>'
         + '센터 컴퓨터에서 로그인해 주세요.</div>'
         + '</div>';
     } catch (e) {}
