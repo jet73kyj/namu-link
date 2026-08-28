@@ -148,6 +148,13 @@
     border:1px solid #c9a97a; border-radius:5px; background:#fff5e6; color:#7a5c2a; }
   .shortact .nmbtn:hover { background:#f3e4cc; }
   .shortdone { font-size:11.5px; color:#2e7d32; margin:4px 0 0; }
+  .rsn { background:#fffdf5; }
+  .rsn .de { grid-column:2 / -1; display:flex; gap:6px; align-items:center;
+    flex-wrap:wrap; font-size:12px; color:#8a6116; }
+  .rsn select, .rsn input { font:inherit; font-size:12px; padding:3px 6px;
+    border:1px solid #e0cfa0; border-radius:5px; background:#fff; }
+  .rsn input { flex:1; min-width:140px; }
+  .rsnwhy { font-weight:bold; white-space:nowrap; }
   .kfix { font-size:11px; font-weight:bold; padding:2px 8px; border-radius:10px;
     margin-left:6px; white-space:nowrap; }
   .kfix.no  { background:#eceff1; color:#78838c; border:1px solid #d5dde2; }
@@ -1362,6 +1369,29 @@ function drawKid(c) {
           + '</div>'
           + wkBoxHtml(it);
       });
+      // 사유 줄 — 회기가 기준과 다를 때만 나타난다
+      {
+        const baseN = g.items.reduce((n, it) => n + (Number(it.count) || 0), 0);
+        const rsn   = reasonOf(sv[g.support_type_id]);
+        b += '<div class="r rsn" data-st="' + g.support_type_id + '"'
+          + ' data-base="' + baseN + '" style="display:none;">'
+          + '<span class="nm"></span>'
+          + '<span class="de">'
+          +   '<span class="rsnwhy">📝 기준 ' + baseN + '회와 다릅니다 — 사유</span>'
+          +   '<select class="rsnsel">'
+          +     '<option value="">— 고르기 —</option>'
+          +     '<option>추석·명절 수업</option>'
+          +     '<option>추가 수업 요청</option>'
+          +     '<option>치료사 휴무</option>'
+          +     '<option>보호자 요청</option>'
+          +     '<option>전월 이월</option>'
+          +   '</select>'
+          +   '<input class="rsntx" type="text" placeholder="사유를 적으세요" value="'
+          +     esc(rsn) + '">'
+          + '</span>'
+          + '<span class="ap"></span><span class="ct"></span>'
+          + '<span class="up"></span><span class="am"></span></div>';
+      }
       if (g.deduction > 0) {
         b += '<div class="r sub2"><span class="nm"></span>'
           + '<span class="de">지원금 제외</span><span class="ct"></span><span class="up"></span>'
@@ -1575,6 +1605,12 @@ function unitsOf(p) {
   const m = String((p && p.memo) || '').match(/\[적용단가([0-9,]+)\]/);
   return m ? m[1].split(',').map(x => parseInt(x, 10) || 0) : null;
 }
+// 저장된 메모에서 사유를 꺼낸다  [사유추석 수업]
+function reasonOf(p) {
+  const m = String((p && p.memo) || '').match(/\[사유([^\]]*)\]/);
+  return m ? m[1] : '';
+}
+
 // 저장된 메모에서 발추 적용방식을 꺼낸다  [발추방식2]
 function xmodeOf(p) {
   const m = String((p && p.memo) || '').match(/\[발추방식([123])\]/);
@@ -1645,6 +1681,19 @@ function calcKid(childId) {
       }
     }
     tr.classList.toggle('hasap', ap > 0);
+  });
+
+  // 1-2) 회기가 기준과 다르면 사유 줄을 연다
+  box.querySelectorAll('.rsn').forEach(rw => {
+    const st = rw.dataset.st;
+    const baseN = Number(rw.dataset.base) || 0;
+    let now = 0;
+    box.querySelectorAll('.line[data-st="' + st + '"] .cnt')
+       .forEach(el => { now += numOf(el.value); });
+    const diff = (now !== baseN);
+    rw.style.display = diff ? '' : 'none';
+    const why = rw.querySelector('.rsnwhy');
+    if (why) why.textContent = '📝 기준 ' + baseN + '회 → ' + now + '회 · 사유';
   });
 
   // 2) 유형별 합계
@@ -1831,7 +1880,7 @@ async function saveKid(childId, btn) {
     // 승인번호 칸에 이미 붙어 있는 표시는 지우고 새로 붙인다
     // (안 그러면 저장할 때마다 [리뷰4]가 계속 쌓인다)
     let memo2 = String(memo)
-      .replace(/\s*\[(리뷰|회기|적용단가|발추치료사|발추방식|평가유형)[^\]]*\]/g, '')
+      .replace(/\s*\[(리뷰|회기|적용단가|발추치료사|발추방식|평가유형|사유)[^\]]*\]/g, '')
       .trim();
     {
       const rv0 = box.querySelector('.rv');
@@ -1857,6 +1906,13 @@ async function saveKid(childId, btn) {
       });
       if (cs.length) memo2 += ' [회기' + cs.join(',') + ']';
       if (us.some(x => x > 0)) memo2 += ' [적용단가' + us.join(',') + ']';
+      // 회기가 기준과 다르면 사유도 함께 남긴다
+      const rw = box.querySelector('.rsn[data-st="' + p.st + '"]');
+      if (rw && rw.style.display !== 'none') {
+        const rt = rw.querySelector('.rsntx');
+        const rv2 = rt ? rt.value.trim() : '';
+        if (rv2) memo2 += ' [사유' + rv2.replace(/[\[\]]/g, '') + ']';
+      }
     }
     const coEl = box.querySelector('.corow[data-st="' + p.st + '"] .co');
     return {
@@ -2054,12 +2110,44 @@ async function markNoMakeup(btn) {
     return;
   }
 
+  // 회기 칸을 그만큼 줄이고, 사유 칸에 그 사유를 넣는다
+  const kid = line.closest('.kid');
+  const stN = String(line.dataset.nmst || '');
+  if (kid && stN) {
+    const cs = kid.querySelectorAll('.line[data-st="' + stN + '"] .cnt');
+    if (cs.length) {
+      const first = cs[0];
+      const now = numOf(first.value) - ids.length;
+      first.value = now > 0 ? now : 0;
+    }
+    const rw = kid.querySelector('.rsn[data-st="' + stN + '"]');
+    if (rw) {
+      const tx = rw.querySelector('.rsntx');
+      if (tx && !tx.value.trim()) tx.value = why;
+    }
+    calcKid(Number(kid.dataset.child));
+    sumAll();
+  }
+
   // 그 줄을 짧은 한 줄로 바꾼다 —  ✅ 8일 보강 없음 · 치료사 휴무
   const days = String(line.dataset.nmdays || '');
   line.innerHTML = '<span class="shortdone">✅ '
-    + (days ? days + ' ' : '') + '보강 없음 · ' + esc(why) + '</span>';
+    + (days ? days + ' ' : '') + '보강 없음 · ' + esc(why)
+    + ' <b>(회기 ' + ids.length + '회 줄임 — 저장을 눌러 주세요)</b></span>';
   line.removeAttribute('data-nmids');
 }
+
+// 사유를 고르면 옆 칸에 넣어 준다
+$('kids').addEventListener('change', e => {
+  if (e.target.classList.contains('rsnsel')) {
+    const v = e.target.value;
+    if (!v) return;
+    const tx = e.target.closest('.rsn').querySelector('.rsntx');
+    if (tx) tx.value = v;
+    e.target.value = '';
+    return;
+  }
+});
 
 $('kids').addEventListener('click', e => {
   if (e.target.classList.contains('nmbtn')) { markNoMakeup(e.target); return; }

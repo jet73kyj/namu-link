@@ -945,6 +945,9 @@ let VIEW = 'day';       // day = 요일별, week = 치료사별 주간
 let mkSess = null;      // 지금 보강 잡는 결석 회기
 let CAN_EDIT = false;   // 수업을 넣고 고칠 수 있는 사람인가 (관리자 8 · 행정 9)
 let MY_TH    = null;    // 치료사로 로그인했으면 그 번호. 자기 칸만 보인다
+let IS_BOSS  = false;   // 대표(8번). 확정 회기를 넘겨 넣을 수 있다
+let PAYCNT   = {};      // 아동|지원유형 -> 납부에서 확정한 회기 수
+let PAYWHY   = {};      // 아동|지원유형 -> 그때 적은 사유
 let KIDS = [];          // 아동 목록 (치료중 · 대기중)
 let addKey = null;      // 지금 넣으려는 빈 칸
 let edRow  = null;      // 지금 고치는 수업
@@ -1121,7 +1124,12 @@ function drawShort(_byScd, _mkOf){
           + (STYPE[r.support_type_id] || '') + ' · ' + (TTYPE[r._tt] || '')
           + ' · ' + r.weekday + '요일 · 5회 중 ' + b.have + '회 · '
           + '<b class="sgap">1회 더 잡아야 합니다</b>'
-        + '</div></div>';
+        + '</div>'
+        // 납부 계산에서 적은 사유가 있으면 함께 보여준다
+        + (PAYWHY[r._cid + '|' + r.support_type_id]
+            ? '<div class="sline2">※ ' + esc(PAYWHY[r._cid + '|' + r.support_type_id]) + '</div>'
+            : '')
+        + '</div>';
     });
     $('gapBox').style.display = 'block';
     $('gapBox').innerHTML = h2;
@@ -3564,6 +3572,41 @@ $('mnSave').onclick = async () => {
       + '이 줄은 회기 수·납부에는 안 들어가고,\n'
       + '완료로 표시하면 그 치료사 급여에만 들어갑니다.')) return;
 
+  // 납부에서 확정한 회기 수를 넘는지 본다 (요일줄을 고른 것만 회기로 셈)
+  {
+    const scd0 = $('mn_scd').value;
+    const st0  = $('mn_sp').value ? Number($('mn_sp').value)
+               : (tp[1] ? Number(tp[1]) : null);
+    if (scd0 && st0 && !fixing) {
+      const cap = PAYCNT[mnKid.id + '|' + st0];
+      if (cap != null) {
+        // 지금 그 아동·그 지원유형의 정규 회기 수 (보강·쉼은 안 셈)
+        let have = 0;
+        SESS.forEach(x => {
+          if (x.child_id !== mnKid.id) return;
+          if (Number(x.support_type_id) !== st0) return;
+          if (x.status === '보강' || x.status === '쉼') return;
+          if (x.makeup_for) return;
+          have++;
+        });
+        if (have >= cap) {
+          const why0 = PAYWHY[mnKid.id + '|' + st0];
+          const msg = monNo(mon) + '월 ' + (STYPE[st0] || '이 항목') + '은\n'
+            + '납부 계산에서 ' + cap + '회로 확정되어 있습니다.\n'
+            + '지금 시간표에도 ' + have + '회가 들어 있습니다.'
+            + (why0 ? '\n(사유 — ' + why0 + ')' : '');
+          if (!IS_BOSS) {
+            alert(msg + '\n\n더 넣으시려면 납부 계산 화면에서\n'
+              + '회기를 먼저 늘려 주세요.');
+            return;
+          }
+          if (!confirm(msg + '\n\n그래도 한 회 더 넣을까요?\n'
+            + '넣으시면 납부 계산에서도 회기를 맞춰 주세요.')) return;
+        }
+      }
+    }
+  }
+
   $('mnSave').disabled = true; $('mnSave').textContent = '저장 중...';
   try {
     const scdv = $('mn_scd').value;
@@ -4017,6 +4060,21 @@ async function loadMonth(){
     .select('child_id').eq('support_type_id', 8).eq('month_key', mon);
   if (pay) pay.forEach(p => BAL.add(p.child_id));
 
+  // 납부 계산에서 확정한 회기 수를 읽어 둔다 (메모의 [회기4,4])
+  //   저장된 것이 있으면 시간표는 그 수를 넘길 수 없다
+  PAYCNT = {}; PAYWHY = {};
+  const { data: pc } = await sb.from('nl_payments')
+    .select('child_id, support_type_id, memo').eq('month_key', mon);
+  (pc || []).forEach(p => {
+    const m = String(p.memo || '').match(/\[회기([0-9,]+)\]/);
+    if (m) {
+      const n = m[1].split(',').reduce((a, v) => a + (Number(v) || 0), 0);
+      PAYCNT[p.child_id + '|' + p.support_type_id] = n;
+    }
+    const w = String(p.memo || '').match(/\[사유([^\]]*)\]/);
+    if (w) PAYWHY[p.child_id + '|' + p.support_type_id] = w[1];
+  });
+
   const { data, error } = await sb.from('nl_sessions')
     .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
     .eq('month_key', mon);
@@ -4090,6 +4148,7 @@ async function afterLogin(user){
   // 권한을 먼저 정한다 (아래에서 걸러낼 때 쓰이므로 순서가 중요)
   CAN_EDIT = (me.id === 8 || me.id === 9);   // 넣기·고치기·휴무는 관리자·행정만
   MY_TH = (me.id >= 1 && me.id <= 7) ? me.id : null;  // 치료사는 자기 것만
+  IS_BOSS = (me.id === 8);
 
   const { data: ths } = await sb.from('nl_therapists').select('id, name').lte('id',7).order('id');
   THS_ALL = ths || [];
