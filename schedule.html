@@ -1051,8 +1051,34 @@ function drawShort(_byScd, _mkOf){
     const nmN = runs.filter(x => x.no_makeup).length;
     const short5 = (r._mode === '발4+발추1' && runs.length < 5 - nmN);
     if (miss.length) missRows.push({ row:r, miss:miss });
-    if (short5)      gapRows.push({ row:r, have:runs.length });
+    if (short5)      gapRows.push({ row:r, have:runs.length, need:5 - nmN, why:'발추' });
   });
+
+  // 납부 계산에서 회기를 늘려 저장했는데 시간표에 아직 안 넣은 수업
+  //   납부가 주인이므로, 그 수만큼 시간표에 자리를 잡아야 한다
+  if (mon >= '2026-09') {
+    const seen = {};
+    ROWS.forEach(r => {
+      const key = r._cid + '|' + r.support_type_id;
+      if (seen[key]) return;                       // 아동·유형당 한 번만
+      const cap = PAYCNT[key];
+      if (cap == null) return;                     // 납부를 아직 저장 안 함
+      if (gapRows.some(b => b.row._cid === r._cid
+                       && b.row.support_type_id === r.support_type_id)) return;
+      // 지금 그 아동·그 유형의 정규 회기 수 (보강·쉼은 안 셈)
+      let have = 0;
+      SESS.forEach(x => {
+        if (x.child_id !== r._cid) return;
+        if (Number(x.support_type_id) !== Number(r.support_type_id)) return;
+        if (x.status === '보강' || x.status === '쉼') return;
+        if (x.makeup_for) return;
+        have++;
+      });
+      if (have >= cap) return;
+      seen[key] = 1;
+      gapRows.push({ row:r, have:have, need:cap, why:'납부' });
+    });
+  }
 
   // 발달재활(2번)을 맨 앞으로. 반드시 4회를 채워야 하므로
   const byDev = (a, b) => {
@@ -1137,21 +1163,26 @@ function drawShort(_byScd, _mkOf){
 
     let h2 = '<div class="short-t">📌 ' + monNo(mon)
       + '월 회기가 모자란 수업 ' + gapRows.length + '건 (아동 ' + nGapKid + '명)'
-      + ' <span class="mustdo">— 발추 자리를 넣어 주세요</span></div>' + findBar;
+      + ' <span class="mustdo">— 자리를 잡아 주세요</span></div>' + findBar;
     gapRows.forEach(b => {
       const r = b.row, thn = esc(thName(r.therapist_id));
+      const nd = b.need || 5;
+      const short = nd - b.have;
       h2 += '<div class="short-line must"'
         + ' data-kid="' + esc(r._name || '') + '"'
         + ' data-cid="' + (r._cid || '') + '">'
         + '<div class="sline1">'
         + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
-        + monNo(mon) + '월 발추 자리가 없습니다.</span>'
+        + monNo(mon) + '월 '
+        + (b.why === '납부'
+            ? '납부에서 ' + nd + '회로 정하셨습니다.'
+            : '발추 자리가 없습니다.') + '</span>'
         + '<button class="sbtn" data-plan="' + r.id + '">일정 잡기</button>'
         + '</div>'
         + '<div class="sline2">'
           + (STYPE[r.support_type_id] || '') + ' · ' + (TTYPE[r._tt] || '')
-          + ' · ' + r.weekday + '요일 · 5회 중 ' + b.have + '회 · '
-          + '<b class="sgap">1회 더 잡아야 합니다</b>'
+          + ' · ' + r.weekday + '요일 · ' + nd + '회 중 ' + b.have + '회 · '
+          + '<b class="sgap">' + short + '회 더 잡아야 합니다</b>'
         + '</div>'
         // 납부 계산에서 적은 사유가 있으면 함께 보여준다
         + (PAYWHY[r._cid + '|' + r.support_type_id]
