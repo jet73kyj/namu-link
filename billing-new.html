@@ -321,6 +321,7 @@ let FEES = {}, RULES = {}, GRADES = {};
 let NOMAKEUP = {};          // 아동번호 -> 보강 못 잡은 결석 목록
 let SHORTCNT = {};          // 아동|유형 -> { 실제 회기, 빠진 날 }
 let X8NEED = {};            // 발추 1회를 잡아야 하는 아동 (발4+발추1)
+let SESSLIST = {};          // 아동|지원유형 -> 그 달 회기 줄 목록 (뺄 날 고르기용)
 let NEEDCNT  = {};          // 아동|유형 -> 기준 회기
 
 // 다음 달로 이월 보강이 되는가
@@ -823,9 +824,14 @@ async function load() {
       });
 
     // 아동·유형별 실제 회기와 빠진 날짜(휴무·결석)를 모아둔다
-    SHORTCNT = {};
+    SHORTCNT = {}; SESSLIST = {};
     sess.forEach(x => {
       if (x.status === '보강' || x.status === '쉼') return;
+      {
+        const kk = x.child_id + '|' + (x.support_type_id || 0);
+        (SESSLIST[kk] = SESSLIST[kk] || []).push({
+          id: x.id, d: x.plan_date, s: x.status, no: !!x.no_makeup });
+      }
       const k = x.child_id + '|' + (x.support_type_id || 0);
       const g = SHORTCNT[k] = SHORTCNT[k] || { cnt: 0, miss: [], skip: 0 };
       // 「이대로 청구」로 정한 회기는 기준 회수에서 뺀다
@@ -1926,6 +1932,56 @@ async function saveKid(childId, btn) {
       memo: memo2
     };
   });
+
+  // 회기를 손으로 줄였으면 어느 날 수업을 빼는지 고르게 한다
+  //   그 줄에 「보강 안 함」 표시를 남겨야 시간표도 함께 맞아진다
+  for (const p of parts) {
+    const st = Number(p.st);
+    if (st === 2 || st === 8 || st === 9) continue;   // 발달재활·발추·평가비는 제외
+    const g = SHORTCNT[childId + '|' + st];
+    const all = SESSLIST[childId + '|' + st];
+    if (!g || !all) continue;
+
+    let now = 0;
+    box.querySelectorAll('.line[data-st="' + st + '"] .cnt')
+       .forEach(el => { now += numOf(el.value); });
+
+    // 아직 표시가 안 붙은 줄만 뺄 수 있다
+    const cand = all.filter(v => !v.no);
+    const cut = cand.length - now;
+    if (cut <= 0) continue;
+
+    const nm = TYPES[st] || ('유형' + st);
+    const list = cand.map((v, i) =>
+      '  ' + (i + 1) + '. ' + dayOnly(v.d) + '일 (' + v.s + ')').join('\n');
+    const ans = prompt(nm + ' 을 ' + cand.length + '회 → ' + now + '회 로 줄이셨습니다.\n\n'
+      + '어느 날 수업을 뺄까요?\n\n' + list + '\n\n'
+      + (cut === 1 ? '번호 하나를 적어주세요.'
+                   : cut + '개를 골라 번호를 쉼표로 적어주세요. 예: 1,3'), '');
+    if (ans === null) return;                        // 취소하면 저장을 멈춘다
+
+    const pick = String(ans).split(',').map(v => Number(v.trim()))
+      .filter(v => v >= 1 && v <= cand.length);
+    if (pick.length !== cut) {
+      show($('msg2'), '번호를 ' + cut + '개 골라주세요. 저장하지 않았습니다.', false);
+      return;
+    }
+
+    const rw = box.querySelector('.rsn[data-st="' + st + '"]');
+    const rt = rw ? rw.querySelector('.rsntx') : null;
+    const why = (rt && rt.value.trim()) || '납부에서 회기를 줄임';
+    if (rt && !rt.value.trim()) rt.value = why;
+
+    const ids = pick.map(i => cand[i - 1].id);
+    const { error: eN } = await sb.from('nl_sessions')
+      .update({ no_makeup: true, no_makeup_why: why }).in('id', ids);
+    if (eN) {
+      show($('msg2'), '뺄 날을 저장하지 못했습니다.\n' + eN.message, false); return;
+    }
+    ids.forEach(id => {
+      const v = all.find(z => z.id === id); if (v) v.no = true;
+    });
+  }
 
   // 화면에 있는데 0원이 되어 저장에서 빠진 항목은, 옛 줄을 지운다
   //   (안 지우면 고친 것이 반영되지 않고 옛 금액이 그대로 남는다)
