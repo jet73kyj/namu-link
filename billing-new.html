@@ -1949,7 +1949,18 @@ async function saveKid(childId, btn) {
     // 아직 표시가 안 붙은 줄만 뺄 수 있다
     const cand = all.filter(v => !v.no);
     const cut = cand.length - now;
-    if (cut <= 0) continue;
+
+    // 늘리셨으면 — 시간표에 자리를 더 잡아야 한다고 알려준다
+    if (cut < 0) {
+      const nm0 = TYPES[st] || ('유형' + st);
+      if (!confirm(nm0 + ' 을 ' + cand.length + '회 → ' + now + '회 로 늘리셨습니다.\n\n'
+        + '시간표에 ' + (-cut) + '회 자리를 더 잡아야 합니다.\n'
+        + '저장한 뒤 시간표 화면의\n'
+        + '「회기가 모자란 수업」 상자에서 「일정 잡기」로 넣어 주세요.\n\n'
+        + '이대로 저장할까요?')) return;
+      continue;
+    }
+    if (cut === 0) continue;
 
     const nm = TYPES[st] || ('유형' + st);
     const list = cand.map((v, i) =>
