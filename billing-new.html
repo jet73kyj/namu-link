@@ -1244,10 +1244,14 @@ function drawKid(c) {
     shorts.push({ st: st, need: need - (g.skip || 0), cnt: g.cnt, miss: g.miss });
   });
 
-  // 발4+발추1 아동인데 발추(8번) 자리가 아직 없으면 알려준다
+  // 발4+발추1 아동인데 발추(8번) 청구가 빠져 있으면 알려준다
+  //   일정은 다음 달로 넘겨도 되지만 납부는 그 달에 해야 하므로,
+  //   「적용 없음」이거나 금액이 0원일 때만 띄운다
   if (X8NEED[c.id]) {
-    const g8 = SHORTCNT[c.id + '|8'];
-    if (!g8 || !g8.cnt) shorts.push({ st: 8, need: 1, cnt: 0, miss: [], x8: true });
+    const s8 = sv[8];
+    const m8 = (s8 !== undefined) ? (xmodeOf(s8) || 3) : 1;
+    if (m8 === 3 || (s8 !== undefined && !(Number(s8.amount) > 0)))
+      shorts.push({ st: 8, need: 1, cnt: 0, miss: [], x8: true });
   }
 
   if (shorts.length) {
@@ -1257,7 +1261,7 @@ function drawKid(c) {
           + x.miss.map(m => m.id).join(',') + '"><b>'
           + (TYPES[x.st] || ('유형'+x.st)) + '</b> — '
           + (x.x8
-              ? '<b class="sred">발추 1회 자리가 아직 없습니다</b>'
+              ? '<b class="sred">발추 1회 청구가 빠져 있습니다</b>'
               : '기준 ' + x.need + '회인데 <b class="sred">' + x.cnt + '회</b> '
                 + '(' + (x.need - x.cnt) + '회 적음)')
           + (x.miss.length
@@ -1267,7 +1271,8 @@ function drawKid(c) {
               : '')
           // 발추(8) — 시간표에서 자리를 잡으라고만 알려준다
           + (x.x8
-              ? '<div class="shortmust">시간표에서 발추 1회 자리를 잡아 주세요.</div>'
+              ? '<div class="shortmust">발추 1회는 일정을 다음 달로 넘길 수 있어도<br>'
+                + '납부는 이 달에 해야 합니다. 「적용 없음」을 「매월 1회」로 바꿔 주세요.</div>'
               : '')
           // 발달재활(2) — 반드시 그 달에 4회를 채워야 하므로 이대로 청구를 막는다
           + (!x.x8 && x.st === 2
@@ -1374,9 +1379,12 @@ function drawKid(c) {
 
       // 적용방식 — 이번 달 저장분이 있으면 그것을 그대로 쓴다
       // (「적용 없음」으로 저장한 것이 지난달 값에 덮이지 않게)
+      // 저장분이 없을 때, 발4+발추1 아동은 무조건 「매월 1회」로 놓는다.
+      //   발추 1회는 일정을 다음 달로 넘길 수 있어도 납부는 그 달에 하기 때문이다.
+      //   지난달이 「적용 없음」이었어도 이어받지 않는다.
       const mode = (sv[8] !== undefined)
         ? (xmodeOf(sv[8]) || 3)
-        : (xmodeOf(lastM[8]) || 3);
+        : (X8NEED[c.id] ? 1 : (xmodeOf(lastM[8]) || 3));
       // 5주차 여부
       const five = g.extra_weekday ? (countWeekday(mk, g.extra_weekday) >= 5) : false;
       let cnt;
