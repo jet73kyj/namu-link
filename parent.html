@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>나무링크 · 학부모</title>
+<link rel="manifest" href="manifest-parent.json">
+<meta name="theme-color" content="#3c7a4a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="자라는나무">
+<link rel="apple-touch-icon" href="img/nl-icon-180.png">
 <style>
   :root {
     --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
@@ -230,6 +236,23 @@
 
   .none { padding:40px 18px; text-align:center; color:var(--ink3); font-size:14px;
           background:#fff; border:1px solid var(--line); border-radius:12px; }
+  .nwrow { background:#fff; border:1px solid var(--line); border-radius:12px;
+    padding:14px 16px; margin-bottom:10px; }
+  .nwrow.pin { background:#fffaf2; border-color:#e8c9a4; }
+  .nw1 { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .nwkind { font-size:11px; font-weight:bold; padding:2px 8px; border-radius:10px;
+    background:#eef3ec; color:#2c5c37; white-space:nowrap; }
+  .nwkind.k2 { background:#eef2ff; color:#3a4a8a; }
+  .nwkind.k3 { background:#fdf0f5; color:#8a3a5a; }
+  .nwkind.k4 { background:#f0f7ff; color:#2a5a8a; }
+  .nwtt { font-weight:600; font-size:15px; }
+  .nwday { font-size:11.5px; color:#9aa294; margin-top:4px; }
+  .nwbd { font-size:13.5px; color:#5a6156; margin-top:8px; line-height:1.75;
+    white-space:pre-wrap; }
+  .nwvid { margin-top:10px; }
+  .nwvid iframe { width:100%; aspect-ratio:16/9; border:0; border-radius:9px; }
+  .nwlk { display:inline-block; margin-top:9px; font-size:13.5px; color:#2a5a8a;
+    text-decoration:none; font-weight:600; }
   .foot { margin-top:26px; font-size:12px; color:var(--ink3); line-height:1.9;
           border-top:1px solid var(--line); padding-top:14px; }
 </style>
@@ -277,6 +300,7 @@
     <button id="tabPay">교육비</button>
     <button id="tabRec">기록지</button>
     <button id="tabNt">공지<span id="ntDot" class="dot" style="display:none;"></span></button>
+    <button id="tabNw">소식</button>
   </div>
 
   <div class="kids" id="kids"></div>
@@ -293,6 +317,7 @@
   <div id="paylist" style="display:none;"></div>
   <div id="reclist" style="display:none;"></div>
   <div id="ntlist" style="display:none;"></div>
+  <div id="nwlist" style="display:none;"></div>
 
   <div class="foot">
     자라는나무 · 042-488-6011<br>
@@ -458,7 +483,7 @@ async function afterLogin() {
     const km = localStorage.getItem('nl_parent_mon');
     if (km && /^\d{4}-\d{2}$/.test(km) && km <= thisMonth()) CURMK = km;
     const kt = localStorage.getItem('nl_parent_tab');
-    if (kt && ['sch','pay','rec','nt'].indexOf(kt) >= 0) TAB = kt;
+    if (kt && ['sch','pay','rec','nt','nw'].indexOf(kt) >= 0) TAB = kt;
   } catch (e) {}
 
   // 이름표 미리 담아둔다
@@ -528,20 +553,25 @@ $('tabRec').onclick = async () => {
   keepParent(); drawTabs(); await reload();
 };
 $('tabNt').onclick  = async () => { TAB = 'nt';  keepParent(); drawTabs(); await reload(); };
+$('tabNw').onclick  = async () => { TAB = 'nw';  keepParent(); drawTabs(); await reload(); };
 
 function drawTabs() {
   $('tabSch').className = (TAB === 'sch' ? 'on' : '');
   $('tabPay').className = (TAB === 'pay' ? 'on' : '');
   $('tabRec').className = (TAB === 'rec' ? 'on' : '');
   $('tabNt').className  = (TAB === 'nt'  ? 'on' : '');
+  $('tabNw').className  = (TAB === 'nw'  ? 'on' : '');
   $('list').style.display    = (TAB === 'sch' ? 'block' : 'none');
   $('paylist').style.display = (TAB === 'pay' ? 'block' : 'none');
   $('reclist').style.display = (TAB === 'rec' ? 'block' : 'none');
   $('ntlist').style.display  = (TAB === 'nt'  ? 'block' : 'none');
-  $('kids').style.display    = (TAB === 'nt' ? 'none' : 'flex');
+  $('nwlist').style.display  = (TAB === 'nw'  ? 'block' : 'none');
+  // 공지·소식은 아동과 상관없으므로 아동 고르는 줄을 감춘다
+  $('kids').style.display    = ((TAB === 'nt' || TAB === 'nw') ? 'none' : 'flex');
   if (TAB !== 'rec') $('rectabs').style.display = 'none';
   // 공지는 달과 상관없으므로 달 고르는 줄을 감춘다
-  document.querySelector('.bar').style.display = (TAB === 'nt' ? 'none' : 'flex');
+  document.querySelector('.bar').style.display =
+    ((TAB === 'nt' || TAB === 'nw') ? 'none' : 'flex');
   // 기록지는 이번 달까지만 (그 달이 끝나야 작성되므로)
   const stop = (TAB === 'rec' && shiftMonth(CURMK, 1) > thisMonth());
   $('next').style.visibility = stop ? 'hidden' : 'visible';
@@ -551,7 +581,60 @@ async function reload() {
   if (TAB === 'sch')      await loadMonth();
   else if (TAB === 'pay') await loadPay();
   else if (TAB === 'rec') await loadRecords();
+  else if (TAB === 'nw')  await loadNews();
   else                    await loadNotices();
+}
+
+// ── 소식 ───────────────────────────────────────────────
+// 센터에서 올린 영상·인스타·블로그 소식을 보여준다.
+// 표 잠금이 「올린 날이 지났고 아직 안 내린 것」만 내려준다.
+const NW_CLS = { '센터 소식':'k2', '인스타그램':'k3', '블로그':'k4' };
+
+// 유튜브 주소에서 영상 번호를 꺼낸다
+function nwYt(u) {
+  const s = String(u || '');
+  let m = s.match(/[?&]v=([A-Za-z0-9_-]{6,})/);              if (m) return m[1];
+  m = s.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);             if (m) return m[1];
+  m = s.match(/youtube\.com\/shorts\/([A-Za-z0-9_-]{6,})/);  if (m) return m[1];
+  m = s.match(/youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/);   if (m) return m[1];
+  return '';
+}
+
+async function loadNews() {
+  const box = $('nwlist');
+  box.innerHTML = '<div class="none">불러오는 중입니다...</div>';
+  const { data, error } = await sb.from('nl_news').select('*');
+  if (error) {
+    box.innerHTML = '<div class="none">소식을 불러오지 못했습니다.</div>';
+    return;
+  }
+  const list = (data || []).slice().sort((a, b) =>
+    (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
+    || String(b.from_date || '').localeCompare(String(a.from_date || ''))
+    || (b.id - a.id));
+
+  if (!list.length) {
+    box.innerHTML = '<div class="none">아직 올라온 소식이 없습니다.</div>';
+    return;
+  }
+  box.innerHTML = list.map(r => {
+    const yid = nwYt(r.url);
+    return '<div class="nwrow' + (r.pinned ? ' pin' : '') + '">'
+      + '<div class="nw1">'
+      +   '<span class="nwkind ' + (NW_CLS[r.kind] || '') + '">' + esc(r.kind) + '</span>'
+      +   '<span class="nwtt">' + (r.pinned ? '📌 ' : '') + esc(r.title) + '</span>'
+      + '</div>'
+      + '<div class="nwday">' + esc(r.from_date || '') + '</div>'
+      + (r.body ? '<div class="nwbd">' + esc(r.body) + '</div>' : '')
+      + (yid
+          ? '<div class="nwvid"><iframe src="https://www.youtube.com/embed/'
+            + esc(yid) + '" allowfullscreen loading="lazy"></iframe></div>'
+          : (r.url
+              ? '<a class="nwlk" href="' + esc(r.url) + '" target="_blank" '
+                + 'rel="noopener">열어보기 →</a>'
+              : ''))
+      + '</div>';
+  }).join('');
 }
 
 // ── 치료기록지 ─────────────────────────────────────────
