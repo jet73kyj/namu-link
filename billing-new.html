@@ -865,7 +865,16 @@ async function load() {
         });
         if (n) need = n;
       } else if (mode === '4회만') {
-        need = 4;
+        // 주차를 꺼둔 것이 있으면 그만큼 뺀다 (격주 수업 등)
+        // 네 주차가 다 켜져 있으면 지금까지처럼 4회
+        let n = 0;
+        scs.forEach(sc => {
+          if (!sc.weekday) return;
+          for (let i = 1; i <= 4; i++) {
+            if (sc['week' + i] !== false) n++;
+          }
+        });
+        need = n || 4;
       } else if (mode === '주차선택') {
         // 3주 이하 — 켜둔 주차만 센다 (5주차는 세지 않는다)
         let n = 0;
