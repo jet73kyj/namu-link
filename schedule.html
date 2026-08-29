@@ -1023,7 +1023,10 @@ function noCountOpt() {
 // 그 날 쉬는 까닭 — 센터 전체가 쉬면 「공휴일」, 그 치료사만 쉬면 「휴가」
 function stWord(x){
   if (!x) return '';
-  return (x.status === '휴무') ? offWord(x.plan_date, x.therapist_id) : x.status;
+  if (x.status === '휴무') return offWord(x.plan_date, x.therapist_id);
+  // 자료에는 '보강'으로 저장하고, 화면에만 '보강예정'으로 보여 준다
+  if (x.status === '보강') return '보강예정';
+  return x.status;
 }
 function offWord(dd, thId){
   if (OFFTXT && OFFTXT[String(dd)] !== undefined) return '공휴일';
@@ -1487,7 +1490,10 @@ function markFind(){
   // 이름이 걸리는 아동을 모은다
   const kids = {};
   ROWS_ALL.forEach(r => {
-    if (!r._name || r._name.indexOf(q) !== 0) return;   // 이름 앞부터 맞을 때만
+    // 이름은 앞부터 맞을 때만. 숫자만 넣으면 아동 번호로도 찾는다
+    const okNm = r._name && r._name.indexOf(q) === 0;
+    const okNo = /^[0-9]+$/.test(q) && String(r._cid) === q;
+    if (!okNm && !okNo) return;
     kids[r._cid] = { cid: r._cid, name: r._name, birth: r._birth };
   });
   const list = Object.values(kids);
@@ -1508,7 +1514,8 @@ function markFind(){
   }
 
   // 시간표 칸 + 보강 알림 + 이월 보강 상자를 모두 표시한다
-  const okName = el => (el.dataset.kid || '').indexOf(q) === 0
+  const okName = el => ((el.dataset.kid || '').indexOf(q) === 0
+      || String(el.dataset.cid || '') === q)
     && (!pickCid || Number(el.dataset.cid) === pickCid);
 
   // 시간표 칸
@@ -2342,7 +2349,9 @@ function drawDay(){
                 ? (from ? (carry ? '이월 ' + monNo(from.month_key) + '월 ' : '')
                           + dayNo(from.plan_date) + '일분' : '보강')
                 : '직접';
-              html += '<div class="ln ln-mk" data-sid="' + x.id + '">'
+              html += '<div class="ln ln-mk" data-sid="' + x.id + '"'
+                + ' data-kid="' + esc(x._name || '') + '"'
+                + ' data-cid="' + (x.child_id || '') + '">'
                 + '<span class="d">' + day + '</span>'
                 + '<span class="n">🔁 ' + nm
                 + '<span class="rno">'
