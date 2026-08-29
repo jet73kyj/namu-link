@@ -817,7 +817,9 @@ async function load() {
 
     // 보강을 이미 잡은 결석 모으기
     const covered = {};
-    sess.forEach(x => { if (x.status === '보강' && x.makeup_for) covered[x.makeup_for] = 1; });
+    // 보강을 마치면 상태가 '완료'로 바뀐다. 그래도 보강을 잡은 것이므로
+    // 상태를 따지지 않고 makeup_for 가 있으면 '잡았다'로 센다
+    sess.forEach(x => { if (x.makeup_for) covered[x.makeup_for] = 1; });
 
     // 아동·지원유형별 회기 순번 매기기 (날짜 순)
     const ord = {};
