@@ -776,11 +776,16 @@ async function load() {
     // 그 달 공휴일 (센터 전체가 쉬는 날). 치료사 휴가와 가려 적기 위함
     HOLDAY = {};
     try {
-      const { data: _off } = await sb.from('nl_offdays')
+      const _p  = String(mk).split('-');
+      const _nx = new Date(Number(_p[0]), Number(_p[1]), 1);   // 다음 달 1일
+      const _to = _nx.getFullYear() + '-'
+                + String(_nx.getMonth() + 1).padStart(2, '0') + '-01';
+      const { data: _off, error: _oe } = await sb.from('nl_offdays')
         .select('off_date, therapist_id')
-        .gte('off_date', mk + '-01').lte('off_date', mk + '-31');
+        .gte('off_date', mk + '-01').lt('off_date', _to);
+      if (_oe) console.warn('공휴일 못 가져옴', _oe);
       (_off || []).forEach(o => { if (!o.therapist_id) HOLDAY[o.off_date] = true; });
-    } catch (e) {}
+    } catch (e) { console.warn('공휴일 못 가져옴', e); }
     if (th.error)  throw th.error;
     if (fe.error)  throw fe.error;
     if (ru.error)  throw ru.error;
