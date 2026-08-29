@@ -4523,7 +4523,7 @@ async function afterLogin(user){
   // 달 목록
   const now = new Date();
   let opts='';
-  for (let k=6; k>=-1; k--){
+  for (let k=6; k>=-4; k--){
     const d=new Date(now.getFullYear(), now.getMonth()-k, 1);
     const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
     opts += '<option value="'+key+'">'+key+'</option>';
