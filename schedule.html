@@ -2280,6 +2280,8 @@ function drawDay(){
     if (wdOf(s.plan_date) !== wd) return;
     const sc = ROWS_ALL.find(r => r.id === s.schedule_id);
     if (!sc || !sc.start_time || !s.start_time) return;
+    // 요일줄이 다른 요일이면 위쪽 「고정 수업 담기」가 이미 그린다. 두 번 그리지 않는다
+    if (sc.weekday !== wd) return;
     if (nearest(toMin(s.start_time)).no === nearest(toMin(sc.start_time)).no) return;
     const k = nearest(toMin(s.start_time)).no + '_' + s.therapist_id;
     (farCell[k] = farCell[k] || []).push({ r: sc, x: s });
