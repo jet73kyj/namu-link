@@ -1416,7 +1416,8 @@ function drawFind(){
         + '<span class="dt">' + dayNo(x.plan_date) + '일</span>'
         + '<span class="st">' + tail + '</span></span>';
     });
-    const runs = mergeRuns(_rl, _rh, wk5Pairs(r, byScd, r.weekday));
+    // 찾기 창은 확인용이라 보강 단추를 안 띄운다 (회색 「수업 없음」만)
+    const runs = mergeRuns(_rl, _rh, wk5Pairs(r, byScd, r.weekday, true));
 
     return '<div class="findrow">'
       + '<div class="fr-top">'
@@ -1741,13 +1742,14 @@ function wdDates(monthKey, wdName){
 }
 
 // 수업이 없는 날마다 초록 빈 자리를 만든다
-function wk5Pairs(r, byScd, wdName){
+function wk5Pairs(r, byScd, wdName, viewOnly){
   const runs = byScd[r.id] || [];
   const has = {};
   runs.forEach(x => has[String(x.plan_date)] = true);
   return wdDates(mon, wdName).filter(d => !has[d]).map(function(d){
     // 수업이 도는 기간 밖이면 보강 단추를 안 띄운다 (아직 시작 전 · 이미 끝남)
-    const out = (r.from_date && d < String(r.from_date))
+    const out = viewOnly
+             || (r.from_date && d < String(r.from_date))
              || (r.to_date   && d > String(r.to_date));
     return {
       d: d,
