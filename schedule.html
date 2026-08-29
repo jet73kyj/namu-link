@@ -1124,6 +1124,8 @@ function drawShort(_byScd, _mkOf){
   SESS.forEach(x => {
     if (isMk(x)) { mkOf[x.makeup_for] = x; return; }
     if (!x.schedule_id) return;
+    // 다른 달 몫인데 날짜만 이 달인 줄(선보강 등)은 회기 수에 안 넣는다
+    if (x.month_key && String(x.month_key) !== String(mon)) return;
     (byScd[x.schedule_id] = byScd[x.schedule_id] || []).push(x);
   });
   Object.values(byScd).forEach(a =>
@@ -1394,6 +1396,11 @@ function boxFind(boxId){
 
 // 그 달 마지막 날 (2026-09 -> 2026-09-30)
 // 지난 달 (2026-08 -> 2026-07)
+function nextMon(k){
+  const p = String(k).split('-');
+  const d = new Date(Number(p[0]), Number(p[1]), 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
 function prevMon(k){
   const p = String(k).split('-');
   const d = new Date(Number(p[0]), Number(p[1]) - 2, 1);
@@ -4625,6 +4632,17 @@ async function loadMonth(){
   // 지난 달 회기인데 이번 달 날짜로 잡아 둔 줄은 이번 달 시간표에도 띄운다
   //   보강뿐 아니라 지난달 발추를 이번 달에 잡은 것도 함께 (달은 지난달, 날짜는 이번 달)
   PREV.forEach(s => {
+    if (String(s.plan_date).slice(0,7) === mon) SESS.push(s);
+  });
+
+  // 다음 달 몫인데 이번 달에 미리 한 줄(선보강)도 이번 달 시간표에 띄운다
+  const nm2 = nextMon(mon);
+  const { data: nx } = await sb.from('nl_sessions')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
+    .eq('month_key', nm2);
+  let NEXTM = nx || [];
+  if (MY_TH) NEXTM = NEXTM.filter(s => s.therapist_id === MY_TH);
+  NEXTM.forEach(s => {
     if (String(s.plan_date).slice(0,7) === mon) SESS.push(s);
   });
 
