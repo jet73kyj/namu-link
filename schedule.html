@@ -1414,9 +1414,7 @@ function drawFind(){
               : s.status==='휴무' ? 'r-off' : 'r-mk');
     let lb = String(s.memo || '').replace(/^직접 보강 · ?/, '').trim();
     if (!lb) lb = '보강';
-    const md = String(s.plan_date || '');
-    const dt = md.length >= 10
-      ? (Number(md.slice(5,7)) + '월 ' + Number(md.slice(8,10)) + '일') : '';
+    const dt = dtWithMon(s.plan_date);
     return '<span class="run ' + cls + '" data-sid="' + s.id + '"'
       + ' style="display:inline-flex;">'
       + '<span class="spdif">' + esc(lb) + '</span>'
@@ -1446,7 +1444,7 @@ function drawFind(){
       return '<span class="run ' + cls + '" data-sid="'+x.id+'" style="display:inline-flex;">'
         + dif
         + '<span class="no">' + monNo(mon) + '-' + x.run_no + '</span>'
-        + '<span class="dt">' + dayNo(x.plan_date) + '일</span>'
+        + '<span class="dt">' + dtWithMon(x.plan_date) + '</span>'
         + '<span class="st">' + tail + '</span></span>';
     });
     // 찾기 창은 확인용이라 보강 단추를 안 띄운다 (회색 「수업 없음」만)
@@ -1780,6 +1778,14 @@ function wdDates(monthKey, wdName){
 }
 
 // 수업이 없는 날마다 초록 빈 자리를 만든다
+// 날짜가 지금 보는 달과 다르면 「7월 31일」처럼 달을 함께 적는다
+function dtWithMon(d){
+  const s = String(d || '');
+  if (s.length < 10) return '';
+  if (s.slice(0,7) === mon) return Number(s.slice(8,10)) + '일';
+  return Number(s.slice(5,7)) + '월 ' + Number(s.slice(8,10)) + '일';
+}
+
 function wk5Pairs(r, byScd, wdName, viewOnly){
   const runs = byScd[r.id] || [];
   const has = {};
