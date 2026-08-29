@@ -2219,6 +2219,11 @@ function drawHead(){
 }
 
 function draw(){
+  // 다시 그려도 시간표 안에서 보던 자리를 지킨다 (완료 표시할 때 화면이 튀지 않게)
+  const _gw = $('gridWrap');
+  const _gt = _gw ? _gw.scrollTop : 0;
+  const _gl = _gw ? _gw.scrollLeft : 0;
+  if (_gw) setTimeout(function(){ _gw.scrollTop = _gt; _gw.scrollLeft = _gl; }, 0);
   $('monBig').textContent = monNo(mon) + '월';
   if (!SESS.length) {
     $('noSess').style.display = 'block';
