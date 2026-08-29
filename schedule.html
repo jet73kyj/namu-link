@@ -847,7 +847,7 @@
   <div class="note">
     회기를 <b>누를 때마다</b> 예정 → 완료 → 결석 → 예정 순으로 바뀝니다.
     결석은 <b>두 번</b> 눌러야 나옵니다.<br>
-    🏖 <b>휴무</b>는 공휴일이라 자동으로 붙습니다. 눌러도 상태는 안 바뀌고 보강 창이 열립니다.<br>
+    🏖 <b>공휴일·휴가</b>는 자동으로 붙습니다. 눌러도 상태는 안 바뀌고 보강 창이 열립니다.<br>
     결석·휴무가 되면 옆에 주황색 <b>＋</b> 단추가 생깁니다. (보강 잡기)
     창에서 <b>빈 자리 찾기</b>를 누르면 담당 치료사가 비는 자리를 가까운 날부터 찾아줍니다.<br>
     🔁 빈 칸의 작은 <b>보강</b> 단추는 <b>직접 넣는 보강</b>입니다.
@@ -1020,6 +1020,11 @@ function noCountOpt() {
 }
 // 그 날짜가 그 치료사에게 쉬는 날인지
 //   공휴일이면 모든 치료사, 치료사 휴무면 그 치료사만
+// 그 날 쉬는 까닭 — 센터 전체가 쉬면 「공휴일」, 그 치료사만 쉬면 「휴가」
+function offWord(dd, thId){
+  if (OFFTXT && OFFTXT[String(dd)] !== undefined) return '공휴일';
+  return '휴가';
+}
 function isOffFor(dd, thId) {
   const d = String(dd);
   return OFF.has(d) || (thId != null && OFF.has(d + '#' + thId));
@@ -1178,7 +1183,7 @@ function drawShort(_byScd, _mkOf){
           + '<div class="sline1">'
           + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
           + monNo(mon) + '월 ' + dayNo(x.plan_date) + '일 '
-          + (x.status === '휴무' ? '휴무' : '결석') + '입니다.</span>'
+          + (x.status === '휴무' ? offWord(x.plan_date, x.therapist_id) : '결석') + '입니다.</span>'
           + '<button class="sbtn" data-mk="' + x.id + '" title="보강 잡기">＋</button>'
           + '</div>'
           + '<div class="sline2">'
@@ -1833,7 +1838,7 @@ function drawPrev(){
             + (sc ? (STYPE[sc.support_type_id]||'') + ' · ' + (TTYPE[sc._tt]||'') + ' · ' : '')
             + monNo(pm) + '월 ' + dayNo(s.plan_date) + '일 '
             + (q.seq ? q.seq + '회기 ' : '')
-            + (s.status === '휴무' ? '휴무' : '결석')
+            + (s.status === '휴무' ? offWord(s.plan_date, s.therapist_id) : '결석')
             + (t2 ? ' · ' + esc(t2.name) : '')
             + (ok ? '' : ' <b class="pwhy">🔴 ' + esc(carryWhy(q.st, q.seq)) + '</b>')
           + '</span>'
@@ -3973,7 +3978,7 @@ function openW5(d5, th, hm){
         + '<span class="sm2">'
           + (sc ? (STYPE[sc.support_type_id]||'') + ' · ' + (TTYPE[sc._tt]||'') + ' · ' : '')
           + ((s.month_key && s.month_key !== mon) ? monNo(s.month_key) + '월 ' : '')
-          + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? '휴무' : '결석')
+          + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? offWord(s.plan_date, s.therapist_id) : '결석')
           + ' · ' + (t2 ? t2.name : '') + (same ? ' (같은 치료사)' : '')
         + '</span></div>';
     }).join('');
@@ -3994,7 +3999,7 @@ async function putW5(absId){
   const s = findSess(absId);
   if (!s) return;
   if (!confirm((s._name||'') + ' 아동의 ' + dayNo(s.plan_date) + '일 '
-      + (s.status==='휴무'?'휴무':'결석') + ' 보강을\n'
+      + (s.status==='휴무'?offWord(s.plan_date, s.therapist_id):'결석') + ' 보강을\n'
       + dayNo(w5Slot.date) + '일 ' + w5Slot.hm + ' 로 잡을까요?')) return;
 
   const row = {
@@ -4029,7 +4034,7 @@ function openMk(absId){
   $('mkTitle').textContent = (s._name||'') + ' · ' + monNo(km)+'-'+s.run_no
     + ' (' + (old ? monNo(km) + '월 ' : '') + dayNo(s.plan_date) + '일 '
     + String(s.start_time).slice(0,5) + ' '
-    + (s.status === '휴무' ? '휴무' : s.status === '쉼' ? '쉼' : '결석') + ') 보강'
+    + (s.status === '휴무' ? offWord(s.plan_date, s.therapist_id) : s.status === '쉼' ? '쉼' : '결석') + ') 보강'
     + (old ? ' — ' + monNo(km) + '월분을 ' + monNo(mon) + '월에 잡습니다' : '');
   $('mk_date').value = has ? has.plan_date : '';
   $('mk_slot').value = has ? String(nearest(toMin(has.start_time)).no)
@@ -4055,7 +4060,7 @@ function openMk(absId){
     why.style.background = '#fff3e0';
     why.style.border     = '1px solid #ffb74d';
     why.style.color      = '#8a5200';
-    why.innerHTML = '<b>휴무</b> · ' + dayNo(s.plan_date) + '일 · '
+    why.innerHTML = '<b>' + offWord(s.plan_date, s.therapist_id) + '</b> · ' + dayNo(s.plan_date) + '일 · '
       + esc(_thn) + ' 치료사'
       + (rs ? ' — ' + esc(rs) : '');
     why.style.display = 'block';
@@ -4154,13 +4159,13 @@ async function findPairOnly(sid) {
                                       s.child_id, s.plan_date);
     if (!pairs.length) {
       box.innerHTML = '<div class="fo-t">🔍 ' + esc(s._name || '') + ' 아동 · '
-        + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? '휴무' : '결석')
+        + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? offWord(s.plan_date, s.therapist_id) : '결석')
         + '<span class="fo-x">✕ 닫기</span></div>'
         + '<div class="fo-none">' + monNo(mon)
         + '월에 두 선생님이 나란히 비는 자리가 없습니다.</div>';
     } else {
       box.innerHTML = '<div class="fo-t">🔍 ' + esc(s._name || '') + ' 아동 · '
-        + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? '휴무' : '결석')
+        + dayNo(s.plan_date) + '일 ' + (s.status === '휴무' ? offWord(s.plan_date, s.therapist_id) : '결석')
         + '<span class="fo-x">✕ 닫기</span></div>'
         + '<div class="fo-sub">' + esc(thName(s.therapist_id)) + ' + '
         + esc(thName(mate.therapist_id)) + ' 선생님이 잇달아 비는 자리 '

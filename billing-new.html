@@ -272,7 +272,7 @@
   </div>
 
   <div class="note">
-    <b>회기</b>는 시간표의 회기 표에서 가져옵니다. 휴무·보강·쉼은 빼고 셉니다.<br>
+    <b>회기</b>는 시간표의 회기 표에서 가져옵니다. 공휴일·휴가·보강·쉼은 빼고 셉니다.<br>
     <b>회기 칸을 누르면</b> 주차 고르기가 펼쳐집니다. 끈 주차는 「쉼」이 되어 회기에서 빠지고,
     그 시간은 다른 아동 보강에 쓸 수 있습니다. 저장해야 반영됩니다.<br>
     회기가 아직 없는 달이면 요일 수로 채워집니다. 다르면 숫자를 고치세요.<br>
@@ -312,6 +312,7 @@ let CHILDREN = [], TYPES = {}, TTYPES = {}, THERAPISTS = [];
 let ALLKIDS  = [];          // 종결까지 다 담은 아동 목록
 let FEES = {}, RULES = {}, GRADES = {};
 let NOMAKEUP = {};          // 아동번호 -> 보강 못 잡은 결석 목록
+let HOLDAY = {};            // 날짜 -> true (센터 전체가 쉬는 공휴일)
 let SHORTCNT = {};          // 아동|유형 -> { 실제 회기, 빠진 날 }
 let X8NEED = {};            // 발추 1회를 잡아야 하는 아동 (발4+발추1)
 let NEEDCNT  = {};          // 아동|유형 -> 기준 회기
@@ -771,6 +772,15 @@ async function load() {
         .select('id, child_id, schedule_id, support_type_id, status, plan_date, makeup_for, no_makeup, no_makeup_why')
         .eq('month_key', mk)
     ]);
+
+    // 그 달 공휴일 (센터 전체가 쉬는 날). 치료사 휴가와 가려 적기 위함
+    HOLDAY = {};
+    try {
+      const { data: _off } = await sb.from('nl_offdays')
+        .select('off_date, therapist_id')
+        .gte('off_date', mk + '-01').lte('off_date', mk + '-31');
+      (_off || []).forEach(o => { if (!o.therapist_id) HOLDAY[o.off_date] = true; });
+    } catch (e) {}
     if (th.error)  throw th.error;
     if (fe.error)  throw fe.error;
     if (ru.error)  throw ru.error;
@@ -823,7 +833,8 @@ async function load() {
       const g = SHORTCNT[k] = SHORTCNT[k] || { cnt: 0, miss: [], skip: 0 };
       // 「이대로 청구」로 정한 회기는 기준 회수에서 뺀다
       if (x.no_makeup) { g.skip++; if (x.status !== '휴무') g.cnt++; return; }
-      if (x.status === '휴무') { g.miss.push({ id: x.id, d: x.plan_date, s: '휴무' }); return; }
+      if (x.status === '휴무') { g.miss.push({ id: x.id, d: x.plan_date,
+        s: (HOLDAY[x.plan_date] ? '공휴일' : '휴가') }); return; }
       g.cnt++;
       if (x.status === '결석') g.miss.push({ id: x.id, d: x.plan_date, s: '결석' });
     });
@@ -1297,7 +1308,7 @@ function drawKid(c) {
           + (!x.x8 && x.miss.length
               ? '<div class="shortact">'
                 + '<select class="nmwhy">'
-                +   '<option value="치료사 휴무">치료사 휴무</option>'
+                +   '<option value="치료사 휴가">치료사 휴가</option>'
                 +   '<option value="공휴일">공휴일</option>'
                 +   '<option value="보호자 요청">보호자 요청</option>'
                 +   '<option value="월말이라 못 잡음">월말이라 못 잡음</option>'
