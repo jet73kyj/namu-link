@@ -1021,8 +1021,9 @@ function buildSplit(){ SPLIT = {}; }
 function splitTag(x){
   const n = splitMin(x);
   if (!n) return '';
-  // 실제로 수업한 회기에만 붙인다 (공휴일·휴무·결석·쉼·보강 줄에는 안 붙임)
-  if (!x || x.makeup_for) return '';
+  // 실제로 수업하는 줄에만 붙인다. 보강도 수업이므로 붙이고,
+  // 공휴일·휴무·결석·쉼처럼 안 한 날에만 뺀다
+  if (!x) return '';
   if (x.status === '휴무' || x.status === '결석' || x.status === '쉼') return '';
   return '<b class="sptag" data-edsp="' + (x.schedule_id || '')
        + '" title="수정 창에서 바꿉니다">+' + n + '</b>';
@@ -2529,7 +2530,8 @@ function drawDay(){
                 + '<span class="rno">'
                 + ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
                    : (L2.kind === 'mn' && !x.run_no) ? ''
-                   : monNo(mon) + '-' + x.run_no) + '</span></span>'
+                   : monNo(mon) + '-' + x.run_no) + '</span>'
+                + splitTag(x) + '</span>'
                 + '<span class="brk"></span>'
                 + '<span class="go">' + tag + '</span>'
                 + '<span class="s">' + stWord(x) + '</span>'
