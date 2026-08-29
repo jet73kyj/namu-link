@@ -126,7 +126,7 @@
   table.grid tbody tr:nth-child(even) td.free { background:#f3f7ef; }
   .hcol { vertical-align:top; }
   /* 한 칸 안에서 아동이 바뀌면 사이를 띄운다 */
-  .ln.kidtop { margin-top:7px; }
+  .ln.kidtop { margin-top:9px; border-top:2px solid #cfd8c8; padding-top:6px; }
   td.free { background:#fcfdfb; }
   td.lunch { background:#f0f0ec; }
   .lunchtxt { color:#9aa294; font-size:11.5px; text-align:center; display:block; padding:16px 0; }
@@ -2474,7 +2474,8 @@ function drawDay(){
           let lastKid = null;
           lines.forEach(function(L2){
             const x = L2.x;
-            const day = dayNo(L2.d) + '일';
+            // 그 달이 아닌 날짜는 「7월 28일」처럼 달을 함께 적는다
+            const day = dtWithMon(L2.d);
             // 아동이 바뀌면 그 줄 위를 띄운다 (빈 자리 줄은 셈에 안 넣음)
             const kid = (L2.kind === 'open') ? null
                       : (x && x.child_id != null ? x.child_id
