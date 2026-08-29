@@ -1391,6 +1391,39 @@ function drawFind(){
   const ord = { '월':1,'화':2,'수':3,'목':4,'금':5,'토':6 };
   hit.sort((a,b) => (ord[a.weekday]-ord[b.weekday]) || (toMin(a.start_time)-toMin(b.start_time)));
 
+  // 요일줄에 안 딸린 회기(직접 보강 · 이월 보강 · 선보강)도 함께 보여 준다
+  //   한 줄에만 붙게 이미 쓴 것은 표시해 둔다
+  const usedX = {};
+  function extraOf(r){
+    return SESS.filter(function(s){
+      if (s.child_id !== r._cid) return false;
+      if (usedX[s.id]) return false;
+      if (s.schedule_id === r.id && !isMk(s)) return false;   // 이미 위에 그린 정규 회기
+      const st = s.support_type_id;
+      const same = (s.schedule_id === r.id)
+                || (st && (st === r.support_type_id
+                           || (r.support_type_id === 2 && st === 8)));
+      if (!same) return false;
+      usedX[s.id] = 1;
+      return true;
+    });
+  }
+  function extraChip(s){
+    const cls = (s.status==='완료' ? 'r-done'
+              : s.status==='결석' ? 'r-abs'
+              : s.status==='휴무' ? 'r-off' : 'r-mk');
+    let lb = String(s.memo || '').replace(/^직접 보강 · ?/, '').trim();
+    if (!lb) lb = '보강';
+    const md = String(s.plan_date || '');
+    const dt = md.length >= 10
+      ? (Number(md.slice(5,7)) + '월 ' + Number(md.slice(8,10)) + '일') : '';
+    return '<span class="run ' + cls + '" data-sid="' + s.id + '"'
+      + ' style="display:inline-flex;">'
+      + '<span class="spdif">' + esc(lb) + '</span>'
+      + '<span class="dt">' + dt + '</span>'
+      + '<span class="st">' + esc(stWord(s)) + '</span></span>';
+  }
+
   $('findRows').innerHTML = hit.map(r => {
     const th = THS_ALL.find(t => t.id === r.therapist_id);
     const sl = nearest(toMin(r.start_time));
@@ -1417,7 +1450,12 @@ function drawFind(){
         + '<span class="st">' + tail + '</span></span>';
     });
     // 찾기 창은 확인용이라 보강 단추를 안 띄운다 (회색 「수업 없음」만)
-    const runs = mergeRuns(_rl, _rh, wk5Pairs(r, byScd, r.weekday, true));
+    const _xs = extraOf(r);
+    const _xp = _xs.map(function(s){
+      return { d: String(s.plan_date || ''), h: extraChip(s) };
+    });
+    const runs = mergeRuns(_rl, _rh,
+      wk5Pairs(r, byScd, r.weekday, true).concat(_xp));
 
     return '<div class="findrow">'
       + '<div class="fr-top">'
