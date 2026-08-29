@@ -983,9 +983,11 @@ function mnLabel(x){
   const o = (x && x.makeup_for) ? findSess(x.makeup_for) : null;
   if (o && o.plan_date) {
     const om = String(o.plan_date).slice(0,7);
-    return (om === String(mon))
+    // 원래 회차와 원래 날짜를 함께 (예: 「8-2 · 11일분」)
+    const no = o.run_no ? (monNo(om) + '-' + o.run_no + ' · ') : '';
+    return no + ((om === String(mon))
       ? (dayNo(o.plan_date) + '일분')
-      : (monNo(om) + '월 ' + dayNo(o.plan_date) + '일분');
+      : (monNo(om) + '월 ' + dayNo(o.plan_date) + '일분'));
   }
   const k = x && x.month_key ? String(x.month_key) : '';
   if (k && k !== String(mon)) return monNo(k) + '월분';
@@ -2106,7 +2108,7 @@ function drawOne(){
           ? ' <span class="dur">(' + r.duration + ')</span>' : '')
       +  splitTag(x)
       +  '<span class="rno">'
-      +  (isPrevMn(x) ? mnLabel(x)
+      +  ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
           : (!x.schedule_id && !x.run_no) ? ''
           : monNo(mon) + '-' + x.run_no) + '</span>'
       +  (MY_TH ? '' : '<span class="oth">' + esc(thMap[x.therapist_id] || thName(x.therapist_id)) + '</span>')
@@ -2509,7 +2511,7 @@ function drawDay(){
                 + '<span class="d">' + day + '</span>'
                 + '<span class="n">🔁 ' + nm
                 + '<span class="rno">'
-                + (isPrevMn(x) ? mnLabel(x)
+                + ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
                    : (L2.kind === 'mn' && !x.run_no) ? ''
                    : monNo(mon) + '-' + x.run_no) + '</span></span>'
                 + '<span class="brk"></span>'
