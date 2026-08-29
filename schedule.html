@@ -1422,8 +1422,11 @@ function prevMon(k){
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
 }
 // 이번 달·지난 달 어디에 있든 회기 한 줄 찾기
+let NEXTM = [];         // 다음 달 회기 (선보강의 원래 줄을 찾는 데 쓴다)
 function findSess(id){
-  return SESS.find(x => x.id === id) || PREV.find(x => x.id === id) || null;
+  return SESS.find(x => x.id === id)
+      || PREV.find(x => x.id === id)
+      || NEXTM.find(x => x.id === id) || null;
 }
 // 지난 달에서 아직 보강을 못 잡은 결석·휴무
 function prevNeed(){
@@ -4658,7 +4661,7 @@ async function loadMonth(){
   const { data: nx } = await sb.from('nl_sessions')
     .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
     .eq('month_key', nm2);
-  let NEXTM = nx || [];
+  NEXTM = nx || [];
   if (MY_TH) NEXTM = NEXTM.filter(s => s.therapist_id === MY_TH);
   NEXTM.forEach(s => {
     if (String(s.plan_date).slice(0,7) === mon) SESS.push(s);
