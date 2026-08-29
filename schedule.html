@@ -1492,10 +1492,14 @@ function drawFind(){
       if (s.makeup_for && mkOf[s.makeup_for] && mkOf[s.makeup_for].id === s.id
           && (byScd[r.id] || []).some(function(o){ return o.id === s.makeup_for; }))
         return false;
+      // 그 수업 줄에 딸린 것만 붙인다.
+      //   지원유형만 같다고 붙이면, 한 아동이 같은 사업으로 수업을 둘 받을 때
+      //   서로 다른 요일의 회기가 양쪽에 겹쳐 보인다
       const st = s.support_type_id;
       const same = (s.schedule_id === r.id)
-                || (st && (st === r.support_type_id
-                           || (r.support_type_id === 2 && st === 8)));
+                || (!s.schedule_id && st
+                    && (st === r.support_type_id
+                        || (r.support_type_id === 2 && st === 8)));
       if (!same) return false;
       usedX[s.id] = 1;
       return true;
