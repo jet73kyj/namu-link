@@ -2474,7 +2474,10 @@ function drawDay(){
                 ? (from ? (carry ? '이월 ' + monNo(from.month_key) + '월 ' : '')
                           + dayNo(from.plan_date) + '일분' : '보강')
                 : '직접';
-              html += '<div class="ln ln-mk' + kidCls + '" data-sid="' + x.id + '"'
+              // 보강 줄도 결석·휴무면 다른 줄과 같은 회색 바탕으로
+              const mkCls = (x.status === '결석') ? 'ln-abs ln-cut'
+                          : (x.status === '휴무') ? 'ln-off ln-cut' : 'ln-mk';
+              html += '<div class="ln ' + mkCls + kidCls + '" data-sid="' + x.id + '"'
                 + ' data-kid="' + esc(x._name || '') + '"'
                 + ' data-cid="' + (x.child_id || '') + '">'
                 + '<span class="d">' + day + '</span>'
