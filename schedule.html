@@ -1476,8 +1476,9 @@ function drawFind(){
                 : x.status==='쉼' ? 'r-rest' : '')
                 + ((x.status==='결석' || x.status==='휴무') ? ' r-cut' : '');
       const mk = mkOf[x.id];
+      // 보강이 잡혀 있으면 그 날짜와 함께 「완료·보강예정」까지 보여 준다
       const tail = (x.status==='결석' || x.status==='휴무')
-        ? (mk ? '→' + mkDay(mk)
+        ? (mk ? '→' + mkDay(mk) + ' ' + esc(stWord(mk))
               : '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>')
         : stWord(x);
       const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
