@@ -2953,8 +2953,16 @@ async function applySplit(schedId, minutes){
 // ⚠️ 회기만 지우면 nl_make_sessions 가 다시 깔아버린다. 요일줄을 먼저 손봐야 한다
 
 // 지금 보고 있는 달이 「쉼」 상태인지
+//   ⚠️ 요일·시간을 옮기면 새 줄에도 「언제부터」가 들어간다.
+//      그럴 때는 이 달에 쓰는 옛 줄이 따로 있으므로 「쉬는 중」이 아니다
 function isRestingMonth(r){
-  return !!(r && r.from_month && String(r.from_month) > String(mon));
+  if (!(r && r.from_month && String(r.from_month) > String(mon))) return false;
+  const other = ROWS_ALL.some(function(o){
+    return o.id !== r.id && o.therapy_id === r.therapy_id
+        && (!o.from_month || String(o.from_month) <= String(mon))
+        && (!o.to_month   || String(o.to_month)   >= String(mon));
+  });
+  return !other;
 }
 
 // 단추 글자를 상태에 맞게 바꾼다
