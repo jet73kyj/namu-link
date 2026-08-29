@@ -2141,6 +2141,20 @@ function drawDay(){
     (mnCell[k] = mnCell[k] || []).push(s);
   });
 
+  // 수업요일에 딸려 있으나 제 시각이 요일줄과 다른 회기 (발추 등)
+  // 요일줄 칸이 아니라 제 시각의 교시 칸에 수업 모양 그대로 그린다
+  const farCell = {};
+  SESS.forEach(s => {
+    if (!s.schedule_id || isMk(s) || !s.plan_date) return;
+    if (String(s.plan_date).slice(0,7) !== mon) return;
+    if (wdOf(s.plan_date) !== wd) return;
+    const sc = ROWS_ALL.find(r => r.id === s.schedule_id);
+    if (!sc || !sc.start_time || !s.start_time) return;
+    if (nearest(toMin(s.start_time)).no === nearest(toMin(sc.start_time)).no) return;
+    const k = nearest(toMin(s.start_time)).no + '_' + s.therapist_id;
+    (farCell[k] = farCell[k] || []).push({ r: sc, x: s });
+  });
+
   // 이 달·이 요일의 결석·휴무·쉼을 칸별로 모은다 (빈 자리 단추용)
   const absCell = {};
   SESS.forEach(x => {
@@ -2167,7 +2181,8 @@ function drawDay(){
           const mks  = mkCell[key] || [];
           const mns  = mnCell[key] || [];
           const abs  = absCell[key] || [];
-          if (!list.length && !mks.length && !mns.length && !abs.length) {
+          const fars = farCell[key] || [];
+          if (!list.length && !mks.length && !mns.length && !abs.length && !fars.length) {
             // 아무 수업도 없는 칸 — 그 요일의 날짜를 하나씩 빈 자리로 내놓는다
             let eh = '';
             if (lunch) eh += '<span class="lunchtxt">점심 / 보강</span>';
@@ -2207,11 +2222,16 @@ function drawDay(){
           list.forEach(r => {
             (byScd[r.id] || []).forEach(x => {
               if (isSplitRun(x)) return;   // 나눠 진행하는 발추 줄은 감춘다
+              // 제 시각이 이 칸의 교시와 다르면 여기 말고 제 교시 칸에 그린다
+              if (x.start_time && nearest(toMin(x.start_time)).no !== s.no) return;
               lines.push({ d: String(x.plan_date), kind: 'run', r: r, x: x });
             });
           });
           mks.forEach(x => lines.push({ d: String(x.plan_date), kind: 'mk', x: x }));
           mns.forEach(x => lines.push({ d: String(x.plan_date), kind: 'mn', x: x }));
+          fars.forEach(function(f){
+            lines.push({ d: String(f.x.plan_date), kind: 'run', r: f.r, x: f.x });
+          });
 
           // 이 칸·이 날짜에 결석·휴무가 있으면 빈 자리로 본다
           // (수업요일 줄이 없는 회기도 빠짐없이 훑는다)
