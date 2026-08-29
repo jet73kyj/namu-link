@@ -1018,6 +1018,7 @@ function buildRows(childId, mk) {
       sched_id: s.sched_id,
       wk: s.wk || [true,true,true,true],
       tmemo: s.tmemo || '',
+      weekday: s.weekday,
       wdCnt: countWeekday(mk, s.weekday)
     };
     // 회기 표가 있으면 그것으로, 없으면 요일 수로 센다
@@ -1065,7 +1066,14 @@ function buildRows(childId, mk) {
     g8.review_target = rule8.review_target !== false;
     g8.extra_unit      = fee ? (fee.fee_extra || 0) : null;
     g8.extra_therapist = tid;
-    g8.extra_weekday   = dev.items.length ? dev.items[0].weekday : null;
+    // 5주차 판단에 쓸 요일 —
+    //   발달재활 수업이 여러 요일이면, 그 달에 5번 오는 요일이 하나라도 있으면 그것을 쓴다
+    g8.extra_weekday = (() => {
+      const wds = dev.items.map(v => v.weekday).filter(v => v);
+      if (!wds.length) return null;
+      const five = wds.find(w => countWeekday(mk, w) >= 5);
+      return five || wds[0];
+    })();
   }
 
   out.sort((a, b) => a.support_type_id - b.support_type_id);
