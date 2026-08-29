@@ -1399,6 +1399,10 @@ function drawFind(){
       if (s.child_id !== r._cid) return false;
       if (usedX[s.id]) return false;
       if (s.schedule_id === r.id && !isMk(s)) return false;   // 이미 위에 그린 정규 회기
+      // 결석 줄 옆에 「→ 12일」로 이미 보이는 보강은 다시 안 그린다
+      if (s.makeup_for && mkOf[s.makeup_for] && mkOf[s.makeup_for].id === s.id
+          && (byScd[r.id] || []).some(function(o){ return o.id === s.makeup_for; }))
+        return false;
       const st = s.support_type_id;
       const same = (s.schedule_id === r.id)
                 || (st && (st === r.support_type_id
