@@ -1021,6 +1021,10 @@ function noCountOpt() {
 // 그 날짜가 그 치료사에게 쉬는 날인지
 //   공휴일이면 모든 치료사, 치료사 휴무면 그 치료사만
 // 그 날 쉬는 까닭 — 센터 전체가 쉬면 「공휴일」, 그 치료사만 쉬면 「휴가」
+function stWord(x){
+  if (!x) return '';
+  return (x.status === '휴무') ? offWord(x.plan_date, x.therapist_id) : x.status;
+}
 function offWord(dd, thId){
   if (OFFTXT && OFFTXT[String(dd)] !== undefined) return '공휴일';
   return '휴가';
@@ -1396,7 +1400,7 @@ function drawFind(){
       const tail = (x.status==='결석' || x.status==='휴무')
         ? (mk ? '→' + mkDay(mk)
               : '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>')
-        : x.status;
+        : stWord(x);
       const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
         ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
         : ((r.support_type_id === 2 && x.run_no === 5)
@@ -1621,7 +1625,7 @@ function drawWeek(){
                    + ((MY_TH && !mk && pairMateOf(x))
                      ? '<button class="findbtn" data-find="'+x.id+'"'
                        + ' title="연달아 가능한 자리 찾기">🔍</button>' : ''))
-                : '<span class="st">'+x.status+'</span>';
+                : '<span class="st">'+stWord(x)+'</span>';
               const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
                 ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
                 : ((r.support_type_id === 2 && x.run_no === 5)
@@ -1653,7 +1657,7 @@ function drawWeek(){
               + '<span class="dt">'+dayNo(x.plan_date)+'일'
               + '<b class="no">'+monNo(mon)+'-'+x.run_no+'</b></span>'
               + '<span class="brk"></span>'
-              + '<span class="st">'+esc(x.status)+'</span>'
+              + '<span class="st">'+esc(stWord(x))+'</span>'
               + (CAN_EDIT ? '<span class="mkfix" data-mkfix="'+x.id+'">✕</span>' : '')
               + '</div></span>';
           });
@@ -1879,7 +1883,7 @@ function mnChip(x){
         ? '<b class="no mnedit" data-mned="' + x.id + '" title="고치기">수정</b>'
         : '') + '</span>'
     + '<span class="brk"></span>'
-    + '<span class="st">' + esc(x.status) + '</span></div>'
+    + '<span class="st">' + esc(stWord(x)) + '</span></div>'
     + '<div class="mnown">'
     + (x._isEval ? '평가 관리에서 넣은 일정' : (rs ? esc(rs) : '직접 넣은 보강'))
     + ((CAN_EDIT && !x._isEval) ? ' <span class="del" data-mndel="' + x.id + '">✕</span>' : '')
@@ -2345,7 +2349,7 @@ function drawDay(){
                    : monNo(mon) + '-' + x.run_no) + '</span></span>'
                 + '<span class="brk"></span>'
                 + '<span class="go">' + tag + '</span>'
-                + '<span class="s">' + x.status + '</span>'
+                + '<span class="s">' + stWord(x) + '</span>'
                 + (CAN_EDIT
                     ? ((L2.kind === 'mn')
                         ? '<button class="lnedit" data-mned="' + x.id + '" title="고치기">수정</button>'
@@ -2378,9 +2382,9 @@ function drawDay(){
                   + nearest(toMin(mk.start_time)).hm + '</span>' : '')
                 + (CAN_EDIT ? '<button class="mkbtn" data-mk="' + x.id + '"'
                   + ' title="' + (mk ? '보강 고치기' : '보강 잡기') + '">＋</button>' : '');
-              tail += '<span class="s">' + x.status + '</span>';
+              tail += '<span class="s">' + stWord(x) + '</span>';
             } else {
-              tail = '<span class="s">' + x.status + '</span>';
+              tail = '<span class="s">' + stWord(x) + '</span>';
             }
 
             const ed = (CAN_EDIT && !seenSc[r.id])
