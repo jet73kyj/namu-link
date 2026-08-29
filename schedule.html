@@ -1185,7 +1185,7 @@ function drawShort(_byScd, _mkOf){
           + ' data-kid="' + esc(r._name || '') + '"'
           + ' data-cid="' + (r._cid || '') + '">'
           + '<div class="sline1">'
-          + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
+          + '<span class="stxt"><b>[' + (r._cid || '') + '] ' + esc(r._name) + '</b> (' + thn + ') '
           + monNo(mon) + '월 ' + dayNo(x.plan_date) + '일 '
           + (x.status === '휴무' ? offWord(x.plan_date, x.therapist_id) : '결석') + '입니다.</span>'
           + '<button class="sbtn" data-mk="' + x.id + '" title="보강 잡기">＋</button>'
@@ -1229,7 +1229,7 @@ function drawShort(_byScd, _mkOf){
         + ' data-kid="' + esc(r._name || '') + '"'
         + ' data-cid="' + (r._cid || '') + '">'
         + '<div class="sline1">'
-        + '<span class="stxt"><b>' + esc(r._name) + '</b> (' + thn + ') '
+        + '<span class="stxt"><b>[' + (r._cid || '') + '] ' + esc(r._name) + '</b> (' + thn + ') '
         + monNo(mon) + '월 '
         + (b.why === '납부'
             ? '납부에서 ' + nd + '회로 정하셨습니다.'
@@ -1291,7 +1291,8 @@ function topFind(topId, boxId){
       return;
     }
     const hit = rows.filter(el =>
-      String(el.dataset.kid || '').indexOf(q) === 0);
+      String(el.dataset.kid || '').indexOf(q) === 0
+      || String(el.dataset.cid || '') === q);
     rows.forEach(el => {
       el.style.display = (hit.indexOf(el) >= 0) ? '' : 'none';
     });
@@ -1320,7 +1321,8 @@ function boxFind(boxId){
     const q = inp.value.trim();
     box.querySelectorAll('.short-line, .prevone').forEach(el => {
       const nm = String(el.dataset.kid || '');
-      el.style.display = (!q || nm.indexOf(q) === 0) ? '' : 'none';
+      const cd = String(el.dataset.cid || '');
+      el.style.display = (!q || nm.indexOf(q) === 0 || cd === q) ? '' : 'none';
     });
   };
 }
@@ -1837,7 +1839,7 @@ function drawPrev(){
         return '<div class="prevone' + (ok ? '' : ' prevno') + '"'
           + ' data-kid="' + esc(s._name || '') + '"'
           + ' data-cid="' + (s.child_id || '') + '">'
-          + '<span class="pnm">' + esc(s._name || '') + '</span>'
+          + '<span class="pnm">[' + (s.child_id || '') + '] ' + esc(s._name || '') + '</span>'
           + '<span class="psm">'
             + (sc ? (STYPE[sc.support_type_id]||'') + ' · ' + (TTYPE[sc._tt]||'') + ' · ' : '')
             + monNo(pm) + '월 ' + dayNo(s.plan_date) + '일 '
