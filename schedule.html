@@ -945,6 +945,16 @@ function slotHm(s, thId){
   const x = (s && s.no === LATE_SLOT) ? LATE_TH[thId] : null;
   return x ? x.hm : (s ? s.hm : '');
 }
+// 화면에 보일 때만 12시간으로 (17:40 → 5:40). 자료에 넣는 값은 그대로 24시간
+function h12(v){
+  const p = String(v || '').slice(0,5).split(':');
+  if (p.length < 2) return String(v || '');
+  let h = Number(p[0]);
+  if (h > 12) h -= 12;
+  return h + ':' + p[1];
+}
+function t12(v){ return String(v || '').split('~').map(h12).join('~'); }
+function slotHm12(s, thId){ return h12(slotHm(s, thId)); }
 const WDS = ['일','월','화','수','목','금','토'];
 
 const TTYPE = {1:'언어',2:'작업',3:'전산',4:'감통',5:'음악',6:'일상'};
@@ -997,7 +1007,7 @@ function tmDif(x){
   const a = String(x.start_time).slice(0,5);
   const sl = nearest(toMin(x.start_time));
   if (!sl || sl.hm === a) return '';
-  return '<span class="tmdif">' + a + '</span>';
+  return '<span class="tmdif">' + h12(a) + '</span>';
 }
 // 치료 종류별 담당 치료사 (언어=1,2,3 / 작업·전산·감통=4,6,7 / 음악=5 / 일상=전원)
 const RULE = { 1:[1,2,3], 2:[4,6,7], 3:[4,6,7], 4:[4,6,7], 5:[5] };
@@ -1502,7 +1512,7 @@ function drawFind(){
     return '<div class="findrow">'
       + '<div class="fr-top">'
         + '<span class="fr-nm">' + esc(r._name) + '</span>'
-        + '<span class="fr-when">' + r.weekday + ' ' + sl.hm + '</span>'
+        + '<span class="fr-when">' + r.weekday + ' ' + h12(sl.hm) + '</span>'
         + '<span class="fr-th">' + (STYPE[r.support_type_id]||'') + ' · '
           + (TTYPE[r._tt]||'') + ' · ' + (th ? esc(th.name) : '') + ' · '
           + (r.duration||'') + '분</span>'
@@ -1669,7 +1679,7 @@ function drawWeek(){
   $('gbody').innerHTML = SLOTS.map(s => {
     return '<tr>'
       + '<td class="hcol"><div class="hno">'+s.no+'교시</div>'
-        + '<div class="htime">'+slotT(s, th)+'</div></td>'
+        + '<div class="htime">'+t12(slotT(s, th))+'</div></td>'
       + DAYS.map(d => {
           const lunch = (d !== '토' && s.no === LUNCH_NO);
           const list = cell[s.no+'_'+d] || [];
@@ -2305,7 +2315,7 @@ function drawDay(){
     const lunch = (!isSat && s.no === LUNCH_NO);
     return '<tr>'
       + '<td class="hcol"><div class="hno">'+s.no+'교시</div>'
-        + '<div class="htime">'+s.t+'</div>'
+        + '<div class="htime">'+t12(s.t)+'</div>'
         + (lunch ? '<div class="thkind">점심</div>' : '') + '</td>'
       + THS.map(t => {
           const key  = s.no+'_'+t.id;
@@ -2482,7 +2492,7 @@ function drawDay(){
               const mk = mkOf[x.id];
               tail = (mk
                 ? '<span class="go">→ ' + mkDay(mk) + ' '
-                  + nearest(toMin(mk.start_time)).hm + '</span>' : '')
+                  + h12(nearest(toMin(mk.start_time)).hm) + '</span>' : '')
                 + (CAN_EDIT ? '<button class="mkbtn" data-mk="' + x.id + '"'
                   + ' title="' + (mk ? '보강 고치기' : '보강 잡기') + '">＋</button>' : '');
               tail += '<span class="s">' + stWord(x) + '</span>';
@@ -3086,7 +3096,7 @@ $('edSave').onclick = async () => {
   const newHm = slotHm(slot, th);
   if (oldWd !== nw || oldHm !== newHm) {
     if (!confirm('요일·시간이 바뀝니다.\n\n'
-      + '· ' + oldWd + '요일 ' + oldHm + '  →  ' + nw + '요일 ' + newHm + '\n\n'
+      + '· ' + oldWd + '요일 ' + h12(oldHm) + '  →  ' + nw + '요일 ' + h12(newHm) + '\n\n'
       + monNo(mon) + '월부터 바뀌고, 지난 달 시간표는 그대로 남습니다.\n계속할까요?')) return;
     const scId0 = edRow.id;
     await changeFromThisMonth(nw, slot, th, du);
@@ -3552,7 +3562,7 @@ async function openPlan(scId){
   const slot = nearest(toMin(r.start_time));
   openMn(slot.no + '_' + r.therapist_id + '_' + r.weekday);
   $('mnTitle').textContent = monNo(mon) + '월 ' + r.weekday + '요일 '
-    + slotHm(slot, r.therapist_id)
+    + slotHm12(slot, r.therapist_id)
     + ' — 회기가 모자라 한 자리 더 잡기';
   if (!r._cid) return;
   await pickMnKid(r._cid);
@@ -3614,7 +3624,7 @@ function openMn(key){
   // 시간 — 교시를 고를 수 있게 한다
   $('mn_slot').innerHTML = SLOTS.map(sl =>
       '<option value="' + sl.no + '">' + sl.no + '교시 · '
-      + slotHm(sl, thId) + '</option>').join('');
+      + slotHm12(sl, thId) + '</option>').join('');
   $('mn_slot').value = String(slot.no);
 
   $('mn_name').value = '';
@@ -3801,7 +3811,7 @@ $('mnFind').onclick = () => {
   }
   $('mnFree').innerHTML = top.map(c =>
     '<span class="freeone" data-d="'+c.date+'" data-s="'+c.slot.no+'">'
-    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm(c.slot, th) + '</span>').join('');
+    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm12(c.slot, th) + '</span>').join('');
   $('mnFree').querySelectorAll('.freeone').forEach(el => {
     el.onclick = () => {
       $('mn_date').value = el.dataset.d;
@@ -3877,14 +3887,14 @@ $('mnSave').onclick = async () => {
     if (busy.length) {
       const who = busy.map(v => (v._name || ('아동 ' + v.child_id))).join(', ');
       mnmsg('❌ 그 시간에는 이미 다른 아동 수업이 있습니다.\n'
-        + '  ' + dayNo(d) + '일 ' + slotHm(slot2, mnKey.th) + ' · ' + who + '\n'
+        + '  ' + dayNo(d) + '일 ' + slotHm12(slot2, mnKey.th) + ' · ' + who + '\n'
         + '다른 날이나 다른 시간을 고르세요.', false);
       return;
     }
   }
 
   if (!confirm(mnKid.name + ' 아동 보강을\n'
-      + dayNo(d) + '일(' + wd2 + ') ' + slotHm(slot2, mnKey.th)
+      + dayNo(d) + '일(' + wd2 + ') ' + slotHm12(slot2, mnKey.th)
       + (fixing ? ' 로 고칠까요?' : ' 로 넣을까요?') + '\n\n'
       + '이 줄은 회기 수·납부에는 안 들어가고,\n'
       + '완료로 표시하면 그 치료사 급여에만 들어갑니다.')) return;
@@ -3963,7 +3973,7 @@ $('mnSave').onclick = async () => {
     }
 
     mnmsg('✅ ' + mnKid.name + ' 아동 보강을 ' + dayNo(d) + '일 '
-      + slotHm(mnKey.slot, mnKey.th) + (fixing ? ' 로 고쳤습니다.' : ' 로 넣었습니다.'), true);
+      + slotHm12(mnKey.slot, mnKey.th) + (fixing ? ' 로 고쳤습니다.' : ' 로 넣었습니다.'), true);
     $('mn_name').value=''; $('mn_pick').innerHTML='';
     $('mn_tp').innerHTML='<option value="">아동을 먼저 고르세요</option>';
     $('mn_memo').value=''; mnKid=null; mnEditId=null;
@@ -4246,7 +4256,7 @@ $('mkFind').onclick = () => {
   }
   $('mkFree').innerHTML = top.map(c =>
     '<span class="freeone" data-d="'+c.date+'" data-s="'+c.slot.no+'">'
-    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm(c.slot, th) + '</span>').join('');
+    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm12(c.slot, th) + '</span>').join('');
   $('mkFree').querySelectorAll('.freeone').forEach(el => {
     el.onclick = () => {
       $('mk_date').value = el.dataset.d;
@@ -4288,8 +4298,8 @@ async function findPairOnly(sid) {
         + '<div class="fo-list">'
         + pairs.map(c => '<span class="fo-one">'
             + dayNo(c.date) + '일(' + WDS[new Date(c.date).getDay()] + ') '
-            + slotHm(c.a, s.therapist_id) + ' → '
-            + slotHm(c.b, mate.therapist_id) + '</span>').join('')
+            + slotHm12(c.a, s.therapist_id) + ' → '
+            + slotHm12(c.b, mate.therapist_id) + '</span>').join('')
         + '</div>'
         + '<div class="fo-note">보호자와 정하신 뒤 행정 선생님께 알려주세요. '
         + '여기서는 잡을 수 없습니다.</div>';
@@ -4410,7 +4420,7 @@ $('mkPair').onclick = async () => {
       + out.map(c =>
           '<span class="freeone" data-d="' + c.date + '" data-s="' + c.a.no + '">'
           + dayNo(c.date) + '일(' + WDS[new Date(c.date).getDay()] + ') '
-          + slotHm(c.a, thA) + ' → ' + slotHm(c.b, thB) + '</span>').join('');
+          + slotHm12(c.a, thA) + ' → ' + slotHm12(c.b, thB) + '</span>').join('');
 
     $('mkFree').querySelectorAll('.freeone').forEach(el => {
       el.onclick = () => {
@@ -4464,7 +4474,7 @@ $('mkSave').onclick = async () => {
   if (busy.length) {
     const who = busy.map(s => (s._name || ('아동 ' + s.child_id))).join(', ');
     mkmsg('❌ 그 시간에는 이미 다른 아동 수업이 있습니다.\n'
-      + '  ' + dayNo(d) + '일 ' + slotHm(slot, th) + ' · ' + who + '\n'
+      + '  ' + dayNo(d) + '일 ' + slotHm12(slot, th) + ' · ' + who + '\n'
       + '다른 날이나 다른 시간을 고르세요.', false);
     return;
   }
@@ -4507,7 +4517,7 @@ $('mkSave').onclick = async () => {
       SESS.push(data);
       if (data.month_key !== mon) PREV.push(data);
     }
-    mkmsg('✅ 보강을 ' + dayNo(d) + '일 ' + slotHm(slot, th) + '으로 잡았습니다.', true);
+    mkmsg('✅ 보강을 ' + dayNo(d) + '일 ' + slotHm12(slot, th) + '으로 잡았습니다.', true);
     $('mkDel').style.display = '';
     draw();
   } catch (e) {
