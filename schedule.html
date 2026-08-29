@@ -42,6 +42,19 @@
   .prevhint .go { float:right; font-weight:normal; font-size:12.5px; }
   .shortbox { background:#ffebee; border:1px solid #ef9a9a; border-radius:10px;
               padding:14px 16px; margin-bottom:14px; }
+  /* 결석·모자란 수업 상자를 화면 맨 아래에 얇게 붙인다 */
+  .dock { position:fixed; left:0; right:0; bottom:0; z-index:60;
+          background:#fff; border-top:2px solid #ef9a9a;
+          box-shadow:0 -4px 14px rgba(0,0,0,.16);
+          display:flex; flex-direction:column; max-height:64vh; }
+  .dockbar { padding:9px 16px; font-size:13.5px; font-weight:bold;
+             color:#b71c1c; background:#ffebee; cursor:pointer;
+             display:flex; align-items:center; gap:10px; }
+  .dockbar .dkgo { margin-left:auto; font-weight:normal; font-size:12.5px; }
+  .dockbody { overflow:auto; padding:12px 14px 16px; }
+  .dock.mini .dockbody { display:none; }
+  .dock .shortbox { margin-bottom:12px; }
+  .dockpad { height:52px; }
   .short-t { font-size:15px; font-weight:bold; color:#b71c1c; margin-bottom:8px; }
   .short-line { font-size:13.5px; padding:8px 0; border-bottom:1px dashed #ef9a9a; }
   .short-line:last-child { border-bottom:none; }
@@ -830,6 +843,11 @@
   <div id="short" class="shortbox" style="display:none;"></div>
   <div id="gapBox" class="shortbox" style="display:none;"></div>
   <div id="allok" class="allok" style="display:none;"></div>
+  <div class="dockpad"></div>
+  <div id="dock" class="dock mini" style="display:none;">
+    <div id="dockbar" class="dockbar"></div>
+    <div id="dockbody" class="dockbody"></div>
+  </div>
 
   <div class="legend">
     <span class="lg sp1">센터비용</span>
@@ -1171,7 +1189,7 @@ function drawShort(_byScd, _mkOf){
     $('shortTop').onclick = (ev) => {
       // 찾기 칸이나 그 결과를 눌렀을 때는 화면을 안 옮긴다
       if (ev.target.closest('.topf, .topres')) return;
-      $('short').scrollIntoView({ behavior:'smooth', block:'start' });
+      const _dk = $('dock'); if (_dk) { _dk.classList.remove('mini'); syncDock(); }
     };
     topFind('shortTop', 'short');
 
@@ -1217,7 +1235,7 @@ function drawShort(_byScd, _mkOf){
       + '<span class="go">아래 목록 보기 ↓</span>';
     $('gapTop').onclick = (ev) => {
       if (ev.target.closest('.topf, .topres')) return;
-      $('gapBox').scrollIntoView({ behavior:'smooth', block:'start' });
+      const _dk2 = $('dock'); if (_dk2) { _dk2.classList.remove('mini'); syncDock(); }
     };
     topFind('gapTop', 'gapBox');
 
@@ -1266,6 +1284,27 @@ function drawShort(_byScd, _mkOf){
     el.onclick = () => openPlan(Number(el.dataset.plan));
   });
   boxFind('short'); boxFind('gapBox');
+  syncDock();
+}
+
+// 상자 두 개를 화면 아래 서랍에 담는다. 얇게 붙어 있다가 누르면 올라온다
+function syncDock(){
+  const dock = $('dock'), body = $('dockbody'), bar = $('dockbar');
+  if (!dock || !body || !bar) return;
+  const sh = $('short'), gp = $('gapBox');
+  if (sh && sh.parentNode !== body) body.appendChild(sh);
+  if (gp && gp.parentNode !== body) body.appendChild(gp);
+
+  const on1 = sh && sh.style.display !== 'none';
+  const on2 = gp && gp.style.display !== 'none';
+  if (!on1 && !on2) { dock.style.display = 'none'; return; }
+
+  const t1 = on1 ? (sh.querySelector('.short-t') || {}).textContent || '' : '';
+  const t2 = on2 ? (gp.querySelector('.short-t') || {}).textContent || '' : '';
+  dock.style.display = '';
+  bar.innerHTML = '<span>' + esc([t1, t2].filter(Boolean).join('  ·  ')) + '</span>'
+    + '<span class="dkgo">' + (dock.classList.contains('mini') ? '▲ 펼치기' : '▼ 접기') + '</span>';
+  bar.onclick = () => { dock.classList.toggle('mini'); syncDock(); };
 }
 
 // 요약 줄의 찾기 칸이 아래 목록을 거른다 (이름 앞부터 맞을 때만)
