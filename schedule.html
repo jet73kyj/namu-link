@@ -362,6 +362,7 @@
   .sp5, .sp6, .sp7 { background:#fff8e1; }
   .sp0, .sp8, .sp9 { background:#f5f5f5; }
 
+  .cid{font-size:10px;color:#888;margin-left:3px;font-weight:normal;}
   /* 보강 잡기 창 */
   .panel { background:#fff3e0; border:1px solid #ffcc80; border-radius:10px;
            padding:16px 18px; margin-bottom:14px; }
@@ -907,6 +908,8 @@ const SLOTS = [
   { no:14, t:'20:00~20:40', m:20*60,     hm:'20:00' }
 ];
 const LUNCH_NO = 5;
+// 아동 번호를 이름 뒤에 작게 붙인다
+function cidTag(n){ return n ? '<span class="cid">'+n+'</span>' : ''; }
 
 // 14교시만 치료사에 따라 시각이 다르다.
 // 3번 치료사는 마지막 아동이 60분 수업이라 20:20에 시작한다.
@@ -1373,7 +1376,7 @@ function drawFind(){
                 : x.status==='쉼' ? 'r-rest' : '')
                 + ((x.status==='결석' || x.status==='휴무') ? ' r-cut' : '');
       const mk = mkOf[x.id];
-      const tail = (x.status==='결석' || x.status==='휴무' || x.status==='쉼')
+      const tail = (x.status==='결석' || x.status==='휴무')
         ? (mk ? '→' + dayNo(mk.plan_date) + '일'
               : '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>')
         : x.status;
@@ -1422,7 +1425,8 @@ function drawFind(){
       if (!s) return;
       if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
       const id = Number(_sid);
-      if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }
+      if (s.status === '쉼') return;
+      if (s.status === '휴무') { openMk(s.id); return; }
       const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
       // 직접 넣은 보강(요일줄 없음)은 완료 → 예정 → 결석 으로 돈다
       const isMn = !s.schedule_id && !s.makeup_for;
@@ -1593,7 +1597,6 @@ function drawWeek(){
               const mk = mkOf[x.id];
               const tail = (x.status==='쉼')
                 ? '<span class="st">쉼</span>'
-                  + (CAN_EDIT ? '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>' : '')
                 : (x.status==='결석' || x.status==='휴무')
                 ? ((mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>' : '')
                    + (CAN_EDIT ? '<button class="mkbtn" data-mk="'+x.id+'"'
@@ -1617,7 +1620,7 @@ function drawWeek(){
             html += '<span class="chip '+sp+'">'
               + (CAN_EDIT ? '<button class="edbtn" data-ed="'+r.id+'" title="고치기">수정</button>' : '')
               + '<span class="nm">'+(STYPE[r.support_type_id]||'?')
-              + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+'</span>'+dur
+              + (r._tt===3 ? '(전산)' : ' ')+esc(r._name)+cidTag(r._cid)+'</span>'+dur
               + mergeRuns(_rl, _rh, wk5Pairs(r, byScd, d)) + '</span>';
           });
           mks.forEach(x => {
@@ -2314,15 +2317,13 @@ function drawDay(){
             const cut = (x.status === '결석' || x.status === '휴무') ? ' ln-cut' : '';
             const spn = (x.support_type_id && x.support_type_id !== r.support_type_id)
               ? (STYPE[x.support_type_id] || '') : (STYPE[r.support_type_id] || '?');
-            const nm = tmDif(x) + spn + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name);
+            const nm = tmDif(x) + spn + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name) + cidTag(r._cid);
             const dur = (r.duration && Number(r.duration) !== 40)
                         ? ' <span class="dur">(' + r.duration + ')</span>' : '';
 
             let tail;
             if (x.status === '쉼') {
-              tail = (CAN_EDIT
-                ? '<button class="mkbtn" data-mk="' + x.id + '" title="보강 잡기">＋</button>' : '')
-                + '<span class="s">쉼</span>';
+              tail = '<span class="s">쉼</span>';
             } else if (x.status === '결석' || x.status === '휴무') {
               const mk = mkOf[x.id];
               tail = (mk
@@ -2360,7 +2361,7 @@ function drawDay(){
               + ' data-cid="' + (r._cid || '') + '">'
               + '<span class="d">·</span>'
               + '<span class="n">' + (STYPE[r.support_type_id] || '?')
-              + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name)
+              + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name) + cidTag(r._cid)
               + ' <span class="nosl">회기 없음</span></span>'
               + (CAN_EDIT ? '<button class="lnedit" data-ed="' + r.id + '" title="고치기">수정</button>' : '')
               + '</div>';
@@ -2421,7 +2422,8 @@ $('gbody').addEventListener('click', async e => {
   if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
   const id = Number(_sid);
   // 보강 줄은 눌러서 완료·결석으로 바꾼다 (창을 열려면 옆의 ✕)
-  if (s.status === '휴무' || s.status === '쉼') { openMk(s.id); return; }   // 휴무·쉼은 상태를 안 바꾸고 보강창을 연다
+  if (s.status === '쉼') return;                                             // 쉼은 보강 대상이 아니다
+  if (s.status === '휴무') { openMk(s.id); return; }                          // 휴무는 상태를 안 바꾸고 보강창을 연다
 
   const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
       // 직접 넣은 보강(요일줄 없음)은 완료 → 예정 → 결석 으로 돈다
