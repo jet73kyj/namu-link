@@ -1134,12 +1134,17 @@ function drawShort(_byScd, _mkOf){
     // 「이대로 청구」로 정한 회기는 보강 목록에서 뺀다
     const miss = runs.filter(x =>
       (x.status === '결석' || x.status === '휴무') && !mkOf[x.id] && !x.no_makeup);
-    // 「발4+발추1」은 요일 수와 상관없이 발달 4회 + 발추 1회 = 5회가 기준이다
-    // 이대로 청구로 정한 회기만큼 기준을 낮춘다
+    // 「발4+발추1」은 매달 발추 1회가 있어야 한다.
+    //   회기 수만 세면, 공휴일로 5주차가 먹힌 달에 발달만 4회 깔려도
+    //   「다 채웠다」고 보아 발추가 새어나간다. 그래서 발추 줄이 있는지를 본다
     const nmN = runs.filter(x => x.no_makeup).length;
-    const short5 = (r._mode === '발4+발추1' && runs.length < 5 - nmN);
+    const hasX8 = runs.some(x => Number(x.support_type_id) === 8)
+      || SESS.some(x => x.child_id === r._cid
+                     && Number(x.support_type_id) === 8
+                     && !x.makeup_for);
+    const short5 = (r._mode === '발4+발추1' && !hasX8 && !nmN);
     if (miss.length) missRows.push({ row:r, miss:miss });
-    if (short5)      gapRows.push({ row:r, have:runs.length, need:5 - nmN, why:'발추' });
+    if (short5)      gapRows.push({ row:r, have:runs.length, need:runs.length + 1, why:'발추' });
   });
 
   // 납부 계산에서 회기를 늘려 저장했는데 시간표에 아직 안 넣은 수업
