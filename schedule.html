@@ -2459,7 +2459,10 @@ $('gbody').addEventListener('click', async e => {
     .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
   if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
   s.status = nx;
+  // 다시 그린 뒤에도 보고 있던 자리를 지킨다 (화면이 튀지 않게)
+  const _sx = window.scrollX, _sy = window.scrollY;
   draw();
+  window.scrollTo(_sx, _sy);
 });
 
 // ===== 수업 넣기 =====
