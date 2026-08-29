@@ -2498,10 +2498,8 @@ function drawDay(){
               const from = (L2.kind === 'mk') ? findSess(x.makeup_for) : null;
               const carry = (L2.kind === 'mk') && from
                 && from.month_key && from.month_key !== mon;
-              const tag = (L2.kind === 'mk')
-                ? (from ? (carry ? '이월 ' + monNo(from.month_key) + '월 ' : '')
-                          + dayNo(from.plan_date) + '일분' : '보강')
-                : '직접';
+              // 원래 수업 일자는 이름 옆에 한 번만 적는다 (아래 칸은 갈래만)
+              const tag = (L2.kind === 'mk') ? '보강' : '직접';
               // 보강 줄도 결석·휴무면 다른 줄과 같은 회색 바탕으로
               const mkCls = (x.status === '결석') ? 'ln-abs ln-cut'
                           : (x.status === '휴무') ? 'ln-off ln-cut' : 'ln-mk';
