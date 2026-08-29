@@ -934,7 +934,10 @@ const NEXT  = { '예정':'완료', '완료':'결석', '결석':'예정' };
 // (완료로 바꿔도 보강으로 계속 알아본다)
 let mnEditId = null;   // 직접보강 고치는 중인 줄 번호 (없으면 새로 넣기)
 // 메모에 '전월' 이 적혀 있으면 지난달 수업으로 본다 (회기 번호 대신 '전월' 표기)
-function isPrevMn(x){ return /전월/.test(String(x && x.memo || '')); }
+function isPrevMn(x){
+  if (x && x.month_key && String(x.month_key) !== String(mon)) return true;
+  return /전월/.test(String(x && x.memo || ''));
+}
 function isMk(x){ return !!(x && x.makeup_for); }
 // 「나눠 진행」으로 자동으로 만든 발추 5회기 줄 — 시간표에서는 감춘다
 function isSplitRun(x){ return /\[분산5회\]/.test(String(x && x.memo || '')); }
@@ -4441,9 +4444,10 @@ async function loadMonth(){
     .eq('month_key', pm);
   PREV = pv || [];
   if (MY_TH) PREV = PREV.filter(s => s.therapist_id === MY_TH);
-  // 지난 달 회기인데 이번 달 날짜로 보강을 잡아 둔 줄은 이번 달 시간표에도 띄운다
+  // 지난 달 회기인데 이번 달 날짜로 잡아 둔 줄은 이번 달 시간표에도 띄운다
+  //   보강뿐 아니라 지난달 발추를 이번 달에 잡은 것도 함께 (달은 지난달, 날짜는 이번 달)
   PREV.forEach(s => {
-    if (isMk(s) && String(s.plan_date).slice(0,7) === mon) SESS.push(s);
+    if (String(s.plan_date).slice(0,7) === mon) SESS.push(s);
   });
 
   // 평가 일정도 시간표에 얹는다 (nl_evaluations 는 따로 있는 표라 회기가 아니다)
