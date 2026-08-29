@@ -119,6 +119,14 @@
   .hno { font-weight:bold; color:#33691e; font-size:12px; }
   .htime { font-size:11.5px; white-space:nowrap; }
   td.cell { vertical-align:top; }
+  /* 교시가 바뀌는 곳에 굵은 선, 한 줄 걸러 옅은 바탕 */
+  table.grid tbody tr td { border-top:2px solid #cdd8c4; }
+  table.grid tbody tr:nth-child(even) td.cell { background:#f5f9f1; }
+  table.grid tbody tr:nth-child(even) td.hcol { background:#f2f7ee; }
+  table.grid tbody tr:nth-child(even) td.free { background:#f3f7ef; }
+  .hcol { vertical-align:top; }
+  /* 한 칸 안에서 아동이 바뀌면 사이를 띄운다 */
+  .ln.kidtop { margin-top:7px; }
   td.free { background:#fcfdfb; }
   td.lunch { background:#f0f0ec; }
   .lunchtxt { color:#9aa294; font-size:11.5px; text-align:center; display:block; padding:16px 0; }
@@ -2424,9 +2432,19 @@ function drawDay(){
           let html = '';
           html += restHtml;
 
+          let lastKid = null;
           lines.forEach(function(L2){
             const x = L2.x;
             const day = dayNo(L2.d) + '일';
+            // 아동이 바뀌면 그 줄 위를 띄운다 (빈 자리 줄은 셈에 안 넣음)
+            const kid = (L2.kind === 'open') ? null
+                      : (x && x.child_id != null ? x.child_id
+                         : (L2.r ? L2.r._cid : null));
+            let kidCls = '';
+            if (kid != null) {
+              if (lastKid != null && kid !== lastKid) kidCls = ' kidtop';
+              lastKid = kid;
+            }
 
             // 사유 없는 쉼은 그리지 않는다
             // (그 날짜의 「빈 자리」 줄은 아래 abs 처리에서 이미 만들어진다)
@@ -2456,7 +2474,7 @@ function drawDay(){
                 ? (from ? (carry ? '이월 ' + monNo(from.month_key) + '월 ' : '')
                           + dayNo(from.plan_date) + '일분' : '보강')
                 : '직접';
-              html += '<div class="ln ln-mk" data-sid="' + x.id + '"'
+              html += '<div class="ln ln-mk' + kidCls + '" data-sid="' + x.id + '"'
                 + ' data-kid="' + esc(x._name || '') + '"'
                 + ' data-cid="' + (x.child_id || '') + '">'
                 + '<span class="d">' + day + '</span>'
@@ -2509,7 +2527,7 @@ function drawDay(){
               ? '<button class="lnedit" data-ed="' + r.id + '" title="고치기">수정</button>' : '';
             seenSc[r.id] = true;
 
-            html += '<div class="ln ' + cls + '" data-sid="' + x.id + '"'
+            html += '<div class="ln ' + cls + kidCls + '" data-sid="' + x.id + '"'
               + ' data-kid="' + esc(r._name || '') + '"'
               + ' data-cid="' + (r._cid || '') + '">'
               + '<span class="d">' + day + '</span>'
