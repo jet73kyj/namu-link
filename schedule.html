@@ -939,6 +939,13 @@ function isPrevMn(x){
   return /전월/.test(String(x && x.memo || ''));
 }
 function isMk(x){ return !!(x && x.makeup_for); }
+// 보강 날짜 — 이 달이 아니면 달을 함께 적는다 (8월 시간표에서 9월 보강이 「5일」로만 보이던 것)
+function mkDay(x){
+  if (!x || !x.plan_date) return '';
+  const m = String(x.plan_date).slice(0,7);
+  return (m === String(mon)) ? (dayNo(x.plan_date) + '일')
+                             : (monNo(m) + '월 ' + dayNo(x.plan_date) + '일');
+}
 // 「나눠 진행」으로 자동으로 만든 발추 5회기 줄 — 시간표에서는 감춘다
 function isSplitRun(x){ return /\[분산5회\]/.test(String(x && x.memo || '')); }
 // 이 회기에 「10분씩 나눠 발추 넣기」 딱지가 붙어 있는가  [분산10]
@@ -1380,7 +1387,7 @@ function drawFind(){
                 + ((x.status==='결석' || x.status==='휴무') ? ' r-cut' : '');
       const mk = mkOf[x.id];
       const tail = (x.status==='결석' || x.status==='휴무')
-        ? (mk ? '→' + dayNo(mk.plan_date) + '일'
+        ? (mk ? '→' + mkDay(mk)
               : '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>')
         : x.status;
       const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
@@ -1601,7 +1608,7 @@ function drawWeek(){
               const tail = (x.status==='쉼')
                 ? '<span class="st">쉼</span>'
                 : (x.status==='결석' || x.status==='휴무')
-                ? ((mk ? '<span class="mkinfo">→'+dayNo(mk.plan_date)+'일</span>' : '')
+                ? ((mk ? '<span class="mkinfo">→'+mkDay(mk)+'</span>' : '')
                    + (CAN_EDIT ? '<button class="mkbtn" data-mk="'+x.id+'"'
                      + ' title="'+(mk ? '보강 고치기' : '보강 잡기')+'">＋</button>' : '')
                    + ((MY_TH && !mk && pairMateOf(x))
@@ -2350,7 +2357,7 @@ function drawDay(){
             } else if (x.status === '결석' || x.status === '휴무') {
               const mk = mkOf[x.id];
               tail = (mk
-                ? '<span class="go">→ ' + dayNo(mk.plan_date) + '일 '
+                ? '<span class="go">→ ' + mkDay(mk) + ' '
                   + nearest(toMin(mk.start_time)).hm + '</span>' : '')
                 + (CAN_EDIT ? '<button class="mkbtn" data-mk="' + x.id + '"'
                   + ' title="' + (mk ? '보강 고치기' : '보강 잡기') + '">＋</button>' : '');
