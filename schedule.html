@@ -976,6 +976,21 @@ function isPrevMn(x){
   if (x && x.month_key && String(x.month_key) !== String(mon)) return true;
   return /전월/.test(String(x && x.memo || ''));
 }
+// 보강 줄에 붙일 글자
+//   원래 수업 줄을 찾으면 그 날짜를 적고 (예: 「9월 3일분」)
+//   못 찾으면 그 달만 (「9월분」), 그것도 없으면 「전월분」
+function mnLabel(x){
+  const o = (x && x.makeup_for) ? findSess(x.makeup_for) : null;
+  if (o && o.plan_date) {
+    const om = String(o.plan_date).slice(0,7);
+    return (om === String(mon))
+      ? (dayNo(o.plan_date) + '일분')
+      : (monNo(om) + '월 ' + dayNo(o.plan_date) + '일분');
+  }
+  const k = x && x.month_key ? String(x.month_key) : '';
+  if (k && k !== String(mon)) return monNo(k) + '월분';
+  return '전월분';
+}
 function isMk(x){ return !!(x && x.makeup_for); }
 // 보강 날짜 — 이 달이 아니면 달을 함께 적는다 (8월 시간표에서 9월 보강이 「5일」로만 보이던 것)
 function mkDay(x){
@@ -1485,7 +1500,10 @@ function drawFind(){
     const cls = (s.status==='완료' ? 'r-done'
               : s.status==='결석' ? 'r-abs'
               : s.status==='휴무' ? 'r-off' : 'r-mk');
-    let lb = String(s.memo || '').replace(/^직접 보강 · ?/, '').trim();
+    // 다른 달 몫이면 「9월분」처럼 그 달을 적는다 (메모 글자보다 이쪽이 분명함)
+    let lb = (s.month_key && String(s.month_key) !== String(mon))
+      ? mnLabel(s)
+      : String(s.memo || '').replace(/^직접 보강 · ?/, '').trim();
     if (!lb) lb = '보강';
     const dt = dtWithMon(s.plan_date);
     return '<span class="run ' + cls + '" data-sid="' + s.id + '"'
@@ -2007,7 +2025,7 @@ function mnChip(x){
     + '<div class="run ' + cls + '" data-sid="' + x.id + '">'
     + '<span class="dt">' + dayNo(x.plan_date) + '일'
     + (x._isEval ? '<b class="no">평가</b>'
-        : (isPrevMn(x) ? '<b class="no">전월</b>' : ''))
+        : (isPrevMn(x) ? '<b class="no">' + mnLabel(x) + '</b>' : ''))
     + ((CAN_EDIT && !x._isEval)
         ? '<b class="no mnedit" data-mned="' + x.id + '" title="고치기">수정</b>'
         : '') + '</span>'
@@ -2085,7 +2103,7 @@ function drawOne(){
           ? ' <span class="dur">(' + r.duration + ')</span>' : '')
       +  splitTag(x)
       +  '<span class="rno">'
-      +  (isPrevMn(x) ? '전월'
+      +  (isPrevMn(x) ? mnLabel(x)
           : (!x.schedule_id && !x.run_no) ? ''
           : monNo(mon) + '-' + x.run_no) + '</span>'
       +  (MY_TH ? '' : '<span class="oth">' + esc(thMap[x.therapist_id] || thName(x.therapist_id)) + '</span>')
@@ -2490,7 +2508,7 @@ function drawDay(){
                 + '<span class="d">' + day + '</span>'
                 + '<span class="n">🔁 ' + nm
                 + '<span class="rno">'
-                + (isPrevMn(x) ? '전월'
+                + (isPrevMn(x) ? mnLabel(x)
                    : (L2.kind === 'mn' && !x.run_no) ? ''
                    : monNo(mon) + '-' + x.run_no) + '</span></span>'
                 + '<span class="brk"></span>'
