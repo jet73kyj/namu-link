@@ -3976,7 +3976,9 @@ $('mnSave').onclick = async () => {
 
   const fixing = !!mnEditId;
 
-  // 발추는 어느 달이든 한 번뿐이다. 이미 있으면 또 넣지 않는다
+  // 발추는 그 달 몫이 한 번뿐이다. 이미 있으면 또 넣지 않는다
+  // ※ 회차 0인 줄은 지난달에서 넘어온 이월분이라 그 달 몫으로 안 센다
+  //   (「회기가 모자란 수업」 상자와 같은 기준)
   {
     const spv = $('mn_sp').value
       ? Number($('mn_sp').value)
@@ -3986,12 +3988,14 @@ $('mnSave').onclick = async () => {
            Number(v.child_id) === Number(mnKid.id)
         && v.support_type_id === 8
         && String(v.month_key) === String(mon)
+        && Number(v.run_no || 0) !== 0
         && v.status !== '쉼' && v.status !== '휴무'
         && Number(v.id) !== Number(mnEditId || 0));
       if (had.length) {
-        const w = had.map(v => dayNo(v.plan_date) + '일 '
-                    + String(v.start_time).slice(0,5)).join(', ');
-        mnmsg('❌ 이 아동은 ' + monNo(mon) + '월에 발추가 이미 있습니다.\n'
+        const w = had.map(v =>
+            monNo(String(v.plan_date).slice(0,7)) + '월 '
+          + dayNo(v.plan_date) + '일 ' + t12(v.start_time)).join(', ');
+        mnmsg('❌ 이 아동은 ' + monNo(mon) + '월 몫 발추가 이미 있습니다.\n'
           + '  ' + w + '\n'
           + '발추는 한 달에 한 번입니다. 자리를 옮기시려면 그 줄을 고치세요.', false);
         return;
