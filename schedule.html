@@ -1251,7 +1251,12 @@ function drawShort(_byScd, _mkOf){
     };
     const hasX8 = runs.some(isX8Now)
       || SESS.some(x => x.child_id === r._cid && !x.makeup_for && isX8Now(x));
-    const short5 = (r._mode === '발4+발추1' && !hasX8 && !nmN);
+    // 발추가 있어야 하는 달인지
+    //   발4+발추1  — 매달 발추 1회
+    //   발추5/5    — 그 요일이 5번 있는 달만 발추 1회 (4번뿐인 달은 발달 4회로 끝)
+    const needX8 = (r._mode === '발4+발추1')
+      || (r._mode === '발4+5주발추' && countWd(mon, r.weekday) >= 5);
+    const short5 = (needX8 && !hasX8 && !nmN);
     if (miss.length) missRows.push({ row:r, miss:miss });
     if (short5)      gapRows.push({ row:r, have:runs.length, need:runs.length + 1, why:'발추' });
   });
