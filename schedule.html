@@ -1236,8 +1236,11 @@ function drawShort(_byScd, _mkOf){
     // 보강·모자란 수업 목록에 올리지 않는다 (중복으로 보강을 잡지 않게)
     if (runs.some(hasSplitTag)) return;
     // 「이대로 청구」로 정한 회기는 보강 목록에서 뺀다
+    // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 나머지 날로 4회가 저절로 채워진다.
+    //   보강할 것이 없으므로 이 상자에도 올리지 않는다 (＋ 단추를 감춘 것과 같은 기준)
     const miss = runs.filter(x =>
-      (x.status === '결석' || x.status === '휴무') && !mkOf[x.id] && !x.no_makeup);
+      (x.status === '결석' || x.status === '휴무') && !mkOf[x.id] && !x.no_makeup
+      && !(Number(x.support_type_id) === 2 && !x.run_no));
     // 「발4+발추1」은 매달 발추 1회가 있어야 한다.
     //   회기 수만 세면, 공휴일로 5주차가 먹힌 달에 발달만 4회 깔려도
     //   「다 채웠다」고 보아 발추가 새어나간다. 그래서 발추 줄이 있는지를 본다
