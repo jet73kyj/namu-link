@@ -1304,7 +1304,7 @@ function drawShort(_byScd, _mkOf){
     $('shortTop').onclick = (ev) => {
       // 찾기 칸이나 그 결과를 눌렀을 때는 화면을 안 옮긴다
       if (ev.target.closest('.topf, .topres')) return;
-      const _dk = $('dock'); if (_dk) { _dk.classList.remove('mini'); syncDock(); }
+      openDock('short');
     };
     topFind('shortTop', 'short');
 
@@ -1350,7 +1350,7 @@ function drawShort(_byScd, _mkOf){
       + '<span class="go">아래 목록 보기 ↓</span>';
     $('gapTop').onclick = (ev) => {
       if (ev.target.closest('.topf, .topres')) return;
-      const _dk2 = $('dock'); if (_dk2) { _dk2.classList.remove('mini'); syncDock(); }
+      openDock('gapBox');
     };
     topFind('gapTop', 'gapBox');
 
@@ -1403,6 +1403,20 @@ function drawShort(_byScd, _mkOf){
 }
 
 // 상자 두 개를 화면 아래 서랍에 담는다. 얇게 붙어 있다가 누르면 올라온다
+// 서랍을 펼치면서 누른 상자가 맨 위로 오게 한다
+// (두 상자가 한 서랍에 들어 있어, 그냥 펼치면 늘 결석·휴무가 먼저 보였다)
+function openDock(boxId){
+  const dk = $('dock'); if (!dk) return;
+  dk.classList.remove('mini');
+  syncDock();
+  setTimeout(function(){
+    const body = $('dockbody'), box = $(boxId);
+    if (!body || !box) return;
+    body.scrollTop = box.offsetTop - body.offsetTop;
+    box.scrollIntoView({ block: 'nearest' });
+  }, 0);
+}
+
 function syncDock(){
   const dock = $('dock'), body = $('dockbody'), bar = $('dockbar');
   if (!dock || !body || !bar) return;
