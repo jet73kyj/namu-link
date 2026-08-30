@@ -1122,6 +1122,42 @@ function thName(tid){
   return t ? t.name : (tid == null ? '담당없음' : ('치료사' + tid));
 }
 
+// ===== 결석을 되돌릴 때, 잡아둔 보강도 함께 정리한다 =====
+// 결석 줄에 매달린 보강이 남으면 그 달 회기가 하나 늘어난다.
+// true 를 돌려주면 상태를 바꾸고, false 면 아무것도 안 한다.
+async function askDropMakeup(s, nx){
+  if (s.status !== '결석') return true;      // 결석에서 나갈 때만 본다
+  if (nx === '결석') return true;
+  const { data, error } = await sb.from('nl_sessions')
+    .select('id, plan_date, start_time, therapist_id, status')
+    .eq('makeup_for', s.id);
+  if (error) { alert('보강을 확인하지 못했습니다.\n' + error.message); return false; }
+  const list = data || [];
+  if (!list.length) return true;             // 잡아둔 보강이 없으면 그냥 진행
+
+  const txt = list.map(m =>
+      '· ' + String(m.plan_date).slice(5,7).replace(/^0/,'') + '월 '
+      + String(m.plan_date).slice(8,10).replace(/^0/,'') + '일 '
+      + t12(m.start_time) + ' (' + thName(m.therapist_id) + ' 선생님) — ' + m.status
+    ).join('\n');
+
+  const drop = confirm('이 결석에 잡아둔 보강이 있습니다.\n\n' + txt
+    + '\n\n보강을 남겨두면 그 달 회기가 하나 늘어납니다.\n\n'
+    + '[확인] 보강도 함께 지우고 예정으로 되돌립니다\n'
+    + '[취소] 아무것도 바꾸지 않습니다');
+
+  if (!drop) return false;
+
+  const { error: e2 } = await sb.from('nl_sessions')
+    .delete().in('id', list.map(m => m.id));
+  if (e2) { alert('보강을 지우지 못했습니다.\n' + e2.message); return false; }
+  list.forEach(m => {
+    const i = SESS.findIndex(x => String(x.id) === String(m.id));
+    if (i >= 0) SESS.splice(i, 1);
+  });
+  return true;
+}
+
 // ===== 그 달 회기가 모자란 아동 =====
 // 결석 줄의 🔍 단추를 이어준다 (치료사용)
 function bindFindBtns(){
@@ -1610,6 +1646,7 @@ function drawFind(){
       const nx = isMn ? (MNNEXT[s.status] || '완료')
                : isMk(s) ? (MKNEXT[s.status] || '완료')
                : (NEXT[s.status] || '완료');
+      if (!(await askDropMakeup(s, nx))) return;
       const { error } = await sb.from('nl_sessions')
         .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
       if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
@@ -2675,6 +2712,7 @@ $('gbody').addEventListener('click', async e => {
       const nx = isMn ? (MNNEXT[s.status] || '완료')
                : isMk(s) ? (MKNEXT[s.status] || '완료')
                : (NEXT[s.status] || '완료');
+  if (!(await askDropMakeup(s, nx))) return;
   const { error } = await sb.from('nl_sessions')
     .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
   if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
