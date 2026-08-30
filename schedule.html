@@ -4336,7 +4336,8 @@ async function putW5(absId){
     child_id: s.child_id, therapy_id: s.therapy_id, schedule_id: s.schedule_id,
     month_key: (s.month_key || mon),   // 납부는 원래 결석한 달로 센다
     run_no: s.run_no, plan_date: w5Slot.date, status: '보강',
-    therapist_id: w5Slot.th, start_time: w5Slot.hm + ':00', makeup_for: s.id
+    therapist_id: w5Slot.th, start_time: w5Slot.hm + ':00', makeup_for: s.id,
+    support_type_id: s.support_type_id
   };
   try {
     const { data, error } = await sb.from('nl_sessions').insert(row).select().single();
@@ -4702,6 +4703,9 @@ $('mkSave').onclick = async () => {
     therapist_id: th,
     start_time: slotHm(slot, th) + ':00',
     makeup_for: mkSess.id,
+    // 사업(지원유형)도 원래 결석 줄에서 그대로 물려받는다.
+    // 빠뜨리면 납부 화면에서 같은 수업이 두 줄로 그려진다
+    support_type_id: mkSess.support_type_id,
     memo:       $('mk_memo').value.trim() || null
   };
 
