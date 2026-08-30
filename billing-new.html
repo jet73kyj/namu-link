@@ -1337,7 +1337,12 @@ function drawKid(c) {
     const must = nm.filter(x => !x.ok);
     const can  = nm.filter(x => x.ok);
     b += '<div class="nmk' + (must.length ? ' nmk-hot' : '') + '">'
-      + '<b>보강을 아직 못 잡은 결석 ' + nm.length + '건</b>'
+      + '<b>보강을 아직 못 잡은 결석 ' + nm.length + '건'
+        + (nm.length
+            ? ' — ' + Number(String(LOADED_MK || '').slice(5,7)) + '월 '
+              + nm.map(x => dayOnly(x.date) + '일').join(' · ')
+            : '')
+        + '</b>'
       + (must.length
           ? '<div class="nmkline nmk-must">🔴 당월에 꼭 보강해야 함 ' + must.length + '건 — '
             + must.map(x => (TYPES[x.st] || ('유형'+x.st)) + ' '
