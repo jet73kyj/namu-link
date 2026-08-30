@@ -707,12 +707,10 @@
           8-5 처럼 나옵니다. 비워두면 번호가 안 붙습니다.
         </div>
       </div>
-      <div>
+      <!-- 보강 사유 — 7월 이월분 표기용이었으므로 8월부터 감춤 -->
+      <div style="display:none;">
         <label for="mn_memo">보강 사유</label>
-        <input id="mn_memo" type="text" placeholder="예: 전월 미이행분">
-        <div style="font-size:11.5px;color:#7a827d;margin-top:3px;">
-          「전월」 이라고 적으면 시간표에 회기 번호 대신 <b>전월</b> 로 나옵니다.
-        </div>
+        <input id="mn_memo" type="text">
       </div>
     </div>
     <div class="pbtns">
@@ -975,6 +973,7 @@ const NEXT  = { '예정':'완료', '완료':'결석', '결석':'예정' };
 // (완료로 바꿔도 보강으로 계속 알아본다)
 let mnEditId = null;   // 직접보강 고치는 중인 줄 번호 (없으면 새로 넣기)
 // 메모에 '전월' 이 적혀 있으면 지난달 수업으로 본다 (회기 번호 대신 '전월' 표기)
+// ※ 7월 이월분 옛 줄을 위해 남겨 둔 것. 새로 넣는 보강에는 사유를 안 적는다
 function isPrevMn(x){
   if (x && x.month_key && String(x.month_key) !== String(mon)) return true;
   return /전월/.test(String(x && x.memo || ''));
@@ -3836,6 +3835,8 @@ $('mn_name').oninput = () => {
 // 지금 고른 값에 따라 안내 줄을 다시 쓴다
 function drawMnHow(){
   const el = $('mnHow'); if (!el) return;
+  // 8월부터는 설명 상자를 안 쓴다 (7월 이월분 안내용이었음)
+  el.style.display = 'none'; el.innerHTML = ''; return;
   const sel = $('mn_scd');
   const v = sel ? sel.value : '';
   if (v) {
@@ -4016,11 +4017,11 @@ $('mnSave').onclick = async () => {
     }
   }
 
+  // 회기로 세는지 여부는 창 안쪽 초록 상자에 이미 적혀 있으므로
+  // 여기서는 날짜·시간만 확인한다
   if (!confirm(mnKid.name + ' 아동 보강을\n'
       + dayNo(d) + '일(' + wd2 + ') ' + slotHm12(slot2, mnKey.th)
-      + (fixing ? ' 로 고칠까요?' : ' 로 넣을까요?') + '\n\n'
-      + '이 줄은 회기 수·납부에는 안 들어가고,\n'
-      + '완료로 표시하면 그 치료사 급여에만 들어갑니다.')) return;
+      + (fixing ? ' 로 고칠까요?' : ' 로 넣을까요?'))) return;
 
   // 납부에서 확정한 회기 수를 넘는지 본다 (요일줄을 고른 것만 회기로 셈)
   {
