@@ -1121,6 +1121,31 @@ function thName(tid){
   return t ? t.name : (tid == null ? '담당없음' : ('치료사' + tid));
 }
 
+// ===== 이 회기 하나만 담당 바꾸기 =====
+// 발추처럼 정규 수업과 담당이 다른 줄을 위해서.
+// 요일줄(다음 달 이후)은 안 건드리고, 누른 그 회기 한 줄만 바꾼다.
+async function changeSessTher(sid){
+  const s = SESS.find(x => String(x.id) === String(sid));
+  if (!s) return;
+  const menu = THS_ALL.map(th => th.id + ' — ' + th.name).join('\n');
+  const v = prompt('이 회기의 담당을 바꿉니다. (누른 이 한 줄만 바뀝니다)\n'
+    + '지금 담당 — ' + thName(s.therapist_id) + '\n\n'
+    + menu + '\n\n바꿀 번호를 적어 주세요.', String(s.therapist_id || ''));
+  if (v === null) return;
+  const nid = Number(String(v).trim());
+  if (!nid || !THS_ALL.some(th => Number(th.id) === nid)) {
+    alert('그런 번호가 없습니다.'); return;
+  }
+  if (nid === Number(s.therapist_id)) return;
+  const { error } = await sb.from('nl_sessions')
+    .update({ therapist_id: nid, updated_at: new Date().toISOString() })
+    .eq('id', s.id);
+  if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
+  s.therapist_id = nid;
+  const _sx = window.scrollX, _sy = window.scrollY;
+  draw(); window.scrollTo(_sx, _sy);
+}
+
 // ===== 결석을 되돌릴 때, 잡아둔 보강도 함께 정리한다 =====
 // 결석 줄에 매달린 보강이 남으면 그 달 회기가 하나 늘어난다.
 // true 를 돌려주면 상태를 바꾸고, false 면 아무것도 안 한다.
@@ -2618,6 +2643,9 @@ function drawDay(){
             const ed = (CAN_EDIT && !seenSc[r.id])
               ? '<button class="lnedit" data-ed="' + r.id + '" title="고치기">수정</button>' : '';
             seenSc[r.id] = true;
+            // 발추는 정규 수업과 담당이 다를 수 있어 이 줄만 바꾸는 단추를 둔다
+            const thb = (CAN_EDIT && Number(x.support_type_id) === 8)
+              ? '<button class="lnedit" data-thch="' + x.id + '" title="이 회기만 담당 바꾸기">담당</button>' : '';
 
             html += '<div class="ln ' + cls + kidCls + '" data-sid="' + x.id + '"'
               + ' data-kid="' + esc(r._name || '') + '"'
@@ -2627,7 +2655,7 @@ function drawDay(){
               + '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span>'
               + splitTag(x) + '</span>'
               + '<span class="brk"></span>'
-              + tail + ed + '</div>';
+              + tail + thb + ed + '</div>';
           });
 
           // 회기가 아직 안 깔린 수업 — 이 달에 쓰는 줄일 때만 옅게 알려 준다
@@ -2674,6 +2702,8 @@ $('gbody').addEventListener('click', async e => {
   if (edb) { e.stopPropagation(); openEd(Number(edb.dataset.ed)); return; }
   const mkb = e.target.closest('.mkbtn');
   if (mkb) { e.stopPropagation(); openMk(Number(mkb.dataset.mk)); return; }
+  const thc = e.target.closest('[data-thch]');
+  if (thc) { e.stopPropagation(); changeSessTher(thc.dataset.thch); return; }
   // 보강 줄의 ✕ — 보강 창을 연다 (날짜 바꾸기·보강 취소)
   // 직접 넣은 보강의 「수정」 — 고치기 창을 연다
   // +N 딱지 — 수정 창을 연다
