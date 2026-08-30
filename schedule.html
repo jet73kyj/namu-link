@@ -1061,6 +1061,7 @@ let CAN_EDIT = false;   // 수업을 넣고 고칠 수 있는 사람인가 (관�
 let MY_TH    = null;    // 치료사로 로그인했으면 그 번호. 자기 칸만 보인다
 let IS_BOSS  = false;   // 대표(8번). 확정 회기를 넘겨 넣을 수 있다
 let PAYCNT   = {};      // 아동|지원유형 -> 납부에서 확정한 회기 수
+let PAYX8    = {};      // 아동 -> 납부에 적힌 발추 담당 치료사 번호
 let PAYWHY   = {};      // 아동|지원유형 -> 그때 적은 사유
 let KIDS = [];          // 아동 목록 (치료중 · 대기중)
 let addKey = null;      // 지금 넣으려는 빈 칸
@@ -4014,6 +4015,20 @@ $('mnSave').onclick = async () => {
       ? Number($('mn_sp').value)
       : Number(($('mn_tp').value || '').split('_')[1] || 0);
     if (spv === 8) {
+      // 발추 담당은 납부 계산 화면에서 정한 사람이어야 한다
+      const x8 = PAYX8[mnKid.id];
+      if (!x8) {
+        mnmsg('❌ 이 아동은 ' + monNo(mon) + '월 발추 담당이 정해져 있지 않습니다.\n'
+          + '납부 계산 화면에서 발추 담당자를 먼저 정하고 오세요.', false);
+        return;
+      }
+      if (Number(x8) !== Number(mnKey.th)) {
+        mnmsg('❌ 이 아동의 ' + monNo(mon) + '월 발추 담당은 '
+          + thName(x8) + ' 선생님입니다.\n'
+          + '그 선생님 칸에서 자리를 잡아 주세요.\n'
+          + '(담당을 바꾸시려면 납부 계산 화면에서 고치셔야 합니다)', false);
+        return;
+      }
       const had = SESS.filter(v =>
            Number(v.child_id) === Number(mnKid.id)
         && v.support_type_id === 8
@@ -4728,7 +4743,7 @@ async function loadMonth(){
 
   // 납부 계산에서 확정한 회기 수를 읽어 둔다 (메모의 [회기4,4])
   //   저장된 것이 있으면 시간표는 그 수를 넘길 수 없다
-  PAYCNT = {}; PAYWHY = {};
+  PAYCNT = {}; PAYWHY = {}; PAYX8 = {};
   const { data: pc } = await sb.from('nl_payments')
     .select('child_id, support_type_id, memo').eq('month_key', mon);
   (pc || []).forEach(p => {
@@ -4739,6 +4754,11 @@ async function loadMonth(){
     }
     const w = String(p.memo || '').match(/\[사유([^\]]*)\]/);
     if (w) PAYWHY[p.child_id + '|' + p.support_type_id] = w[1];
+    // 발추 담당은 납부 계산 화면에서 정한다 (메모의 [발추치료사N])
+    if (Number(p.support_type_id) === 8) {
+      const x = String(p.memo || '').match(/\[발추치료사([0-9]+)\]/);
+      if (x) PAYX8[p.child_id] = Number(x[1]);
+    }
   });
 
   const { data, error } = await sb.from('nl_sessions')
