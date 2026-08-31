@@ -175,6 +175,8 @@
   .bxf:focus { outline:2px solid #9ccc65; outline-offset:-1px; }
   /* 공휴일·치료사 휴무인 날의 빈 자리 — 회색으로 알려 준다 */
   .ln-open.ln-holi { background:#dcdfdd; color:#5c625e; border:1px solid #c4cac6; }
+  .ln-block { background:#5a5f5c !important; color:#fff !important; }
+  .ln-block .d, .ln-block .n { color:#fff !important; }
   .ln-nosess { border:1px dotted #d6d9d7; color:#9aa09c; }
   .ln-nosess .nosl { font-size:10.5px; }
   .ln-cut  { text-decoration:line-through; }
@@ -529,11 +531,16 @@
           <option value="치료사휴무">치료사 휴무 (그 치료사만)</option>
           <option value="센터휴무">센터 휴무 (그날 전체)</option>
           <option value="공휴일">공휴일 (그날 전체)</option>
+          <option value="시간막음">시간 막음 (그 치료사 · 그 시각만)</option>
         </select>
       </div>
       <div id="of_thwrap">
         <label for="of_th">치료사</label>
         <select id="of_th"></select>
+      </div>
+      <div id="of_slotwrap" style="display:none;">
+        <label for="of_slot">시각</label>
+        <select id="of_slot"></select>
       </div>
       <div>
         <label for="of_reason">사유</label>
@@ -1105,6 +1112,12 @@ function isOffFor(dd, thId) {
   const d = String(dd);
   return OFF.has(d) || (thId != null && OFF.has(d + '#' + thId));
 }
+// 그 날·그 치료사·그 시각이 「시간 막음」인지
+function isBlocked(dd, thId, hm) {
+  if (thId == null || !hm) return false;
+  return BLOCK.has(String(dd) + '#' + thId + '#' + String(hm).slice(0,5));
+}
+let BLOCK  = new Set(); // 날짜#치료사#시각 -> 그 한 자리만 막음
 let OFFTXT = {};        // 날짜 -> 사유
 let OFFTH  = {};        // 날짜#치료사 -> 사유
 let PREV   = [];        // 지난 달 회기 (이월 보강에 쓴다)
@@ -1847,10 +1860,12 @@ function drawWeek(){
               eh2 += '<button class="addbtn" data-add2="'
                    + s.no + '_' + th + '">＋ 수업 넣기</button>';
               eh2 += wdDates(mon, d).map(function(dd){
+                const blk = isBlocked(dd, th, s.hm);
                 return '<div class="ln ln-open'
-                  + (isOffFor(dd, th) ? ' ln-holi' : '') + '">'
+                  + (blk ? ' ln-block' : (isOffFor(dd, th) ? ' ln-holi' : '')) + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
-                  + (canOpenAdd() ? '<button class="lnadd" data-mn="'
+                  + (blk ? '<span class="n">시간 막음</span>' : '')
+                  + ((canOpenAdd() && !blk) ? '<button class="lnadd" data-mn="'
                      + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>' : '')
                   + '</div>';
               }).join('');
@@ -1934,10 +1949,12 @@ function drawWeek(){
 
             html += wdDates(mon, d).filter(function(dd){ return !usedD[dd]; })
               .map(function(dd){
+                const blk = isBlocked(dd, th, s.hm);
                 return '<div class="ln ln-open'
-                  + (isOffFor(dd, th) ? ' ln-holi' : '') + '">'
+                  + (blk ? ' ln-block' : (isOffFor(dd, th) ? ' ln-holi' : '')) + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
-                  + (canOpenAdd() ? '<button class="lnadd" data-mn="'
+                  + (blk ? '<span class="n">시간 막음</span>' : '')
+                  + ((canOpenAdd() && !blk) ? '<button class="lnadd" data-mn="'
                      + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>' : '')
                   + '</div>';
               }).join('');
@@ -2491,11 +2508,12 @@ function drawDay(){
             if (lunch) eh += '<span class="lunchtxt">점심 / 보강</span>';
             if (CAN_EDIT) {
               eh += wdDates(mon, wd).map(function(dd){
+                const blk = isBlocked(dd, t.id, s.hm);
                 return '<div class="ln ln-open'
-                  + (isOffFor(dd, t.id) ? ' ln-holi' : '') + '">'
+                  + (blk ? ' ln-block' : (isOffFor(dd, t.id) ? ' ln-holi' : '')) + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
-                  + '<span class="n">빈 자리</span>'
-                  + (canOpenAdd() ? '<button class="lnadd" data-mn="'
+                  + '<span class="n">' + (blk ? '시간 막음' : '빈 자리') + '</span>'
+                  + ((canOpenAdd() && !blk) ? '<button class="lnadd" data-mn="'
                      + s.no + '_' + t.id + '_' + wd + '_' + dd + '">＋</button>' : '')
                   + '</div>';
               }).join('');
@@ -4211,12 +4229,14 @@ $('offBtn').onclick = () => {
 };
 $('offClose').onclick = () => { $('offBox').style.display='none'; };
 $('of_kind').onchange = () => {
-  $('of_thwrap').style.display = ($('of_kind').value === '치료사휴무') ? '' : 'none';
+  const k = $('of_kind').value;
+  $('of_thwrap').style.display   = (k === '치료사휴무' || k === '시간막음') ? '' : 'none';
+  $('of_slotwrap').style.display = (k === '시간막음') ? '' : 'none';
 };
 
 async function drawOffList(){
   const { data } = await sb.from('nl_offdays')
-    .select('id, off_date, kind, therapist_id, reason')
+    .select('id, off_date, kind, therapist_id, reason, start_time')
     .gte('off_date', mon + '-01').lte('off_date', monEnd(mon))
     .order('off_date');
   if (!data || !data.length) {
@@ -4227,6 +4247,7 @@ async function drawOffList(){
     const th = o.therapist_id ? THS.find(t => t.id === o.therapist_id) : null;
     return '<span class="offone">' + dayNo(o.off_date) + '일(' + wdOf(o.off_date) + ') '
       + esc(o.kind) + (th ? ' · ' + esc(th.name) : '')
+      + (o.start_time ? ' · ' + h12(String(o.start_time).slice(0,5)) : '')
       + (o.reason ? ' · ' + esc(o.reason) : '')
       + '<span class="del" data-off="' + o.id + '">✕</span></span>';
   }).join('');
@@ -4245,15 +4266,26 @@ $('offSave').onclick = async () => {
   const d = $('of_date').value;
   if (!d) { offmsg('날짜를 고르세요.', false); return; }
   const kind = $('of_kind').value;
-  const th   = (kind === '치료사휴무') ? Number($('of_th').value) : null;
+  const th   = (kind === '치료사휴무' || kind === '시간막음')
+             ? Number($('of_th').value) : null;
+  // 「시간 막음」은 그 시각 한 자리만 막는다 (빈자리를 못 쓰게 하는 것)
+  const stm  = (kind === '시간막음') ? ($('of_slot').value + ':00') : null;
 
   $('offSave').disabled = true; $('offSave').textContent = '넣는 중...';
   try {
     const { error } = await sb.from('nl_offdays').insert({
-      off_date: d, kind: kind, therapist_id: th,
+      off_date: d, kind: kind, therapist_id: th, start_time: stm,
       reason: $('of_reason').value.trim() || null
     });
     if (error) throw error;
+
+    // 시간 막음은 수업을 건드리지 않는다. 빈자리만 막는다
+    if (kind === '시간막음') {
+      offmsg('✅ ' + dayNo(d) + '일 ' + h12($('of_slot').value) + ' 자리를 막았습니다.', true);
+      $('offSave').disabled = false; $('offSave').textContent = '넣기';
+      await loadMonth(); drawOffList(); draw();
+      return;
+    }
 
     // 그날 수업을 휴무로 바꾼다
     let q = sb.from('nl_sessions')
@@ -4767,11 +4799,17 @@ function applyMonthFilter(){
 async function loadMonth(){
   applyMonthFilter();
   BAL = new Set();
-  OFF = new Set(); OFFTXT = {};
+  OFF = new Set(); OFFTXT = {}; BLOCK = new Set();
   const { data: off } = await sb.from('nl_offdays')
-    .select('off_date, kind, therapist_id, reason')
+    .select('off_date, kind, therapist_id, reason, start_time')
     .gte('off_date', mon + '-01').lte('off_date', monEnd(mon));
   (off || []).forEach(o => {
+    // 「시간 막음」은 그 날·그 치료사·그 시각 한 자리만 막는다
+    if (o.kind === '시간막음') {
+      BLOCK.add(o.off_date + '#' + o.therapist_id + '#'
+                + String(o.start_time || '').slice(0,5));
+      return;
+    }
     if (o.therapist_id) {
       OFF.add(o.off_date + '#' + o.therapist_id);
       OFFTH[o.off_date + '#' + o.therapist_id] = o.reason || o.kind;
@@ -4972,6 +5010,8 @@ async function afterLogin(user){
   + '<option value="7">7 방과후치료지원(작업)</option>';
   $('ed_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
   $('of_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
+  $('of_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.hm+'">'
+    + s.no + '교시 · ' + h12(s.hm) + '</option>').join('');
   $('wkTh').innerHTML    = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+' 치료사</option>').join('');
   if (!CAN_EDIT) $('offBtn').style.display = 'none';
 
