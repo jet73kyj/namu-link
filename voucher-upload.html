@@ -94,6 +94,8 @@
     .thrhead { background:#f0f2ee; font-size:12px; padding:5px 8px; }
     /* PDF에는 아홉 항목만 넣는다 (2-2 · 10 · 11 은 화면에서만 봄) */
     .pdfskip { display:none !important; }
+    /* 전체 보관용일 때는 다 넣는다 */
+    body.printall .pdfskip { display:block !important; }
   }
 
   .stat { display:flex; gap:10px; flex-wrap:wrap; margin:16px 0 4px; }
@@ -218,7 +220,8 @@
       <div id="auditSum"></div>
       <div id="auditBody"></div>
       <div class="foot noprint">
-        <button id="pdfBtn" class="ghost">🖨 PDF로 저장 · 인쇄</button>
+        <button id="pdfBtn" class="ghost">🖨 치료사 공유용 PDF</button>
+        <button id="pdfAllBtn" class="ghost" style="display:none;">🗄 전체 보관용 PDF</button>
         <span class="grow" style="font-size:12px;color:#777;">
           인쇄 창에서 「대상」을 <b>PDF로 저장</b> 으로 고르세요
         </span>
@@ -319,6 +322,9 @@ async function afterLogin(user) {
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
+  ME_ID = Number(me.id);
+  // 전체 보관용 PDF 단추는 8번만 볼 수 있다
+  if (ME_ID === 8) { const b = $('pdfAllBtn'); if (b) b.style.display = ''; }
 
   const [c, v, tp, sc, th] = await Promise.all([
     sb.from('nl_children').select('id, name, birth, manager_no, status').order('name'),
@@ -456,11 +462,14 @@ function thOf(tid) {
     return Object.keys(THBYKID[g.child_id]).join(', ');
   return '';
 }
+let ME_ID = null;        // 지금 로그인한 직원 번호
 function nameOf(tid) {
   const g = GROUPS.find(x => x.target_id === tid);
   if (g && g.child_id) {
     const c = CHILDREN.find(k => k.id === g.child_id);
-    if (c) return c.name;
+    // 아동 이름 앞에 번호를 붙인다
+    if (c) return '[' + g.child_id + '] ' + c.name;
+    return '[' + g.child_id + ']';
   }
   if (g && g.name) return g.name;
   return tid;
@@ -564,7 +573,12 @@ function drawAudit() {
                            r.start_time || '', n || '(비어 있음)', why ] });
   });
 
-  const live = ROWS.filter(r => r.service_date && r.appr_no);
+  // 예외결제는 전월분이라 당월 셈에서 뺀다.
+  // 일괄결제는 카드를 안 가져오셔서 다음 수업 때 몰아 낸 것이라 당월에 넣는다.
+  const EXCEPT = ROWS.filter(r => r.service_date && r.appr_no
+                    && String(r.pay_kind || '').indexOf('예외') >= 0);
+  const live = ROWS.filter(r => r.service_date && r.appr_no
+                    && String(r.pay_kind || '').indexOf('예외') < 0);
   // 엑셀에 치료사 칸이 없으면 시스템에서 가져와 채운다
   live.forEach(r => { if (!r.therapist_name) r.therapist_name = thOf(r.target_id); });
 
@@ -712,7 +726,9 @@ function drawAudit() {
     .map(x => ({ cls: (x.c < MONTH_NEED ? 'warn' : ''),
                  thr: x.thr, v:[ x.nm, x.c + '회' ] }));
 
-  // --- 11. 예외·일괄결제 ---
+  // --- 11. 예외지급(전월분) · 일괄결제 ---
+  const e13 = EXCEPT.map(r => ({ cls:'warn', v:[ nameOf(r.target_id), r.service_date,
+      r.start_time || '', r.pay_kind, r.appr_no ] }));
   const e11 = live.filter(r => r.pay_kind && r.pay_kind !== '정상결제')
     .map(r => ({ cls:'warn', v:[ nameOf(r.target_id), r.service_date,
       r.start_time || '', r.pay_kind, r.appr_no ] }));
@@ -742,8 +758,10 @@ function drawAudit() {
       ['아동','전월 등급','당월 등급'], e7, true],
     ['7. 결제금액 불일치',
       ['아동','등급','서비스','전월','당월','차액'], e8, true],
-    ['8. 예외·일괄결제',
+    ['8. 일괄결제 (당월에 넣어 셈)',
       ['아동','날짜','시간','결제구분','승인번호'], e11, true],
+    ['8-2. 예외지급 — 전월분 (당월 셈에서 뺌)',
+      ['아동','날짜','시간','결제구분','승인번호'], e13, true],
     ['9. 반납·지급보류',
       ['아동','날짜','반납구분','지급보류','승인번호'], e12, true],
     ['10. 치료사별 월 실적',
@@ -977,7 +995,14 @@ $('file0').onchange = e => takePrev(e.target.files[0]);
 document.addEventListener('dragover', ev => ev.preventDefault());
 document.addEventListener('drop', ev => ev.preventDefault());
 
-$('pdfBtn').onclick = () => window.print();
+// 치료사 공유용 — 아홉 항목만
+$('pdfBtn').onclick = () => { document.body.classList.remove('printall'); window.print(); };
+// 전체 보관용 — 모든 항목 (8번만 보임)
+$('pdfAllBtn').onclick = () => {
+  document.body.classList.add('printall');
+  window.print();
+  setTimeout(() => document.body.classList.remove('printall'), 500);
+};
 
 $('btn').onclick = async () => {
   const email = $('em').value.trim().toLowerCase();
