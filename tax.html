@@ -64,9 +64,10 @@
              align-items:center; margin-bottom:6px; }
   .del { background:#fff; color:#b71c1c; border:1px solid #e5c5c5; border-radius:6px;
          padding:8px 0; cursor:pointer; font-size:13px; }
-  .listrow { display:grid; grid-template-columns:90px 1fr 110px 130px 70px;
+  .listrow { display:grid; grid-template-columns:80px 1.1fr 1.4fr 100px 120px 62px;
              gap:6px; align-items:center; padding:7px 6px; border-bottom:1px solid #eee;
              font-size:13px; }
+  .listrow .det { color:#666; font-size:12px; }
   .listrow:hover { background:#f7faf5; }
   .hint { font-size:12px; color:#888; margin:6px 0 0; }
 
@@ -208,6 +209,14 @@ async function loadAll(){
   }
 }
 
+// 결의서 안의 내역을 한 줄로 이어 준다 (기본 급여 · 수당)
+function rowsText(sid){
+  const rs = ROWS[sid] || [];
+  if (!rs.length) return '';
+  return rs.map(r => (r.item || '') + (r.amount ? ' ' + won(r.amount) : ''))
+           .filter(Boolean).join(' · ');
+}
+
 function codeOf(id){ return CODES.find(c => c.id === Number(id)) || null; }
 
 // 그 달 결의서만
@@ -268,7 +277,7 @@ function drawSlip(kind){
   // 그 달 목록
   h += '<div style="margin-top:10px;border:1px solid #e6ebe2;border-radius:8px;">'
     + '<div class="listrow" style="background:#eef3ec;font-weight:600;">'
-    + '<span>날짜</span><span>적요</span><span>목</span>'
+    + '<span>날짜</span><span>적요</span><span>내역</span><span>목</span>'
     + '<span class="num">금액</span><span></span></div>';
   if (!list.length) {
     h += '<div style="padding:14px;color:#888;font-size:13px;">'
@@ -279,6 +288,7 @@ function drawSlip(kind){
       h += '<div class="listrow">'
         + '<span>' + esc(String(s.slip_date).slice(5)) + '</span>'
         + '<span>' + esc(s.title || '') + '</span>'
+        + '<span class="det">' + esc(rowsText(s.id)) + '</span>'
         + '<span>' + esc(c ? c.mok : '') + '</span>'
         + '<span class="num">' + won(s.amount) + '</span>'
         + '<span><button class="ghost pick" data-id="' + s.id + '"'
@@ -600,12 +610,13 @@ function drawCash(){
     + '<span>사업명 : 발달재활서비스</span>'
     + '<span>기본 예치 500만원 (매월 계좌 잔고 확인하기)</span></div>'
     + '<table class="ptab">'
-    + '<tr><th style="width:70px;">월/일</th><th>적요</th>'
-    + '<th style="width:100px;">항</th>'
-    + '<th class="num" style="width:110px;">수입</th>'
-    + '<th class="num" style="width:110px;">지출금액</th>'
-    + '<th class="num" style="width:120px;">잔액</th></tr>'
-    + '<tr><td></td><td>이월액</td><td></td><td></td><td></td>'
+    + '<tr><th style="width:66px;">월/일</th><th style="width:150px;">적요</th>'
+    + '<th>내역</th>'
+    + '<th style="width:88px;">항</th>'
+    + '<th class="num" style="width:104px;">수입</th>'
+    + '<th class="num" style="width:104px;">지출금액</th>'
+    + '<th class="num" style="width:112px;">잔액</th></tr>'
+    + '<tr><td></td><td>이월액</td><td></td><td></td><td></td><td></td>'
     + '<td class="num">' + won(bal) + '</td></tr>';
 
   let inSum = 0, outSum = 0;
@@ -616,13 +627,14 @@ function drawCash(){
     h += '<tr>'
       + '<td class="ctr">' + esc(String(s.slip_date).slice(5).replace('-','/')) + '</td>'
       + '<td>' + esc(s.title || '') + '</td>'
+      + '<td style="font-size:12px;color:#555;">' + esc(rowsText(s.id)) + '</td>'
       + '<td class="ctr">' + esc(c ? c.hang : '') + '</td>'
       + '<td class="num">' + (s.kind === '수입' ? won(amt) : '') + '</td>'
       + '<td class="num">' + (s.kind === '지출' ? won(amt) : '') + '</td>'
       + '<td class="num">' + won(bal) + '</td></tr>';
   });
 
-  h += '<tr class="sum"><td class="ctr" colspan="3">합　계</td>'
+  h += '<tr class="sum"><td class="ctr" colspan="4">합　계</td>'
     + '<td class="num">' + won(inSum) + '</td>'
     + '<td class="num">' + won(outSum) + '</td>'
     + '<td class="num">' + won(bal) + '</td></tr>'
