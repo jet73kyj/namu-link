@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>세무 - 나무링크</title>
+<style>
+  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:#f5f9f0;
+         margin:0; padding:20px; color:#333; }
+  .box { max-width:460px; margin:40px auto; background:#fff; border-radius:12px;
+         padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  .wide { max-width:1100px; margin:16px auto; background:#fff; border-radius:12px;
+          padding:24px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  h1 { font-size:20px; color:#2e7d32; margin:0 0 4px; }
+  .sub { font-size:13px; color:#888; margin-bottom:22px; }
+  label { display:block; font-size:12.5px; font-weight:600; margin:12px 0 5px; color:#555; }
+  input, select, textarea { width:100%; padding:9px 10px; border:1px solid #ddd;
+          border-radius:7px; font-size:14px; box-sizing:border-box; font-family:inherit; }
+  button { padding:10px 16px; background:#2e7d32; color:#fff; border:none;
+           border-radius:7px; font-size:14px; font-weight:600; cursor:pointer; }
+  button:disabled { background:#bbb; cursor:default; }
+  .box button { width:100%; padding:13px; margin-top:20px; }
+  .ghost { background:#fff; color:#555; border:1px solid #ddd; }
+  .out { margin-top:14px; padding:12px; border-radius:8px; font-size:13.5px;
+         line-height:1.7; display:none; white-space:pre-wrap; }
+  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
+  .err { background:#ffebee; color:#b71c1c; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:center;
+         flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+  .tab { padding:9px 14px; border:1px solid #ddd; background:#fff; color:#555;
+         border-radius:8px; font-size:13.5px; cursor:pointer; }
+  .tab.on { background:#2e7d32; color:#fff; border-color:#2e7d32; font-weight:600; }
+  .bar { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:14px; }
+  .bar label { margin:0 0 4px; }
+  .bar > div { min-width:120px; }
+
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
+  th, td { border:1px solid #ccc; padding:6px 8px; }
+  th { background:#eef3ec; font-weight:600; }
+  td.num, th.num { text-align:right; }
+  td.ctr, th.ctr { text-align:center; }
+  tr.sum td { background:#f4f7f2; font-weight:700; }
+
+  /* 결의서 인쇄 모양 */
+  .paper { border:1.5px solid #000; padding:14px; margin-top:14px; background:#fff; }
+  .ptitle { text-align:center; font-size:20px; font-weight:800; letter-spacing:6px;
+            margin:6px 0 14px; }
+  .phead { display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:8px; }
+  .sign { border-collapse:collapse; font-size:12px; }
+  .sign td { border:1px solid #000; width:70px; height:34px; text-align:center; }
+  .sign td.lb { width:34px; background:#f4f7f2; }
+  .ptab { width:100%; border-collapse:collapse; font-size:13px; }
+  .ptab th, .ptab td { border:1px solid #000; padding:6px 8px; }
+  .ptab th { background:#f4f7f2; }
+  .foot { font-size:12.5px; margin-top:10px; line-height:1.8; }
+  .center { text-align:center; font-size:15px; font-weight:700; margin-top:16px; }
+
+  .rowline { display:grid; grid-template-columns:1fr 160px 40px; gap:8px;
+             align-items:center; margin-bottom:6px; }
+  .del { background:#fff; color:#b71c1c; border:1px solid #e5c5c5; border-radius:6px;
+         padding:8px 0; cursor:pointer; font-size:13px; }
+  .listrow { display:grid; grid-template-columns:90px 1fr 110px 130px 70px;
+             gap:6px; align-items:center; padding:7px 6px; border-bottom:1px solid #eee;
+             font-size:13px; }
+  .listrow:hover { background:#f7faf5; }
+  .hint { font-size:12px; color:#888; margin:6px 0 0; }
+
+  @media print {
+    .noprint, .top, .tabs, .bar, #loginBox { display:none !important; }
+    body { background:#fff; padding:0; }
+    .wide { box-shadow:none; padding:0; margin:0; max-width:none; }
+    .paper { page-break-after:always; }
+  }
+</style>
+</head>
+<body>
+
+<div class="box" id="loginBox">
+  <h1>🌿 나무링크</h1>
+  <p class="sub">세무 — 대표만 볼 수 있습니다</p>
+  <label for="em">이메일</label>
+  <input id="em" type="email" autocomplete="username">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="btn">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<div class="wide" id="mainBox" style="display:none;">
+  <div class="top">
+    <div>
+      <h1>🧾 세무</h1>
+      <p class="sub" style="margin:2px 0 0;">사업명 : 발달재활서비스</p>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button id="prt" class="ghost">🖨 인쇄 · PDF로 저장</button>
+      <button id="out" class="ghost">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="tabs noprint">
+    <button class="tab on" data-tab="in">수입결의서</button>
+    <button class="tab" data-tab="out">지출결의서</button>
+    <button class="tab" data-tab="cash">현금출납부</button>
+    <button class="tab" data-tab="stat">세입세출 결산표</button>
+  </div>
+
+  <div class="bar noprint">
+    <div>
+      <label for="yy">연도</label>
+      <select id="yy"></select>
+    </div>
+    <div>
+      <label for="mm">월</label>
+      <select id="mm"></select>
+    </div>
+    <div style="flex:1;"></div>
+  </div>
+
+  <div id="pane"></div>
+  <div id="tmsg" class="out"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: nlStore, persistSession: true,
+          autoRefreshToken: true, detectSessionInUrl: false }
+});
+const $ = id => document.getElementById(id);
+
+// 이 화면을 볼 수 있는 사람 — 대표(8번)만
+const CAN_SEE = [8];
+const ACCOUNT = '749601-01-348803 · 749601-01-348791';
+
+let CODES = [];      // 관·항·목
+let SLIPS = [];      // 그 해 결의서 전부
+let ROWS  = {};      // 결의서 번호 -> 줄 목록
+let OPEN  = 0;       // 그 해 첫 이월액
+let TAB = 'in';
+let YY = String(new Date().getFullYear());
+let MM = String(new Date().getMonth() + 1).padStart(2, '0');
+let EDIT = null;     // 지금 고치고 있는 결의서
+
+function esc(s){ return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function won(n){ return Number(n || 0).toLocaleString('ko-KR'); }
+function show(t, ok){ $('msg').textContent = t; $('msg').className = 'out ' + (ok?'ok':'err'); }
+function tmsg(t, ok){ $('tmsg').textContent = t; $('tmsg').className = 'out ' + (ok?'ok':'err'); }
+function mk(){ return YY + '-' + MM; }
+
+// 한글로 금액 적기 (금 일십육만원정)
+const NUM1 = ['','일','이','삼','사','오','육','칠','팔','구'];
+const NUM2 = ['','십','백','천'];
+const NUM3 = ['','만','억','조'];
+function hanNum(n){
+  n = Number(n || 0);
+  if (!n) return '영';
+  let s = String(n), out = '', grp = [];
+  while (s.length) { grp.unshift(s.slice(-4)); s = s.slice(0, -4); }
+  grp.forEach((g, gi) => {
+    let part = '';
+    const len = g.length;
+    for (let i = 0; i < len; i++) {
+      const d = Number(g[i]);
+      if (!d) continue;
+      part += NUM1[d] + NUM2[len - 1 - i];
+    }
+    if (part) out += part + NUM3[grp.length - 1 - gi];
+  });
+  return out;
+}
+
+// ===== 자료 가져오기 =====
+async function loadAll(){
+  const { data: cs } = await sb.from('nl_tax_codes')
+    .select('*').eq('active', true).order('sort_no');
+  CODES = cs || [];
+
+  const { data: op } = await sb.from('nl_tax_open')
+    .select('amount').eq('year_key', YY).maybeSingle();
+  OPEN = op ? Number(op.amount) : 0;
+
+  const { data: sl } = await sb.from('nl_tax_slips')
+    .select('*').gte('slip_date', YY + '-01-01').lte('slip_date', YY + '-12-31')
+    .order('slip_date').order('id');
+  SLIPS = sl || [];
+
+  ROWS = {};
+  if (SLIPS.length) {
+    const ids = SLIPS.map(s => s.id);
+    const { data: rw } = await sb.from('nl_tax_slip_rows')
+      .select('*').in('slip_id', ids).order('row_no');
+    (rw || []).forEach(r => { (ROWS[r.slip_id] = ROWS[r.slip_id] || []).push(r); });
+  }
+}
+
+function codeOf(id){ return CODES.find(c => c.id === Number(id)) || null; }
+
+// 그 달 결의서만
+function slipsOfMonth(kind){
+  return SLIPS.filter(s => String(s.slip_date).slice(0,7) === mk()
+                        && (!kind || s.kind === kind));
+}
+
+// 증빙서번호 — 연도·월만 (26-08)
+function nextNo(){
+  return String(YY).slice(2) + '-' + MM;
+}
+
+// ===== 갈래 바꾸기 =====
+function draw(){
+  document.querySelectorAll('.tab').forEach(el =>
+    el.classList.toggle('on', el.dataset.tab === TAB));
+  tmsg('', true); $('tmsg').className = 'out';
+  if (TAB === 'in' || TAB === 'out') drawSlip(TAB === 'in' ? '수입' : '지출');
+  else if (TAB === 'cash') drawCash();
+  else drawStat();
+}
+
+// ===== 결의서 갈래 =====
+function drawSlip(kind){
+  const list = slipsOfMonth(kind);
+  const cs = CODES.filter(c => c.kind === (kind === '수입' ? '세입' : '세출'));
+
+  let h = '<div class="noprint">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+    + '<b style="font-size:15px;">' + kind + '결의서 — ' + Number(MM) + '월</b>'
+    + '<button id="newSlip">＋ 새로 쓰기</button></div>';
+
+  // 그 달 목록
+  h += '<div style="margin-top:10px;border:1px solid #e6ebe2;border-radius:8px;">'
+    + '<div class="listrow" style="background:#eef3ec;font-weight:600;">'
+    + '<span>날짜</span><span>적요</span><span>목</span>'
+    + '<span class="num">금액</span><span></span></div>';
+  if (!list.length) {
+    h += '<div style="padding:14px;color:#888;font-size:13px;">'
+       + '이 달에 쓴 ' + kind + '결의서가 없습니다.</div>';
+  } else {
+    list.forEach(s => {
+      const c = codeOf(s.code_id);
+      h += '<div class="listrow">'
+        + '<span>' + esc(String(s.slip_date).slice(5)) + '</span>'
+        + '<span>' + esc(s.title || '') + '</span>'
+        + '<span>' + esc(c ? c.mok : '') + '</span>'
+        + '<span class="num">' + won(s.amount) + '</span>'
+        + '<span><button class="ghost pick" data-id="' + s.id + '"'
+        + ' style="padding:5px 8px;font-size:12px;">열기</button></span>'
+        + '</div>';
+    });
+  }
+  h += '</div></div>';
+
+  // 쓰기 창
+  h += '<div id="form" style="display:none;" class="noprint">'
+    + '<div style="border:1px solid #e6ebe2;border-radius:8px;padding:14px;margin-top:14px;">'
+    + '<div class="grid3">'
+    + '<div><label>증빙서번호</label><input id="f_no" readonly></div>'
+    + '<div><label>결의일</label><input id="f_date" type="date"></div>'
+    + '<div><label>목 (관·항은 저절로)</label><select id="f_code">'
+    + cs.map(c => '<option value="' + c.id + '">' + esc(c.mok) + '</option>').join('')
+    + '</select></div>'
+    + '</div>'
+    + '<label>적요 (제목)</label><input id="f_title" placeholder="예: 08월 급여">'
+    + '<label>내역 — 여러 줄로 적을 수 있습니다</label>'
+    + '<div id="f_rows"></div>'
+    + '<button id="addRow" class="ghost" style="margin-top:4px;">＋ 줄 더하기</button>'
+    + '<div class="grid2" style="margin-top:12px;">'
+    + '<div><label>첨부</label><input id="f_attach" placeholder="예: 영수증 · 통장사본"></div>'
+    + '<div><label>비고</label><input id="f_note"></div>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;margin-top:16px;">'
+    + '<button id="saveSlip">저장</button>'
+    + '<button id="delSlip" class="ghost" style="color:#b71c1c;">지우기</button>'
+    + '<button id="closeSlip" class="ghost">닫기</button>'
+    + '</div></div></div>';
+
+  // 인쇄 종이
+  h += '<div id="papers">' + list.map(s => paperHtml(s, kind)).join('') + '</div>';
+
+  $('pane').innerHTML = h;
+  bindSlip(kind);
+}
+
+// 결의서 한 장 (인쇄용)
+function paperHtml(s, kind){
+  const c = codeOf(s.code_id);
+  const rows = ROWS[s.id] || [];
+  const d = String(s.slip_date);
+  const dd = d.slice(0,4) + '. ' + d.slice(5,7) + '. ' + d.slice(8,10);
+
+  let h = '<div class="paper">'
+    + '<div class="phead">'
+    + '<div>증빙서번호 : ' + esc(s.slip_no || '') + '</div>'
+    + '<table class="sign"><tr><td class="lb">결</td><td>담당자</td><td>기관장</td></tr>'
+    + '<tr><td class="lb">재</td><td></td><td></td></tr></table>'
+    + '</div>'
+    + '<div class="ptitle">' + kind + '결의서</div>'
+    + '<div style="font-size:13px;margin-bottom:8px;">'
+    + YY + '년도 발달재활서비스 회계 아래와 같이 '
+    + (kind === '수입' ? '수입함' : '지출함') + '</div>'
+    + '<table class="ptab">'
+    + '<tr><th style="width:70px;">사업명</th><td>발달재활서비스</td>'
+    + '<th style="width:70px;">' + (kind === '수입' ? '수입일' : '지출일') + '</th>'
+    + '<td>' + dd + '</td></tr>'
+    + '<tr><th>관</th><td>' + esc(c ? c.gwan : '') + '</td>'
+    + '<th>항</th><td>' + esc(c ? c.hang : '') + '</td></tr>'
+    + '<tr><th>목</th><td colspan="3">' + esc(c ? c.mok : '') + '</td></tr>'
+    + '<tr><th>금액</th><td colspan="3"><b>금 ' + hanNum(s.amount)
+    + '원정　(' + won(s.amount) + '원)</b></td></tr>'
+    + '</table>'
+    + '<table class="ptab" style="margin-top:8px;">'
+    + '<tr><th>적　요</th><th class="num" style="width:160px;">금　액</th></tr>';
+
+  if (rows.length) {
+    rows.forEach(r => {
+      h += '<tr><td>' + esc(r.item || '') + '</td>'
+        + '<td class="num">' + won(r.amount) + '</td></tr>';
+    });
+  } else {
+    h += '<tr><td>' + esc(s.title || '') + '</td>'
+      + '<td class="num">' + won(s.amount) + '</td></tr>';
+  }
+  // 빈 줄 채우기 (종이 모양)
+  const need = Math.max(0, 6 - Math.max(rows.length, 1));
+  for (let i = 0; i < need; i++) h += '<tr><td>&nbsp;</td><td></td></tr>';
+
+  h += '<tr class="sum"><td class="ctr">합　계</td>'
+    + '<td class="num">' + won(s.amount) + '</td></tr>'
+    + '</table>'
+    + '<div class="foot">'
+    + '계좌번호 : ' + esc(ACCOUNT) + '<br>'
+    + '첨부 : ' + esc(s.attach || '') + '</div>'
+    + (s.note ? '<div class="foot">비고 : ' + esc(s.note) + '</div>' : '')
+    + '<div class="center">자라는나무</div>'
+    + '</div>';
+  return h;
+}
+
+// 내역 줄 그리기
+function drawRows(list){
+  $('f_rows').innerHTML = (list && list.length ? list : [{item:'',amount:''}])
+    .map((r, i) =>
+      '<div class="rowline">'
+      + '<input class="r_item" value="' + esc(r.item || '') + '" placeholder="예: 기본 급여">'
+      + '<input class="r_amt" type="number" value="' + (r.amount || '') + '" placeholder="금액">'
+      + '<button class="del" data-i="' + i + '">✕</button>'
+      + '</div>').join('');
+  $('f_rows').querySelectorAll('.del').forEach(el => {
+    el.onclick = () => { el.parentNode.remove(); };
+  });
+}
+
+function bindSlip(kind){
+  $('newSlip').onclick = () => {
+    EDIT = null;
+    $('form').style.display = 'block';
+    $('f_no').value = nextNo();
+    $('f_date').value = mk() + '-01';
+    $('f_title').value = '';
+    $('f_attach').value = (kind === '수입') ? '통장사본' : '영수증';
+    $('f_note').value = '';
+    drawRows([]);
+    $('delSlip').style.display = 'none';
+  };
+  document.querySelectorAll('.pick').forEach(el => {
+    el.onclick = () => {
+      const s = SLIPS.find(x => x.id === Number(el.dataset.id));
+      if (!s) return;
+      EDIT = s;
+      $('form').style.display = 'block';
+      $('f_no').value = s.slip_no || '';
+      $('f_date').value = String(s.slip_date);
+      $('f_code').value = s.code_id || '';
+      $('f_title').value = s.title || '';
+      $('f_attach').value = s.attach || '';
+      $('f_note').value = s.note || '';
+      drawRows(ROWS[s.id] || []);
+      $('delSlip').style.display = '';
+    };
+  });
+  $('addRow').onclick = () => {
+    const div = document.createElement('div');
+    div.className = 'rowline';
+    div.innerHTML = '<input class="r_item" placeholder="예: 수당">'
+      + '<input class="r_amt" type="number" placeholder="금액">'
+      + '<button class="del">✕</button>';
+    div.querySelector('.del').onclick = () => div.remove();
+    $('f_rows').appendChild(div);
+  };
+  $('closeSlip').onclick = () => { $('form').style.display = 'none'; EDIT = null; };
+
+  $('saveSlip').onclick = async () => {
+    const items = Array.from($('f_rows').querySelectorAll('.rowline')).map((el, i) => ({
+      row_no: i + 1,
+      item: el.querySelector('.r_item').value.trim(),
+      amount: Number(el.querySelector('.r_amt').value) || 0
+    })).filter(r => r.item || r.amount);
+    if (!items.length) { tmsg('내역을 한 줄 이상 적어 주세요.', false); return; }
+    const total = items.reduce((a, b) => a + b.amount, 0);
+
+    const row = {
+      kind: kind,
+      slip_no: $('f_no').value.trim(),
+      slip_date: $('f_date').value,
+      code_id: Number($('f_code').value) || null,
+      title: $('f_title').value.trim() || items[0].item,
+      amount: total,
+      account_no: ACCOUNT,
+      attach: $('f_attach').value.trim() || null,
+      note: $('f_note').value.trim() || null,
+      updated_at: new Date().toISOString()
+    };
+    if (!row.slip_date) { tmsg('결의일을 고르세요.', false); return; }
+
+    $('saveSlip').disabled = true; $('saveSlip').textContent = '저장 중...';
+    try {
+      let sid;
+      if (EDIT) {
+        const { error } = await sb.from('nl_tax_slips').update(row).eq('id', EDIT.id);
+        if (error) throw error;
+        sid = EDIT.id;
+        await sb.from('nl_tax_slip_rows').delete().eq('slip_id', sid);
+      } else {
+        const { data, error } = await sb.from('nl_tax_slips')
+          .insert(row).select().single();
+        if (error) throw error;
+        sid = data.id;
+      }
+      const { error: e2 } = await sb.from('nl_tax_slip_rows')
+        .insert(items.map(r => Object.assign({ slip_id: sid }, r)));
+      if (e2) throw e2;
+      tmsg('✅ 저장했습니다. 합계 ' + won(total) + '원', true);
+      $('form').style.display = 'none'; EDIT = null;
+      await loadAll(); draw();
+    } catch (e) {
+      tmsg('❌ 저장하지 못했습니다.\n' + (e.message || e), false);
+    } finally {
+      $('saveSlip').disabled = false; $('saveSlip').textContent = '저장';
+    }
+  };
+
+  $('delSlip').onclick = async () => {
+    if (!EDIT) return;
+    if (!confirm('이 결의서를 지울까요?\n현금출납부와 결산표에서도 빠집니다.')) return;
+    const { error } = await sb.from('nl_tax_slips').delete().eq('id', EDIT.id);
+    if (error) { tmsg('❌ 지우지 못했습니다.\n' + error.message, false); return; }
+    tmsg('✅ 지웠습니다.', true);
+    $('form').style.display = 'none'; EDIT = null;
+    await loadAll(); draw();
+  };
+}
+
+// ===== 현금출납부 =====
+// 그 해 1월부터 차례로 더해 그 달 첫 이월액을 구한다
+function openOfMonth(m){
+  let bal = OPEN;
+  for (let i = 1; i < Number(m); i++) {
+    const key = YY + '-' + String(i).padStart(2, '0');
+    SLIPS.filter(s => String(s.slip_date).slice(0,7) === key).forEach(s => {
+      bal += (s.kind === '수입' ? 1 : -1) * Number(s.amount || 0);
+    });
+  }
+  return bal;
+}
+
+function drawCash(){
+  const list = slipsOfMonth(null)
+    .slice().sort((a,b) => String(a.slip_date).localeCompare(String(b.slip_date)) || a.id - b.id);
+  let bal = openOfMonth(MM);
+
+  let h = '<div class="paper">'
+    + '<div class="ptitle" style="letter-spacing:4px;">'
+    + YY + '년 ' + MM + '월 현금출납부</div>'
+    + '<div style="font-size:13px;margin-bottom:8px;">사업명 : 발달재활서비스</div>'
+    + '<table class="ptab">'
+    + '<tr><th style="width:70px;">월/일</th><th>적요</th>'
+    + '<th style="width:100px;">항</th>'
+    + '<th class="num" style="width:110px;">수입</th>'
+    + '<th class="num" style="width:110px;">지출금액</th>'
+    + '<th class="num" style="width:120px;">잔액</th></tr>'
+    + '<tr><td></td><td>이월액</td><td></td><td></td><td></td>'
+    + '<td class="num">' + won(bal) + '</td></tr>';
+
+  let inSum = 0, outSum = 0;
+  list.forEach(s => {
+    const c = codeOf(s.code_id);
+    const amt = Number(s.amount || 0);
+    if (s.kind === '수입') { bal += amt; inSum += amt; } else { bal -= amt; outSum += amt; }
+    h += '<tr>'
+      + '<td class="ctr">' + esc(String(s.slip_date).slice(5).replace('-','/')) + '</td>'
+      + '<td>' + esc(s.title || '') + '</td>'
+      + '<td class="ctr">' + esc(c ? c.hang : '') + '</td>'
+      + '<td class="num">' + (s.kind === '수입' ? won(amt) : '') + '</td>'
+      + '<td class="num">' + (s.kind === '지출' ? won(amt) : '') + '</td>'
+      + '<td class="num">' + won(bal) + '</td></tr>';
+  });
+
+  h += '<tr class="sum"><td class="ctr" colspan="3">합　계</td>'
+    + '<td class="num">' + won(inSum) + '</td>'
+    + '<td class="num">' + won(outSum) + '</td>'
+    + '<td class="num">' + won(bal) + '</td></tr>'
+    + '</table>'
+    + '<div class="foot">계좌번호 : ' + esc(ACCOUNT) + '</div>'
+    + '<div style="display:flex;justify-content:flex-end;margin-top:10px;">'
+    + '<table class="sign"><tr><td class="lb">결</td><td>담당자</td><td>기관장</td></tr>'
+    + '<tr><td class="lb">재</td><td></td><td></td></tr></table></div>'
+    + '</div>';
+
+  if (!list.length) {
+    h += '<p class="hint noprint">이 달에 쓴 결의서가 없습니다. '
+       + '수입·지출결의서를 쓰면 여기에 저절로 쌓입니다.</p>';
+  }
+  $('pane').innerHTML = h;
+}
+
+// ===== 세입세출 결산표 =====
+function drawStat(){
+  const list = slipsOfMonth(null);
+  const sum = {};
+  list.forEach(s => { sum[s.code_id] = (sum[s.code_id] || 0) + Number(s.amount || 0); });
+
+  const before = openOfMonth(MM);
+  const ins  = CODES.filter(c => c.kind === '세입');
+  const outs = CODES.filter(c => c.kind === '세출');
+  let inTot = 0, outTot = 0;
+
+  // 관별로 묶어 첫 줄에만 관 이름을 적는다
+  function block(arr, isIn){
+    let h = '', lastG = '';
+    arr.forEach(c => {
+      let amt = sum[c.id] || 0;
+      if (c.mok === '전월이월금') amt = before;
+      if (isIn) inTot += amt; else outTot += amt;
+      const gh = (c.gwan !== lastG)
+        ? '<td class="ctr" rowspan="' + arr.filter(x => x.gwan === c.gwan).length + '">'
+          + esc(c.gwan) + '</td>'
+          + '<td class="ctr" rowspan="' + arr.filter(x => x.gwan === c.gwan).length + '">'
+          + esc(c.hang) + '</td>'
+        : '';
+      lastG = c.gwan;
+      h += '<tr>' + gh
+        + '<td>' + esc(c.mok) + '</td>'
+        + '<td class="num">' + (amt ? won(amt) : '') + '</td></tr>';
+    });
+    return h;
+  }
+
+  const inHtml  = block(ins, true);
+  const outHtml = block(outs, false);
+  const left = inTot - outTot;
+
+  let h = '<div class="paper">'
+    + '<div class="ptitle" style="letter-spacing:4px;">'
+    + YY + '년 ' + Number(MM) + '월 세입세출 결산표</div>'
+    + '<div style="font-size:13px;margin-bottom:8px;">사업명 : 발달재활서비스</div>'
+    + '<table class="ptab">'
+    + '<tr><th style="width:80px;">관</th><th style="width:90px;">항</th>'
+    + '<th>목</th><th class="num" style="width:140px;">금액</th></tr>'
+    + '<tr><th colspan="4" style="background:#eef3ec;">세　입</th></tr>'
+    + inHtml
+    + '<tr class="sum"><td class="ctr" colspan="3">세입합계</td>'
+    + '<td class="num">' + won(inTot) + '</td></tr>'
+    + '<tr><th colspan="4" style="background:#eef3ec;">세　출</th></tr>'
+    + outHtml
+    + '<tr class="sum"><td class="ctr" colspan="3">세출합계</td>'
+    + '<td class="num">' + won(outTot) + '</td></tr>'
+    + '<tr class="sum"><td class="ctr">이월금</td><td class="ctr">사업이익</td>'
+    + '<td class="ctr">잉여금</td>'
+    + '<td class="num">' + won(left) + '</td></tr>'
+    + '</table>'
+    + '<div style="display:flex;justify-content:flex-end;margin-top:10px;">'
+    + '<table class="sign"><tr><td class="lb">결</td><td>담당자</td><td>기관장</td></tr>'
+    + '<tr><td class="lb">재</td><td></td><td></td></tr></table></div>'
+    + '<div class="center">자라는나무</div>'
+    + '</div>';
+
+  $('pane').innerHTML = h;
+}
+
+// ===== 로그인 · 시작 =====
+$('prt').onclick = () => window.print();
+
+document.querySelectorAll('.tab').forEach(el => {
+  el.onclick = () => { TAB = el.dataset.tab; draw(); };
+});
+
+async function afterLogin(user){
+  const { data: me, error: e1 } = await sb.from('nl_therapists')
+    .select('id, name, role').eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (e1)  { show('❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show('⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+  nlKeep(me.id);
+  if (CAN_SEE.indexOf(me.id) < 0) {
+    show('이 화면은 대표만 볼 수 있습니다.', false); return;
+  }
+
+  // 연도·월 고르기 채우기
+  const nowY = new Date().getFullYear();
+  let ys = '';
+  for (let y = 2026; y <= nowY + 1; y++) ys += '<option value="' + y + '">' + y + '년</option>';
+  $('yy').innerHTML = ys; $('yy').value = YY;
+  let ms = '';
+  for (let m = 1; m <= 12; m++) {
+    const v = String(m).padStart(2, '0');
+    ms += '<option value="' + v + '">' + m + '월</option>';
+  }
+  $('mm').innerHTML = ms; $('mm').value = MM;
+
+  $('yy').onchange = async () => { YY = $('yy').value; await loadAll(); draw(); };
+  $('mm').onchange = () => { MM = $('mm').value; draw(); };
+
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+  await loadAll();
+  draw();
+}
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase(), pw = $('pw').value;
+  if (!email || !pw) { show('이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) { show('❌ 로그인 실패\n' + e.message, false); }
+  finally { $('btn').disabled = false; $('btn').textContent = '로그인'; }
+};
+$('out').onclick = async () => {
+  nlKeepOff();
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+};
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) { await afterLogin(data.session.user); }
+  else { location.replace('index.html'); }
+})();
+</script>
+</body>
+</html>
