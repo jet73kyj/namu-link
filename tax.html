@@ -582,9 +582,18 @@ function drawCash(){
   let bal = openOfMonth(MM);
 
   let h = '<div class="paper">'
-    + '<div class="ptitle" style="letter-spacing:4px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+    + '<div style="flex:1;"></div>'
+    + '<div class="ptitle" style="letter-spacing:4px;flex:2;margin:6px 0;">'
     + YY + '년 ' + MM + '월 현금출납부</div>'
-    + '<div style="font-size:13px;margin-bottom:8px;">사업명 : 발달재활서비스</div>'
+    + '<div style="flex:1;display:flex;justify-content:flex-end;">'
+    + '<table class="sign"><tr><td>담당자</td><td>기관장</td></tr>'
+    + '<tr><td style="height:44px;"></td><td></td></tr></table></div>'
+    + '</div>'
+    + '<div style="display:flex;justify-content:space-between;'
+    + 'font-size:12.5px;margin-bottom:6px;">'
+    + '<span>사업명 : 발달재활서비스</span>'
+    + '<span>기본 예치 500만원 (매월 계좌 잔고 확인하기)</span></div>'
     + '<table class="ptab">'
     + '<tr><th style="width:70px;">월/일</th><th>적요</th>'
     + '<th style="width:100px;">항</th>'
@@ -614,9 +623,6 @@ function drawCash(){
     + '<td class="num">' + won(bal) + '</td></tr>'
     + '</table>'
     + '<div class="foot">계좌번호 : ' + esc(ACCOUNT) + '</div>'
-    + '<div style="display:flex;justify-content:flex-end;margin-top:10px;">'
-    + '<table class="sign"><tr><td class="lb">결</td><td>담당자</td><td>기관장</td></tr>'
-    + '<tr><td class="lb">재</td><td></td><td></td></tr></table></div>'
     + '</div>';
 
   if (!list.length) {
