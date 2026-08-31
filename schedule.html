@@ -1637,10 +1637,13 @@ function drawFind(){
                 : x.status==='쉼' ? 'r-rest' : '')
                 + ((x.status==='결석' || x.status==='휴무') ? ' r-cut' : '');
       const mk = mkOf[x.id];
+      // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
+      const noNeed1 = (Number(x.support_type_id) === 2 && !x.run_no);
       // 보강이 잡혀 있으면 그 날짜와 함께 「완료·보강예정」까지 보여 준다
       const tail = (x.status==='결석' || x.status==='휴무')
         ? (mk ? '→' + mkDay(mk) + ' ' + esc(stWord(mk))
-              : '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>')
+              : (noNeed1 ? esc(stWord(x))
+                 : '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>'))
         : stWord(x);
       const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
         ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
@@ -1872,7 +1875,8 @@ function drawWeek(){
                 ? '<span class="st">쉼</span>'
                 : (x.status==='결석' || x.status==='휴무')
                 ? ((mk ? '<span class="mkinfo">→'+mkDay(mk)+'</span>' : '')
-                   + (CAN_EDIT ? '<button class="mkbtn" data-mk="'+x.id+'"'
+                   + ((CAN_EDIT && !(Number(x.support_type_id) === 2 && !x.run_no))
+                     ? '<button class="mkbtn" data-mk="'+x.id+'"'
                      + ' title="'+(mk ? '보강 고치기' : '보강 잡기')+'">＋</button>' : '')
                    + ((MY_TH && !mk && pairMateOf(x))
                      ? '<button class="findbtn" data-find="'+x.id+'"'
