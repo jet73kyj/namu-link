@@ -1503,18 +1503,21 @@ function openDock(boxId){
 function syncDock(){
   const dock = $('dock'), body = $('dockbody'), bar = $('dockbar');
   if (!dock || !body || !bar) return;
-  const sh = $('short'), gp = $('gapBox');
+  const sh = $('short'), gp = $('gapBox'), pv = $('prevBox');
   if (sh && sh.parentNode !== body) body.appendChild(sh);
   if (gp && gp.parentNode !== body) body.appendChild(gp);
+  if (pv && pv.parentNode !== body) body.appendChild(pv);
 
   const on1 = sh && sh.style.display !== 'none';
   const on2 = gp && gp.style.display !== 'none';
-  if (!on1 && !on2) { dock.style.display = 'none'; return; }
+  const on3 = pv && pv.style.display !== 'none';
+  if (!on1 && !on2 && !on3) { dock.style.display = 'none'; return; }
 
   const t1 = on1 ? (sh.querySelector('.short-t') || {}).textContent || '' : '';
   const t2 = on2 ? (gp.querySelector('.short-t') || {}).textContent || '' : '';
+  const t3 = on3 ? (pv.querySelector('.prev-t') || {}).textContent || '' : '';
   dock.style.display = '';
-  bar.innerHTML = '<span>' + esc([t1, t2].filter(Boolean).join('  ·  ')) + '</span>'
+  bar.innerHTML = '<span>' + esc([t1, t2, t3].filter(Boolean).join('  ·  ')) + '</span>'
     + '<span class="dkgo">' + (dock.classList.contains('mini') ? '▲ 펼치기' : '▼ 접기') + '</span>';
   bar.onclick = () => { dock.classList.toggle('mini'); syncDock(); };
 }
@@ -2141,12 +2144,14 @@ function drawPrev(){
     ['prevBox','prevHint'].forEach(id => {
       const el = $(id); if (el) el.style.display = 'none';
     });
+    syncDock();
     return;
   }
   const need = prevNeed();
   if (!need.length) {
     $('prevBox').style.display = 'none';
     $('prevHint').style.display = 'none';
+    syncDock();
     return;
   }
   const pm = prevMon(mon);
@@ -2158,7 +2163,7 @@ function drawPrev(){
     + '<span class="go">아래 목록 보기 ↓</span>';
   $('prevHint').onclick = (ev) => {
     if (ev.target.closest('.topf, .topres')) return;
-    $('prevBox').scrollIntoView({ behavior:'smooth', block:'start' });
+    openDock('prevBox');
   };
   topFind('prevHint', 'prevBox');
 
@@ -2194,6 +2199,7 @@ function drawPrev(){
       + '월</b>, <b>급여는 ' + monNo(mon) + '월</b>로 셉니다.</div>';
 
   boxFind('prevBox');
+  syncDock();
   $('prevBox').querySelectorAll('.prevbtn').forEach(el => {
     el.onclick = () => {
       const why = el.dataset.no;
