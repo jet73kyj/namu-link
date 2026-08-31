@@ -2654,11 +2654,12 @@ function drawDay(){
             if (L2.kind === 'run' && isBlankRest(x)) return;
 
             if (L2.kind === 'open') {
+              const blk2 = isBlocked(L2.d, t.id, s.hm);
               html += '<div class="ln ln-open'
-                + (isOffFor(L2.d, t.id) ? ' ln-holi' : '') + '">'
+                + (blk2 ? ' ln-block' : (isOffFor(L2.d, t.id) ? ' ln-holi' : '')) + '">'
                 + '<span class="d">' + day + '</span>'
-                + '<span class="n">빈 자리</span>'
-                + (CAN_EDIT && canOpenAdd() ? '<button class="lnadd" data-mn="'
+                + '<span class="n">' + (blk2 ? '시간 막음' : '빈 자리') + '</span>'
+                + ((CAN_EDIT && canOpenAdd() && !blk2) ? '<button class="lnadd" data-mn="'
                     + s.no + '_' + t.id + '_' + wd + '_' + L2.d + '" title="보강 넣기">＋</button>' : '')
                 + '</div>';
               return;
