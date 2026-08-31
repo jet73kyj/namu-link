@@ -65,6 +65,10 @@
   .ptab th { background:#f4f7f2; }
   .foot { font-size:12.5px; margin-top:10px; line-height:1.8; }
   .center { text-align:center; font-size:15px; font-weight:700; margin-top:16px; }
+  .logo { text-align:center; margin-top:16px; }
+  .logo img { height:44px; vertical-align:middle; }
+  .logo span { font-size:15px; font-weight:700; margin-left:8px;
+               vertical-align:middle; }
 
   .rowline { display:grid; grid-template-columns:1fr 160px 40px; gap:8px;
              align-items:center; margin-bottom:6px; }
@@ -404,7 +408,8 @@ function paperHtml(s, kind){
     + '<td style="width:220px;">첨부 : ' + esc(s.attach || '') + '</td>'
     + '<td class="ctr">계좌번호 : ' + esc(ACCOUNT) + '</td></tr>'
     + '</table>'
-    + '<div class="center" style="margin-top:20px;">자라는나무</div>'
+    + '<div class="logo" style="margin-top:20px;">'
+    + '<img src="img/nl-logo.png" alt=""><span>자라는나무</span></div>'
     + '</div>';
 }
 
@@ -665,6 +670,8 @@ function drawCash(){
     + '<td class="num">' + won(bal) + '</td></tr>'
     + '</table>'
     + '<div class="foot">계좌번호 : ' + esc(ACCOUNT) + '</div>'
+    + '<div class="logo"><img src="img/nl-logo.png" alt="">'
+    + '<span>자라는나무</span></div>'
     + '</div>';
 
   if (!list.length) {
@@ -742,7 +749,8 @@ function drawStat(){
     + '<tr class="sum"><td class="ctr" colspan="5">잔　액</td>'
     + '<td class="num">' + won(left) + '</td></tr>'
     + '</table>'
-    + '<div class="center" style="margin-top:18px;">자라는나무</div>'
+    + '<div class="logo" style="margin-top:18px;">'
+    + '<img src="img/nl-logo.png" alt=""><span>자라는나무</span></div>'
     + '</div>';
 
   $('pane').innerHTML = h;
