@@ -191,6 +191,15 @@ const MENU = [
       de:'치료사 인사 영상 · 센터 소식<br>인스타 · 블로그 소식 보기',
       roles:['관리자','행정','치료사','홍보'] }
   ]},
+  // 대표(8번)만 보이는 묶음 — boss:true
+  { grp:'정산', boss:true, items:[
+    { f:'payroll.html', nm:'업무위탁 수수료 정산',
+      de:'치료사 완료 회기로 수수료 계산<br>4대보험·원천징수·주유비까지',
+      roles:['관리자'] },
+    { f:'salary.html', nm:'급여명세서',
+      de:'행정·홍보 급여명세서 만들기',
+      roles:['관리자'] }
+  ]},
   { grp:'치료 기록지', items:[
     { f:'record-develop.html', nm:'발달재활 기록지',
       de:'서비스 일정표·제공기록지 · 월 4회',
@@ -249,7 +258,9 @@ async function afterLogin(user) {
   }
 
   let html = '';
+  const isBoss = (Number(me.id) === 8);
   MENU.forEach(g => {
+    if (g.boss && !isBoss) return;      // 대표만 보는 묶음
     const list = g.items.filter(it => it.roles.includes(role));
     if (!list.length) return;
     html += '<div class="grp"><h2>' + esc(g.grp) + '</h2><div class="cards">'
