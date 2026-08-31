@@ -226,6 +226,11 @@ function draw(){
   document.querySelectorAll('.tab').forEach(el =>
     el.classList.toggle('on', el.dataset.tab === TAB));
   tmsg('', true); $('tmsg').className = 'out';
+  if (MM === 'ALL' && TAB !== 'stat') {
+    $('pane').innerHTML = '<p style="padding:20px;color:#888;">'
+      + '「한 해 전체」는 세입세출 결산표에서만 볼 수 있습니다. 달을 골라 주세요.</p>';
+    return;
+  }
   if (TAB === 'in' || TAB === 'out') drawSlip(TAB === 'in' ? '수입' : '지출');
   else if (TAB === 'cash') drawCash();
   else drawStat();
@@ -634,60 +639,77 @@ function drawCash(){
 
 // ===== 세입세출 결산표 =====
 function drawStat(){
-  const list = slipsOfMonth(null);
+  const all = (MM === 'ALL');
+  // 그 달(또는 그 해) 결의서
+  const list = all
+    ? SLIPS.slice()
+    : SLIPS.filter(s => String(s.slip_date).slice(0,7) === mk());
   const sum = {};
   list.forEach(s => { sum[s.code_id] = (sum[s.code_id] || 0) + Number(s.amount || 0); });
 
-  const before = openOfMonth(MM);
+  const before = all ? OPEN : openOfMonth(MM);   // 전기이월
   const ins  = CODES.filter(c => c.kind === '세입');
   const outs = CODES.filter(c => c.kind === '세출');
   let inTot = 0, outTot = 0;
 
-  // 관별로 묶어 첫 줄에만 관 이름을 적는다
+  // 항으로 묶어 첫 줄에만 항 이름을 적는다 (관은 안 씀)
   function block(arr, isIn){
-    let h = '', lastG = '';
+    let h = '', last = '';
     arr.forEach(c => {
-      let amt = sum[c.id] || 0;
-      if (c.mok === '전월이월금') amt = before;
-      if (isIn) inTot += amt; else outTot += amt;
-      const gh = (c.gwan !== lastG)
-        ? '<td class="ctr" rowspan="' + arr.filter(x => x.gwan === c.gwan).length + '">'
+      const amt = sum[c.id] || 0;
+      const isOpen = (c.mok === '전월이월금');
+      if (!isOpen) { if (isIn) inTot += amt; else outTot += amt; }
+      const gh = (c.hang !== last)
+        ? '<td class="ctr" rowspan="' + arr.filter(x => x.hang === c.hang).length + '">'
           + esc(c.hang) + '</td>'
         : '';
-      lastG = c.gwan;
+      last = c.hang;
       h += '<tr>' + gh
         + '<td>' + esc(c.mok) + '</td>'
-        + '<td class="num">' + (amt ? won(amt) : '') + '</td></tr>';
+        + '<td class="num">' + (isOpen ? won(before) : '') + '</td>'
+        + '<td class="num">' + (!isOpen && isIn && amt ? won(amt) : '') + '</td>'
+        + '<td class="num">' + (!isOpen && !isIn && amt ? won(amt) : '') + '</td>'
+        + '<td class="num"></td></tr>';
     });
     return h;
   }
 
   const inHtml  = block(ins, true);
   const outHtml = block(outs, false);
-  const left = inTot - outTot;
+  const left = before + inTot - outTot;     // 당월 잔액
+  const when = all ? (YY + '년') : (YY + '년 ' + Number(MM) + '월');
 
   let h = '<div class="paper">'
+    + '<div style="display:flex;justify-content:flex-end;">'
+    + '<table class="sign"><tr><td class="lb">결</td><td>담당</td><td>기관장</td></tr>'
+    + '<tr><td class="lb">재</td><td style="height:40px;"></td><td></td></tr></table></div>'
     + '<div class="ptitle" style="letter-spacing:4px;">'
-    + YY + '년 ' + Number(MM) + '월 세입세출 결산표</div>'
-    + '<div style="font-size:13px;margin-bottom:8px;">사업명 : 발달재활서비스</div>'
+    + when + ' 세입세출 결산표</div>'
+    + '<div style="font-size:13px;margin-bottom:6px;">□ 사업명 : 발달재활서비스</div>'
     + '<table class="ptab">'
-    + '<tr><th style="width:100px;">항</th>'
-    + '<th>목</th><th class="num" style="width:140px;">금액</th></tr>'
-    + '<tr><th colspan="3" style="background:#eef3ec;">세　입</th></tr>'
+    + '<tr><th colspan="2">과　　목</th>'
+    + '<th rowspan="2" style="width:110px;">전기이월</th>'
+    + '<th colspan="2">' + (all ? '당해' : '당월') + '입</th>'
+    + '<th rowspan="2" style="width:110px;">잔　액</th></tr>'
+    + '<tr><th style="width:90px;">항</th><th>목</th>'
+    + '<th class="num" style="width:110px;">입금</th>'
+    + '<th class="num" style="width:110px;">출금</th></tr>'
     + inHtml
     + '<tr class="sum"><td class="ctr" colspan="2">세입합계</td>'
-    + '<td class="num">' + won(inTot) + '</td></tr>'
-    + '<tr><th colspan="3" style="background:#eef3ec;">세　출</th></tr>'
+    + '<td class="num">' + won(before) + '</td>'
+    + '<td class="num">' + won(inTot) + '</td><td></td><td></td></tr>'
     + outHtml
     + '<tr class="sum"><td class="ctr" colspan="2">세출합계</td>'
+    + '<td></td><td></td>'
+    + '<td class="num">' + won(outTot) + '</td><td></td></tr>'
+    + '<tr class="sum"><td class="ctr">이월금</td><td class="ctr">사업이익</td>'
+    + '<td class="ctr">잉여금</td>'
+    + '<td class="num">' + won(before) + '</td>'
+    + '<td class="num">' + won(inTot) + '</td>'
     + '<td class="num">' + won(outTot) + '</td></tr>'
-    + '<tr class="sum"><td class="ctr">이월금</td>'
-    + '<td class="ctr">사업이익 · 잉여금</td>'
+    + '<tr class="sum"><td class="ctr" colspan="5">' + when + ' 잔액</td>'
     + '<td class="num">' + won(left) + '</td></tr>'
     + '</table>'
-    + '<div style="display:flex;justify-content:flex-end;margin-top:10px;">'
-    + '<table class="sign"><tr><td class="lb">결</td><td>담당자</td><td>기관장</td></tr>'
-    + '<tr><td class="lb">재</td><td></td><td></td></tr></table></div>'
     + '<div class="center">자라는나무</div>'
     + '</div>';
 
@@ -721,10 +743,16 @@ async function afterLogin(user){
     const v = String(m).padStart(2, '0');
     ms += '<option value="' + v + '">' + m + '월</option>';
   }
+  ms += '<option value="ALL">한 해 전체</option>';
   $('mm').innerHTML = ms; $('mm').value = MM;
 
   $('yy').onchange = async () => { YY = $('yy').value; await loadAll(); draw(); };
-  $('mm').onchange = () => { MM = $('mm').value; draw(); };
+  $('mm').onchange = () => {
+    MM = $('mm').value;
+    // 「한 해 전체」는 결산표에서만 볼 수 있다
+    if (MM === 'ALL' && TAB !== 'stat') TAB = 'stat';
+    draw();
+  };
 
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
