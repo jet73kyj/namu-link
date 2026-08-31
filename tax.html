@@ -225,6 +225,16 @@ function rowsText(sid){
            .filter(Boolean).join(' · ');
 }
 
+// 현금출납부에 짧게 적는다 — 두 줄 넘으면 「이도윤 외 59건」
+function rowsShort(sid){
+  const rs = ROWS[sid] || [];
+  if (!rs.length) return '';
+  if (rs.length === 1) return (rs[0].item || '');
+  // 첫 줄의 이름만 (앞에 붙은 날짜는 뗀다)
+  const first = String(rs[0].item || '').replace(/^\s*\d+\/\d+\s*/, '');
+  return first + ' 외 ' + (rs.length - 1) + '건';
+}
+
 function codeOf(id){ return CODES.find(c => c.id === Number(id)) || null; }
 
 // 그 달 결의서만
@@ -635,7 +645,7 @@ function drawCash(){
     h += '<tr>'
       + '<td class="ctr">' + esc(String(s.slip_date).slice(5).replace('-','/')) + '</td>'
       + '<td>' + esc(s.title || '') + '</td>'
-      + '<td style="font-size:12px;color:#555;">' + esc(rowsText(s.id)) + '</td>'
+      + '<td style="font-size:12px;color:#555;">' + esc(rowsShort(s.id)) + '</td>'
       + '<td class="ctr">' + esc(c ? c.hang : '') + '</td>'
       + '<td class="num">' + (s.kind === '수입' ? won(amt) : '') + '</td>'
       + '<td class="num">' + (s.kind === '지출' ? won(amt) : '') + '</td>'
