@@ -176,6 +176,8 @@
   /* 공휴일·치료사 휴무인 날의 빈 자리 — 회색으로 알려 준다 */
   .ln-open.ln-holi { background:#dcdfdd; color:#5c625e; border:1px solid #c4cac6; }
   .ln-block { background:#5a5f5c !important; color:#fff !important; }
+  .nosat { background:#f2f4f1; }
+  .hsat { font-size:10.5px; color:#8a918c; margin-top:1px; }
   .offtabs { display:flex; gap:6px; margin:8px 0 10px; }
   .offtab { flex:1; padding:8px 6px; border:1px solid #d5dad2; background:#fff;
             border-radius:8px; font-size:13px; cursor:pointer; color:#5a5f5c; }
@@ -980,6 +982,17 @@ const SLOTS = [
   { no:14, t:'20:00~20:40', m:20*60,     hm:'20:00' }
 ];
 const LUNCH_NO = 5;
+// 토요일은 점심이 없어 5교시 다음이 바로 1:10이고 11교시로 끝난다
+const SAT_SLOT = {
+  6:  { t:'13:10~13:50', hm:'13:10' },
+  7:  { t:'14:00~14:40', hm:'14:00' },
+  8:  { t:'14:50~15:30', hm:'14:50' },
+  9:  { t:'15:40~16:20', hm:'15:40' },
+  10: { t:'16:30~17:10', hm:'16:30' },
+  11: { t:'17:20~18:00', hm:'17:20' }
+};
+const SAT_LAST = 11;   // 토요일은 11교시까지만
+function satOf(no){ return SAT_SLOT[no] || null; }
 // 아동 번호를 이름 뒤에 작게 붙인다
 function cidTag(n){ return n ? '<span class="cid">'+n+'</span>' : ''; }
 
@@ -989,14 +1002,18 @@ const LATE_SLOT = 14;
 const LATE_TH   = { 3: { t:'20:20~21:00', hm:'20:20' } };
 
 // 그 치료사가 볼 14교시 시각 (다른 교시는 그대로)
-function slotT(s, thId){
+function slotT(s, thId, wd){
+  if (wd === '토' && s && satOf(s.no)) return satOf(s.no).t;
   const x = (s && s.no === LATE_SLOT) ? LATE_TH[thId] : null;
   return x ? x.t : (s ? s.t : '');
 }
-function slotHm(s, thId){
+function slotHm(s, thId, wd){
+  if (wd === '토' && s && satOf(s.no)) return satOf(s.no).hm;
   const x = (s && s.no === LATE_SLOT) ? LATE_TH[thId] : null;
   return x ? x.hm : (s ? s.hm : '');
 }
+// 그 요일에 그 교시가 있는지 (토요일은 11교시까지)
+function slotOnWd(s, wd){ return !(wd === '토' && s && s.no > SAT_LAST); }
 // 화면에 보일 때만 12시간으로 (17:40 → 5:40). 자료에 넣는 값은 그대로 24시간
 function h12(v){
   const p = String(v || '').slice(0,5).split(':');
@@ -1006,7 +1023,7 @@ function h12(v){
   return h + ':' + p[1];
 }
 function t12(v){ return String(v || '').split('~').map(h12).join('~'); }
-function slotHm12(s, thId){ return h12(slotHm(s, thId)); }
+function slotHm12(s, thId, wd){ return h12(slotHm(s, thId, wd)); }
 const WDS = ['일','월','화','수','목','금','토'];
 
 const TTYPE = {1:'언어',2:'작업',3:'전산',4:'감통',5:'음악',6:'일상'};
@@ -1881,10 +1898,13 @@ function drawWeek(){
         + '<div class="thkind">' + countWd(mon, d) + '번</div></th>').join('') + '</tr>';
 
   $('gbody').innerHTML = SLOTS.map(s => {
+    const sat = satOf(s.no);
     return '<tr>'
       + '<td class="hcol"><div class="hno">'+s.no+'교시</div>'
-        + '<div class="htime">'+t12(slotT(s, th))+'</div></td>'
+        + '<div class="htime">'+t12(slotT(s, th))+'</div>'
+        + (sat ? '<div class="hsat">토 '+t12(sat.hm)+'</div>' : '') + '</td>'
       + DAYS.map(d => {
+          if (!slotOnWd(s, d)) return '<td class="cell nosat"></td>';
           const lunch = (d !== '토' && s.no === LUNCH_NO);
           const list = cell[s.no+'_'+d] || [];
           const mks  = mkCell[s.no+'_'+d] || [];
@@ -1896,7 +1916,7 @@ function drawWeek(){
               eh2 += '<button class="addbtn" data-add2="'
                    + s.no + '_' + th + '">＋ 수업 넣기</button>';
               eh2 += wdDates(mon, d).map(function(dd){
-                const blk = isBlocked(dd, th, s.hm);
+                const blk = isBlocked(dd, th, slotHm(s, th, d));
                 return '<div class="ln ln-open'
                   + (blk ? ' ln-block' : (isOffFor(dd, th) ? ' ln-holi' : '')) + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
@@ -1985,7 +2005,7 @@ function drawWeek(){
 
             html += wdDates(mon, d).filter(function(dd){ return !usedD[dd]; })
               .map(function(dd){
-                const blk = isBlocked(dd, th, s.hm);
+                const blk = isBlocked(dd, th, slotHm(s, th, d));
                 return '<div class="ln ln-open'
                   + (blk ? ' ln-block' : (isOffFor(dd, th) ? ' ln-holi' : '')) + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
@@ -2525,11 +2545,11 @@ function drawDay(){
   const isSat = (wd === '토');
   const colW = 'width:' + Math.floor(88/Math.max(THS.length,1)) + '%';
 
-  $('gbody').innerHTML = SLOTS.map(s => {
+  $('gbody').innerHTML = SLOTS.filter(s => slotOnWd(s, wd)).map(s => {
     const lunch = (!isSat && s.no === LUNCH_NO);
     return '<tr>'
       + '<td class="hcol"><div class="hno">'+s.no+'교시</div>'
-        + '<div class="htime">'+t12(s.t)+'</div>'
+        + '<div class="htime">'+t12(slotT(s, null, wd))+'</div>'
         + (lunch ? '<div class="thkind">점심</div>' : '') + '</td>'
       + THS.map(t => {
           const key  = s.no+'_'+t.id;
@@ -2544,7 +2564,7 @@ function drawDay(){
             if (lunch) eh += '<span class="lunchtxt">점심 / 보강</span>';
             if (CAN_EDIT) {
               eh += wdDates(mon, wd).map(function(dd){
-                const blk = isBlocked(dd, t.id, s.hm);
+                const blk = isBlocked(dd, t.id, slotHm(s, t.id, wd));
                 return '<div class="ln ln-open'
                   + (blk ? ' ln-block' : (isOffFor(dd, t.id) ? ' ln-holi' : '')) + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
@@ -2654,7 +2674,7 @@ function drawDay(){
             if (L2.kind === 'run' && isBlankRest(x)) return;
 
             if (L2.kind === 'open') {
-              const blk2 = isBlocked(L2.d, t.id, s.hm);
+              const blk2 = isBlocked(L2.d, t.id, slotHm(s, t.id, wd));
               html += '<div class="ln ln-open'
                 + (blk2 ? ' ln-block' : (isOffFor(L2.d, t.id) ? ' ln-holi' : '')) + '">'
                 + '<span class="d">' + day + '</span>'
@@ -2927,7 +2947,8 @@ function openAdd(key){
   const slot = SLOTS.find(x => x.no === Number(p[0]));
   const th   = THS.find(x => x.id === Number(p[1]))
             || THS_ALL.find(x => x.id === Number(p[1]));
-  $('addTitle').textContent = wd + '요일 ' + slot.t + ' · ' + (th ? th.name : '') + ' — 수업 넣기';
+  $('addTitle').textContent = wd + '요일 ' + slotT(slot, th ? th.id : null, wd)
+    + ' · ' + (th ? th.name : '') + ' — 수업 넣기';
   $('ad_name').value = '';
   $('ad_hits').innerHTML = '';
   clearPick();
@@ -2968,7 +2989,7 @@ $('adSave').onclick = async () => {
   // 이미 같은 수업이 있으면 넣지 않는다
   //   같은 아동 · 같은 요일 · 같은 시간 · 같은 담당 · 아직 안 끝난 수업
   try {
-    const hm0 = slotHm(slot, thId) + ':00';
+    const hm0 = slotHm(slot, thId, wd) + ':00';
     const { data: dup } = await sb.from('nl_therapy_schedules')
       .select('id, weekday, start_time, therapist_id, to_month,'
             + ' nl_therapies!inner(id, child_id, ended_on)')
@@ -2998,7 +3019,7 @@ $('adSave').onclick = async () => {
     if (e1) throw e1;
 
     const { data: sc, error: e2 } = await sb.from('nl_therapy_schedules').insert({
-      therapy_id: th.id, weekday: wd, start_time: slotHm(slot, thId) + ':00',
+      therapy_id: th.id, weekday: wd, start_time: slotHm(slot, thId, wd) + ':00',
       therapist_id: thId, duration: Number($('ad_dur').value),
       week1: wkOn[0], week2: wkOn[1], week3: wkOn[2], week4: wkOn[3],
       // 시작·마지막 날짜를 요일줄에 넣어야 회기가 그 사이에만 깔린다
@@ -3337,7 +3358,7 @@ $('edSave').onclick = async () => {
   // 요일이나 시간이 바뀌면 지난 달은 건드리지 않고 이번 달부터 갈라 준다
   const oldWd = edRow.weekday;
   const oldHm = String(edRow.start_time || '').slice(0,5);
-  const newHm = slotHm(slot, th);
+  const newHm = slotHm(slot, th, nw);
   if (oldWd !== nw || oldHm !== newHm) {
     if (!confirm('요일·시간이 바뀝니다.\n\n'
       + '· ' + oldWd + '요일 ' + h12(oldHm) + '  →  ' + nw + '요일 ' + h12(newHm) + '\n\n'
@@ -3352,7 +3373,7 @@ $('edSave').onclick = async () => {
   $('edSave').disabled = true; $('edSave').textContent = '옮기는 중...';
   try {
     const { data, error } = await sb.from('nl_therapy_schedules')
-      .update({ weekday: nw, start_time: slotHm(slot, th) + ':00',
+      .update({ weekday: nw, start_time: slotHm(slot, th, nw) + ':00',
                 therapist_id: th, duration: du,
                 from_date: $('ed_start').value || null,
                 to_date:   $('ed_end').value   || null })
@@ -3382,7 +3403,7 @@ $('edSave').onclick = async () => {
     // 아직 안 지난 회기의 치료사·시각도 함께 고친다
     const today = new Date().toISOString().slice(0,10);
     await sb.from('nl_sessions')
-      .update({ therapist_id: th, start_time: slotHm(slot, th) + ':00' })
+      .update({ therapist_id: th, start_time: slotHm(slot, th, nw) + ':00' })
       .eq('schedule_id', edRow.id).gte('plan_date', today).neq('status','보강');
 
     // 회기를 새로 맞춘다 (예정만 다시 깔고 완료·결석·휴무·보강은 그대로)
@@ -3432,7 +3453,7 @@ async function changeFromThisMonth(nw, slot, th, du){
     // ② 새 요일 줄을 이번 달부터로 만든다
     const { data: ns, error: e2 } = await sb.from('nl_therapy_schedules')
       .insert({ therapy_id: edRow.therapy_id, weekday: nw,
-                start_time: slotHm(slot, th) + ':00', therapist_id: th,
+                start_time: slotHm(slot, th, nw) + ':00', therapist_id: th,
                 duration: du, from_month: mon,
                 week1: edWk[0], week2: edWk[1],
                 week3: edWk[2], week4: edWk[3] })
@@ -3868,7 +3889,9 @@ function openMn(key){
   // 시간 — 교시를 고를 수 있게 한다
   $('mn_slot').innerHTML = SLOTS.map(sl =>
       '<option value="' + sl.no + '">' + sl.no + '교시 · '
-      + slotHm12(sl, thId) + '</option>').join('');
+      + slotHm12(sl, thId)
+      + (satOf(sl.no) ? ' (토 ' + h12(satOf(sl.no).hm) + ')' : '')
+      + '</option>').join('');
   $('mn_slot').value = String(slot.no);
 
   $('mn_name').value = '';
@@ -4057,7 +4080,7 @@ $('mnFind').onclick = () => {
   }
   $('mnFree').innerHTML = top.map(c =>
     '<span class="freeone" data-d="'+c.date+'" data-s="'+c.slot.no+'">'
-    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm12(c.slot, th) + '</span>').join('');
+    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm12(c.slot, th, c.dw) + '</span>').join('');
   $('mnFree').querySelectorAll('.freeone').forEach(el => {
     el.onclick = () => {
       $('mn_date').value = el.dataset.d;
@@ -4151,7 +4174,7 @@ $('mnSave').onclick = async () => {
     if (busy.length) {
       const who = busy.map(v => (v._name || ('아동 ' + v.child_id))).join(', ');
       mnmsg('❌ 그 시간에는 이미 다른 아동 수업이 있습니다.\n'
-        + '  ' + dayNo(d) + '일 ' + slotHm12(slot2, mnKey.th) + ' · ' + who + '\n'
+        + '  ' + dayNo(d) + '일 ' + slotHm12(slot2, mnKey.th, wd2) + ' · ' + who + '\n'
         + '다른 날이나 다른 시간을 고르세요.', false);
       return;
     }
@@ -4160,7 +4183,7 @@ $('mnSave').onclick = async () => {
   // 회기로 세는지 여부는 창 안쪽 초록 상자에 이미 적혀 있으므로
   // 여기서는 날짜·시간만 확인한다
   if (!confirm(mnKid.name + ' 아동 보강을\n'
-      + dayNo(d) + '일(' + wd2 + ') ' + slotHm12(slot2, mnKey.th)
+      + dayNo(d) + '일(' + wd2 + ') ' + slotHm12(slot2, mnKey.th, wd2)
       + (fixing ? ' 로 고칠까요?' : ' 로 넣을까요?'))) return;
 
   // 납부에서 확정한 회기 수를 넘는지 본다 (요일줄을 고른 것만 회기로 셈)
@@ -4210,7 +4233,7 @@ $('mnSave').onclick = async () => {
       month_key: mon,
       plan_date: d,
       therapist_id: mnKey.th,
-      start_time: slotHm(slot2, mnKey.th) + ':00',
+      start_time: slotHm(slot2, mnKey.th, wd2) + ':00',
       makeup_for: null,                // 메울 결석 회기가 없다
       support_type_id: ($('mn_sp').value ? Number($('mn_sp').value)
                       : (tp[1] ? Number(tp[1]) : null)),
@@ -4237,7 +4260,7 @@ $('mnSave').onclick = async () => {
     }
 
     mnmsg('✅ ' + mnKid.name + ' 아동 보강을 ' + dayNo(d) + '일 '
-      + slotHm12(mnKey.slot, mnKey.th) + (fixing ? ' 로 고쳤습니다.' : ' 로 넣었습니다.'), true);
+      + slotHm12(mnKey.slot, mnKey.th, wd2) + (fixing ? ' 로 고쳤습니다.' : ' 로 넣었습니다.'), true);
     $('mn_name').value=''; $('mn_pick').innerHTML='';
     $('mn_tp').innerHTML='<option value="">아동을 먼저 고르세요</option>';
     $('mn_memo').value=''; mnKid=null; mnEditId=null;
@@ -4585,7 +4608,7 @@ $('mkFind').onclick = () => {
   }
   $('mkFree').innerHTML = top.map(c =>
     '<span class="freeone" data-d="'+c.date+'" data-s="'+c.slot.no+'">'
-    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm12(c.slot, th) + '</span>').join('');
+    + dayNo(c.date) + '일(' + c.dw + ') ' + slotHm12(c.slot, th, c.dw) + '</span>').join('');
   $('mkFree').querySelectorAll('.freeone').forEach(el => {
     el.onclick = () => {
       $('mk_date').value = el.dataset.d;
@@ -4780,7 +4803,7 @@ $('mkSave').onclick = async () => {
   // 결석한 그 날 그 시각에 그대로 보강을 잡을 수는 없다
   // (교시가 아니라 실제 시각으로 견준다. 15:10 과 14:20 은 다른 시각)
   if (slot && String(d) === String(mkSess.plan_date)
-      && (slotHm(slot, th) + ':00') === String(mkSess.start_time)) {
+      && (slotHm(slot, th, wdOf(d)) + ':00') === String(mkSess.start_time)) {
     mkmsg('결석한 날(' + dayNo(mkSess.plan_date) + '일 '
       + String(mkSess.start_time).slice(0,5) + ')과 똑같은 날·똑같은 시각입니다.\n'
       + '다른 날이나 다른 시각을 고르세요.', false);
@@ -4803,7 +4826,7 @@ $('mkSave').onclick = async () => {
   if (busy.length) {
     const who = busy.map(s => (s._name || ('아동 ' + s.child_id))).join(', ');
     mkmsg('❌ 그 시간에는 이미 다른 아동 수업이 있습니다.\n'
-      + '  ' + dayNo(d) + '일 ' + slotHm12(slot, th) + ' · ' + who + '\n'
+      + '  ' + dayNo(d) + '일 ' + slotHm12(slot, th, wdOf(d)) + ' · ' + who + '\n'
       + '다른 날이나 다른 시간을 고르세요.', false);
     return;
   }
@@ -4824,7 +4847,7 @@ $('mkSave').onclick = async () => {
     plan_date:  d,
     status:     '보강',
     therapist_id: th,
-    start_time: slotHm(slot, th) + ':00',
+    start_time: slotHm(slot, th, wdOf(d)) + ':00',
     makeup_for: mkSess.id,
     // 사업(지원유형)도 원래 결석 줄에서 그대로 물려받는다.
     // 빠뜨리면 납부 화면에서 같은 수업이 두 줄로 그려진다
@@ -4849,7 +4872,7 @@ $('mkSave').onclick = async () => {
       SESS.push(data);
       if (data.month_key !== mon) PREV.push(data);
     }
-    mkmsg('✅ 보강을 ' + dayNo(d) + '일 ' + slotHm12(slot, th) + '으로 잡았습니다.', true);
+    mkmsg('✅ 보강을 ' + dayNo(d) + '일 ' + slotHm12(slot, th, wdOf(d)) + '으로 잡았습니다.', true);
     $('mkDel').style.display = '';
     draw();
   } catch (e) {
