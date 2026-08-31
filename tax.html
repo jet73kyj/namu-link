@@ -145,6 +145,7 @@ let CODES = [];      // 관·항·목
 let SLIPS = [];      // 그 해 결의서 전부
 let ROWS  = {};      // 결의서 번호 -> 줄 목록
 let OPEN  = 0;       // 그 해 첫 이월액
+let FAVS = [];       // 자주 쓰는 적요
 let TAB = 'in';
 let YY = String(new Date().getFullYear());
 let MM = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -184,6 +185,10 @@ async function loadAll(){
   const { data: cs } = await sb.from('nl_tax_codes')
     .select('*').eq('active', true).order('sort_no');
   CODES = cs || [];
+
+  const { data: fv } = await sb.from('nl_tax_favs')
+    .select('*').eq('active', true).order('sort_no');
+  FAVS = fv || [];
 
   const { data: op } = await sb.from('nl_tax_open')
     .select('amount').eq('year_key', YY).maybeSingle();
@@ -234,7 +239,26 @@ function drawSlip(kind){
   let h = '<div class="noprint">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;">'
     + '<b style="font-size:15px;">' + kind + '결의서 — ' + Number(MM) + '월</b>'
-    + '<button id="newSlip">＋ 새로 쓰기</button></div>';
+    + '<div style="display:flex;gap:6px;">'
+    + '<button id="favBtn" class="ghost">⭐ 자주 쓰는 것</button>'
+    + '<button id="prevBtn" class="ghost">↩ 지난달 것 가져오기</button>'
+    + '<button id="newSlip">＋ 새로 쓰기</button></div></div>';
+
+  // 자주 쓰는 것 — 목 단추를 누르면 적요가 펼쳐진다
+  const favCs = cs.filter(c => FAVS.some(f => f.code_id === c.id));
+  h += '<div id="favBox" style="display:none;margin-top:10px;'
+    + 'border:1px solid #e6ebe2;border-radius:8px;padding:12px;">'
+    + '<div style="font-size:13px;color:#666;margin-bottom:8px;">'
+    + '목을 누르면 자주 쓰는 적요가 나옵니다.</div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    + favCs.map(c => '<button class="tab favmok" data-c="' + c.id + '">'
+        + esc(c.mok) + '</button>').join('')
+    + '</div><div id="favList" style="margin-top:10px;"></div></div>';
+
+  // 지난달 것
+  h += '<div id="prevBox" style="display:none;margin-top:10px;'
+    + 'border:1px solid #e6ebe2;border-radius:8px;padding:12px;">'
+    + '<div id="prevList"></div></div>';
 
   // 그 달 목록
   h += '<div style="margin-top:10px;border:1px solid #e6ebe2;border-radius:8px;">'
@@ -311,9 +335,8 @@ function paperHtml(s, kind){
     + '<tr><th style="width:70px;">사업명</th><td>발달재활서비스</td>'
     + '<th style="width:70px;">' + (kind === '수입' ? '수입일' : '지출일') + '</th>'
     + '<td>' + dd + '</td></tr>'
-    + '<tr><th>관</th><td>' + esc(c ? c.gwan : '') + '</td>'
-    + '<th>항</th><td>' + esc(c ? c.hang : '') + '</td></tr>'
-    + '<tr><th>목</th><td colspan="3">' + esc(c ? c.mok : '') + '</td></tr>'
+    + '<tr><th>항</th><td>' + esc(c ? c.hang : '') + '</td>'
+    + '<th>목</th><td>' + esc(c ? c.mok : '') + '</td></tr>'
     + '<tr><th>금액</th><td colspan="3"><b>금 ' + hanNum(s.amount)
     + '원정　(' + won(s.amount) + '원)</b></td></tr>'
     + '</table>'
@@ -359,7 +382,88 @@ function drawRows(list){
   });
 }
 
+// 쓰기 창을 열고 값을 채운다
+function openForm(kind, v){
+  EDIT = null;
+  $('favBox').style.display = 'none';
+  $('prevBox').style.display = 'none';
+  $('form').style.display = 'block';
+  $('f_no').value = nextNo();
+  $('f_date').value = (v && v.date) || (mk() + '-01');
+  if (v && v.code_id) $('f_code').value = v.code_id;
+  $('f_title').value = (v && v.title) || '';
+  $('f_attach').value = (v && v.attach) || ((kind === '수입') ? '통장사본' : '영수증');
+  $('f_note').value = (v && v.note) || '';
+  drawRows((v && v.rows) || []);
+  $('delSlip').style.display = 'none';
+  $('form').scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
 function bindSlip(kind){
+  // 자주 쓰는 것
+  $('favBtn').onclick = () => {
+    const b = $('favBox');
+    b.style.display = (b.style.display === 'none') ? 'block' : 'none';
+    $('prevBox').style.display = 'none';
+  };
+  document.querySelectorAll('.favmok').forEach(el => {
+    el.onclick = () => {
+      document.querySelectorAll('.favmok').forEach(x => x.classList.remove('on'));
+      el.classList.add('on');
+      const cid = Number(el.dataset.c);
+      const list = FAVS.filter(f => f.code_id === cid);
+      $('favList').innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        + list.map(f => '<button class="ghost favpick" data-f="' + f.id + '"'
+            + ' style="padding:8px 12px;">' + esc(f.item) + '</button>').join('')
+        + '</div>';
+      $('favList').querySelectorAll('.favpick').forEach(b2 => {
+        b2.onclick = () => {
+          const f = FAVS.find(x => x.id === Number(b2.dataset.f));
+          if (!f) return;
+          openForm(kind, { code_id: f.code_id, title: f.item, attach: f.attach,
+                           rows: [{ item: f.item, amount: f.amount || '' }] });
+        };
+      });
+    };
+  });
+
+  // 지난달 것 가져오기
+  $('prevBtn').onclick = () => {
+    const b = $('prevBox');
+    if (b.style.display === 'block') { b.style.display = 'none'; return; }
+    $('favBox').style.display = 'none';
+    b.style.display = 'block';
+    const y = Number(YY), m = Number(MM) - 1;
+    const pk = (m < 1) ? ((y - 1) + '-12') : (YY + '-' + String(m).padStart(2,'0'));
+    const list = SLIPS.filter(s => String(s.slip_date).slice(0,7) === pk && s.kind === kind);
+    if (!list.length) {
+      $('prevList').innerHTML = '<div style="font-size:13px;color:#888;">'
+        + pk + ' 에 쓴 ' + kind + '결의서가 없습니다.</div>';
+      return;
+    }
+    $('prevList').innerHTML = '<div style="font-size:13px;color:#666;margin-bottom:8px;">'
+      + pk + ' 결의서입니다. 고르면 이번 달로 옮겨 담습니다.</div>'
+      + list.map(s => {
+          const c = codeOf(s.code_id);
+          return '<button class="ghost prevpick" data-p="' + s.id + '"'
+            + ' style="display:block;width:100%;text-align:left;margin-bottom:5px;">'
+            + esc(c ? c.mok : '') + ' · ' + esc(s.title || '')
+            + '　<b>' + won(s.amount) + '원</b></button>';
+        }).join('');
+    $('prevList').querySelectorAll('.prevpick').forEach(b2 => {
+      b2.onclick = () => {
+        const s = SLIPS.find(x => x.id === Number(b2.dataset.p));
+        if (!s) return;
+        const day = String(s.slip_date).slice(8,10);
+        openForm(kind, {
+          code_id: s.code_id, title: s.title, attach: s.attach, note: s.note,
+          date: mk() + '-' + day,
+          rows: (ROWS[s.id] || []).map(r => ({ item: r.item, amount: r.amount }))
+        });
+      };
+    });
+  };
+
   $('newSlip').onclick = () => {
     EDIT = null;
     $('form').style.display = 'block';
@@ -542,8 +646,6 @@ function drawStat(){
       if (isIn) inTot += amt; else outTot += amt;
       const gh = (c.gwan !== lastG)
         ? '<td class="ctr" rowspan="' + arr.filter(x => x.gwan === c.gwan).length + '">'
-          + esc(c.gwan) + '</td>'
-          + '<td class="ctr" rowspan="' + arr.filter(x => x.gwan === c.gwan).length + '">'
           + esc(c.hang) + '</td>'
         : '';
       lastG = c.gwan;
@@ -563,18 +665,18 @@ function drawStat(){
     + YY + '년 ' + Number(MM) + '월 세입세출 결산표</div>'
     + '<div style="font-size:13px;margin-bottom:8px;">사업명 : 발달재활서비스</div>'
     + '<table class="ptab">'
-    + '<tr><th style="width:80px;">관</th><th style="width:90px;">항</th>'
+    + '<tr><th style="width:100px;">항</th>'
     + '<th>목</th><th class="num" style="width:140px;">금액</th></tr>'
-    + '<tr><th colspan="4" style="background:#eef3ec;">세　입</th></tr>'
+    + '<tr><th colspan="3" style="background:#eef3ec;">세　입</th></tr>'
     + inHtml
-    + '<tr class="sum"><td class="ctr" colspan="3">세입합계</td>'
+    + '<tr class="sum"><td class="ctr" colspan="2">세입합계</td>'
     + '<td class="num">' + won(inTot) + '</td></tr>'
-    + '<tr><th colspan="4" style="background:#eef3ec;">세　출</th></tr>'
+    + '<tr><th colspan="3" style="background:#eef3ec;">세　출</th></tr>'
     + outHtml
-    + '<tr class="sum"><td class="ctr" colspan="3">세출합계</td>'
+    + '<tr class="sum"><td class="ctr" colspan="2">세출합계</td>'
     + '<td class="num">' + won(outTot) + '</td></tr>'
-    + '<tr class="sum"><td class="ctr">이월금</td><td class="ctr">사업이익</td>'
-    + '<td class="ctr">잉여금</td>'
+    + '<tr class="sum"><td class="ctr">이월금</td>'
+    + '<td class="ctr">사업이익 · 잉여금</td>'
     + '<td class="num">' + won(left) + '</td></tr>'
     + '</table>'
     + '<div style="display:flex;justify-content:flex-end;margin-top:10px;">'
