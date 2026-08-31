@@ -931,7 +931,7 @@ async function loadMonth() {
   if (dates.length) {
     const { data: offs } = await sb
       .from('nl_offdays').select('off_date, reason').in('off_date', dates);
-    (offs || []).forEach(r => { HOL[r.off_date] = r.reason || '휴무'; });
+    (offs || []).forEach(r => { HOL[r.off_date] = r.reason || '공휴일'; });
   }
 
   // 이 아동이 이미 낸 결석 신청을 가져온다
@@ -986,8 +986,8 @@ async function loadMonth() {
 
       // 쉬는 날 — 시간을 보이지 않는다
       if (st === '쉼' || st === '휴무') {
-        const txt = HOL[d] ? HOL[d] + ' · 휴무'
-                           : (thn ? thn + ' 선생님 휴무' : '휴무');
+        const txt = HOL[d] ? HOL[d] + ' · 공휴일'
+                           : (thn ? thn + ' 선생님 휴가' : '휴가');
         return '<div class="row rest"><div class="nm">' + esc(txt) + '</div></div>';
       }
 
@@ -1293,7 +1293,7 @@ async function loadPay() {
     if (ds.length) {
       const { data: offs } = await sb
         .from('nl_offdays').select('off_date, reason').in('off_date', ds);
-      (offs || []).forEach(r => { HOL2[r.off_date] = r.reason || '휴무'; });
+      (offs || []).forEach(r => { HOL2[r.off_date] = r.reason || '공휴일'; });
     }
   }
 
@@ -1327,7 +1327,7 @@ async function loadPay() {
       && (String(r.status || '') === '쉼' || String(r.status || '') === '휴무'));
     const why = {};
     off.forEach(r => {
-      const nm = HOL2[r.plan_date] || '휴무';
+      const nm = HOL2[r.plan_date] ? HOL2[r.plan_date] + ' 공휴일' : '휴가';
       why[nm] = (why[nm] || 0) + 1;
     });
     // 발달재활(2번)은 월 4회가 반드시 채워지므로 제외 표기를 하지 않는다
