@@ -147,9 +147,17 @@ let SLIPS = [];      // 그 해 결의서 전부
 let ROWS  = {};      // 결의서 번호 -> 줄 목록
 let OPEN  = 0;       // 그 해 첫 이월액
 let FAVS = [];       // 자주 쓰는 적요
-let TAB = 'in';
-let YY = String(new Date().getFullYear());
-let MM = String(new Date().getMonth() + 1).padStart(2, '0');
+// 보던 갈래·연도·월을 기억해 둔다 (새로고침해도 그 자리로 돌아온다)
+function memGet(k, dflt){
+  try { const v = sessionStorage.getItem('nltax_' + k); return v || dflt; }
+  catch (e) { return dflt; }
+}
+function memSet(k, v){
+  try { sessionStorage.setItem('nltax_' + k, v); } catch (e) {}
+}
+let TAB = memGet('tab', 'in');
+let YY = memGet('yy', String(new Date().getFullYear()));
+let MM = memGet('mm', String(new Date().getMonth() + 1).padStart(2, '0'));
 let EDIT = null;     // 지금 고치고 있는 결의서
 
 function esc(s){ return String(s == null ? '' : s)
@@ -732,7 +740,7 @@ function drawStat(){
 $('prt').onclick = () => window.print();
 
 document.querySelectorAll('.tab').forEach(el => {
-  el.onclick = () => { TAB = el.dataset.tab; draw(); };
+  el.onclick = () => { TAB = el.dataset.tab; memSet('tab', TAB); draw(); };
 });
 
 async function afterLogin(user){
@@ -758,11 +766,14 @@ async function afterLogin(user){
   ms += '<option value="ALL">한 해 전체</option>';
   $('mm').innerHTML = ms; $('mm').value = MM;
 
-  $('yy').onchange = async () => { YY = $('yy').value; await loadAll(); draw(); };
+  $('yy').onchange = async () => {
+    YY = $('yy').value; memSet('yy', YY);
+    await loadAll(); draw();
+  };
   $('mm').onchange = () => {
-    MM = $('mm').value;
+    MM = $('mm').value; memSet('mm', MM);
     // 「한 해 전체」는 결산표에서만 볼 수 있다
-    if (MM === 'ALL' && TAB !== 'stat') TAB = 'stat';
+    if (MM === 'ALL' && TAB !== 'stat') { TAB = 'stat'; memSet('tab', TAB); }
     draw();
   };
 
