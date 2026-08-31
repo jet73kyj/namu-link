@@ -92,6 +92,8 @@
     .asec { page-break-inside:avoid; }
     .thrgrp { page-break-inside:avoid; margin-bottom:12px; }
     .thrhead { background:#f0f2ee; font-size:12px; padding:5px 8px; }
+    /* PDF에는 아홉 항목만 넣는다 (2-2 · 10 · 11 은 화면에서만 봄) */
+    .pdfskip { display:none !important; }
   }
 
   .stat { display:flex; gap:10px; flex-wrap:wrap; margin:16px 0 4px; }
@@ -769,8 +771,12 @@ function drawAudit() {
     + '</table>';
 
   $('auditSum').innerHTML = sum;
+  // PDF에 안 넣을 항목 — 화면에는 보이고 인쇄에서만 빠진다
+  const PDF_SKIP = ['2-2.', '10.', '11.'];
   $('auditBody').innerHTML = S.map(x =>
-    '<div class="asec"><h3>' + esc(x[0]) + '</h3>'
+    '<div class="asec'
+    + (PDF_SKIP.some(k => String(x[0]).indexOf(k) === 0) ? ' pdfskip' : '')
+    + '"><h3>' + esc(x[0]) + '</h3>'
     + (x[4] ? tabByThr(x[1], x[2]) : tab(x[1], x[2])) + '</div>').join('');
 }
 
