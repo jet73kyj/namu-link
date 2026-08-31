@@ -4350,12 +4350,23 @@ function offTab(which){
 $('tabOff').onclick = () => offTab('off');
 $('tabBlk').onclick = () => offTab('blk');
 $('blkClose').onclick = () => { $('offBox').style.display='none'; };
+// 날짜를 바꾸면 그 요일에 맞는 교시로 다시 그린다 (켠 것은 꺼진다)
+if ($('bk_date')) $('bk_date').onchange = () => drawBlkSlots();
 
 // 교시 단추 — 눌러서 켜고 끈다
+// 고른 날짜가 토요일이면 토요일 교시(11교시까지, 6교시가 1:10)로 그린다
 function drawBlkSlots(){
-  $('bk_slots').innerHTML = SLOTS.map(s =>
-    '<button class="blkslot" data-hm="' + s.hm + '">'
-    + '<b>' + s.no + '교시</b>' + h12(s.hm) + '</button>').join('');
+  const d = $('bk_date') ? $('bk_date').value : '';
+  const wd = d ? wdOf(d) : '';
+  const list = SLOTS.filter(s => slotOnWd(s, wd));
+  $('bk_slots').innerHTML = list.map(s => {
+    const hm = slotHm(s, null, wd);
+    return '<button class="blkslot" data-hm="' + hm + '">'
+      + '<b>' + s.no + '교시</b>' + h12(hm) + '</button>';
+  }).join('')
+  + (wd === '토'
+      ? '<div style="grid-column:1/-1;font-size:11.5px;color:#7a827d;">'
+        + '토요일 교시입니다 (점심 없음 · 11교시까지)</div>' : '');
   $('bk_slots').querySelectorAll('.blkslot').forEach(el => {
     el.onclick = () => el.classList.toggle('on');
   });
