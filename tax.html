@@ -58,6 +58,8 @@
   .sign td { border:1px solid #000; width:56px; height:26px; text-align:center;
              font-size:11.5px; }
   .sign td.lb { width:22px; background:#f4f7f2; }
+  .sign.sm td { width:45px; }
+  .sign.sm td.lb { width:22px; }
   .ptab { width:100%; border-collapse:collapse; font-size:13px; }
   .ptab th, .ptab td { border:1px solid #000; padding:6px 8px; }
   .ptab th { background:#f4f7f2; }
@@ -714,7 +716,7 @@ function drawStat(){
 
   let h = '<div class="paper">'
     + '<div style="display:flex;justify-content:flex-end;">'
-    + '<table class="sign"><tr><td class="lb">결</td><td>담당</td><td>기관장</td></tr>'
+    + '<table class="sign sm"><tr><td class="lb">결</td><td>담당</td><td>기관장</td></tr>'
     + '<tr><td class="lb">재</td><td style="height:38px;"></td><td></td></tr></table></div>'
     + '<div class="ptitle" style="letter-spacing:2px;">'
     + when + ' 세입세출 결산표(' + YY + ')</div>'
