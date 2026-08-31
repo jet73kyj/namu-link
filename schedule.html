@@ -176,6 +176,15 @@
   /* 공휴일·치료사 휴무인 날의 빈 자리 — 회색으로 알려 준다 */
   .ln-open.ln-holi { background:#dcdfdd; color:#5c625e; border:1px solid #c4cac6; }
   .ln-block { background:#5a5f5c !important; color:#fff !important; }
+  .offtabs { display:flex; gap:6px; margin:8px 0 10px; }
+  .offtab { flex:1; padding:8px 6px; border:1px solid #d5dad2; background:#fff;
+            border-radius:8px; font-size:13px; cursor:pointer; color:#5a5f5c; }
+  .offtab.on { background:#2f5d3a; color:#fff; border-color:#2f5d3a; font-weight:600; }
+  .blkhint { font-size:12px; color:#7a827d; margin:2px 0 6px; }
+  .blkslots { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .blkslot { padding:7px 9px; border:1px solid #d5dad2; background:#fff;
+             border-radius:8px; font-size:12.5px; cursor:pointer; color:#3b403d; }
+  .blkslot.on { background:#5a5f5c; color:#fff; border-color:#5a5f5c; }
   .ln-block .d, .ln-block .n { color:#fff !important; }
   .ln-nosess { border:1px dotted #d6d9d7; color:#9aa09c; }
   .ln-nosess .nosl { font-size:10.5px; }
@@ -520,36 +529,59 @@
   <!-- 휴무 관리 창 -->
   <div id="offBox" class="panel grey-p" style="display:none;">
     <div class="panel-t">🏖 휴무 관리</div>
-    <div class="pgrid">
-      <div>
-        <label for="of_date">날짜</label>
-        <input id="of_date" type="date">
+    <div class="offtabs">
+      <button id="tabOff"  class="offtab on">휴무</button>
+      <button id="tabBlk" class="offtab">시간 막음</button>
+    </div>
+
+    <!-- 갈래 1 — 휴무 -->
+    <div id="offPane">
+      <div class="pgrid">
+        <div>
+          <label for="of_date">날짜</label>
+          <input id="of_date" type="date">
+        </div>
+        <div>
+          <label for="of_kind">종류</label>
+          <select id="of_kind">
+            <option value="치료사휴무">치료사 휴무 (그 치료사만)</option>
+            <option value="센터휴무">센터 휴무 (그날 전체)</option>
+            <option value="공휴일">공휴일 (그날 전체)</option>
+          </select>
+        </div>
+        <div id="of_thwrap">
+          <label for="of_th">치료사</label>
+          <select id="of_th"></select>
+        </div>
+        <div>
+          <label for="of_reason">사유</label>
+          <input id="of_reason" type="text" placeholder="예: 연차, 교육">
+        </div>
       </div>
-      <div>
-        <label for="of_kind">종류</label>
-        <select id="of_kind">
-          <option value="치료사휴무">치료사 휴무 (그 치료사만)</option>
-          <option value="센터휴무">센터 휴무 (그날 전체)</option>
-          <option value="공휴일">공휴일 (그날 전체)</option>
-          <option value="시간막음">시간 막음 (그 치료사 · 그 시각만)</option>
-        </select>
-      </div>
-      <div id="of_thwrap">
-        <label for="of_th">치료사</label>
-        <select id="of_th"></select>
-      </div>
-      <div id="of_slotwrap" style="display:none;">
-        <label for="of_slot">시각</label>
-        <select id="of_slot"></select>
-      </div>
-      <div>
-        <label for="of_reason">사유</label>
-        <input id="of_reason" type="text" placeholder="예: 연차, 교육">
+      <div class="pbtns">
+        <button id="offSave" class="pbtn ok-btn">휴무 넣기</button>
+        <button id="offClose" class="pbtn grey">닫기</button>
       </div>
     </div>
-    <div class="pbtns">
-      <button id="offSave" class="pbtn ok-btn">휴무 넣기</button>
-      <button id="offClose" class="pbtn grey">닫기</button>
+
+    <!-- 갈래 2 — 시간 막음 -->
+    <div id="blkPane" style="display:none;">
+      <div class="pgrid">
+        <div>
+          <label for="bk_date">날짜</label>
+          <input id="bk_date" type="date">
+        </div>
+        <div>
+          <label for="bk_th">치료사</label>
+          <select id="bk_th"></select>
+        </div>
+      </div>
+      <div class="blkhint">막을 교시를 눌러 고르세요. 여러 개 고를 수 있습니다.</div>
+      <div id="bk_slots" class="blkslots"></div>
+      <div class="pbtns">
+        <button id="blkSave" class="pbtn ok-btn">시간 막기</button>
+        <button id="blkClose" class="pbtn grey">닫기</button>
+      </div>
     </div>
     <div id="offMsg" class="out"></div>
     <div class="offlist-t">이 달 휴무</div>
@@ -4222,17 +4254,78 @@ $('offBtn').onclick = () => {
   $('edBox').style.display='none';
   $('of_date').value = '';
   $('of_reason').value = '';
+  $('bk_date').value = '';
+  $('bk_slots').querySelectorAll('.blkslot.on').forEach(el => el.classList.remove('on'));
+  offTab('off');
   offmsg('', true); $('offMsg').className='out';
   drawOffList();
   $('offBox').style.display = 'block';
   floatOn('offBox', lastClick);
 };
 $('offClose').onclick = () => { $('offBox').style.display='none'; };
-$('of_kind').onchange = () => {
-  const k = $('of_kind').value;
-  $('of_thwrap').style.display   = (k === '치료사휴무' || k === '시간막음') ? '' : 'none';
-  $('of_slotwrap').style.display = (k === '시간막음') ? '' : 'none';
+
+// ===== 시간 막기 저장 — 고른 교시를 한꺼번에 넣는다 =====
+$('blkSave').onclick = async () => {
+  const d = $('bk_date').value;
+  if (!d) { offmsg('날짜를 고르세요.', false); return; }
+  const th = Number($('bk_th').value);
+  if (!th) { offmsg('치료사를 고르세요.', false); return; }
+  const picked = Array.from($('bk_slots').querySelectorAll('.blkslot.on'))
+                      .map(el => el.dataset.hm);
+  if (!picked.length) { offmsg('막을 교시를 하나 이상 고르세요.', false); return; }
+
+  $('blkSave').disabled = true; $('blkSave').textContent = '넣는 중...';
+  try {
+    // 이미 막아 둔 시각은 빼고 넣는다 (같은 날에 여러 번 넣을 수 있다)
+    const { data: had } = await sb.from('nl_offdays')
+      .select('start_time')
+      .eq('off_date', d).eq('kind', '시간막음').eq('therapist_id', th);
+    const hadSet = new Set((had || []).map(x => String(x.start_time || '').slice(0,5)));
+    const rows = picked.filter(hm => !hadSet.has(hm))
+      .map(hm => ({ off_date: d, kind: '시간막음',
+                    therapist_id: th, start_time: hm + ':00' }));
+    if (!rows.length) {
+      offmsg('고르신 교시는 이미 막혀 있습니다.', false);
+      $('blkSave').disabled = false; $('blkSave').textContent = '시간 막기';
+      return;
+    }
+    const { error } = await sb.from('nl_offdays').insert(rows);
+    if (error) throw error;
+    offmsg('✅ ' + dayNo(d) + '일 ' + rows.length + '개 자리를 막았습니다.', true);
+    $('bk_slots').querySelectorAll('.blkslot.on').forEach(el => el.classList.remove('on'));
+    await loadMonth(); drawOffList(); draw();
+  } catch (e) {
+    offmsg('❌ 막지 못했습니다.\n' + (e.message || e), false);
+  } finally {
+    $('blkSave').disabled = false; $('blkSave').textContent = '시간 막기';
+  }
 };
+$('of_kind').onchange = () => {
+  $('of_thwrap').style.display = ($('of_kind').value === '치료사휴무') ? '' : 'none';
+};
+
+// ===== 휴무 / 시간 막음 갈래 =====
+function offTab(which){
+  const isB = (which === 'blk');
+  $('tabOff').classList.toggle('on', !isB);
+  $('tabBlk').classList.toggle('on',  isB);
+  $('offPane').style.display = isB ? 'none' : '';
+  $('blkPane').style.display = isB ? '' : 'none';
+  $('offMsg').textContent = ''; $('offMsg').className = 'out';
+}
+$('tabOff').onclick = () => offTab('off');
+$('tabBlk').onclick = () => offTab('blk');
+$('blkClose').onclick = () => { $('offBox').style.display='none'; };
+
+// 교시 단추 — 눌러서 켜고 끈다
+function drawBlkSlots(){
+  $('bk_slots').innerHTML = SLOTS.map(s =>
+    '<button class="blkslot" data-hm="' + s.hm + '">'
+    + s.no + '교시 · ' + h12(s.hm) + '</button>').join('');
+  $('bk_slots').querySelectorAll('.blkslot').forEach(el => {
+    el.onclick = () => el.classList.toggle('on');
+  });
+}
 
 async function drawOffList(){
   const { data } = await sb.from('nl_offdays')
@@ -4266,26 +4359,15 @@ $('offSave').onclick = async () => {
   const d = $('of_date').value;
   if (!d) { offmsg('날짜를 고르세요.', false); return; }
   const kind = $('of_kind').value;
-  const th   = (kind === '치료사휴무' || kind === '시간막음')
-             ? Number($('of_th').value) : null;
-  // 「시간 막음」은 그 시각 한 자리만 막는다 (빈자리를 못 쓰게 하는 것)
-  const stm  = (kind === '시간막음') ? ($('of_slot').value + ':00') : null;
+  const th   = (kind === '치료사휴무') ? Number($('of_th').value) : null;
 
   $('offSave').disabled = true; $('offSave').textContent = '넣는 중...';
   try {
     const { error } = await sb.from('nl_offdays').insert({
-      off_date: d, kind: kind, therapist_id: th, start_time: stm,
+      off_date: d, kind: kind, therapist_id: th,
       reason: $('of_reason').value.trim() || null
     });
     if (error) throw error;
-
-    // 시간 막음은 수업을 건드리지 않는다. 빈자리만 막는다
-    if (kind === '시간막음') {
-      offmsg('✅ ' + dayNo(d) + '일 ' + h12($('of_slot').value) + ' 자리를 막았습니다.', true);
-      $('offSave').disabled = false; $('offSave').textContent = '넣기';
-      await loadMonth(); drawOffList(); draw();
-      return;
-    }
 
     // 그날 수업을 휴무로 바꾼다
     let q = sb.from('nl_sessions')
@@ -5010,8 +5092,8 @@ async function afterLogin(user){
   + '<option value="7">7 방과후치료지원(작업)</option>';
   $('ed_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
   $('of_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
-  $('of_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.hm+'">'
-    + s.no + '교시 · ' + h12(s.hm) + '</option>').join('');
+  $('bk_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
+  drawBlkSlots();
   $('wkTh').innerHTML    = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+' 치료사</option>').join('');
   if (!CAN_EDIT) $('offBtn').style.display = 'none';
 
