@@ -176,6 +176,18 @@ let EDIT = null;     // 지금 고치고 있는 결의서
 function esc(s){ return String(s == null ? '' : s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function won(n){ return Number(n || 0).toLocaleString('ko-KR'); }
+// 금액 칸 — 치는 대로 쉼표가 붙게 한다
+function numOf(v){ return Number(String(v || '').replace(/[^0-9]/g, '')) || 0; }
+function bindAmt(el){
+  if (!el) return;
+  el.addEventListener('input', () => {
+    const n = numOf(el.value);
+    el.value = n ? n.toLocaleString('ko-KR') : '';
+  });
+}
+function bindAllAmt(){
+  document.querySelectorAll('.r_amt').forEach(bindAmt);
+}
 function show(t, ok){ $('msg').textContent = t; $('msg').className = 'out ' + (ok?'ok':'err'); }
 function tmsg(t, ok){ $('tmsg').textContent = t; $('tmsg').className = 'out ' + (ok?'ok':'err'); }
 function mk(){ return YY + '-' + MM; }
@@ -425,12 +437,14 @@ function drawRows(list){
     .map((r, i) =>
       '<div class="rowline">'
       + '<input class="r_item" value="' + esc(r.item || '') + '" placeholder="예: 기본 급여">'
-      + '<input class="r_amt" type="number" value="' + (r.amount || '') + '" placeholder="금액">'
+      + '<input class="r_amt" type="text" inputmode="numeric" value="'
+      + (r.amount ? Number(r.amount).toLocaleString('ko-KR') : '') + '" placeholder="금액">'
       + '<button class="del" data-i="' + i + '">✕</button>'
       + '</div>').join('');
   $('f_rows').querySelectorAll('.del').forEach(el => {
     el.onclick = () => { el.parentNode.remove(); };
   });
+  bindAllAmt();
 }
 
 // 쓰기 창을 열고 값을 채운다
@@ -565,9 +579,10 @@ function bindSlip(kind){
     const div = document.createElement('div');
     div.className = 'rowline';
     div.innerHTML = '<input class="r_item" placeholder="예: 수당">'
-      + '<input class="r_amt" type="number" placeholder="금액">'
+      + '<input class="r_amt" type="text" inputmode="numeric" placeholder="금액">'
       + '<button class="del">✕</button>';
     div.querySelector('.del').onclick = () => div.remove();
+    bindAmt(div.querySelector('.r_amt'));
     $('f_rows').appendChild(div);
   };
   $('closeSlip').onclick = () => { $('form').style.display = 'none'; EDIT = null; };
@@ -576,7 +591,7 @@ function bindSlip(kind){
     const items = Array.from($('f_rows').querySelectorAll('.rowline')).map((el, i) => ({
       row_no: i + 1,
       item: el.querySelector('.r_item').value.trim(),
-      amount: Number(el.querySelector('.r_amt').value) || 0
+      amount: numOf(el.querySelector('.r_amt').value)
     })).filter(r => r.item || r.amount);
     if (!items.length) { tmsg('내역을 한 줄 이상 적어 주세요.', false); return; }
     const total = items.reduce((a, b) => a + b.amount, 0);
