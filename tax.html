@@ -344,51 +344,51 @@ function paperHtml(s, kind){
   const d = String(s.slip_date);
   const dd = d.slice(0,4) + '. ' + d.slice(5,7) + '. ' + d.slice(8,10);
 
-  let h = '<div class="paper">'
-    + '<div class="phead">'
-    + '<div>증빙서번호 : ' + esc(s.slip_no || '') + '</div>'
-    + '<table class="sign"><tr><td class="lb">결</td><td>담당자</td><td>기관장</td></tr>'
-    + '<tr><td class="lb">재</td><td></td><td></td></tr></table>'
-    + '</div>'
-    + '<div class="ptitle">' + kind + '결의서</div>'
-    + '<div style="font-size:13px;margin-bottom:8px;">'
-    + YY + '년도 발달재활서비스 회계 아래와 같이 '
-    + (kind === '수입' ? '수입함' : '지출함') + '</div>'
-    + '<table class="ptab">'
-    + '<tr><th style="width:70px;">사업명</th><td>발달재활서비스</td>'
-    + '<th style="width:70px;">' + (kind === '수입' ? '수입일' : '지출일') + '</th>'
-    + '<td>' + dd + '</td></tr>'
-    + '<tr><th>항</th><td>' + esc(c ? c.hang : '') + '</td>'
-    + '<th>목</th><td>' + esc(c ? c.mok : '') + '</td></tr>'
-    + '<tr><th>금액</th><td colspan="3"><b>금 ' + hanNum(s.amount)
-    + '원정　(' + won(s.amount) + '원)</b></td></tr>'
-    + '</table>'
-    + '<table class="ptab" style="margin-top:8px;">'
-    + '<tr><th>적　요</th><th class="num" style="width:160px;">금　액</th></tr>';
-
+  let body = '';
   if (rows.length) {
     rows.forEach(r => {
-      h += '<tr><td>' + esc(r.item || '') + '</td>'
-        + '<td class="num">' + won(r.amount) + '</td></tr>';
+      body += '<tr><td>' + esc(r.item || '') + '</td>'
+        + '<td class="num" style="width:150px;">' + won(r.amount) + '</td></tr>';
     });
   } else {
-    h += '<tr><td>' + esc(s.title || '') + '</td>'
-      + '<td class="num">' + won(s.amount) + '</td></tr>';
+    body += '<tr><td>' + esc(s.title || '') + '</td>'
+      + '<td class="num" style="width:150px;">' + won(s.amount) + '</td></tr>';
   }
-  // 빈 줄 채우기 (종이 모양)
-  const need = Math.max(0, 6 - Math.max(rows.length, 1));
-  for (let i = 0; i < need; i++) h += '<tr><td>&nbsp;</td><td></td></tr>';
+  body += '<tr><td>&nbsp;</td><td></td></tr>'
+    + '<tr><td></td><td class="num"><b>' + won(s.amount) + '</b></td></tr>';
 
-  h += '<tr class="sum"><td class="ctr">합　계</td>'
-    + '<td class="num">' + won(s.amount) + '</td></tr>'
+  return '<div class="paper">'
+    + '<div class="ptitle" style="letter-spacing:6px;">' + kind + '결의서</div>'
+    + '<table class="ptab">'
+    + '<tr>'
+    + '<th style="width:90px;">증빙서번호</th>'
+    + '<td rowspan="2" class="ctr" style="width:220px;">'
+    + '<div>' + YY + '년도</div>'
+    + '<div style="margin-top:6px;">발달재활서비스 회계</div>'
+    + '<div>아래와 같이 ' + (kind === '수입' ? '수입함' : '지출함') + '</div></td>'
+    + '<th class="ctr" style="width:110px;">담당자</th>'
+    + '<th class="ctr" style="width:110px;">기관장</th></tr>'
+    + '<tr><td class="ctr">' + esc(s.slip_no || '') + '</td>'
+    + '<td style="height:52px;"></td><td></td></tr>'
+    + '<tr><th class="ctr">관</th><td class="ctr">발달재활서비스</td>'
+    + '<th class="ctr">현금출납부등기</th><td class="ctr">' + dd + '</td></tr>'
+    + '<tr><th class="ctr">항</th><td class="ctr">' + esc(c ? c.hang : '') + '</td>'
+    + '<td colspan="2"></td></tr>'
+    + '<tr><th class="ctr">목</th><td class="ctr" colspan="3">'
+    + esc(c ? c.mok : '') + '</td></tr>'
+    + '<tr><td class="ctr" colspan="4">'
+    + '<div>금 ' + hanNum(s.amount) + '원정</div>'
+    + '<div>( ' + won(s.amount) + ' )</div></td></tr>'
     + '</table>'
-    + '<div class="foot">'
-    + '계좌번호 : ' + esc(ACCOUNT) + '<br>'
-    + '첨부 : ' + esc(s.attach || '') + '</div>'
-    + (s.note ? '<div class="foot">비고 : ' + esc(s.note) + '</div>' : '')
-    + '<div class="center">자라는나무</div>'
+    + '<div style="font-size:13px;margin:10px 0 4px;">〈 적 요 〉</div>'
+    + '<table class="ptab" style="width:70%;">' + body + '</table>'
+    + '<table class="ptab" style="margin-top:14px;">'
+    + '<tr><th class="ctr" style="width:90px;">비　고</th>'
+    + '<td style="width:220px;">첨부 : ' + esc(s.attach || '') + '</td>'
+    + '<td class="ctr">계좌번호 : ' + esc(ACCOUNT) + '</td></tr>'
+    + '</table>'
+    + '<div class="center" style="margin-top:20px;">자라는나무</div>'
     + '</div>';
-  return h;
 }
 
 // 내역 줄 그리기
