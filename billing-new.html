@@ -108,6 +108,12 @@
   .sttag.dev  { background:#e8f3ea; color:#2e7d32; }
   .sttag.ctr  { background:#eef2f8; color:#3a5a86; }
   .sttag.five { background:#fdf3e3; color:#a9701c; }
+  /* 보기만 하는 줄 — 금액은 계좌입금 상자에서 셈한다 */
+  .r.look { background:#f6faf5; }
+  .r.look .de, .r.look .lookcnt, .r.look .lookam { color:#6b7a6e; }
+  .lookttl { font-size:11px; color:#6b7a6e; }
+  .lookcnt { font-size:12.5px; }
+  .lookam  { font-size:11.5px; }
   .r select.evsel { padding:4px 6px; font-size:12.5px; border-radius:6px;
                     border:1px solid var(--line); max-width:190px; }
   .r select.xmode { padding:4px 6px; font-size:12.5px; border-radius:6px;
@@ -1489,6 +1495,21 @@ function drawKid(c) {
       + '<span class="ct"><input class="cnt rv" type="text" inputmode="numeric" value="'
       + savedReview(sv) + '"></span>'
       + '<span class="up"></span><span class="am rvtxt">0</span></div>';
+  }
+
+  // 발달재활 수업도 여기에 보이게 한다 (금액은 안 셈. 계좌입금 상자에서 셈함)
+  const devG = groups.find(g => g.support_type_id === 2);
+  if (devG && devG.items && devG.items.length) {
+    devG.items.forEach((it, i) => {
+      b += '<div class="r line look">'
+        + '<span class="nm">' + (i === 0 ? '<span class="lookttl">참고</span>' : '') + '</span>'
+        + '<span class="de">' + tagOf(it) + esc(it.label)
+        + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
+        + '<span class="ap"></span>'
+        + '<span class="ct"><span class="lookcnt">' + (it.count || 0) + '회</span></span>'
+        + '<span class="up"></span>'
+        + '<span class="am lookam">아래 계좌</span></div>';
+    });
   }
 
   b += '<div class="r tot"><span class="nm"></span><span class="de"></span>'
