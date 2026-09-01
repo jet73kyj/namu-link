@@ -4980,6 +4980,29 @@ async function loadMonth(){
   //   다만 「연달아 가능한 자리 찾기」는 그 아동이 그날 잇달아 받는
   //   다른 수업을 알아야 하므로, 거른 앞의 것을 따로 남겨 둔다
   ALLSESS = SESS.slice();
+  // 치료사는 표 잠금 때문에 자기 회기만 내려온다.
+  //   「연달아 가능한 자리 찾기」는 그 아동이 그날 잇달아 받는
+  //   다른 수업을 알아야 하므로 창구로 따로 받아 둔다.
+  //   (자기가 맡은 아동의 그 달 수업만 나온다. 이름은 안 나온다)
+  if (MY_TH) {
+    try {
+      const { data: pm2 } = await sb.rpc('nl_pair_mates', { p_month: mon });
+      if (pm2 && pm2.length) {
+        const seen = {};
+        ALLSESS.forEach(x => { seen[x.child_id + '|' + x.plan_date + '|'
+          + String(x.start_time).slice(0,5)] = 1; });
+        pm2.forEach(v => {
+          const k = v.child_id + '|' + v.plan_date + '|'
+                  + String(v.start_time).slice(0,5);
+          if (seen[k]) return;
+          ALLSESS.push({ id: 'p' + k, child_id: v.child_id,
+            plan_date: v.plan_date, start_time: v.start_time,
+            therapist_id: v.therapist_id,
+            support_type_id: v.support_type_id, status: '예정' });
+        });
+      }
+    } catch (e) {}
+  }
   if (MY_TH) SESS = SESS.filter(s => s.therapist_id === MY_TH);
 
   // 지난 달 회기도 불러온다 (이월 보강 때문)
