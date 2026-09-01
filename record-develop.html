@@ -638,8 +638,8 @@ function _statusRows() {
   return ITEMS.slice(0, SESSIONS).map((r, i) => {
     const v = vo[i] || {};
     return {
-      // 서비스 제공일자는 늘 비워 둔다 (손으로 적는 칸)
-      provDate: '',
+      // 서비스 제공일자는 치료사가 적은 것만 보여준다 (바우처에서 채우지 않는다)
+      provDate: r.service_date ? String(r.service_date).replace(/-/g,'.') : '',
       // ↓ 이 두 칸만 바우처가 주인이다. 바우처에 값이 없으면 저장된 것을 쓴다
       apprDate: v.apprDate
                 || (r.voucher_date ? String(r.voucher_date).replace(/-/g,'.') : ''),
@@ -1020,6 +1020,20 @@ function buildStatusRows(existing) {
         <div style="font-size:10px;color:#666;margin-top:6px;">특이사항 :</div>
         <textarea class="st_note" style="min-height:40px;">${r.note||''}</textarea>
       </td>`;
+    // 저장해 둔 「이용자 상태」를 다시 켜 준다
+    //   (이것이 없어서 저장은 됐는데 다시 열면 안 보였다)
+    ['cloth','sock','wear','face','health'].forEach(f => {
+      String(r[f] || '').split(',').forEach(v => {
+        const vv = v.trim();
+        if (!vv) return;
+        const el = tr.querySelector('.opt[data-field="' + f + '"][data-val="' + vv + '"]');
+        if (!el) return;
+        el.classList.add('selected');
+        el.style.color = '#c62828';
+        el.style.background = '#ffebee';
+        el.style.fontWeight = 'bold';
+      });
+    });
     tbody.appendChild(tr);
   });
 }
