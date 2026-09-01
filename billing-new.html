@@ -181,6 +181,10 @@
   .pay input.tx { flex:1; min-width:150px; }
   .kidfoot { display:flex; gap:8px; margin-top:20px; }
   .kidfoot .ksave { margin-left:auto; }
+  .pay .ksave2 { margin-left:8px; padding:7px 14px; background:#2e7d32;
+                 color:#fff; border:none; border-radius:6px;
+                 font-size:13px; font-weight:600; cursor:pointer; }
+  .pay .ksave2:disabled { background:#bbb; }
   .kidfoot .knotice { background:#fff; color:#2c5c37; border:1px solid #3c7a4a; }
   .kidfoot .kdeduct { background:#fff; color:#8a6116; border:1px solid #c9922b; }
 
@@ -1525,7 +1529,8 @@ function drawKid(c) {
   b += '<div class="pay">'
     + '<input class="dt pday" type="date" value="' + (cp ? cp.paid_on : '') + '">'
     + '<input class="tx kmemo" type="text" placeholder="카드 승인번호" value="'
-    + esc(cm ? memoOf(cm, false) : '') + '"></div>';
+    + esc(cm ? memoOf(cm, false) : '') + '">'
+    + '<button class="ksave2" type="button" data-only="card">카드 저장</button></div>';
 
   const dev = groups.find(g => g.support_type_id === 2);
   if (dev) {
@@ -1550,7 +1555,8 @@ function drawKid(c) {
          : '<div class="pay">'
            + '<input class="dt bday" type="date" value="' + (ds && ds.paid_on ? ds.paid_on : '') + '">'
            + '<input class="tx bmemo" type="text" placeholder="입금자명" value="'
-           + esc(payerOf(c.id)) + '"></div>')
+           + esc(payerOf(c.id)) + '">'
+           + '<button class="ksave2" type="button" data-only="bank">계좌 저장</button></div>')
       + '</div>';
   }
 
@@ -1881,7 +1887,8 @@ async function saveWeeks(box) {
   return m + '.';
 }
 
-async function saveKid(childId, btn) {
+// only — 'card' 면 카드결제만, 'bank' 면 계좌입금(발달재활)만, 없으면 전부
+async function saveKid(childId, btn, only) {
   const box = document.querySelector('.kid[data-child="' + childId + '"]');
   const parts = JSON.parse(box.dataset.parts || '[]');
   const cEl = box.querySelector('.pday'),  cMemo = box.querySelector('.kmemo');
@@ -1904,7 +1911,8 @@ async function saveKid(childId, btn) {
   //   발추는 금액이 0원이어도 줄을 남긴다.
   //   그래야 고르신 방식이 기억되어 다음 달에 되살아나지 않는다.
   const rows = parts.filter(p =>
-    p.amt > 0 || p.st === 2 || (p.st === 8 && x8mode > 0)
+    (p.amt > 0 || p.st === 2 || (p.st === 8 && x8mode > 0))
+    && (!only || (only === 'bank' ? p.st === 2 : p.st !== 2))
   ).map(p => {
     const isBank = (p.st === 2);
     const day  = isBank ? bankDay  : cardDay;
@@ -1960,7 +1968,8 @@ async function saveKid(childId, btn) {
   const partSt = parts.map(p => Number(p.st));
   const sv0 = SAVED[childId] || {};
   const deadSt = Object.keys(sv0).map(Number).filter(st =>
-    partSt.indexOf(st) >= 0 && keepSt.indexOf(st) < 0);
+    partSt.indexOf(st) >= 0 && keepSt.indexOf(st) < 0
+    && (!only || (only === 'bank' ? st === 2 : st !== 2)));
 
   if (!rows.length && !deadSt.length) {
     show($('msg2'), '저장할 내용이 없습니다.', false); return;
@@ -2148,6 +2157,13 @@ $('kids').addEventListener('click', e => {
 
   if (e.target.classList.contains('ksave')) {
     saveKid(Number(e.target.closest('.kid').dataset.child), e.target);
+    return;
+  }
+
+  // 카드 저장 · 계좌 저장 — 그 쪽만 저장한다
+  if (e.target.classList.contains('ksave2')) {
+    saveKid(Number(e.target.closest('.kid').dataset.child),
+            e.target, e.target.dataset.only);
     return;
   }
 
