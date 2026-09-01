@@ -1128,6 +1128,7 @@ let VIEW = 'day';       // day = 요일별, week = 치료사별 주간
 let mkSess = null;      // 지금 보강 잡는 결석 회기
 let CAN_EDIT = false;   // 수업을 넣고 고칠 수 있는 사람인가 (관리자 8 · 행정 9)
 let MY_TH    = null;    // 치료사로 로그인했으면 그 번호. 자기 칸만 보인다
+let ALLSESS  = [];      // 거르기 전 회기 전부 (연달아 자리 찾기에만 씀)
 let IS_BOSS  = false;   // 대표(8번). 확정 회기를 넘겨 넣을 수 있다
 let PAYCNT   = {};      // 아동|지원유형 -> 납부에서 확정한 회기 수
 let PAYX8    = {};      // 아동 -> 납부에 적힌 발추 담당 치료사 번호
@@ -1952,7 +1953,10 @@ function drawWeek(){
                    + ((CAN_EDIT && !(Number(x.support_type_id) === 2 && !x.run_no))
                      ? '<button class="mkbtn" data-mk="'+x.id+'"'
                      + ' title="'+(mk ? '보강 고치기' : '보강 잡기')+'">＋</button>' : '')
-                   + ((MY_TH && !mk && pairMateOf(x))
+                   + ((MY_TH && !mk && !x.no_makeup
+                       && !(Number(x.support_type_id) === 2 && !x.run_no)
+                       && !hasSplitTag(x)
+                       && pairMateOf(x))
                      ? '<button class="findbtn" data-find="'+x.id+'"'
                        + ' title="연달아 가능한 자리 찾기">🔍</button>' : ''))
                 : '<span class="st">'+stWord(x)+'</span>';
@@ -4692,7 +4696,8 @@ async function findPairOnly(sid) {
 // 이 아동이 그 날 같은 시각에 붙어 있는 다른 수업이 있는가
 function pairMateOf(s) {
   if (!s || !s.child_id) return null;
-  const mine = SESS.filter(x => x.child_id === s.child_id
+  const pool = (ALLSESS && ALLSESS.length) ? ALLSESS : SESS;
+  const mine = pool.filter(x => x.child_id === s.child_id
                     && x.plan_date === s.plan_date
                     && x.id !== s.id
                     && !isSplitRun(x)
@@ -4734,8 +4739,9 @@ async function pairFreeSlots(thA, thB, childId, baseDate) {
   const A = put(fa.data), B = put(fb.data);
 
   // 이 아동이 이미 수업을 받는 자리는 뺀다 (그 시간엔 못 온다)
+  //   치료사 화면은 자기 회기만 보이므로 거르기 전 것을 본다
   const busyKid = {};
-  SESS.forEach(x => {
+  ((ALLSESS && ALLSESS.length) ? ALLSESS : SESS).forEach(x => {
     if (x.child_id !== childId) return;
     if (x.status === '쉼') return;
     const d = String(x.plan_date);
@@ -4970,6 +4976,10 @@ async function loadMonth(){
     .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
     .eq('month_key', mon);
   SESS = error ? [] : (data || []);
+  // 치료사 화면은 자기 회기만 보여준다.
+  //   다만 「연달아 가능한 자리 찾기」는 그 아동이 그날 잇달아 받는
+  //   다른 수업을 알아야 하므로, 거른 앞의 것을 따로 남겨 둔다
+  ALLSESS = SESS.slice();
   if (MY_TH) SESS = SESS.filter(s => s.therapist_id === MY_TH);
 
   // 지난 달 회기도 불러온다 (이월 보강 때문)
