@@ -182,10 +182,15 @@
   .pay input.tx { flex:1; min-width:150px; }
   .kidfoot { display:flex; gap:8px; margin-top:20px; }
   .kidfoot .ksave { margin-left:auto; }
-  .pay .ksave2 { margin-left:8px; padding:7px 14px; background:#2e7d32;
-                 color:#fff; border:none; border-radius:6px;
-                 font-size:13px; font-weight:600; cursor:pointer; }
-  .pay .ksave2:disabled { background:#bbb; }
+  /* 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) */
+  .pay .ksave2 { margin-left:8px; padding:7px 14px;
+                 background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3;
+                 border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; }
+  .pay .ksave2.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  .pay .ksave2:disabled { background:#bbb; color:#fff; border-color:#bbb; }
+  .kidfoot .ksave { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
+  .kidfoot .ksave.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  .kidfoot .ksave:disabled { background:#bbb; color:#fff; border-color:#bbb; }
   .kidfoot .knotice { background:#fff; color:#2c5c37; border:1px solid #3c7a4a; }
   .kidfoot .kdeduct { background:#fff; color:#8a6116; border:1px solid #c9922b; }
 
@@ -1540,7 +1545,8 @@ function drawKid(c) {
     + '<input class="dt pday" type="date" value="' + (cp ? cp.paid_on : '') + '">'
     + '<input class="tx kmemo" type="text" placeholder="카드 승인번호" value="'
     + esc(cm ? memoOf(cm, false) : '') + '">'
-    + '<button class="ksave2" type="button" data-only="card">카드 저장</button></div>';
+    + '<button class="ksave2" type="button" data-only="card"'
+    + ' data-ttl="카드 저장 전">카드 저장 전</button></div>';
 
   const dev = groups.find(g => g.support_type_id === 2);
   if (dev) {
@@ -1566,14 +1572,15 @@ function drawKid(c) {
            + '<input class="dt bday" type="date" value="' + (ds && ds.paid_on ? ds.paid_on : '') + '">'
            + '<input class="tx bmemo" type="text" placeholder="입금자명" value="'
            + esc(payerOf(c.id)) + '">'
-           + '<button class="ksave2" type="button" data-only="bank">계좌 저장</button></div>')
+           + '<button class="ksave2" type="button" data-only="bank"'
+           + ' data-ttl="계좌 저장 전">계좌 저장 전</button></div>')
       + '</div>';
   }
 
   b += '<div class="kidfoot">'
     + '<button class="knotice" type="button">\uD83D\uDCCB 납부내역 안내</button>'
     + '<button class="kdeduct" type="button">\uD83D\uDCC4 소득공제</button>'
-    + '<button class="ksave" type="button">저장</button></div>';
+    + '<button class="ksave" type="button" data-ttl="저장 전">저장 전</button></div>';
 
   return '<div class="kid" data-child="' + c.id + '">' + head + b + '</div>';
 }
@@ -2017,6 +2024,7 @@ async function saveKid(childId, btn, only) {
   }
 
   btn.disabled = true; btn.textContent = '저장 중...';
+  btn.classList.remove('done');
   try {
     if (rows.length) {
       const { error } = await sb.from('nl_payments')
@@ -2041,11 +2049,14 @@ async function saveKid(childId, btn, only) {
       + (unpaid ? ' (그중 ' + unpaid + '건은 날짜가 없어 미납으로 저장)' : '')
       + wkMsg + evMsg, true);
     delete TYPED[String(childId)];
-    btn.textContent = '저장됨';
-    setTimeout(() => { btn.textContent = '저장'; btn.disabled = false; }, 1200);
+    btn.textContent = '\u2713 저장됨';
+    btn.classList.add('done');
+    btn.disabled = false;
   } catch (e) {
     show($('msg2'), '❌ 저장하지 못했습니다.\n' + e.message, false);
-    btn.disabled = false; btn.textContent = '저장';
+    btn.disabled = false;
+    btn.textContent = btn.dataset.ttl || '저장 전';
+    btn.classList.remove('done');
   }
 }
 
@@ -2263,6 +2274,19 @@ $('kids').addEventListener('click', e => {
     return;
   }
 });
+// 칸을 고치면 그 아동의 저장 단추가 다시 「저장 전」으로 돌아간다
+function unDone(el){
+  const kid = el.closest ? el.closest('.kid') : null;
+  if (!kid) return;
+  kid.querySelectorAll('.ksave, .ksave2').forEach(b => {
+    if (!b.classList.contains('done')) return;
+    b.classList.remove('done');
+    b.textContent = b.dataset.ttl || '저장 전';
+  });
+}
+$('kids').addEventListener('input',  e => unDone(e.target));
+$('kids').addEventListener('change', e => unDone(e.target));
+
 $('q').addEventListener('input', () => { if (LOADED_MK) drawAll(); });
 
 // 전체 / 미납만 / 완납만 단추
