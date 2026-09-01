@@ -65,12 +65,16 @@
   .ptab th { background:#f4f7f2; }
   .foot { font-size:12.5px; margin-top:10px; line-height:1.8; }
   .center { text-align:center; font-size:15px; font-weight:700; margin-top:16px; }
+  .logo { text-align:center; margin-top:16px; }
+  .logo img { height:44px; vertical-align:middle; }
+  .logo span { font-size:15px; font-weight:700; margin-left:8px;
+               vertical-align:middle; }
 
   .rowline { display:grid; grid-template-columns:1fr 160px 40px; gap:8px;
              align-items:center; margin-bottom:6px; }
   .del { background:#fff; color:#b71c1c; border:1px solid #e5c5c5; border-radius:6px;
          padding:8px 0; cursor:pointer; font-size:13px; }
-  .listrow { display:grid; grid-template-columns:80px 1.1fr 1.4fr 100px 120px 62px;
+  .listrow { display:grid; grid-template-columns:76px 1fr 1.3fr 92px 112px 104px;
              gap:6px; align-items:center; padding:7px 6px; border-bottom:1px solid #eee;
              font-size:13px; }
   .listrow .det { color:#666; font-size:12px; }
@@ -82,6 +86,7 @@
     body { background:#fff; padding:0; }
     .wide { box-shadow:none; padding:0; margin:0; max-width:none; }
     .paper { page-break-after:always; }
+    .onehide { display:none !important; }
   }
 </style>
 </head>
@@ -153,6 +158,7 @@ let CODES = [];      // 관·항·목
 let SLIPS = [];      // 그 해 결의서 전부
 let ROWS  = {};      // 결의서 번호 -> 줄 목록
 let OPEN  = 0;       // 그 해 첫 이월액
+let PAPER_IDS = [];  // 인쇄 종이가 그려진 차례 (결의서 번호)
 let FAVS = [];       // 자주 쓰는 적요
 // 보던 갈래·연도·월을 기억해 둔다 (새로고침해도 그 자리로 돌아온다)
 function memGet(k, dflt){
@@ -170,6 +176,18 @@ let EDIT = null;     // 지금 고치고 있는 결의서
 function esc(s){ return String(s == null ? '' : s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function won(n){ return Number(n || 0).toLocaleString('ko-KR'); }
+// 금액 칸 — 치는 대로 쉼표가 붙게 한다
+function numOf(v){ return Number(String(v || '').replace(/[^0-9]/g, '')) || 0; }
+function bindAmt(el){
+  if (!el) return;
+  el.addEventListener('input', () => {
+    const n = numOf(el.value);
+    el.value = n ? n.toLocaleString('ko-KR') : '';
+  });
+}
+function bindAllAmt(){
+  document.querySelectorAll('.r_amt').forEach(bindAmt);
+}
 function show(t, ok){ $('msg').textContent = t; $('msg').className = 'out ' + (ok?'ok':'err'); }
 function tmsg(t, ok){ $('tmsg').textContent = t; $('tmsg').className = 'out ' + (ok?'ok':'err'); }
 function mk(){ return YY + '-' + MM; }
@@ -316,8 +334,11 @@ function drawSlip(kind){
         + '<span class="det">' + esc(rowsText(s.id)) + '</span>'
         + '<span>' + esc(c ? c.mok : '') + '</span>'
         + '<span class="num">' + won(s.amount) + '</span>'
-        + '<span><button class="ghost pick" data-id="' + s.id + '"'
-        + ' style="padding:5px 8px;font-size:12px;">열기</button></span>'
+        + '<span style="display:flex;gap:4px;">'
+        + '<button class="ghost pick" data-id="' + s.id + '"'
+        + ' style="padding:5px 8px;font-size:12px;">열기</button>'
+        + '<button class="ghost one" data-one="' + s.id + '"'
+        + ' style="padding:5px 8px;font-size:12px;">인쇄</button></span>'
         + '</div>';
     });
   }
@@ -348,6 +369,7 @@ function drawSlip(kind){
     + '</div></div></div>';
 
   // 인쇄 종이
+  PAPER_IDS = list.map(s => s.id);
   h += '<div id="papers">' + list.map(s => paperHtml(s, kind)).join('') + '</div>';
 
   $('pane').innerHTML = h;
@@ -404,7 +426,8 @@ function paperHtml(s, kind){
     + '<td style="width:220px;">첨부 : ' + esc(s.attach || '') + '</td>'
     + '<td class="ctr">계좌번호 : ' + esc(ACCOUNT) + '</td></tr>'
     + '</table>'
-    + '<div class="center" style="margin-top:20px;">자라는나무</div>'
+    + '<div class="logo" style="margin-top:20px;">'
+    + '<img src="img/nl-logo.png" alt=""></div>'
     + '</div>';
 }
 
@@ -414,12 +437,14 @@ function drawRows(list){
     .map((r, i) =>
       '<div class="rowline">'
       + '<input class="r_item" value="' + esc(r.item || '') + '" placeholder="예: 기본 급여">'
-      + '<input class="r_amt" type="number" value="' + (r.amount || '') + '" placeholder="금액">'
+      + '<input class="r_amt" type="text" inputmode="numeric" value="'
+      + (r.amount ? Number(r.amount).toLocaleString('ko-KR') : '') + '" placeholder="금액">'
       + '<button class="del" data-i="' + i + '">✕</button>'
       + '</div>').join('');
   $('f_rows').querySelectorAll('.del').forEach(el => {
     el.onclick = () => { el.parentNode.remove(); };
   });
+  bindAllAmt();
 }
 
 // 쓰기 창을 열고 값을 채운다
@@ -504,6 +529,25 @@ function bindSlip(kind){
     });
   };
 
+  // 「인쇄」 — 그 결의서 한 장만 인쇄한다
+  document.querySelectorAll('.one').forEach(el => {
+    el.onclick = () => {
+      const id = String(el.dataset.one);
+      const box = $('papers');
+      if (!box) return;
+      const kids = Array.from(box.children);
+      kids.forEach((c, i) => {
+        c.dataset.hide = (String(PAPER_IDS[i]) === id) ? '' : '1';
+        if (c.dataset.hide) c.classList.add('onehide');
+        else c.classList.remove('onehide');
+      });
+      window.print();
+      setTimeout(() => {
+        kids.forEach(c => c.classList.remove('onehide'));
+      }, 500);
+    };
+  });
+
   $('newSlip').onclick = () => {
     EDIT = null;
     $('form').style.display = 'block';
@@ -535,9 +579,10 @@ function bindSlip(kind){
     const div = document.createElement('div');
     div.className = 'rowline';
     div.innerHTML = '<input class="r_item" placeholder="예: 수당">'
-      + '<input class="r_amt" type="number" placeholder="금액">'
+      + '<input class="r_amt" type="text" inputmode="numeric" placeholder="금액">'
       + '<button class="del">✕</button>';
     div.querySelector('.del').onclick = () => div.remove();
+    bindAmt(div.querySelector('.r_amt'));
     $('f_rows').appendChild(div);
   };
   $('closeSlip').onclick = () => { $('form').style.display = 'none'; EDIT = null; };
@@ -546,7 +591,7 @@ function bindSlip(kind){
     const items = Array.from($('f_rows').querySelectorAll('.rowline')).map((el, i) => ({
       row_no: i + 1,
       item: el.querySelector('.r_item').value.trim(),
-      amount: Number(el.querySelector('.r_amt').value) || 0
+      amount: numOf(el.querySelector('.r_amt').value)
     })).filter(r => r.item || r.amount);
     if (!items.length) { tmsg('내역을 한 줄 이상 적어 주세요.', false); return; }
     const total = items.reduce((a, b) => a + b.amount, 0);
@@ -665,6 +710,7 @@ function drawCash(){
     + '<td class="num">' + won(bal) + '</td></tr>'
     + '</table>'
     + '<div class="foot">계좌번호 : ' + esc(ACCOUNT) + '</div>'
+    + '<div class="logo"><img src="img/nl-logo.png" alt=""></div>'
     + '</div>';
 
   if (!list.length) {
@@ -742,7 +788,8 @@ function drawStat(){
     + '<tr class="sum"><td class="ctr" colspan="5">잔　액</td>'
     + '<td class="num">' + won(left) + '</td></tr>'
     + '</table>'
-    + '<div class="center" style="margin-top:18px;">자라는나무</div>'
+    + '<div class="logo" style="margin-top:18px;">'
+    + '<img src="img/nl-logo.png" alt=""></div>'
     + '</div>';
 
   $('pane').innerHTML = h;
