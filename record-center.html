@@ -235,6 +235,16 @@ function _blockScreen(role) {
 }
 
 // ── 로그인 ──
+// 끝난 수업도 두 달까지는 목록에 남긴다 (치료사가 기록지를 쓸 시간을 준다)
+//   보기: 8월 말 종결 → 10월까지 보임
+function _keepMk(mk) {
+  const y = Number(String(mk).slice(0,4));
+  const m = Number(String(mk).slice(5,7)) - 2;
+  const y2 = y + Math.floor((m - 1) / 12);
+  const m2 = ((m - 1) % 12 + 12) % 12 + 1;
+  return y2 + '-' + String(m2).padStart(2,'0');
+}
+
 async function afterLogin(user) {
   const { data: me, error: e1 } = await sb
     .from('nl_therapists').select('id, name, role')
@@ -257,13 +267,15 @@ async function afterLogin(user) {
   const _mk0 = mkNow();
 
   // 기록지는 한 달에 아동당 한 장이다. 요일이 여럿이어도 한 줄로 모은다.
+  const _keep0 = _keepMk(_mk0);
   const byKid = {};
   (tp.data || []).forEach(r => {
     const c = r.nl_children;
-    if (!c || c.status === '종결') return;
-    if (r.ended_on && String(r.ended_on).slice(0,7) < _mk0) return;   // 끝난 수업
+    if (!c) return;
+    // 끝난 수업도 두 달까지는 남긴다 (기록지를 쓸 시간을 준다)
+    if (r.ended_on && String(r.ended_on).slice(0,7) < _keep0) return;
     const sc = (r.nl_therapy_schedules || [])
-      .filter(s => !s.to_month || s.to_month >= _mk0);
+      .filter(s => !s.to_month || s.to_month >= _keep0);
     if (!sc.length) return;
     // 치료사면 자기가 담당인 수업이 하나라도 있어야 한다
     if (mineOnly && !sc.some(x => String(x.therapist_id) === String(me.id))) return;

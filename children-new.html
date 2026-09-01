@@ -41,6 +41,11 @@
   td { padding:10px 8px; border-bottom:1px solid #eee; }
   tr:hover td { background:#fafdf7; }
   .badge { display:inline-block; padding:2px 9px; border-radius:11px; font-size:12px; }
+  /* 회기방식 — 매주가 아닌 것만 붙는다 */
+  .cmcell { white-space:nowrap; }
+  .cmtag { display:inline-block; padding:2px 8px; border-radius:10px;
+           font-size:12px; background:#e8f0e2; color:#2f5620;
+           border:1px solid #c6d9b8; }
   .b-ing  { background:#e8f5e9; color:#1b5e20; }
   .b-end  { background:#eceff1; color:#546e7a; }
   .b-wait { background:#fff8e1; color:#e65100; }
@@ -337,6 +342,7 @@
         <th>생년월일</th>
         <th>나이</th>
         <th>성별</th>
+        <th>회기방식</th>
         <th>상태</th>
         <th>메모</th>
         <th></th>
@@ -433,6 +439,7 @@ function draw() {
       + '<td>' + esc(c.birth) + '</td>'
       + '<td>' + age(c.birth) + '</td>'
       + '<td>' + esc(c.gender) + '</td>'
+      + '<td class="cmcell">' + cmodeTxt(c.id) + '</td>'
       + '<td>' + badge(c.status) + '</td>'
       + '<td>' + esc(String(c.memo == null ? '' : c.memo).slice(0, 30)) + flag + tel + '</td>'
       + '<td class="edmark">' + (CAN_EDIT ? '고치기' : '') + '</td>'
@@ -442,6 +449,15 @@ function draw() {
   document.querySelectorAll('tr[data-ed]').forEach(tr => {
     tr.onclick = () => openEdit(Number(tr.dataset.ed));
   });
+}
+
+let CMODE = {};   // 아동 번호 -> 회기방식 목록 (매주 뺀 것)
+function cmodeTxt(cid){
+  const a = CMODE[cid];
+  if (!a || !a.length) return '';
+  return a.map(function (m) {
+    return '<span class="cmtag">' + esc(m) + '</span>';
+  }).join(' ');
 }
 
 async function afterLogin(user) {
@@ -480,6 +496,22 @@ async function afterLogin(user) {
       TAKEN[r.weekday + '|' + String(r.start_time).slice(0,5) + '|' + r.therapist_id] = true;
     });
   } catch (e) { THS = []; TAKEN = {}; }
+
+  // 아동별 회기방식 — 「매주」가 아닌 것만 모은다
+  try {
+    const { data: tp } = await sb.from('nl_therapies')
+      .select('child_id, count_mode, ended_on');
+    CMODE = {};
+    (tp || []).forEach(function (r) {
+      if (r.ended_on) return;                       // 끝난 수업은 뺀다
+      const m = String(r.count_mode || '').trim();
+      // 「매주」와 「발추대체」는 안 적는다 (발추대체는 세부 표기라 목록에서는 뺌)
+      if (!m || m === '매주' || m === '발추대체') return;
+      const k = r.child_id;
+      CMODE[k] = CMODE[k] || [];
+      if (CMODE[k].indexOf(m) < 0) CMODE[k].push(m);
+    });
+  } catch (e) { CMODE = {}; }
 
   // 3) 권한 정하기 — 8번 관리자, 9번 행정만 고치기·등록·연락처 보기
   CAN_EDIT = [8, 9].includes(Number(me.id)) || /관리자|행정/.test(me.role || '');

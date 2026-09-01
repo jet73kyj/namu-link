@@ -410,8 +410,19 @@ async function afterLogin(user) {
 
 // 고른 달에 발달재활 수업이 있던 아동을 모은다
 //   종결 아동도 그 달에 수업이 있었으면 넣는다 (지난 달 기록지를 써야 하므로)
+// 끝난 수업도 두 달까지는 목록에 남긴다 (치료사가 기록지를 쓸 시간을 준다)
+//   보기: 8월 말 종결 → 10월까지 보임
+function _keepMk(mk) {
+  const y = Number(String(mk).slice(0,4));
+  const m = Number(String(mk).slice(5,7)) - 2;
+  const y2 = y + Math.floor((m - 1) / 12);
+  const m2 = ((m - 1) % 12 + 12) % 12 + 1;
+  return y2 + '-' + String(m2).padStart(2,'0');
+}
+
 function buildChildList() {
-  const mk0 = ($('pMonth') && $('pMonth').value) ? $('pMonth').value : mkNow();
+  const mv  = ($('pMonth') && $('pMonth').value) ? $('pMonth').value : mkNow();
+  const mk0 = _keepMk(mv);
   const seen = {};
   CHILDREN = [];
   const allView = _isAllView(ME.role);
