@@ -638,8 +638,8 @@ function _statusRows() {
   return ITEMS.slice(0, SESSIONS).map((r, i) => {
     const v = vo[i] || {};
     return {
-      // 서비스 제공일자는 치료사가 적은 것만 보여준다 (바우처에서 채우지 않는다)
-      provDate: r.service_date ? String(r.service_date).replace(/-/g,'.') : '',
+      // 서비스 제공일자는 늘 비워 둔다 (손으로 적는 칸)
+      provDate: '',
       // ↓ 이 두 칸만 바우처가 주인이다. 바우처에 값이 없으면 저장된 것을 쓴다
       apprDate: v.apprDate
                 || (r.voucher_date ? String(r.voucher_date).replace(/-/g,'.') : ''),
