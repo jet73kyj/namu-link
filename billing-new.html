@@ -1379,7 +1379,9 @@ function drawKid(c) {
         const cnt = (savedCnt && savedCnt[i] != null && !isNaN(savedCnt[i]))
                     ? savedCnt[i] : it.count;
         const ap = (apList && apList[i] > 0) ? apList[i] : '';
-        b += '<div class="r line' + (ap ? ' hasap' : '') + '" data-st="' + g.support_type_id + '">'
+        b += '<div class="r line' + (ap ? ' hasap' : '') + '" data-st="' + g.support_type_id + '"'
+          + ' data-sched="' + (it.sched_id || '') + '"'
+          + ' data-five="' + (/5주차/.test(it.label) ? '1' : '0') + '">'
           + '<span class="nm">' + (i === 0 ? esc(tn) + sd : '') + '</span>'
           + '<span class="de">' + esc(it.label)
           + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
@@ -2142,15 +2144,27 @@ $('kids').addEventListener('click', e => {
     b.classList.toggle('no', on);
 
     // 회기 칸을 켜진 주차 수에 맞춘다 (5주차가 있으면 더한다)
+    //   같은 요일줄의 줄이 둘로 나뉜 아동(발4+센1 등)은
+    //   「5주차」 줄은 늘 1회이고, 본래 줄만 켜진 주차 수를 따른다
     let line = box.previousElementSibling;
     while (line && line.classList.contains('tmemo')) line = line.previousElementSibling;
-    const cEl  = line ? line.querySelector('.cnt') : null;
-    if (cEl) {
-      const five = box.querySelector('.wkb.dim') ? 1 : 0;
-      cEl.value = wkCountOf(box) + five;
-      calcKid(Number(kid.dataset.child));
-      sumAll();
+    const sid  = line ? line.dataset.sched : '';
+    const five = box.querySelector('.wkb.dim') ? 1 : 0;
+    const wk   = wkCountOf(box);
+    let done = false;
+    if (sid) {
+      kid.querySelectorAll('.r.line[data-sched="' + sid + '"]').forEach(ln => {
+        const c = ln.querySelector('.cnt'); if (!c) return;
+        c.value = (ln.dataset.five === '1') ? five : wk;
+        done = true;
+      });
     }
+    if (!done) {
+      const cEl = line ? line.querySelector('.cnt') : null;
+      if (cEl) cEl.value = wk + five;
+    }
+    calcKid(Number(kid.dataset.child));
+    sumAll();
     return;
   }
 });
