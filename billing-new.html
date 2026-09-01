@@ -1432,7 +1432,7 @@ function drawKid(c) {
         b += '<div class="r line' + (ap ? ' hasap' : '') + '" data-st="' + g.support_type_id + '"'
           + ' data-sched="' + (it.sched_id || '') + '"'
           + ' data-five="' + (/5주차/.test(it.label) ? '1' : '0') + '">'
-          + '<span class="nm">' + (i === 0 ? esc(tn) + sd : '') + '</span>'
+          + '<span class="nm">' + (i === 0 ? sd : '') + '</span>'
           + '<span class="de">' + tagOf(it) + esc(it.label)
           + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
           + '<span class="ap"><input class="apu" type="text" inputmode="numeric" placeholder="적용단가" value="'
