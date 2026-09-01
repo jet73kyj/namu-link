@@ -103,7 +103,7 @@
 
 <div class="picker no-print">
   <select id="pChild" style="min-width:220px;"></select>
-  <input id="pMonth" type="month">
+  <input id="pMonth" type="month" onchange="buildChildList();drawChildSelect();">
   <button id="pLoad">불러오기</button>
   <span id="pInfo"></span>
 </div>
@@ -302,6 +302,7 @@ const AREA_MAP = { 1:'언어재활', 2:'감각발달재활', 3:'감각통합',
 let ME = null, CHILDREN = [], THERAPISTS = {};
 let child = null, therapy = null, SCHED = [], GRADE = null;
 let VOUCHER = [], LOGID = null, ITEMS = [];
+let CH_RAW = [];   // 발달재활 수업 원본 (달을 바꿀 때 목록을 다시 만든다)
 let ABS = {};              // 날짜 -> {absent, reason, makeupDate, makeupTime, makeupMemo}
 let year = new Date().getFullYear();
 let month = new Date().getMonth() + 1;
@@ -398,39 +399,47 @@ async function afterLogin(user) {
   ]);
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
 
-  // 이 달 기준으로 아직 살아 있는 수업만 본다
-  const _mk0 = mkNow();
-  const _live = (r) => {
-    if (r.ended_on && String(r.ended_on).slice(0,7) < _mk0) return false;
-    const sc = (r.nl_therapy_schedules || [])
-      .filter(s => !s.to_month || s.to_month >= _mk0);
-    return sc.length > 0 ? sc : false;
-  };
+  CH_RAW = ch.data || [];
+  buildChildList();
 
+  $('pMonth').value = mkNow();
+  drawChildSelect();
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
+
+// 고른 달에 발달재활 수업이 있던 아동을 모은다
+//   종결 아동도 그 달에 수업이 있었으면 넣는다 (지난 달 기록지를 써야 하므로)
+function buildChildList() {
+  const mk0 = ($('pMonth') && $('pMonth').value) ? $('pMonth').value : mkNow();
   const seen = {};
-  const allView = _isAllView(me.role);
-  (ch.data || []).forEach(r => {
+  CHILDREN = [];
+  const allView = _isAllView(ME.role);
+  CH_RAW.forEach(r => {
     const c = r.nl_children;
     if (!c || seen[c.id]) return;
-    if (c.status === '종결') return;
-    const sc = _live(r);
-    if (!sc) return;                          // 끝난 수업은 뺀다
+    // 그 달에 아직 끝나지 않은 수업인가
+    if (r.ended_on && String(r.ended_on).slice(0,7) < mk0) return;
+    const sc = (r.nl_therapy_schedules || [])
+      .filter(s => !s.to_month || s.to_month >= mk0);
+    if (!sc.length) return;
     // 치료사는 「이 발달재활 수업」의 담당인 아동만 본다
-    //   (다른 지원유형만 담당인데 이 화면에 나오던 것을 막는다)
-    if (!allView && !sc.some(s => String(s.therapist_id) === String(me.id))) return;
+    if (!allView && !sc.some(s => String(s.therapist_id) === String(ME.id))) return;
     seen[c.id] = true;
     CHILDREN.push(c);
   });
   CHILDREN.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+}
 
+function drawChildSelect() {
+  const keep = $('pChild').value;
   $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
     + CHILDREN.map(c => '<option value="' + c.id + '">' + esc(c.name)
-        + ' · ' + fmtBirth(c.birth) + '</option>').join('');
-  $('pMonth').value = mkNow();
-  $('who').textContent = me.name + ' (' + me.role + ') 님 · 발달재활 ' + CHILDREN.length + '명'
-    + (_isAllView(me.role) ? '' : ' (담당)');
-  $('loginBox').style.display = 'none';
-  $('mainBox').style.display  = 'block';
+        + ' · ' + fmtBirth(c.birth)
+        + (c.status === '종결' ? ' (종결)' : '') + '</option>').join('');
+  if (keep && CHILDREN.some(c => String(c.id) === String(keep))) $('pChild').value = keep;
+  $('who').textContent = ME.name + ' (' + ME.role + ') 님 · 발달재활 ' + CHILDREN.length + '명'
+    + (_isAllView(ME.role) ? '' : ' (담당)');
 }
 
 // ─────────────────────────────────────────────
