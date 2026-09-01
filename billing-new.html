@@ -101,6 +101,13 @@
                             background:#fff; font-weight:600; }
   .oldup { text-decoration:line-through; color:#c0c5bc; }
   .aptag { font-size:11px; color:#a9701c; font-weight:600; margin-left:5px; }
+  /* 줄 앞 딱지 — 어느 사업으로 청구되는지, 회기방식이 무엇인지 */
+  .sttag { display:inline-block; font-size:11px; font-weight:600;
+           padding:1px 7px; border-radius:10px; margin-right:6px;
+           background:#eef3ec; color:#3f6b47; white-space:nowrap; }
+  .sttag.dev  { background:#e8f3ea; color:#2e7d32; }
+  .sttag.ctr  { background:#eef2f8; color:#3a5a86; }
+  .sttag.five { background:#fdf3e3; color:#a9701c; }
   .r select.evsel { padding:4px 6px; font-size:12.5px; border-radius:6px;
                     border:1px solid var(--line); max-width:190px; }
   .r select.xmode { padding:4px 6px; font-size:12.5px; border-radius:6px;
@@ -964,6 +971,7 @@ async function load() {
           start_time: s.start_time,
           therapist_id: s.therapist_id,
           duration: s.duration || 40,
+          count_mode: String(t.count_mode || '').trim(),
           wk: [s.week1 !== false, s.week2 !== false,
                s.week3 !== false, s.week4 !== false],
           tmemo: t.memo || ''
@@ -1015,6 +1023,20 @@ async function load() {
   }
 }
 
+// 줄 앞 딱지 — 「사업 · 회기방식」
+function tagOf(it){
+  const st = it.row_st || it.base_st;
+  const nm = TYPES[st] || '';
+  const md = it.mode || '';
+  const txt = nm + (md ? ' · ' + md : '');
+  if (!txt.trim()) return '';
+  let cls = 'sttag';
+  if (String(it.label).indexOf('5주차') >= 0) cls += ' five';
+  else if (Number(st) === 2) cls += ' dev';
+  else if (Number(st) === 1) cls += ' ctr';
+  return '<span class="' + cls + '">' + esc(txt) + '</span>';
+}
+
 // 한 아동의 계산 줄들을 만든다
 function buildRows(childId, mk) {
   const list = SCHED[childId] || [];
@@ -1034,6 +1056,8 @@ function buildRows(childId, mk) {
       therapist_id: s.therapist_id,
       unit: unit,
       sched_id: s.sched_id,
+      mode: s.count_mode || '',
+      base_st: s.support_type_id,
       wk: s.wk || [true,true,true,true],
       tmemo: s.tmemo || '',
       weekday: s.weekday,
@@ -1044,13 +1068,14 @@ function buildRows(childId, mk) {
     if (cnt && Object.keys(cnt).length) {
       Object.keys(cnt).forEach(sp => {
         const stid = Number(sp) || s.support_type_id;
-        const row = Object.assign({}, base, { count: cnt[sp] });
+        const row = Object.assign({}, base, { count: cnt[sp], row_st: stid });
         if (stid !== s.support_type_id) row.label += ' · 5주차';
         (groups[stid] = groups[stid] || []).push(row);
       });
     } else {
       (groups[s.support_type_id] = groups[s.support_type_id] || []).push(
-        Object.assign({}, base, { count: countWeekday(mk, s.weekday) }));
+        Object.assign({}, base, { count: countWeekday(mk, s.weekday),
+                                  row_st: s.support_type_id }));
     }
   });
 
@@ -1383,7 +1408,7 @@ function drawKid(c) {
           + ' data-sched="' + (it.sched_id || '') + '"'
           + ' data-five="' + (/5주차/.test(it.label) ? '1' : '0') + '">'
           + '<span class="nm">' + (i === 0 ? esc(tn) + sd : '') + '</span>'
-          + '<span class="de">' + esc(it.label)
+          + '<span class="de">' + tagOf(it) + esc(it.label)
           + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
           + '<span class="ap"><input class="apu" type="text" inputmode="numeric" placeholder="적용단가" value="'
           + (ap ? ap.toLocaleString() : '') + '"></span>'
