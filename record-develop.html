@@ -173,7 +173,7 @@
       </tr>
       <tr>
         <td class="lbl">담당</td><td><input type="text" id="s1_svcCharge"></td>
-        <td class="lbl">서비스 종류</td><td><input type="text" id="s1_svcType" value="감각발달재활"></td>
+        <td class="lbl">서비스 종류</td><td><input type="text" id="s1_svcType" value="감각발달재활" oninput="syncCalSvc()"></td>
       </tr>
       <tr>
         <td class="lbl">주기</td><td><input type="text" id="s1_svcCycle" value="매주 목"></td>
@@ -584,9 +584,12 @@ function _getScheduleDows() {
 }
 // 제공영역
 function _getServiceType() {
-  const cur = $('s1_svcType') ? $('s1_svcType').value : '';
+  // 일정표의 「서비스 종류」 칸에 적힌 것을 먼저 쓴다.
+  // (손으로 고치면 달력에도 그대로 따라가야 하기 때문)
+  const cur = $('s1_svcType') ? String($('s1_svcType').value || '').trim() : '';
+  if (cur) return cur;
   if (LOADED && therapy && AREA_MAP[therapy.therapy_type_id]) return AREA_MAP[therapy.therapy_type_id];
-  return cur || '감각발달재활';
+  return '감각발달재활';
 }
 // 4:00~4:50
 function _getTimeSlotForEvt() {
@@ -793,6 +796,15 @@ const _holidayFor = (y, m, d) => (HOLIDAYS[y] || {})[`${m}-${d}`] || '';
 
 
 // 달력 생성 (해당 월) — 공휴일 표기 + 주기 기반 서비스 자동 표기 (월 4회)
+// 「서비스 종류」 칸을 고치면 달력의 수업 이름도 함께 바꾼다
+//   달력 칸에 손으로 적어 두신 글은 건드리지 않는다
+function syncCalSvc() {
+  const nm = _getServiceType();
+  document.querySelectorAll('#calTbl .evt .evt-svc').forEach(el => {
+    el.textContent = nm;
+  });
+}
+
 function buildCalendar() {
   const first = new Date(year, month-1, 1);
   const lastDay = new Date(year, month, 0).getDate();
