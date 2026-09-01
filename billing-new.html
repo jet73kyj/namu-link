@@ -161,7 +161,8 @@
     border:1px solid #c9a97a; border-radius:5px; background:#fff5e6; color:#7a5c2a; }
   .shortact .nmbtn:hover { background:#f3e4cc; }
   .shortdone { font-size:11.5px; color:#2e7d32; margin:4px 0 0; }
-  .kfix { font-size:11px; font-weight:bold; padding:2px 8px; border-radius:10px;
+  .kfix { cursor:pointer; font-family:inherit;
+          font-size:11px; font-weight:bold; padding:2px 8px; border-radius:10px;
     margin-left:6px; white-space:nowrap; }
   .kfix.no  { background:#eceff1; color:#78838c; border:1px solid #d5dde2; }
   .kfix.yes { background:#e3f3e6; color:#2e7d32; border:1px solid #a9d6b3; }
@@ -996,6 +997,14 @@ async function load() {
       (SAVED[p.child_id] = SAVED[p.child_id] || {})[p.support_type_id] = p;
     });
 
+    // 확정 표 — 「예정」 단추를 눌러 확정으로 바꾼 아동
+    FIXED = {};
+    try {
+      const { data: fxs } = await sb.from('nl_pay_fix')
+        .select('child_id, fixed').eq('month_key', mk);
+      (fxs || []).forEach(x => { if (x.fixed) FIXED[x.child_id] = true; });
+    } catch (e) {}
+
     // 지난달 기록 — 적용단가와 발추 방식만 이어받는다. 승인번호는 이어받지 않는다.
     PREV = {};
     (pv.data || []).forEach(p => {
@@ -1175,11 +1184,11 @@ function isUnpaid(childId) {
   return keys.some(k => !sv[k].paid_on);          // 하나라도 날짜 없음
 }
 
-// 확정 — 이 달 납부를 저장한 적이 있는 아동
-//   저장 줄이 하나라도 있으면 확정. 고쳐서 다시 저장해도 확정 그대로다.
+// 확정 — 학부모와 이야기를 마치고 「예정」 단추를 눌러 확정으로 바꾼 아동
+//   nl_pay_fix 표에 담긴다. 눌러서 예정 <-> 확정을 오갈 수 있다.
+let FIXED = {};   // 아동번호 -> true
 function isFixed(childId) {
-  const sv = SAVED[childId] || {};
-  return Object.keys(sv).length > 0;
+  return !!FIXED[childId];
 }
 
 // 완납 — 낼 것이 있고 모두 납부일이 채워진 아동
@@ -1278,8 +1287,9 @@ function drawKid(c) {
   const fixed = isFixed(c.id);
   const head = '<div class="kidhead">'
     + '<span class="kidname">' + c.id + '. ' + esc(c.name) + '</span>'
-    + '<span class="kfix ' + (fixed ? 'yes' : 'no') + '">'
-    + (fixed ? '확정' : '예정') + '</span>'
+    + '<button class="kfix ' + (fixed ? 'yes' : 'no') + '" type="button"'
+    + ' title="눌러서 예정과 확정을 오갑니다">'
+    + (fixed ? '확정' : '예정') + '</button>'
     + '<span class="kidno">' + ymd(c.birth) + '</span>'
     + '<span class="kidno">' + esc(c.manager_no) + '</span>'
     + '<span class="ktotal">0원</span></div>';
@@ -1887,6 +1897,29 @@ async function saveWeeks(box) {
   return m + '.';
 }
 
+// 「예정 <-> 확정」 을 오간다. 저장과는 상관없이 눌러서 바꾼다
+async function toggleFix(childId, btn) {
+  if (!LOADED_MK) { show($('msg2'), '먼저 [불러오기] 를 눌러주세요.', false); return; }
+  const now = !isFixed(childId);
+  btn.disabled = true;
+  try {
+    const { error } = await sb.from('nl_pay_fix')
+      .upsert({ child_id: childId, month_key: LOADED_MK,
+                fixed: now, fixed_at: now ? new Date().toISOString() : null },
+              { onConflict: 'child_id,month_key' });
+    if (error) throw error;
+    if (now) FIXED[childId] = true; else delete FIXED[childId];
+    btn.textContent = now ? '확정' : '예정';
+    btn.className = 'kfix ' + (now ? 'yes' : 'no');
+    const nTd = CHILDREN.filter(c => !isFixed(c.id)).length;
+    $('tabTodo').textContent = '예정만 ' + nTd;
+  } catch (e) {
+    show($('msg2'), '❌ 바꾸지 못했습니다.\n' + (e.message || e), false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // only — 'card' 면 카드결제만, 'bank' 면 계좌입금(발달재활)만, 없으면 전부
 async function saveKid(childId, btn, only) {
   const box = document.querySelector('.kid[data-child="' + childId + '"]');
@@ -2000,13 +2033,6 @@ async function saveKid(childId, btn, only) {
     rows.forEach(r => {
       (SAVED[childId] = SAVED[childId] || {})[r.support_type_id] = r;
     });
-    // 이름 옆 딱지를 확정으로 바꾼다
-    const fx = box.querySelector('.kfix');
-    if (fx) {
-      const nowFixed = isFixed(childId);
-      fx.textContent = nowFixed ? '확정' : '예정';
-      fx.className = 'kfix ' + (nowFixed ? 'yes' : 'no');
-    }
     const wkMsg = await saveWeeks(box);
     const evMsg = await markEvalPaid(childId, rows);
     const unpaid = rows.filter(r => !r.paid_on).length;
@@ -2154,6 +2180,12 @@ async function markNoMakeup(btn) {
 
 $('kids').addEventListener('click', e => {
   if (e.target.classList.contains('nmbtn')) { markNoMakeup(e.target); return; }
+
+  // 「예정 / 확정」 단추 — 눌러서 오간다
+  if (e.target.classList.contains('kfix')) {
+    toggleFix(Number(e.target.closest('.kid').dataset.child), e.target);
+    return;
+  }
 
   if (e.target.classList.contains('ksave')) {
     saveKid(Number(e.target.closest('.kid').dataset.child), e.target);
