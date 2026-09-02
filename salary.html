@@ -76,6 +76,34 @@
               font-size:13px; border-radius:8px; text-decoration:none;
               white-space:nowrap; margin-right:8px; }
   .btn-home:hover { filter:brightness(1.08); }
+  .vacbox { margin-top:18px; padding-top:16px; border-top:1px solid #e8ebe4; }
+  .vactit { font-size:15px; font-weight:600; margin-bottom:10px; }
+  .vacsum { background:#f7f8f5; border-radius:9px; padding:12px 14px;
+            font-size:13.5px; line-height:1.8; margin-bottom:14px; }
+  .vacsum b { font-weight:700; }
+  .vacsum .left { color:#2c5c37; }
+  .vacsum .sml { font-size:11.5px; color:#9aa294; line-height:1.6; }
+  .vaclab { font-size:12px; color:#5a6156; margin-bottom:5px; }
+  .vacrow { display:flex; align-items:center; gap:10px; padding:8px 4px;
+            border-bottom:1px solid #eef0eb; font-size:13px; }
+  .vacrow .d { min-width:92px; }
+  .vacrow .n2 { min-width:44px; }
+  .vacrow .k { min-width:48px; color:#5a6156; }
+  .vacrow .m { flex:1 1 auto; min-width:0; color:#5a6156;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vacrow button { width:auto; margin:0; font-size:12px; padding:5px 12px;
+    background:#fff; color:#5a6156; border:1px solid #d8ded4; border-radius:7px;
+    flex:0 0 auto; white-space:nowrap; }
+  .vacrow button:hover { background:#f4f6f2; }
+  .vacnone { font-size:13px; color:#9aa294; padding:10px 4px; }
+  .vacadd { display:grid; grid-template-columns:1.2fr .7fr .9fr 1.6fr auto;
+            gap:8px; align-items:end; margin-top:12px; }
+  .vacadd label { font-size:11.5px; margin:0 0 4px; }
+  .vacadd input, .vacadd select { font-size:13px; padding:7px 9px; }
+  .vacadd button { width:auto; margin:0; padding:8px 16px; font-size:13px;
+    white-space:nowrap; }
+  @media (max-width:620px) { .vacadd { grid-template-columns:1fr 1fr; } }
+  @media print { .vacbox { display:none; } }
 </style>
 </head>
 <body>
@@ -131,6 +159,27 @@
       <button id="save" class="btn2">저장하기</button>
       <button id="prev" class="btn2 grey">지난 달 금액 가져오기</button>
     </div>
+
+    <!-- 연차 -->
+    <div class="vacbox">
+      <div class="vactit">연차</div>
+      <div id="vacsum" class="vacsum"></div>
+      <div class="vaclab">쓴 연차</div>
+      <div id="vaclist"></div>
+      <div class="vacadd">
+        <div><label for="v_d">쓴 날</label><input id="v_d" type="date"></div>
+        <div><label for="v_n">일수</label><input id="v_n" type="text" value="1"></div>
+        <div><label for="v_k">종류</label>
+          <select id="v_k">
+            <option>연차</option><option>반차</option>
+            <option>경조사</option><option>병가</option><option>기타</option>
+          </select></div>
+        <div><label for="v_m">사유</label>
+          <input id="v_m" type="text" placeholder="적지 않아도 됩니다"></div>
+        <div><button id="v_add" class="btn2 grey">넣기</button></div>
+      </div>
+      <div id="vacmsg" class="out"></div>
+    </div>
     <div class="hint" id="hint"></div>
     <div id="msg2" class="out"></div>
   </div>
@@ -162,6 +211,8 @@ const STAFF = [9, 10];
 
 let PEOPLE = [], ROW = null;
 let mon = '', sid = 0;
+// 「지난 달 금액 가져오기」로 넣었지만 아직 저장 안 한 상태인지
+let DIRTY = false;
 
 function show(t, ok){ $('msg').textContent=t; $('msg').className='out '+(ok?'ok':'err'); }
 function msg2(t, ok){ $('msg2').textContent=t; $('msg2').className='out '+(ok?'ok':'err'); }
@@ -203,6 +254,8 @@ function fillForm(r){
   $('f_loc').value  = r ? won(r.local_tax)  : '';
   $('f_pd').value   = (r && r.pay_date) ? r.pay_date : payDay(mon);
   $('f_vac').value  = r ? (r.vacation || '') : '';
+  $('f_vac').dataset.auto = '0';
+  if (!$('f_vac').value.trim()) fillVacAuto();
   $('hint').textContent = r
     ? '이 달 자료가 있습니다. 고치고 저장하시면 됩니다.'
     : '이 달 자료가 아직 없습니다. 금액을 넣고 저장하세요. '
@@ -259,11 +312,154 @@ function drawPaper(){
     + '<div class="pfoot">자라는나무</div>';
 }
 
+// ── 연차 ────────────────────────────────────────
+let VACS = [];
+
+// 근로기준법 — 근속에 따라 그 해에 생기는 연차 일수
+//   1년 미만  한 달 개근마다 1일 (최대 11일)
+//   1~2년     15일
+//   3년째부터 2년마다 1일씩 더함 (최대 25일)
+function vacCalc(hired, today) {
+  if (!hired) return null;
+  const h = new Date(String(hired) + 'T00:00:00');
+  const t = today ? new Date(String(today) + 'T00:00:00') : new Date();
+  if (isNaN(h)) return null;
+
+  // 근속 햇수
+  let yrs = t.getFullYear() - h.getFullYear();
+  const before = (t.getMonth() < h.getMonth())
+    || (t.getMonth() === h.getMonth() && t.getDate() < h.getDate());
+  if (before) yrs--;
+
+  if (yrs < 1) {
+    // 한 달씩 채울 때마다 1일
+    let mons = (t.getFullYear() - h.getFullYear()) * 12 + (t.getMonth() - h.getMonth());
+    if (t.getDate() < h.getDate()) mons--;
+    if (mons < 0) mons = 0;
+    if (mons > 11) mons = 11;
+    return { yrs: 0, mons: mons, give: mons, under1: true, next: nextAnniv(h) };
+  }
+  let give = 15 + Math.floor((yrs - 1) / 2);
+  if (give > 25) give = 25;
+  return { yrs: yrs, mons: 0, give: give, under1: false, next: nextAnniv(h) };
+}
+function nextAnniv(h) {
+  const t = new Date();
+  let y = t.getFullYear();
+  const a = new Date(y, h.getMonth(), h.getDate());
+  if (a < t) y++;
+  return y + '년 ' + (h.getMonth() + 1) + '월 ' + h.getDate() + '일';
+}
+// 그 해에 쓴 연차 일수
+function vacUsed(yr) {
+  let s = 0;
+  VACS.forEach(v => {
+    if (String(v.use_date).slice(0,4) === String(yr)) s += Number(v.days || 0);
+  });
+  return s;
+}
+// 명세서 휴가 칸에 넣을 글
+function vacLine() {
+  const p = PEOPLE.find(x => x.id === sid);
+  const c = p ? vacCalc(p.hired_on) : null;
+  if (!c) return '';
+  const used = vacUsed(yrNo(mon));
+  return '연차 ' + c.give + '일 중 ' + used + '일 사용 · '
+       + (c.give - used) + '일 남음';
+}
+
+async function loadVacs() {
+  const { data } = await sb.from('nl_vacations')
+    .select('*').eq('staff_id', sid).order('use_date', { ascending:false });
+  VACS = data || [];
+  drawVacs();
+}
+function drawVacs() {
+  const p = PEOPLE.find(x => x.id === sid);
+  const c = p ? vacCalc(p.hired_on) : null;
+  if (!c) {
+    $('vacsum').innerHTML = '입사일이 없어 연차를 셈할 수 없습니다.<br>'
+      + '<span class="sml">등록 아동 관리가 아니라 Supabase 직원 표에서 입사일을 넣어 주세요.</span>';
+  } else {
+    const used = vacUsed(yrNo(mon));
+    $('vacsum').innerHTML =
+        '입사 ' + fmtDate(p.hired_on) + ' · 근속 <b>'
+      + (c.under1 ? c.mons + '개월' : c.yrs + '년') + '</b><br>'
+      + '올해 생긴 연차 <b>' + c.give + '일</b> · 쓴 것 <b>' + used + '일</b> · '
+      + '남은 것 <b class="left">' + (c.give - used) + '일</b>'
+      + '<div class="sml">'
+      + (c.under1
+          ? '1년 미만은 한 달 개근마다 1일씩 생깁니다 (최대 11일).<br>'
+            + c.next + '에 15일이 한꺼번에 생깁니다.'
+          : '1년 이상은 15일이며 3년째부터 2년마다 1일씩 늘어납니다 (최대 25일).<br>'
+            + '다음 발생일은 ' + c.next + '입니다.')
+      + '</div>';
+  }
+
+  if (!VACS.length) {
+    $('vaclist').innerHTML = '<div class="vacnone">아직 넣은 것이 없습니다.</div>';
+  } else {
+    $('vaclist').innerHTML = VACS.map((v, i) =>
+      '<div class="vacrow">'
+      + '<span class="d">' + fmtDate(v.use_date) + '</span>'
+      + '<span class="n2">' + Number(v.days) + '일</span>'
+      + '<span class="k">' + esc(v.kind || '') + '</span>'
+      + '<span class="m">' + esc(v.memo || '') + '</span>'
+      + '<button data-del="' + i + '">지우기</button>'
+      + '</div>').join('');
+    $('vaclist').querySelectorAll('[data-del]').forEach(el => {
+      el.onclick = () => delVac(VACS[Number(el.dataset.del)]);
+    });
+  }
+}
+$('v_add').onclick = async () => {
+  const d = $('v_d').value;
+  if (!d) { vmsg('쓴 날을 고르세요.', false); return; }
+  const n = Number(String($('v_n').value).replace(/[^0-9.]/g, '')) || 0;
+  if (!n) { vmsg('일수를 넣으세요. 반차는 0.5 입니다.', false); return; }
+  const { error } = await sb.from('nl_vacations').insert({
+    staff_id: sid, use_date: d, days: n,
+    kind: $('v_k').value, memo: $('v_m').value.trim() || null
+  });
+  if (error) { vmsg('❌ 넣지 못했습니다.\n' + error.message, false); return; }
+  $('v_d').value = ''; $('v_n').value = '1'; $('v_m').value = '';
+  vmsg('✅ 넣었습니다.', true);
+  await loadVacs();
+  if (!$('f_vac').value.trim() || $('f_vac').dataset.auto === '1') fillVacAuto();
+};
+async function delVac(v) {
+  if (!confirm(fmtDate(v.use_date) + ' ' + Number(v.days) + '일을 지울까요?')) return;
+  const { error } = await sb.from('nl_vacations').delete().eq('id', v.id);
+  if (error) { vmsg('❌ 지우지 못했습니다.\n' + error.message, false); return; }
+  vmsg('✅ 지웠습니다.', true);
+  await loadVacs();
+  if ($('f_vac').dataset.auto === '1') fillVacAuto();
+}
+function vmsg(s, ok) { $('vacmsg').textContent = s; $('vacmsg').className = 'out ' + (ok?'ok':'err'); }
+// 명세서 휴가 칸을 자동으로 채운다 (고치면 손으로 적은 것으로 본다)
+function fillVacAuto() {
+  const s = vacLine();
+  if (!s) return;
+  $('f_vac').value = s;
+  $('f_vac').dataset.auto = '1';
+}
+
 async function loadRow(){
   const { data } = await sb.from('nl_salary')
     .select('*').eq('staff_id', sid).eq('month_key', mon).maybeSingle();
   ROW = data || null;
-  fillForm(ROW);
+  // 아직 저장 안 한 금액이 있고, 그 달에 저장된 자료가 없으면
+  //   칸을 비우지 않고 그대로 둔다 (달만 바꾸어 저장하려는 경우)
+  if (DIRTY && !ROW) {
+    $('f_pd').value = payDay(mon);
+    $('hint').textContent = '⚠️ 지난 달에서 가져온 금액이 그대로 있습니다. '
+      + monNo(mon) + '월분으로 저장하려면 「저장하기」를 누르세요.';
+    $('hint').style.color = '#8a5a1a';
+  } else {
+    DIRTY = false;
+    $('hint').style.color = '';
+    fillForm(ROW);
+  }
   drawPaper();
 }
 
@@ -289,6 +485,7 @@ $('save').onclick = async () => {
       .upsert(row, { onConflict: 'staff_id,month_key' });
     if (error) throw error;
     msg2('✅ 저장했습니다.', true);
+    DIRTY = false;
     await loadRow();
   } catch (e) {
     msg2('❌ 저장하지 못했습니다.\n' + e.message, false);
@@ -310,11 +507,23 @@ $('prev').onclick = async () => {
   $('f_tax').value  = won(data.income_tax);
   $('f_loc').value  = won(data.local_tax);
   $('f_pd').value   = payDay(mon);
+  DIRTY = true;
   msg2('✅ ' + monNo(pm) + '월 금액을 가져왔습니다. 휴가는 새로 적으세요.\n'
-     + '확인하고 「저장하기」를 눌러야 저장됩니다.', true);
+     + '이제 달을 바꾸어도 금액이 남습니다. 「저장하기」를 눌러야 저장됩니다.', true);
 };
 
-$('prt').onclick = () => window.print();
+$('f_vac').addEventListener('input', () => { $('f_vac').dataset.auto = '0'; });
+
+$('prt').onclick = () => {
+  // PDF로 저장할 때 파일 이름이 「홍길동 26년 8월 급여명세서」가 되게
+  //   브라우저는 화면 제목을 파일 이름으로 쓴다. 인쇄가 끝나면 되돌린다
+  const p = PEOPLE.find(x => x.id === sid);
+  const old = document.title;
+  document.title = (p ? p.name : '') + ' '
+    + String(yrNo(mon)).slice(2) + '년 ' + monNo(mon) + '월 급여명세서';
+  window.print();
+  setTimeout(() => { document.title = old; }, 1500);
+};
 
 async function afterLogin(user){
   const { data: me, error: e1 } = await sb.from('nl_therapists')
@@ -347,11 +556,21 @@ async function afterLogin(user){
   $('who').textContent = me.name + ' (' + me.role + ') 님으로 로그인됨';
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
+  await loadVacs();
   await loadRow();
 }
 
-$('mon').onchange   = async () => { mon = $('mon').value; await loadRow(); };
-$('staff').onchange = async () => { sid = Number($('staff').value); await loadRow(); };
+$('mon').onchange   = async () => { mon = $('mon').value; await loadRow(); drawVacs(); };
+$('staff').onchange = async () => {
+  // 사람이 바뀌면 넣어둔 금액을 반드시 비운다 (엉뚱한 사람에게 저장되는 것을 막음)
+  if (DIRTY && !confirm('저장하지 않은 금액이 있습니다.\n사람을 바꾸면 지워집니다. 그래도 바꿀까요?')) {
+    $('staff').value = sid; return;
+  }
+  DIRTY = false;
+  sid = Number($('staff').value);
+  await loadVacs();
+  await loadRow();
+};
 
 $('btn').onclick = async () => {
   const email = $('em').value.trim().toLowerCase(), pw = $('pw').value;
