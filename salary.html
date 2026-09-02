@@ -48,28 +48,30 @@
   .hint { font-size:12px; color:#7cb342; margin-top:6px; }
 
   /* 명세서 */
-  .paper { border:2px solid #333; padding:26px 30px; max-width:640px; margin:0 auto; }
+  .paper { border:1px solid #5a7a5e; padding:4px; max-width:640px; margin:0 auto; }
+  .paper > .pin { border:1px solid #5a7a5e; padding:30px; }
   .ptitle { text-align:center; font-size:20px; font-weight:bold; margin-bottom:20px;
             letter-spacing:2px; }
   .pinfo { font-size:13.5px; line-height:2; margin-bottom:18px; }
   .pinfo b { display:inline-block; width:76px; color:#555; font-weight:normal; }
   .ptab { width:100%; border-collapse:collapse; font-size:14px; }
-  .ptab th { background:#eceff1; border:1px solid #999; padding:8px;
+  .ptab th { background:#f2f6f0; border:0.8px solid #4a4a4a; padding:8px;
              text-align:center; font-size:13.5px; }
-  .ptab td { border:1px solid #999; padding:7px 10px; }
+  .ptab td { border:0.8px solid #4a4a4a; padding:7px 10px; }
   .ptab td.n { text-align:right; font-variant-numeric:tabular-nums; }
   .ptab .sum td { font-weight:bold; background:#f5f5f5; }
-  .pfinal { margin-top:16px; border:2px solid #333; padding:12px 14px;
+  .pfinal { margin-top:16px; border:1px solid #4a4a4a; padding:12px 14px;
             display:flex; justify-content:space-between; align-items:center;
             font-size:17px; font-weight:bold; }
-  .pfoot { margin-top:22px; text-align:center; font-size:13px; color:#666; }
+  .pfoot { margin-top:22px; text-align:center; }
+  .pfoot img { height:44px; }
   .vac { color:#c62828; }
 
   @media print {
     body { background:#fff; padding:0; }
     .wide { box-shadow:none; max-width:none; margin:0; padding:0; }
     .noprint { display:none !important; }
-    .paper { border:2px solid #000; }
+    .paper { border:1px solid #5a7a5e; }
   }
 
   .btn-home { display:inline-block; padding:8px 16px; background:#2e7d32; color:#fff;
@@ -277,7 +279,7 @@ function drawPaper(){
   const cl = (lab, amt) => '<tr><td>' + lab + '</td><td class="n">' + won(amt) + '</td></tr>';
 
   $('paper').innerHTML =
-      '<div class="ptitle">' + yrNo(mon) + '년 ' + String(monNo(mon)).padStart(2,'0')
+      '<div class="pin"><div class="ptitle">' + yrNo(mon) + '년 ' + String(monNo(mon)).padStart(2,'0')
       + '월분 급여명세서</div>'
     + '<div class="pinfo">'
       + '<b>회사명</b> 자라는나무<br>'
@@ -309,7 +311,8 @@ function drawPaper(){
         + '</table></td></tr>'
     + '</table>'
     + '<div class="pfinal"><span>실수령액</span><span>' + won(net) + ' 원</span></div>'
-    + '<div class="pfoot">자라는나무</div>';
+    + '<div class="pfoot"><img src="img/nl-logo.png" alt="자라는나무"></div>'
+    + '</div>';
 }
 
 // ── 연차 ────────────────────────────────────────

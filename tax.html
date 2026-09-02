@@ -47,22 +47,27 @@
   th { background:#eef3ec; font-weight:600; }
   td.num, th.num { text-align:right; }
   td.ctr, th.ctr { text-align:center; }
-  tr.sum td { background:#f4f7f2; font-weight:700; }
+  tr.sum td { background:#f2f6f0; font-weight:700; }
 
   /* 결의서 인쇄 모양 */
-  .paper { border:1.5px solid #000; padding:14px; margin-top:14px; background:#fff; }
+  /* 바깥 테두리 — 가는 두 줄 (공문서 차림) */
+  .paper { border:1px solid #5a7a5e; padding:4px; margin-top:14px; background:#fff; }
+  .paper > .pin { border:1px solid #5a7a5e; padding:30px; height:100%;
+                  box-sizing:border-box; display:flex; flex-direction:column; }
+  /* 비고를 맨 아래로 밀어내는 빈 자리 */
+  .pgap { flex:1 1 auto; min-height:10px; }
   .ptitle { text-align:center; font-size:20px; font-weight:800; letter-spacing:6px;
             margin:6px 0 14px; }
   .phead { display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:8px; }
   .sign { border-collapse:collapse; font-size:12px; }
-  .sign td { border:1px solid #000; width:56px; height:26px; text-align:center;
+  .sign td { border:0.8px solid #4a4a4a; width:56px; height:26px; text-align:center;
              font-size:11.5px; }
-  .sign td.lb { width:22px; background:#f4f7f2; }
+  .sign td.lb { width:22px; background:#f2f6f0; }
   .sign.sm td { width:45px; }
   .sign.sm td.lb { width:22px; }
   .ptab { width:100%; border-collapse:collapse; font-size:13px; }
-  .ptab th, .ptab td { border:1px solid #000; padding:6px 8px; }
-  .ptab th { background:#f4f7f2; }
+  .ptab th, .ptab td { border:0.8px solid #4a4a4a; padding:6px 8px; }
+  .ptab th { background:#f2f6f0; }
   .foot { font-size:12.5px; margin-top:10px; line-height:1.8; }
   .center { text-align:center; font-size:15px; font-weight:700; margin-top:16px; }
   .logo { text-align:center; margin-top:16px; }
@@ -81,11 +86,14 @@
   .listrow:hover { background:#f7faf5; }
   .hint { font-size:12px; color:#888; margin:6px 0 0; }
 
+  @page { size:A4; margin:12mm; }
   @media print {
     .noprint, .top, .tabs, .bar, #loginBox, .btn-home { display:none !important; }
     body { background:#fff; padding:0; }
     .wide { box-shadow:none; padding:0; margin:0; max-width:none; }
-    .paper { page-break-after:always; }
+    /* A4 한 장을 꽉 채운다 (위 @page 여백 12mm 를 뺀 높이) */
+    .paper { page-break-after:always; margin-top:0;
+             height:273mm; box-sizing:border-box; }
     .onehide { display:none !important; }
   }
 </style>
@@ -396,7 +404,7 @@ function paperHtml(s, kind){
   body += '<tr><td>&nbsp;</td><td></td></tr>'
     + '<tr><td></td><td class="num"><b>' + won(s.amount) + '</b></td></tr>';
 
-  return '<div class="paper">'
+  return '<div class="paper"><div class="pin">'
     + '<div class="ptitle" style="letter-spacing:6px;">' + kind + '결의서</div>'
     + '<table class="ptab">'
     + '<tr>'
@@ -421,14 +429,15 @@ function paperHtml(s, kind){
     + '</table>'
     + '<div style="font-size:13px;margin:10px 0 4px;">〈 적 요 〉</div>'
     + '<table class="ptab" style="width:70%;">' + body + '</table>'
-    + '<table class="ptab" style="margin-top:14px;">'
+    + '<div class="pgap"></div>'
+    + '<table class="ptab">'
     + '<tr><th class="ctr" style="width:90px;">비　고</th>'
     + '<td style="width:220px;">첨부 : ' + esc(s.attach || '') + '</td>'
     + '<td class="ctr">계좌번호 : ' + esc(ACCOUNT) + '</td></tr>'
     + '</table>'
-    + '<div class="logo" style="margin-top:20px;">'
+    + '<div class="logo" style="margin-top:16px;">'
     + '<img src="img/nl-logo.png" alt=""></div>'
-    + '</div>';
+    + '</div></div>';
 }
 
 // 내역 줄 그리기
@@ -666,7 +675,7 @@ function drawCash(){
     .slice().sort((a,b) => String(a.slip_date).localeCompare(String(b.slip_date)) || a.id - b.id);
   let bal = openOfMonth(MM);
 
-  let h = '<div class="paper">'
+  let h = '<div class="paper"><div class="pin">'
     + '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
     + '<div style="flex:1;"></div>'
     + '<div class="ptitle" style="letter-spacing:4px;flex:2;margin:6px 0;">'
@@ -711,7 +720,7 @@ function drawCash(){
     + '</table>'
     + '<div class="foot">계좌번호 : ' + esc(ACCOUNT) + '</div>'
     + '<div class="logo"><img src="img/nl-logo.png" alt=""></div>'
-    + '</div>';
+    + '</div></div>';
 
   if (!list.length) {
     h += '<p class="hint noprint">이 달에 쓴 결의서가 없습니다. '
@@ -760,7 +769,7 @@ function drawStat(){
   const left = before + inTot - outTot;
   const when = all ? (YY + '년 전체') : (Number(MM) + ' 월');
 
-  let h = '<div class="paper">'
+  let h = '<div class="paper"><div class="pin">'
     + '<div style="display:flex;justify-content:flex-end;">'
     + '<table class="sign sm"><tr><td class="lb">결</td><td>담당</td><td>기관장</td></tr>'
     + '<tr><td class="lb">재</td><td style="height:38px;"></td><td></td></tr></table></div>'
@@ -790,7 +799,7 @@ function drawStat(){
     + '</table>'
     + '<div class="logo" style="margin-top:18px;">'
     + '<img src="img/nl-logo.png" alt=""></div>'
-    + '</div>';
+    + '</div></div>';
 
   $('pane').innerHTML = h;
 }
