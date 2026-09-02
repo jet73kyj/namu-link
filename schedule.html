@@ -1614,6 +1614,8 @@ function prevNeed(){
   PREV.forEach(s => { if (s.schedule_id && hasSplitTag(s)) splitScd[s.schedule_id] = 1; });
   return PREV.filter(s => (s.status === '결석' || s.status === '휴무') && !done[s.id]
                        && !s.no_makeup
+                       // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
+                       && !(Number(s.support_type_id) === 2 && !s.run_no)
                        && !(s.schedule_id && splitScd[s.schedule_id]))
              .sort((a,b) => String(a.plan_date).localeCompare(String(b.plan_date)));
 }
