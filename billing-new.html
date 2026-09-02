@@ -1181,11 +1181,11 @@ function hasBill(childId) {
 function isUnpaid(childId) {
   if (!hasBill(childId)) return false;            // 낼 것이 없으면 미납이 아니다
   const sv = SAVED[childId] || {};
-  // 발달재활서비스(2번)가 0원이면 받을 돈이 없으므로 미납으로 세지 않는다
-  // (다형 아동의 본인부담금 0원 등). 다른 항목의 0원은 그대로 미납으로 둔다
-  const keys = Object.keys(sv).filter(k =>
-    !(Number(k) === 2 && !(Number(sv[k].amount) > 0)));
-  if (!keys.length) return true;                  // 낼 것은 있는데 저장 안 됨
+  // 금액이 0원인 줄은 받을 돈이 없으므로 미납으로 세지 않는다
+  //   발달재활 다형 아동의 본인부담금 0원
+  //   발추 「5주차만」인데 4주뿐인 달 · 「적용 없음」 0원 등
+  const keys = Object.keys(sv).filter(k => Number(sv[k].amount) > 0);
+  if (!keys.length) return false;                 // 받을 돈이 하나도 없음
   return keys.some(k => !sv[k].paid_on);          // 하나라도 날짜 없음
 }
 
@@ -1200,8 +1200,8 @@ function isFixed(childId) {
 function isPaid(childId) {
   if (!hasBill(childId)) return false;
   const sv = SAVED[childId] || {};
-  const keys = Object.keys(sv).filter(k =>
-    !(Number(k) === 2 && !(Number(sv[k].amount) > 0)));
+  // 0원 줄은 셈에서 뺀다 (받을 돈이 없으므로)
+  const keys = Object.keys(sv).filter(k => Number(sv[k].amount) > 0);
   if (!keys.length) return false;
   return keys.every(k => !!sv[k].paid_on);
 }
