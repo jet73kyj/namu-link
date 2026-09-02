@@ -634,8 +634,9 @@ function _getScheduledDaysCapped() {
   return new Set(all.slice(0, SESSIONS));
 }
 
-// 제공날짜·시작시간·종료시간은 손으로 적는 칸이다.
+// 시작시간·종료시간은 손으로 적는 칸이다.
 // 불러오기 할 때 지난 아동 값이 남지 않도록 비워만 준다.
+// 제공날짜는 상태·결과기록의 「서비스 제공일자」를 그대로 따라간다.
 function _fillSheet1Times() {
   for (let i = 1; i <= SESSIONS; i++) {
     const dt = $('s1_provDate_'  + i);
@@ -644,6 +645,19 @@ function _fillSheet1Times() {
     if (dt) dt.value = '';
     if (st) st.value = '';
     if (en) en.value = '';
+  }
+  _syncProvDates();
+}
+
+// 상태·결과기록의 서비스 제공일자 → 일정표 하단 제공날짜
+//   같은 순서로 그대로 옮긴다. 안 적은 자리는 빈칸으로 둔다
+function _syncProvDates() {
+  const src = document.querySelectorAll('#statusTbl .st_provDate');
+  for (let i = 1; i <= SESSIONS; i++) {
+    const dt = $('s1_provDate_' + i);
+    if (!dt) continue;
+    const s = src[i - 1];
+    dt.value = s ? (s.value || '') : '';
   }
 }
 
@@ -1056,6 +1070,11 @@ function buildStatusRows(existing) {
     });
     tbody.appendChild(tr);
   });
+  // 서비스 제공일자를 고치면 일정표 제공날짜가 바로 따라간다
+  tbody.querySelectorAll('.st_provDate').forEach(el => {
+    el.addEventListener('input', _syncProvDates);
+  });
+  _syncProvDates();
 }
 
 // 한 줄에서 하나만 고를 수 있는 항목 (아동표정은 여러 개 가능)
