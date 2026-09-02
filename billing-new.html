@@ -955,7 +955,7 @@ async function load() {
       }
 
       const k = t.child_id + '|' + st;
-      NEEDCNT[k] = Math.max(NEEDCNT[k] || 0, need);
+      NEEDCNT[k] = (NEEDCNT[k] || 0) + need;
       // 발4+발추1 아동은 발추 1회를 따로 잡아야 한다
       if (mode === '발4+발추1') X8NEED[t.child_id] = true;
       if (plus1) {
