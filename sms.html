@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>문자 안내 · 나무링크</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3c7a4a">
+<style>
+  :root { --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
+          --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:var(--bg);
+         margin:0; padding:20px; color:var(--ink); -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:820px; margin:0 auto; }
+  .box { background:#fff; border:1px solid var(--line); border-radius:14px;
+         padding:24px; margin-bottom:14px; }
+  h1 { font-size:19px; font-weight:600; margin:0 0 4px; }
+  .who { font-size:13px; color:var(--ink3); }
+  .top { display:flex; justify-content:space-between; align-items:flex-start;
+         gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  label { display:block; font-size:12px; color:var(--ink2); margin:12px 0 5px; }
+  input { width:100%; font:inherit; font-size:14px; padding:9px 11px;
+    border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
+  input:focus { outline:2px solid var(--acc); outline-offset:-1px; border-color:transparent; }
+  button { font:inherit; font-size:14px; padding:9px 16px; border-radius:8px;
+    border:1px solid var(--line); background:#fff; color:var(--ink2); cursor:pointer; }
+  button:hover { filter:brightness(0.97); }
+  .go { background:var(--acc); color:#fff; border-color:var(--acc); font-weight:600; }
+  .btns { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
+  .out { margin-top:12px; font-size:13.5px; line-height:1.7; white-space:pre-wrap; }
+  .ok { color:#2c5c37; } .err { color:#9c2b2b; }
+
+  .dayt { font-size:14px; font-weight:700; color:var(--ink2);
+          margin:20px 0 9px; padding-left:2px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px;
+          padding:17px 18px; margin-bottom:11px; }
+  .c1 { display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .kind { font-size:12px; font-weight:bold; padding:3px 10px; border-radius:10px;
+          white-space:nowrap; background:var(--acc-bg); color:#2c5c37; }
+  .k-보강 { background:#fdf3e3; color:#8a5a1a; }
+  .k-첫수업 { background:#eef3ec; color:#2c5c37; }
+  .k-평가 { background:#eef2ff; color:#3a4a8a; }
+  .k-상담 { background:#fbeaf0; color:#8a2f4e; }
+  .k-요일변경 { background:#f0f7ff; color:#2a5a8a; }
+  .k-시간변경 { background:#f0f7ff; color:#2a5a8a; }
+  .nm { font-weight:700; font-size:15.5px; }
+  .ph { font-size:13px; color:var(--ink2); }
+  .ph b { font-weight:600; color:var(--ink); }
+  .msg { background:#f7f8f5; border-radius:9px; padding:13px 14px;
+         font-size:13.5px; line-height:1.8; white-space:pre-wrap; color:var(--ink); }
+  .rb { display:flex; gap:7px; margin-top:11px; flex-wrap:wrap; }
+  .rb button { font-size:13px; padding:6px 14px; }
+  .cp { border-color:#c8d4c4; }
+  .sd { background:var(--acc); color:#fff; border-color:var(--acc); font-weight:600; }
+  .none { text-align:center; color:var(--ink3); font-size:13.5px; padding:30px 0; }
+  .tabs { display:flex; gap:6px; margin-bottom:4px; flex-wrap:wrap; }
+  .tab { font-size:12.5px; padding:6px 12px; border-radius:8px; border:1px solid var(--line);
+         background:#fff; color:var(--ink2); cursor:pointer; }
+  .tab.on { background:var(--acc); color:#fff; border-color:var(--acc); }
+  .hint { font-size:11.5px; color:var(--ink3); margin-top:7px; line-height:1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 로그인 -->
+  <div class="box" id="loginBox">
+    <h1>💬 문자 안내</h1>
+    <div class="who">나무링크에 로그인해 주세요.</div>
+    <label for="em">이메일</label>
+    <input id="em" type="email" autocomplete="username">
+    <label for="pw">비밀번호</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <div class="btns"><button id="btn" class="go">로그인</button>
+      <button onclick="location.href='index.html'">처음으로</button></div>
+    <div id="msg" class="out"></div>
+  </div>
+
+  <!-- 본 화면 -->
+  <div id="mainBox" style="display:none;">
+    <div class="box">
+      <div class="top">
+        <div>
+          <h1>💬 문자 안내</h1>
+          <div class="who" id="who"></div>
+        </div>
+        <div class="btns" style="margin:0;">
+          <button onclick="location.href='index.html'">처음으로</button>
+          <button id="out">로그아웃</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab on" data-f="안보냄">아직 안 보낸 것</button>
+        <button class="tab" data-f="전체">전체</button>
+      </div>
+      <div class="hint">오늘부터 사흘 안에 안내드릴 일정입니다.
+        「복사」를 누르면 문자 내용이 복사되고, 문자를 보내신 뒤 「보냄」을 누르면 목록에서 빠집니다.</div>
+      <div id="sum" class="out"></div>
+    </div>
+
+    <div id="list"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: window.nlStore, persistSession: true, autoRefreshToken: true }
+});
+const $ = id => document.getElementById(id);
+
+let ME = null, ITEMS = [], SENT = {}, fFilter = '안보냄';
+const CENTER_TEL = '042-488-6011';
+const WD = ['일','월','화','수','목','금','토'];
+
+function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
+function esc(s) { return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function p2(n) { return String(n).padStart(2,'0'); }
+function ymd(d) { return d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()); }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+
+// 2026-09-03 -> 9월 3일 목요일
+function dayKo(s) {
+  const d = new Date(s + 'T00:00:00');
+  return (d.getMonth()+1) + '월 ' + d.getDate() + '일 ' + WD[d.getDay()] + '요일';
+}
+// 15:00 -> 오후 3시 / 19:20 -> 오후 7시 20분
+function timeKo(hm) {
+  if (!hm) return '';
+  const p = String(hm).slice(0,5).split(':');
+  const h = Number(p[0]), m = Number(p[1]);
+  const ap = h < 12 ? '오전' : '오후';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return ap + ' ' + h12 + '시' + (m ? ' ' + m + '분' : '');
+}
+
+// ── 문자 내용 만들기 ─────────────────────────────
+const HEAD = '안녕하세요^^\n자라는 나무 입니다\n\n';
+const FOOT = '\n\n일정에 변경이 있을 경우 미리 연락 주세요\n' + CENTER_TEL;
+const LINE1 = {
+  '보강':     '아동 보강 수업이 잡혔습니다',
+  '첫수업':   '아동 첫 수업이 시작됩니다',
+  '평가':     '아동 평가 예약이 되었습니다',
+  '상담':     '아동 평가 상담 예약이 되었습니다',
+  '요일변경': '아동 수업 요일이 바뀌었습니다',
+  '시간변경': '아동 수업 시간이 바뀌었습니다'
+};
+function smsText(it) {
+  return HEAD + it.name + ' ' + (LINE1[it.kind] || '아동 일정 안내입니다') + '\n\n'
+       + dayKo(it.on_date) + ' ' + timeKo(it.on_time) + '\n'
+       + '담당 ' + (it.ther || '') + ' 선생님'
+       + FOOT;
+}
+
+// ── 자료 모으기 ──────────────────────────────────
+async function loadAll() {
+  const t0 = new Date();
+  const from = ymd(t0), to = ymd(addDays(t0, 3));
+
+  const [kidsR, thsR, gdR, sentR] = await Promise.all([
+    sb.from('nl_children').select('id, name, phone'),
+    sb.from('nl_therapists').select('id, name'),
+    sb.from('nl_guardians').select('child_id, name, phone, relation'),
+    sb.from('nl_sms_sent').select('kind, child_id, on_date, on_time')
+  ]);
+  const KID = {}; (kidsR.data || []).forEach(k => KID[k.id] = k);
+  const TH  = {}; (thsR.data  || []).forEach(t => TH[t.id]  = t.name);
+  const GD  = {}; (gdR.data   || []).forEach(g => {
+    (GD[g.child_id] = GD[g.child_id] || []).push(g);
+  });
+  SENT = {};
+  (sentR.data || []).forEach(s => {
+    SENT[s.kind + '|' + s.child_id + '|' + s.on_date + '|'
+       + String(s.on_time || '').slice(0,5)] = true;
+  });
+
+  const out = [];
+  const push = (kind, cid, d, hm, thId, extra) => {
+    const k = KID[cid]; if (!k) return;
+    out.push({
+      kind: kind, cid: cid, name: k.name || ('아동 ' + cid),
+      on_date: d, on_time: String(hm || '').slice(0,5),
+      ther: thId ? (TH[thId] || '') : '',
+      phone: k.phone || '', gds: GD[cid] || [], extra: extra || ''
+    });
+  };
+
+  // ① 보강 · ② 첫 수업 — 회기 표에서
+  const { data: ss } = await sb.from('nl_sessions')
+    .select('child_id, plan_date, start_time, status, therapist_id, makeup_for, schedule_id')
+    .gte('plan_date', from).lte('plan_date', to);
+  (ss || []).forEach(s => {
+    if (s.status === '휴무' || s.status === '쉼' || s.status === '결석') return;
+    if (s.makeup_for) push('보강', s.child_id, s.plan_date, s.start_time, s.therapist_id);
+  });
+
+  // 첫 수업 — 요일줄 시작날이 사흘 안
+  const { data: sc } = await sb.from('nl_therapy_schedules')
+    .select('id, therapy_id, weekday, start_time, therapist_id, from_date');
+  const { data: th } = await sb.from('nl_therapies').select('id, child_id');
+  const THC = {}; (th || []).forEach(x => THC[x.id] = x.child_id);
+  const firstOf = {};
+  (ss || []).forEach(s => {
+    if (!s.schedule_id) return;
+    const k = s.schedule_id;
+    if (!firstOf[k] || s.plan_date < firstOf[k].plan_date) firstOf[k] = s;
+  });
+  (sc || []).forEach(x => {
+    if (!x.from_date || x.from_date < from || x.from_date > to) return;
+    const cid = THC[x.therapy_id]; if (!cid) return;
+    push('첫수업', cid, x.from_date, x.start_time, x.therapist_id);
+  });
+
+  // ③ 평가 — 평가 표에서
+  const { data: ev } = await sb.from('nl_evaluations')
+    .select('child_id, eval_date, eval_time, therapist_id')
+    .gte('eval_date', from).lte('eval_date', to);
+  (ev || []).forEach(e =>
+    push('평가', e.child_id, e.eval_date, e.eval_time, e.therapist_id));
+
+  // ④ 평가 상담 — 휴무 표의 「상담」 줄
+  const { data: cs } = await sb.from('nl_offdays')
+    .select('off_date, kind, therapist_id, start_time, child_id')
+    .eq('kind', '상담').gte('off_date', from).lte('off_date', to);
+  (cs || []).forEach(c =>
+    push('상담', c.child_id, c.off_date, c.start_time, c.therapist_id));
+
+  // ⑤⑥ 요일·시간 변경 — 알림 표에서. 바뀐 뒤 첫 수업이 사흘 안일 때만
+  const { data: al } = await sb.from('nl_alerts')
+    .select('id, kind, child_id, body, created_at')
+    .eq('kind', '시간변경')
+    .gte('created_at', ymd(addDays(t0, -30)));
+  (al || []).forEach(a => {
+    const cid = a.child_id; if (!cid) return;
+    // 그 아동의 사흘 안 첫 수업을 찾는다
+    let hit = null;
+    (ss || []).forEach(s => {
+      if (s.child_id !== cid || s.makeup_for) return;
+      if (s.status === '휴무' || s.status === '쉼') return;
+      if (!hit || s.plan_date < hit.plan_date) hit = s;
+    });
+    if (!hit) return;
+    // 글에 「→」 앞뒤로 요일이 둘 다 있으면 요일 변경
+    const b = String(a.body || '');
+    const two = (b.match(/요일/g) || []).length >= 2;
+    push(two ? '요일변경' : '시간변경', cid,
+         hit.plan_date, hit.start_time, hit.therapist_id, b);
+  });
+
+  // 같은 것이 두 번 들어가지 않게
+  const seen = {};
+  ITEMS = out.filter(x => {
+    const k = x.kind + '|' + x.cid + '|' + x.on_date + '|' + x.on_time;
+    if (seen[k]) return false; seen[k] = true; return true;
+  }).sort((a, b) =>
+    String(a.on_date).localeCompare(String(b.on_date))
+    || String(a.on_time).localeCompare(String(b.on_time))
+    || (a.cid - b.cid));
+}
+
+function sentKey(it) {
+  return it.kind + '|' + it.cid + '|' + it.on_date + '|' + it.on_time;
+}
+
+// ── 그리기 ───────────────────────────────────────
+function draw() {
+  const rows = ITEMS.filter(x => fFilter === '전체' || !SENT[sentKey(x)]);
+  const nLeft = ITEMS.filter(x => !SENT[sentKey(x)]).length;
+  show($('sum'), '안내할 일정 ' + ITEMS.length + '건 · 아직 안 보낸 것 ' + nLeft + '건', true);
+
+  if (!rows.length) {
+    $('list').innerHTML = '<div class="box"><div class="none">'
+      + (fFilter === '전체' ? '사흘 안에 안내드릴 일정이 없습니다.'
+                            : '아직 안 보낸 것이 없습니다.') + '</div></div>';
+    return;
+  }
+
+  let html = '', lastD = '';
+  rows.forEach((it, i) => {
+    if (it.on_date !== lastD) {
+      html += '<div class="dayt">' + dayKo(it.on_date) + '</div>';
+      lastD = it.on_date;
+    }
+    const done = !!SENT[sentKey(it)];
+    // 번호 — 아동 표와 보호자 표 둘 다 보여준다
+    const phs = [];
+    if (it.phone) phs.push('<b>' + esc(it.phone) + '</b>');
+    it.gds.forEach(g => {
+      if (!g.phone || g.phone === it.phone) return;
+      phs.push(esc((g.relation && g.relation !== '미상' ? g.relation + ' ' : '')
+                   + (g.name ? g.name + ' ' : '') + g.phone));
+    });
+    html += '<div class="card"' + (done ? ' style="opacity:.5;"' : '') + '>'
+      + '<div class="c1">'
+      +   '<span class="kind k-' + it.kind + '">'
+      +     (it.kind === '상담' ? '평가 상담' : it.kind) + '</span>'
+      +   '<span class="nm">' + it.cid + '번 ' + esc(it.name) + '</span>'
+      +   '<span class="ph">' + (phs.length ? phs.join(' · ') : '번호 없음') + '</span>'
+      +   (done ? '<span class="ph">✅ 보냄</span>' : '')
+      + '</div>'
+      + '<div class="msg" id="m' + i + '">' + esc(smsText(it)) + '</div>'
+      + (it.extra ? '<div class="hint">' + esc(it.extra) + '</div>' : '')
+      + '<div class="rb">'
+      +   '<button class="cp" data-cp="' + i + '">복사</button>'
+      +   (done ? '<button data-un="' + i + '">보냄 취소</button>'
+                : '<button class="sd" data-sd="' + i + '">보냄</button>')
+      + '</div>'
+      + '</div>';
+  });
+  $('list').innerHTML = html;
+
+  $('list').querySelectorAll('[data-cp]').forEach(el => {
+    el.onclick = () => {
+      const it = rows[Number(el.dataset.cp)];
+      const t = smsText(it);
+      if (navigator.clipboard) navigator.clipboard.writeText(t);
+      else {
+        const ta = document.createElement('textarea');
+        ta.value = t; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      el.textContent = '복사됨'; setTimeout(() => { el.textContent = '복사'; }, 1200);
+    };
+  });
+  $('list').querySelectorAll('[data-sd]').forEach(el => {
+    el.onclick = () => markSent(rows[Number(el.dataset.sd)], true);
+  });
+  $('list').querySelectorAll('[data-un]').forEach(el => {
+    el.onclick = () => markSent(rows[Number(el.dataset.un)], false);
+  });
+}
+
+async function markSent(it, on) {
+  if (on) {
+    const { error } = await sb.from('nl_sms_sent').insert({
+      kind: it.kind, child_id: it.cid, on_date: it.on_date,
+      on_time: it.on_time ? it.on_time + ':00' : null,
+      sent_by: ME ? ME.id : null
+    });
+    if (error && !String(error.message).includes('duplicate')) {
+      show($('sum'), '❌ 표시하지 못했습니다.\n' + error.message, false); return;
+    }
+    SENT[sentKey(it)] = true;
+  } else {
+    if (!confirm('「보냄」 표시를 지울까요?')) return;
+    let q = sb.from('nl_sms_sent').delete()
+      .eq('kind', it.kind).eq('child_id', it.cid).eq('on_date', it.on_date);
+    q = it.on_time ? q.eq('on_time', it.on_time + ':00') : q.is('on_time', null);
+    const { error } = await q;
+    if (error) { show($('sum'), '❌ 지우지 못했습니다.\n' + error.message, false); return; }
+    delete SENT[sentKey(it)];
+  }
+  draw();
+}
+
+document.querySelectorAll('.tab').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    fFilter = b.dataset.f;
+    draw();
+  };
+});
+
+async function afterLogin(user) {
+  const { data: me, error } = await sb.from('nl_therapists')
+    .select('id, name, role').eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (error) { show($('msg'), '❌ 직원 조회 실패\n' + error.message, false); return; }
+  if (!me)   { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
+  if ([8, 9].indexOf(Number(me.id)) < 0) {
+    show($('msg'), '⚠️ 이 화면은 관리자·행정만 볼 수 있습니다.', false); return;
+  }
+  nlKeep(me.id);
+  ME = me;
+  $('who').textContent = me.name + ' (' + me.role + ') 님';
+
+  try { await loadAll(); }
+  catch (e) { show($('msg'), '❌ 자료를 읽지 못했습니다.\n' + e.message, false); return; }
+  draw();
+
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 넣으세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+
+$('out').onclick = async () => {
+  nlKeepOff();
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+};
+
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) { await afterLogin(data.session.user); }
+})();
+</script>
+</body>
+</html>
