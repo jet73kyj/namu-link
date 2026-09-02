@@ -176,6 +176,8 @@
   /* 공휴일·치료사 휴무인 날의 빈 자리 — 회색으로 알려 준다 */
   .ln-open.ln-holi { background:#dcdfdd; color:#5c625e; border:1px solid #c4cac6; }
   .ln-block { background:#5a5f5c !important; color:#fff !important; }
+  .ln-cons { background:#F9D5E2 !important; }
+  .ln-cons .d, .ln-cons .n { color:#8a2f4e !important; }
   .nosat { background:#f2f4f1; }
   .hsat { font-size:10.5px; color:#8a918c; margin-top:1px; }
   .offtabs { display:flex; gap:6px; margin:8px 0 10px; }
@@ -538,6 +540,7 @@
     <div class="offtabs">
       <button id="tabOff"  class="offtab on">휴무</button>
       <button id="tabBlk" class="offtab">시간 막음</button>
+      <button id="tabCns" class="offtab">평가 상담</button>
     </div>
 
     <!-- 갈래 1 — 휴무 -->
@@ -587,6 +590,29 @@
       <div class="pbtns">
         <button id="blkSave" class="pbtn ok-btn">시간 막기</button>
         <button id="blkClose" class="pbtn grey">닫기</button>
+      </div>
+    </div>
+    <!-- 갈래 3 — 평가 상담 -->
+    <div id="cnsPane" style="display:none;">
+      <div class="pgrid">
+        <div>
+          <label for="cs_date">날짜</label>
+          <input id="cs_date" type="date">
+        </div>
+        <div>
+          <label for="cs_th">치료사</label>
+          <select id="cs_th"></select>
+        </div>
+        <div>
+          <label for="cs_kid">아동</label>
+          <select id="cs_kid"></select>
+        </div>
+      </div>
+      <div class="blkhint">상담할 교시를 하나 고르세요.</div>
+      <div id="cs_slots" class="blkslots"></div>
+      <div class="pbtns">
+        <button id="cnsSave" class="pbtn ok-btn">상담 넣기</button>
+        <button id="cnsClose" class="pbtn grey">닫기</button>
       </div>
     </div>
     <div id="offMsg" class="out"></div>
@@ -1172,6 +1198,17 @@ function isBlocked(dd, thId, hm) {
   return BLOCK.has(String(dd) + '#' + thId + '#' + String(hm).slice(0,5));
 }
 let BLOCK  = new Set(); // 날짜#치료사#시각 -> 그 한 자리만 막음
+let CONS   = {};        // 날짜#치료사#시각 -> 평가 상담 (아동 이름)
+// 그 날·그 치료사·그 시각에 평가 상담이 있는지
+let KIDNM = {};         // 아동번호 -> 이름
+function kidLabel(cid) {
+  if (!cid) return '평가 상담';
+  return cid + '번 ' + (KIDNM[cid] || '') + ' 상담';
+}
+function consAt(dd, thId, hm) {
+  if (thId == null || !hm) return null;
+  return CONS[String(dd) + '#' + thId + '#' + String(hm).slice(0,5)] || null;
+}
 let OFFTXT = {};        // 날짜 -> 사유
 let OFFTH  = {};        // 날짜#치료사 -> 사유
 let PREV   = [];        // 지난 달 회기 (이월 보강에 쓴다)
@@ -1926,11 +1963,13 @@ function drawWeek(){
                    + s.no + '_' + th + '">＋ 수업 넣기</button>';
               eh2 += wdDates(mon, d).map(function(dd){
                 const blk = isBlocked(dd, th, slotHm(s, th, d));
+                const cns = consAt(dd, th, slotHm(s, th, d));
                 return '<div class="ln ln-open'
-                  + (blk ? ' ln-block' : (isOffFor(dd, th) ? ' ln-holi' : '')) + '">'
+                  + (cns !== null ? ' ln-cons' : (blk ? ' ln-block' : (isOffFor(dd, th) ? ' ln-holi' : ''))) + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
-                  + (blk ? '<span class="n">시간 막음</span>' : '')
-                  + ((canOpenAdd() && !blk) ? '<button class="lnadd" data-mn="'
+                  + (cns !== null ? '<span class="n">' + esc(kidLabel(cns)) + '</span>'
+                                  : (blk ? '<span class="n">시간 막음</span>' : ''))
+                  + ((canOpenAdd() && !blk && cns === null) ? '<button class="lnadd" data-mn="'
                      + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>' : '')
                   + '</div>';
               }).join('');
@@ -2013,11 +2052,13 @@ function drawWeek(){
             html += wdDates(mon, d).filter(function(dd){ return !usedD[dd]; })
               .map(function(dd){
                 const blk = isBlocked(dd, th, slotHm(s, th, d));
+                const cns = consAt(dd, th, slotHm(s, th, d));
                 return '<div class="ln ln-open'
-                  + (blk ? ' ln-block' : (isOffFor(dd, th) ? ' ln-holi' : '')) + '">'
+                  + (cns !== null ? ' ln-cons' : (blk ? ' ln-block' : (isOffFor(dd, th) ? ' ln-holi' : ''))) + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
-                  + (blk ? '<span class="n">시간 막음</span>' : '')
-                  + ((canOpenAdd() && !blk) ? '<button class="lnadd" data-mn="'
+                  + (cns !== null ? '<span class="n">' + esc(kidLabel(cns)) + '</span>'
+                                  : (blk ? '<span class="n">시간 막음</span>' : ''))
+                  + ((canOpenAdd() && !blk && cns === null) ? '<button class="lnadd" data-mn="'
                      + s.no + '_' + th + '_' + d + '_' + dd + '" title="보강 넣기">＋</button>' : '')
                   + '</div>';
               }).join('');
@@ -2575,10 +2616,11 @@ function drawDay(){
             if (CAN_EDIT) {
               eh += wdDates(mon, wd).map(function(dd){
                 const blk = isBlocked(dd, t.id, slotHm(s, t.id, wd));
+                const cns = consAt(dd, t.id, slotHm(s, t.id, wd));
                 return '<div class="ln ln-open'
-                  + (blk ? ' ln-block' : (isOffFor(dd, t.id) ? ' ln-holi' : '')) + '">'
+                  + (cns !== null ? ' ln-cons' : (blk ? ' ln-block' : (isOffFor(dd, t.id) ? ' ln-holi' : ''))) + '">'
                   + '<span class="d">' + dayNo(dd) + '일</span>'
-                  + '<span class="n">' + (blk ? '시간 막음' : '빈 자리') + '</span>'
+                  + '<span class="n">' + (cns !== null ? esc(kidLabel(cns)) : (blk ? '시간 막음' : '빈 자리')) + '</span>'
                   + ((canOpenAdd() && !blk) ? '<button class="lnadd" data-mn="'
                      + s.no + '_' + t.id + '_' + wd + '_' + dd + '">＋</button>' : '')
                   + '</div>';
@@ -2685,11 +2727,12 @@ function drawDay(){
 
             if (L2.kind === 'open') {
               const blk2 = isBlocked(L2.d, t.id, slotHm(s, t.id, wd));
+              const cns2 = consAt(L2.d, t.id, slotHm(s, t.id, wd));
               html += '<div class="ln ln-open'
-                + (blk2 ? ' ln-block' : (isOffFor(L2.d, t.id) ? ' ln-holi' : '')) + '">'
+                + (cns2 !== null ? ' ln-cons' : (blk2 ? ' ln-block' : (isOffFor(L2.d, t.id) ? ' ln-holi' : ''))) + '">'
                 + '<span class="d">' + day + '</span>'
-                + '<span class="n">' + (blk2 ? '시간 막음' : '빈 자리') + '</span>'
-                + ((CAN_EDIT && canOpenAdd() && !blk2) ? '<button class="lnadd" data-mn="'
+                + '<span class="n">' + (cns2 !== null ? esc(kidLabel(cns2)) : (blk2 ? '시간 막음' : '빈 자리')) + '</span>'
+                + ((CAN_EDIT && canOpenAdd() && !blk2 && cns2 === null) ? '<button class="lnadd" data-mn="'
                     + s.no + '_' + t.id + '_' + wd + '_' + L2.d + '" title="보강 넣기">＋</button>' : '')
                 + '</div>';
               return;
@@ -4345,16 +4388,82 @@ $('of_kind').onchange = () => {
 
 // ===== 휴무 / 시간 막음 갈래 =====
 function offTab(which){
-  const isB = (which === 'blk');
-  $('tabOff').classList.toggle('on', !isB);
-  $('tabBlk').classList.toggle('on',  isB);
-  $('offPane').style.display = isB ? 'none' : '';
-  $('blkPane').style.display = isB ? '' : 'none';
+  $('tabOff').classList.toggle('on', which === 'off');
+  $('tabBlk').classList.toggle('on', which === 'blk');
+  $('tabCns').classList.toggle('on', which === 'cns');
+  $('offPane').style.display = (which === 'off') ? '' : 'none';
+  $('blkPane').style.display = (which === 'blk') ? '' : 'none';
+  $('cnsPane').style.display = (which === 'cns') ? '' : 'none';
+  if (which === 'cns') { fillCnsTh(); fillCnsKid(); drawCnsSlots(); }
   $('offMsg').textContent = ''; $('offMsg').className = 'out';
 }
 $('tabOff').onclick = () => offTab('off');
 $('tabBlk').onclick = () => offTab('blk');
+$('tabCns').onclick = () => offTab('cns');
 $('blkClose').onclick = () => { $('offBox').style.display='none'; };
+$('cnsClose').onclick = () => { $('offBox').style.display='none'; };
+if ($('cs_date')) $('cs_date').onchange = () => drawCnsSlots();
+
+// 평가 상담 — 치료사·아동 고르는 칸 채우기
+function fillCnsTh(){
+  if ($('cs_th').options.length) return;
+  $('cs_th').innerHTML = (THS_ALL || THS).map(x =>
+    '<option value="' + x.id + '">' + esc(x.name) + '</option>').join('');
+}
+function fillCnsKid(){
+  if ($('cs_kid').options.length) return;
+  const ids = Object.keys(KIDNM).map(Number).sort((a,b) => a-b);
+  $('cs_kid').innerHTML = '<option value="">고르세요</option>'
+    + ids.map(id => '<option value="' + id + '">'
+        + id + '번 ' + esc(KIDNM[id] || '') + '</option>').join('');
+}
+// 교시 — 하나만 고른다
+function drawCnsSlots(){
+  const d = $('cs_date') ? $('cs_date').value : '';
+  const wd = d ? wdOf(d) : '';
+  const list = SLOTS.filter(s => slotOnWd(s, wd));
+  $('cs_slots').innerHTML = list.map(s => {
+    const hm = slotHm(s, null, wd);
+    return '<button class="blkslot" data-hm="' + hm + '">'
+      + '<b>' + s.no + '교시</b>' + h12(hm) + '</button>';
+  }).join('');
+  $('cs_slots').querySelectorAll('.blkslot').forEach(el => {
+    el.onclick = () => {
+      $('cs_slots').querySelectorAll('.blkslot').forEach(x => x.classList.remove('on'));
+      el.classList.add('on');
+    };
+  });
+}
+
+$('cnsSave').onclick = async () => {
+  const d = $('cs_date').value;
+  if (!d) { offmsg('날짜를 고르세요.', false); return; }
+  const th  = Number($('cs_th').value);
+  const cid = Number($('cs_kid').value);
+  if (!cid) { offmsg('아동을 고르세요.', false); return; }
+  const one = $('cs_slots').querySelector('.blkslot.on');
+  if (!one) { offmsg('교시를 하나 고르세요.', false); return; }
+
+  $('cnsSave').disabled = true; $('cnsSave').textContent = '넣는 중...';
+  try {
+    const { error } = await sb.from('nl_offdays').insert({
+      off_date: d, kind: '상담', therapist_id: th,
+      start_time: one.dataset.hm + ':00', child_id: cid,
+      reason: '평가 상담'
+    });
+    if (error) throw error;
+    offmsg('✅ 넣었습니다. 그 자리에 상담으로 보입니다.', true);
+    $('cs_slots').querySelectorAll('.blkslot').forEach(x => x.classList.remove('on'));
+    await loadMonth(); drawOffList(); draw();
+  } catch (e) {
+    const m = String(e.message || '');
+    offmsg(m.includes('duplicate')
+      ? '❌ 그 자리에는 이미 상담이 들어 있습니다.'
+      : '❌ 넣지 못했습니다.\n' + m, false);
+  } finally {
+    $('cnsSave').disabled = false; $('cnsSave').textContent = '상담 넣기';
+  }
+};
 // 날짜를 바꾸면 그 요일에 맞는 교시로 다시 그린다 (켠 것은 꺼진다)
 if ($('bk_date')) $('bk_date').onchange = () => drawBlkSlots();
 
@@ -4379,7 +4488,7 @@ function drawBlkSlots(){
 
 async function drawOffList(){
   const { data } = await sb.from('nl_offdays')
-    .select('id, off_date, kind, therapist_id, reason, start_time')
+    .select('id, off_date, kind, therapist_id, reason, start_time, child_id')
     .gte('off_date', mon + '-01').lte('off_date', monEnd(mon))
     .order('off_date');
   if (!data || !data.length) {
@@ -4389,7 +4498,8 @@ async function drawOffList(){
   $('offList').innerHTML = data.map(o => {
     const th = o.therapist_id ? THS.find(t => t.id === o.therapist_id) : null;
     return '<span class="offone">' + dayNo(o.off_date) + '일(' + wdOf(o.off_date) + ') '
-      + esc(o.kind) + (th ? ' · ' + esc(th.name) : '')
+      + esc(o.kind === '상담' ? '평가 상담' : o.kind) + (th ? ' · ' + esc(th.name) : '')
+      + (o.child_id ? ' · ' + o.child_id + '번 ' + esc(KIDNM[o.child_id] || '') : '')
       + (o.start_time ? ' · ' + h12(String(o.start_time).slice(0,5)) : '')
       + (o.reason ? ' · ' + esc(o.reason) : '')
       + '<span class="del" data-off="' + o.id + '">✕</span></span>';
@@ -4946,15 +5056,21 @@ function applyMonthFilter(){
 async function loadMonth(){
   applyMonthFilter();
   BAL = new Set();
-  OFF = new Set(); OFFTXT = {}; BLOCK = new Set();
+  OFF = new Set(); OFFTXT = {}; BLOCK = new Set(); CONS = {};
   const { data: off } = await sb.from('nl_offdays')
-    .select('off_date, kind, therapist_id, reason, start_time')
+    .select('off_date, kind, therapist_id, reason, start_time, child_id')
     .gte('off_date', mon + '-01').lte('off_date', monEnd(mon));
   (off || []).forEach(o => {
     // 「시간 막음」은 그 날·그 치료사·그 시각 한 자리만 막는다
     if (o.kind === '시간막음') {
       BLOCK.add(o.off_date + '#' + o.therapist_id + '#'
                 + String(o.start_time || '').slice(0,5));
+      return;
+    }
+    // 「평가 상담」도 그 한 자리만 쓴다. 회기는 안 만든다
+    if (o.kind === '상담') {
+      CONS[o.off_date + '#' + o.therapist_id + '#'
+           + String(o.start_time || '').slice(0,5)] = o.child_id || 0;
       return;
     }
     if (o.therapist_id) {
@@ -5117,6 +5233,7 @@ async function afterLogin(user){
 
   const tpMap={}; (tp||[]).forEach(x=>tpMap[x.id]=x);
   const kdMap={}; (kids||[]).forEach(x=>kdMap[x.id]=x);
+  KIDNM = {}; (kids||[]).forEach(x=>{ KIDNM[x.id] = x.name; });
   ROWS = (sc||[]).map(r=>{
     const t=tpMap[r.therapy_id]; if(!t) return null;
     const k=kdMap[t.child_id];   if(!k) return null;
