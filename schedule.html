@@ -223,18 +223,23 @@
   .calday.today { box-shadow:inset 0 0 0 2px #2e7d32; border-radius:6px; }
   .calempty { background:#fafbfa; }
   .calnote { margin-top:10px; font-size:12.5px; color:#7a827d; text-align:center; }
+  /* 하루씩 보기 — 요일별 보기와 같은 색 (2026-09-03)
+     예정 연두 · 완료 흰바탕 · 보강 하늘 · 결석 연회색 · 휴무 진회색 · 평가 핑크 */
   .oneli { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-           padding:11px 12px; border:1px solid #dfe4e1; border-radius:9px;
-           margin-bottom:7px; background:#fff; font-size:15px; }
+           padding:11px 12px; border:1.5px solid #7cc466; border-radius:9px;
+           margin-bottom:7px; background:#d3f5c8; color:#1e4d12; font-size:15px; }
   .oneli .ot { flex:0 0 62px; font-weight:600; color:#2e5c3a; }
   .oneli .on2 { flex:1; min-width:0; word-break:break-all; }
   .oneli .os { flex:0 0 auto; font-size:12.5px; color:#6b7370; }
   .oneli .oth { font-size:12px; color:#7a827d; margin-left:6px; }
-  .oneli.o-done { background:#e6f3e9; border-color:#bcd9c5; }
-  .oneli.o-abs  { background:#e4e7e5; }
-  .oneli.o-off  { background:#d3d8d5; }
-  .oneli.o-rest { background:#f0f2f1; border-style:dashed; color:#8a908c; }
-  .oneli.o-mk   { background:#fff3e6; border-color:#f0cfa5; }
+  .oneli.o-done { background:#ffffff; color:#2a2f2b; border-color:#b8beba; }
+  .oneli.o-abs  { background:#d6dad8; color:#2a2f2b; border-color:#a8aeaa; }
+  .oneli.o-off  { background:#9aa19c; color:#ffffff; border-color:#7a807b; }
+  .oneli.o-off .ot, .oneli.o-off .os, .oneli.o-off .oth { color:#ffffff; }
+  .oneli.o-rest { background:#f0f2f1; border-style:dashed; color:#8a908c;
+                  border-color:#d6dad8; }
+  .oneli.o-mk   { background:#bfe0ff; color:#123a63; border-color:#3d84cf; }
+  .oneli.o-eval { background:#ffc2d8; color:#6d1338; border-color:#e0679b; }
   .oneli.o-cut .on2 { text-decoration:line-through; }
   .onenone { padding:22px 8px; text-align:center; color:#8a908c; }
   .oneday  { margin:14px 0 8px; font-weight:600; color:#2e5c3a; }
@@ -2358,10 +2363,12 @@ function drawOne(){
     const hm = String(x.start_time).slice(0,5);
 
     let cls = '', st = x.status;
+    // 완료면 흰 바탕. 아직 안 한 평가는 핑크 (요일별 보기와 같은 규칙)
     if (x.status === '완료')      cls = 'o-done';
     else if (x.status === '결석') cls = 'o-abs o-cut';
     else if (x.status === '휴무') cls = 'o-off o-cut';
     else if (x.status === '쉼')   cls = 'o-rest o-cut';
+    else if (x._isEval) cls = 'o-eval';
     else if (isMk(x)) cls = 'o-mk';
 
     h += '<div class="oneli ' + cls + '" data-sid="' + x.id + '">'
