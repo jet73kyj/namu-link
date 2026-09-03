@@ -67,6 +67,9 @@
   .sign.sm td.lb { width:22px; }
   .ptab { width:100%; border-collapse:collapse; font-size:13px; }
   .ptab th, .ptab td { border:0.8px solid #4a4a4a; padding:6px 8px; }
+  /* 적요 칸 안의 내역 — 화면에서는 감추고 인쇄할 때만 보인다 */
+  .ptab .initem { display:none; }
+  .ptab .prtsum { display:none; }
   .ptab th { background:#f2f6f0; }
   .foot { font-size:12.5px; margin-top:10px; line-height:1.8; }
   .center { text-align:center; font-size:15px; font-weight:700; margin-top:16px; }
@@ -96,6 +99,18 @@
     .paper { page-break-after:always; margin-top:0;
              box-sizing:border-box; }
     .paper > .pin { min-height:271mm; box-sizing:border-box; }
+    /* 현금출납부 — 인쇄할 때는 내역을 적요 아래 한 칸으로 내린다
+       칸이 좁아 글자가 세로로 접히는 것을 막기 위함 */
+    .ptab .itemcol { display:none !important; }
+    .ptab .initem { display:block !important; font-size:11px; color:#555;
+                    margin-top:3px; line-height:1.5; }
+    .ptab .prtsum { display:table-cell !important; }
+    /* 내역 칸이 없어진 만큼 적요 칸을 넓힌다 */
+    .ptab tr > th:nth-child(2), .ptab tr > td:nth-child(2) {
+      width:auto !important; min-width:190px; }
+    /* 「항」 칸은 글자가 세로로 접히지 않게 한 줄로 둔다 */
+    .ptab tr > th:nth-child(4), .ptab tr > td:nth-child(4) {
+      white-space:nowrap; width:1%; }
     .onehide { display:none !important; }
   }
 </style>
@@ -692,12 +707,13 @@ function drawCash(){
     + '<span>기본 예치 500만원 (매월 계좌 잔고 확인하기)</span></div>'
     + '<table class="ptab">'
     + '<tr><th style="width:66px;">월/일</th><th style="width:150px;">적요</th>'
-    + '<th>내역</th>'
+    + '<th class="itemcol">내역</th>'
     + '<th style="width:88px;">항</th>'
     + '<th class="num" style="width:104px;">수입</th>'
     + '<th class="num" style="width:104px;">지출금액</th>'
     + '<th class="num" style="width:112px;">잔액</th></tr>'
-    + '<tr><td></td><td>이월액</td><td></td><td></td><td></td><td></td>'
+    + '<tr><td></td><td>이월액</td><td class="itemcol"></td>'
+    + '<td></td><td></td><td></td>'
     + '<td class="num">' + won(bal) + '</td></tr>';
 
   let inSum = 0, outSum = 0;
@@ -707,15 +723,19 @@ function drawCash(){
     if (s.kind === '수입') { bal += amt; inSum += amt; } else { bal -= amt; outSum += amt; }
     h += '<tr>'
       + '<td class="ctr">' + esc(String(s.slip_date).slice(5).replace('-','/')) + '</td>'
-      + '<td>' + esc(s.title || '') + '</td>'
-      + '<td style="font-size:12px;color:#555;">' + esc(rowsShort(s.id)) + '</td>'
+      + '<td>' + esc(s.title || '')
+      +   '<span class="initem">' + esc(rowsShort(s.id)) + '</span></td>'
+      + '<td class="itemcol" style="font-size:12px;color:#555;">'
+      +   esc(rowsShort(s.id)) + '</td>'
       + '<td class="ctr">' + esc(c ? c.hang : '') + '</td>'
       + '<td class="num">' + (s.kind === '수입' ? won(amt) : '') + '</td>'
       + '<td class="num">' + (s.kind === '지출' ? won(amt) : '') + '</td>'
       + '<td class="num">' + won(bal) + '</td></tr>';
   });
 
-  h += '<tr class="sum"><td class="ctr" colspan="4">합　계</td>'
+  h += '<tr class="sum">'
+    + '<td class="ctr itemcol" colspan="4">합　계</td>'
+    + '<td class="ctr prtsum" colspan="3">합　계</td>'
     + '<td class="num">' + won(inSum) + '</td>'
     + '<td class="num">' + won(outSum) + '</td>'
     + '<td class="num">' + won(bal) + '</td></tr>'
