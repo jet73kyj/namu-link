@@ -2776,9 +2776,11 @@ function drawDay(){
                 && from.month_key && from.month_key !== mon;
               // 원래 수업 일자는 이름 옆에 한 번만 적는다 (아래 칸은 갈래만)
               const tag = (L2.kind === 'mk') ? '보강' : '직접';
-              // 보강 줄도 결석·휴무면 다른 줄과 같은 회색 바탕으로
-              const mkCls = (x.status === '결석') ? 'ln-abs ln-cut'
-                          : (x.status === '휴무') ? 'ln-off ln-cut' : 'ln-mk';
+              // 완료면 흰 바탕. 결석·휴무는 회색. 아직 안 한 평가는 핑크
+              const mkCls = (x.status === '완료') ? 'ln-done'
+                          : (x.status === '결석') ? 'ln-abs ln-cut'
+                          : (x.status === '휴무') ? 'ln-off ln-cut'
+                          : x._isEval ? 'ln-eval' : 'ln-mk';
               html += '<div class="ln ' + mkCls + kidCls + '" data-sid="' + x.id + '"'
                 + ' data-kid="' + esc(x._name || '') + '"'
                 + ' data-cid="' + (x.child_id || '') + '">'
@@ -2803,12 +2805,12 @@ function drawDay(){
             }
 
             const r = L2.r;
-            // 평가는 수업이 아니므로 상태와 상관없이 핑크로 그린다
-            const cls = x._isEval ? 'ln-eval'
-                      : x.status === '완료' ? 'ln-done'
+            // 완료면 흰 바탕. 아직 안 한 평가는 핑크 (요일별 보기와 같은 규칙)
+            const cls = x.status === '완료' ? 'ln-done'
                       : x.status === '결석' ? 'ln-abs'
                       : x.status === '휴무' ? 'ln-off'
-                      : x.status === '쉼' ? 'ln-rest' : 'ln-plan';
+                      : x.status === '쉼' ? 'ln-rest'
+                      : x._isEval ? 'ln-eval' : 'ln-plan';
             const cut = (x.status === '결석' || x.status === '휴무') ? ' ln-cut' : '';
             const spn = (x.support_type_id && x.support_type_id !== r.support_type_id)
               ? (STYPE[x.support_type_id] || '') : (STYPE[r.support_type_id] || '?');
