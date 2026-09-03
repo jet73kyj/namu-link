@@ -1053,6 +1053,10 @@ function slotHm12(s, thId, wd){ return h12(slotHm(s, thId, wd)); }
 const WDS = ['일','월','화','수','목','금','토'];
 
 const TTYPE = {1:'언어',2:'작업',3:'전산',4:'감통',5:'음악',6:'일상',7:'심리'};
+// 고르는 칸에 쓰는 정식 이름 — nl_therapy_types 표에서 가져온다
+//   표에 종류를 더하면 화면을 안 고쳐도 목록에 나온다
+//   (TTYPE 은 시간표 칸이 좁아 짧게 쓰는 것이라 따로 둔다)
+let TTNAME = {};
 const STYPE = {1:'센',2:'발',3:'치언',4:'치작',5:'방',6:'방치언',7:'방치작',8:'이',9:'평가'};
 const NEXT  = { '예정':'완료', '완료':'결석', '결석':'예정' };
 // 보강인지 — 상태가 아니라 '메울 결석(makeup_for)이 있는가' 로 본다
@@ -5281,8 +5285,14 @@ async function afterLogin(user){
   const { data: allKids } = await sb.from('nl_children')
     .select('id, name, status').in('status', ['치료중','대기중','종결']).order('name');
   KIDS = allKids || [];
-  $('ad_tt').innerHTML = Object.keys(TTYPE)
-    .map(k=>'<option value="'+k+'">'+k+' '+TTYPE[k]+'치료</option>').join('');
+  // 치료 종류 정식 이름 — 표에서 가져온다. 못 읽으면 짧은 이름을 쓴다
+  const { data: tts } = await sb.from('nl_therapy_types').select('id, name').order('id');
+  TTNAME = {};
+  (tts || []).forEach(x => { TTNAME[x.id] = x.name; });
+  const ttOpts = Object.keys(TTYPE)
+    .map(k => '<option value="' + k + '">' + k + ' '
+              + (TTNAME[k] || TTYPE[k]) + '</option>').join('');
+  $('ad_tt').innerHTML = ttOpts;
   $('ad_st').innerHTML =
     '<option value="1">1 센터비용</option><option value="2">2 발달재활서비스</option>'
   + '<option value="3">3 치료지원(언어)</option><option value="4">4 치료지원(작업)</option>'
@@ -5292,8 +5302,7 @@ async function afterLogin(user){
     .map(w=>'<option value="'+w+'">'+w+'요일</option>').join('');
   $('ed_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t
     + (s.no === LATE_SLOT ? ' (3번 치료사는 20:20)' : '') + '</option>').join('');
-  $('ed_tt').innerHTML   = Object.keys(TTYPE)
-    .map(k=>'<option value="'+k+'">'+k+' '+TTYPE[k]+'치료</option>').join('');
+  $('ed_tt').innerHTML   = ttOpts;
   $('ed_st2').innerHTML  =
     '<option value="1">1 센터비용</option><option value="2">2 발달재활서비스</option>'
   + '<option value="3">3 치료지원(언어)</option><option value="4">4 치료지원(작업)</option>'
