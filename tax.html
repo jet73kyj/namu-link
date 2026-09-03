@@ -52,7 +52,7 @@
   /* 결의서 인쇄 모양 */
   /* 바깥 테두리 — 가는 두 줄 (공문서 차림) */
   .paper { border:1px solid #5a7a5e; padding:4px; margin-top:14px; background:#fff; }
-  .paper > .pin { border:1px solid #5a7a5e; padding:30px; height:100%;
+  .paper > .pin { border:1px solid #5a7a5e; padding:30px;
                   box-sizing:border-box; display:flex; flex-direction:column; }
   /* 비고를 맨 아래로 밀어내는 빈 자리 */
   .pgap { flex:1 1 auto; min-height:10px; }
@@ -91,9 +91,11 @@
     .noprint, .top, .tabs, .bar, #loginBox, .btn-home { display:none !important; }
     body { background:#fff; padding:0; }
     .wide { box-shadow:none; padding:0; margin:0; max-width:none; }
-    /* A4 한 장을 꽉 채운다 (위 @page 여백 12mm 를 뺀 높이) */
+    /* 한 장이면 A4를 꽉 채우고, 길어지면 다음 장까지 이어진다
+       height 로 못 박으면 넘친 부분이 테두리 밖으로 나가 비고와 겹친다 */
     .paper { page-break-after:always; margin-top:0;
-             height:273mm; box-sizing:border-box; }
+             box-sizing:border-box; }
+    .paper > .pin { min-height:271mm; box-sizing:border-box; }
     .onehide { display:none !important; }
   }
 </style>
@@ -430,7 +432,7 @@ function paperHtml(s, kind){
     + '<div style="font-size:13px;margin:10px 0 4px;">〈 적 요 〉</div>'
     + '<table class="ptab" style="width:70%;">' + body + '</table>'
     + '<div class="pgap"></div>'
-    + '<table class="ptab">'
+    + '<table class="ptab" style="margin-top:14px;">'
     + '<tr><th class="ctr" style="width:90px;">비　고</th>'
     + '<td style="width:220px;">첨부 : ' + esc(s.attach || '') + '</td>'
     + '<td class="ctr">계좌번호 : ' + esc(ACCOUNT) + '</td></tr>'
