@@ -209,7 +209,7 @@
         <td colspan="6" class="lbl">1. 발달재활서비스</td>
       </tr>
       <tr>
-        <td rowspan="4" style="text-align:center;font-weight:bold;background:#fafafa;width:15%;">감각발달재활<br>제공시간</td>
+        <td rowspan="4" style="text-align:center;font-weight:bold;background:#fafafa;width:15%;"><span id="svcName">감각발달재활</span><br>제공시간</td>
         <td class="lbl" style="width:12%;">제공날짜</td>
         <td style="width:18.25%;"><input type="text" id="s1_provDate_1"></td>
         <td style="width:18.25%;"><input type="text" id="s1_provDate_2"></td>
@@ -841,9 +841,22 @@ function syncCalSvc() {
   document.querySelectorAll('#calTbl .evt .evt-svc').forEach(el => {
     el.textContent = nm;
   });
+  // 「○○○ 제공시간」 앞 이름도 함께 바꾼다
+  const sn = $('svcName');
+  if (sn) sn.textContent = nm;
+  // 서비스 비용 상자의 종류 칸도 함께 바꾼다
+  const ct = $('s1_costType');
+  if (ct) ct.value = nm;
+  // 맨 위 「제공영역」도 함께 바꾼다
+  const ar = $('s1_area');
+  if (ar) ar.value = nm;
 }
 
 function buildCalendar() {
+  // 「○○○ 제공시간」 앞 이름도 서비스 종류를 따라간다
+  //   (불러오기·아동 바꾸기로 값이 들어올 때도 맞춰진다)
+  const _sn = $('svcName');
+  if (_sn) _sn.textContent = _getServiceType();
   const first = new Date(year, month-1, 1);
   const lastDay = new Date(year, month, 0).getDate();
   const startDow = first.getDay();
