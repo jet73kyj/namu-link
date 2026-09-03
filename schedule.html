@@ -1138,7 +1138,7 @@ function thOkForTt(tt, th){
     && Number(r.therapist_id) === Number(th));
 }
 
-const CAN_SEE = [1,2,3,4,5,6,7,8,9];
+const CAN_SEE = [1,2,3,4,5,6,7,8,9,11];   // 11 = 데스크
 
 let ROWS = [];          // 수업(요일) — 보고 있는 달 것만
 let ROWS_ALL = [];      // 수업(요일) 전체
@@ -5212,7 +5212,7 @@ async function afterLogin(user){
   if (CAN_SEE.indexOf(me.id) < 0) { show('이 화면을 볼 권한이 없습니다.', false); return; }
 
   // 권한을 먼저 정한다 (아래에서 걸러낼 때 쓰이므로 순서가 중요)
-  CAN_EDIT = (me.id === 8 || me.id === 9);   // 넣기·고치기·휴무는 관리자·행정만
+  CAN_EDIT = (me.id === 8 || me.id === 9 || me.id === 11);   // 관리자·행정·데스크
   MY_TH = (me.id >= 1 && me.id <= 7) ? me.id : null;  // 치료사는 자기 것만
   IS_BOSS = (me.id === 8);
 
