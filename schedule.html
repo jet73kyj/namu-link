@@ -180,6 +180,9 @@
   .ln-open.ln-holi { background:#dcdfdd; color:#5c625e; border:1px solid #c4cac6; }
   .ln-block { background:#5a5f5c !important; color:#fff !important; }
   .ln-cons { background:#F9D5E2 !important; }
+  /* 평가 — 수업이 아니다. 평가 상담(연핑크)보다 진하게 */
+  .ln-eval { background:#ffc2d8; border:1.5px solid #e0679b; }
+  .ln-eval .d, .ln-eval .n, .ln-eval .s { color:#6d1338; }
   .ln-cons .d, .ln-cons .n { color:#8a2f4e !important; }
   .nosat { background:#f2f4f1; }
   .hsat { font-size:10.5px; color:#8a918c; margin-top:1px; }
@@ -270,13 +273,22 @@
   .run .no { font-weight:800; font-size:11px; color:#33691e; margin-left:4px; }
   .run .dt { flex:1 1 auto; white-space:nowrap; }
   .run .st { margin-left:auto; font-weight:bold; flex:0 0 auto; }
-  .r-done { background:#c8e6c9; color:#1b5e20; }
-  .r-abs  { background:#ffcdd2; color:#b71c1c; }
+  /* 회기 상태별 색 (2026-09-03 정함)
+     예정 연두 · 완료 흰바탕 · 보강 하늘 · 결석 연회색 · 휴무 진회색 · 평가 핑크
+     ★ 완료면 보강·평가도 흰 바탕이 된다 (끝난 것은 한 색으로) */
+  .run    { background:#d3f5c8; color:#1e4d12; border:1px solid #7cc466; }
+  .r-done { background:#ffffff !important; color:#2a2f2b !important;
+            border-color:#b8beba !important; }
+  .r-abs  { background:#d6dad8 !important; color:#2a2f2b !important;
+            border-color:#a8aeaa !important; }
   /* 결석·휴무 — 날짜와 회차 번호에 줄을 긋는다 */
   .run.r-cut .dt { text-decoration:line-through; }
-  .r-mk   { background:#ffe0b2; color:#e65100; }
-  .r-off  { background:#e0e0e0; color:#555; }
-  .r-rest { background:#f0f2f1; color:#8a908c; }
+  .r-mk   { background:#bfe0ff; color:#123a63; border-color:#3d84cf; }
+  .r-off  { background:#9aa19c !important; color:#ffffff !important;
+            border-color:#7a807b !important; }
+  .r-rest { background:#f0f2f1 !important; color:#8a908c !important;
+            border-color:#d6dad8 !important; }
+  .r-eval { background:#ffc2d8; color:#6d1338; border-color:#e0679b; }
   .wk5    { background:#c8e6c9; color:#33691e; opacity:.75; cursor:default; }
   .wk5:hover { outline:none; }
   .wk5 .st { font-weight:normal; font-size:10.5px; }
@@ -1728,7 +1740,8 @@ function drawFind(){
   function extraChip(s){
     const cls = (s.status==='완료' ? 'r-done'
               : s.status==='결석' ? 'r-abs'
-              : s.status==='휴무' ? 'r-off' : 'r-mk');
+              : s.status==='휴무' ? 'r-off'
+              : s._isEval ? 'r-eval' : 'r-mk');
     // 다른 달 몫이면 「9월분」처럼 그 달을 적는다 (메모 글자보다 이쪽이 분명함)
     let lb = (s.month_key && String(s.month_key) !== String(mon))
       ? mnLabel(s)
@@ -1750,7 +1763,8 @@ function drawFind(){
       const cls = (x.status==='완료' ? 'r-done'
                 : x.status==='결석' ? 'r-abs'
                 : x.status==='휴무' ? 'r-off'
-                : x.status==='쉼' ? 'r-rest' : '')
+                : x.status==='쉼' ? 'r-rest'
+                : x._isEval ? 'r-eval' : '')
                 + ((x.status==='결석' || x.status==='휴무') ? ' r-cut' : '');
       const mk = mkOf[x.id];
       // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
@@ -1994,7 +2008,8 @@ function drawWeek(){
               const cls = (x.status==='완료' ? 'r-done'
                         : x.status==='결석' ? 'r-abs'
                         : x.status==='휴무' ? 'r-off'
-                        : x.status==='쉼' ? 'r-rest' : '')
+                        : x.status==='쉼' ? 'r-rest'
+                        : x._isEval ? 'r-eval' : '')
                         + ((x.status==='결석' || x.status==='휴무') ? ' r-cut' : '');
               const mk = mkOf[x.id];
               const tail = (x.status==='쉼')
@@ -2025,8 +2040,10 @@ function drawWeek(){
               + mergeRuns(_rl, _rh, wk5Pairs(r, byScd, d)) + '</span>';
           });
           mks.forEach(x => {
+            // 완료면 흰 바탕. 아직 안 한 평가는 핑크, 보강은 하늘색
             const mcls = (x.status==='완료' ? 'r-done'
-                       : x.status==='결석' ? 'r-abs' : 'r-mk')
+                       : x.status==='결석' ? 'r-abs'
+                       : x._isEval ? 'r-eval' : 'r-mk')
                        + (x.status==='결석' ? ' r-cut' : '');
             const _org = ROWS_ALL.find(function(rr){ return rr.id === x.schedule_id; });
             const _st2 = x.support_type_id || (_org ? _org.support_type_id : null);
@@ -2264,8 +2281,10 @@ function drawPrev(){
 
 // 직접 넣은 보강 한 칸 (수업요일 없이 홀로 선 줄)
 function mnChip(x){
+  // 완료면 흰 바탕. 아직 안 한 평가는 핑크, 보강은 하늘색
   const cls = (x.status==='완료' ? 'r-done'
-            : x.status==='결석' ? 'r-abs' : '')
+            : x.status==='결석' ? 'r-abs'
+            : x._isEval ? 'r-eval' : '')
             + (x.status==='결석' ? ' r-cut' : '');
   const rs = String(x.memo || '').replace(/^직접 보강 · ?/, '');
   return '<span class="chip r-mk">'
@@ -2784,7 +2803,9 @@ function drawDay(){
             }
 
             const r = L2.r;
-            const cls = x.status === '완료' ? 'ln-done'
+            // 평가는 수업이 아니므로 상태와 상관없이 핑크로 그린다
+            const cls = x._isEval ? 'ln-eval'
+                      : x.status === '완료' ? 'ln-done'
                       : x.status === '결석' ? 'ln-abs'
                       : x.status === '휴무' ? 'ln-off'
                       : x.status === '쉼' ? 'ln-rest' : 'ln-plan';
