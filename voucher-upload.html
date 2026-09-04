@@ -70,6 +70,17 @@
   .asec h3 { font-size:14px; margin:0 0 8px; color:var(--ink1);
              border-left:3px solid var(--acc); padding-left:8px; }
   .anone { font-size:13px; color:var(--ink3); padding:6px 0 0; }
+  /* 점검 메모 — 어긋난 아동 옆에 처리 결과를 적는다 (2026-09-03) */
+  .amemoh { width:200px; }
+  .amemo { white-space:nowrap; }
+  .amemoin { width:150px; font:inherit; font-size:12.5px; padding:4px 7px;
+    border:1px solid #dfe4e1; border-radius:6px; }
+  .amemobtn { font:inherit; font-size:12px; padding:4px 9px; margin-left:4px;
+    border:1px solid #c8d4c4; border-radius:6px; background:#fff;
+    color:#2e7d32; cursor:pointer; }
+  .amemo-no { font-size:12px; color:#9aa294; }
+  @media print { .amemobtn { display:none; }
+    .amemoin { border:none; padding:0; width:auto; background:transparent; } }
   .atab { width:100%; border-collapse:collapse; font-size:12.5px; }
   .atab th { background:#f4f6f2; text-align:left; padding:6px 8px;
              border-bottom:1px solid var(--line); white-space:nowrap; }
@@ -427,14 +438,14 @@ function toRows(aoa) {
 }
 
 // 전월 파일 읽기
-function parsePrev(aoa) {
+async function parsePrev(aoa) {
   const rows = toRows(aoa);
   if (!rows) { show($('msg2'), '❌ 전월 파일에 「대상자ID」 칸이 없습니다.', false); return; }
   if (!rows.length) { show($('msg2'), '전월 파일에 읽을 줄이 없습니다.', false); return; }
   PREV = rows;
   PREVMK = rows[0].month_key || '';
   $('prevstat').textContent = '✅ 전월 ' + (PREVMK || '') + ' · ' + rows.length + '줄 읽었습니다.';
-  if (ROWS.length) drawAudit();
+  if (ROWS.length) await drawAudit();
 }
 
 function parseRows(aoa) {
@@ -463,6 +474,32 @@ function thOf(tid) {
   return '';
 }
 let ME_ID = null;        // 지금 로그인한 직원 번호
+let MEMOS = {};   // 아동번호 -> 그 달 점검 메모
+// 결제 줄의 아동 번호 (이어두지 않았으면 null)
+function cidOf(tid) {
+  const g = GROUPS.find(x => x.target_id === tid);
+  return (g && g.child_id) ? g.child_id : null;
+}
+// 점검 메모 칸 — 아동·달 단위로 남긴다
+let MEMO_MK = '';   // 지금 보고 있는 달
+function memoCell(cid) {
+  if (!cid) return '<td class="amemo"><span class="amemo-no">이어두지 않음</span></td>';
+  const v = MEMOS[cid] || '';
+  return '<td class="amemo">'
+    + '<input class="amemoin" data-cid="' + cid + '" value="' + esc(v) + '"'
+    + ' placeholder="처리 결과를 적어 두세요">'
+    + '<button class="amemobtn" data-cid="' + cid + '" data-mk="'
+    + esc(MEMO_MK) + '">저장</button></td>';
+}
+// 그 달 점검 메모를 미리 읽어 둔다
+async function loadMemos(mk) {
+  MEMO_MK = mk; MEMOS = {};
+  try {
+    const { data } = await sb.from('nl_voucher_memos')
+      .select('child_id, memo').eq('month_key', mk);
+    (data || []).forEach(x => { if (x.memo) MEMOS[x.child_id] = x.memo; });
+  } catch (e) {}
+}
 function nameOf(tid) {
   const g = GROUPS.find(x => x.target_id === tid);
   if (g && g.child_id) {
@@ -495,9 +532,9 @@ function weekKey(ymd) {
 
 // 전월 자료를 시스템에서 꺼내 온다 (파일을 안 올렸을 때)
 async function loadPrevIfNeeded() {
-  if (PREV.length) { drawAudit(); return; }
+  if (PREV.length) { await drawAudit(); return; }
   const mk = (ROWS[0] && ROWS[0].month_key) || '';
-  if (!mk) { drawAudit(); return; }
+  if (!mk) { await drawAudit(); return; }
   const y = Number(mk.slice(0,4)), m = Number(mk.slice(5,7));
   const dt = new Date(y, m - 2, 1);
   const pk = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0');
@@ -514,11 +551,11 @@ async function loadPrevIfNeeded() {
   } catch (e) {
     $('prevstat').textContent = 'ℹ 전월 자료를 불러오지 못했습니다.';
   }
-  drawAudit();
+  await drawAudit();
 }
 
 // 담당 치료사별로 묶어서 그린다 (줄마다 thr 칸이 있어야 한다)
-function tabByThr(head, rows) {
+function tabByThr(head, rows, memo) {
   if (!rows.length) return '<div class="anone">해당 없음</div>';
   const by = {};
   rows.forEach(r => { (by[r.thr || '담당 치료사 없음'] = by[r.thr || '담당 치료사 없음'] || []).push(r); });
@@ -531,22 +568,61 @@ function tabByThr(head, rows) {
     '<div class="thrgrp"><div class="thrhead">' + esc(k)
     + (k === '담당 치료사 없음' ? '' : ' 선생님')
     + ' <span class="thrsum">— 아동 ' + by[k].length + '명</span></div>'
-    + tab(head, by[k]) + '</div>').join('');
+    + tab(head, by[k], memo) + '</div>').join('');
 }
 
-function tab(head, rows) {
+// memo 가 true 면 「처리 결과」 칸을 붙인다 (1 · 2-2 · 4 항목)
+// 메모 칸을 붙일 항목 — 1(승인번호) · 2-2(중복·아동) · 4(회수 미달)
+function memoOn(title) {
+  const s = String(title);
+  return s.indexOf('1.') === 0 || s.indexOf('2-2.') === 0 || s.indexOf('4.') === 0;
+}
+// 메모 칸에 저장 단추를 붙인다
+function bindMemo() {
+  document.querySelectorAll('.amemobtn').forEach(b => {
+    b.onclick = async () => {
+      const cid = Number(b.dataset.cid);
+      const mk  = b.dataset.mk;
+      const box = b.parentElement.querySelector('.amemoin');
+      const v = box.value.trim();
+      b.disabled = true; b.textContent = '...';
+      try {
+        const { error } = await sb.from('nl_voucher_memos')
+          .upsert({ child_id: cid, month_key: mk, memo: v || null,
+                    updated_by: ME_ID || null,
+                    updated_at: new Date().toISOString() },
+                  { onConflict: 'child_id,month_key' });
+        if (error) throw error;
+        MEMOS[cid] = v;
+        // 같은 아동이 다른 항목에도 있으면 함께 맞춘다
+        document.querySelectorAll('.amemoin[data-cid="' + cid + '"]')
+          .forEach(x => { x.value = v; });
+        b.textContent = '✓';
+        setTimeout(() => { b.textContent = '저장'; b.disabled = false; }, 1200);
+      } catch (e) {
+        alert('저장하지 못했습니다.\n' + e.message);
+        b.textContent = '저장'; b.disabled = false;
+      }
+    };
+  });
+}
+
+function tab(head, rows, memo) {
   if (!rows.length) return '<div class="anone">해당 없음</div>';
   return '<table class="atab"><tr>'
-    + head.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>'
+    + head.map(h => '<th>' + esc(h) + '</th>').join('')
+    + (memo ? '<th class="amemoh">처리 결과</th>' : '') + '</tr>'
     + rows.map(r => '<tr class="' + (r.cls || 'bad') + '">'
         + r.v.map(c => '<td>' + (c == null ? '' : esc(String(c))) + '</td>').join('')
+        + (memo ? memoCell(r.cid) : '')
       + '</tr>').join('')
     + '</table>';
 }
 
-function drawAudit() {
+async function drawAudit() {
   if (!ROWS.length) return;
   const MK = ROWS[0].month_key || '';
+  await loadMemos(MK);
   // --- 0. 승인번호 없음·이상 (가장 급한 오류) ---
   // 결제취소나 미결제라 다시 결제해야 하는 줄
   const lens = {};
@@ -569,7 +645,8 @@ function drawAudit() {
                                      why = '자릿수 이상 (' + n.length + '자리 · 보통 ' + normLen + '자리)';
     else if (dup[n] > 1)             why = '같은 승인번호가 ' + dup[n] + '번 나옴';
     if (!r.service_date)             why = (why ? why + ' / ' : '') + '결제일시 없음';
-    if (why) e0.push({ v:[ nameOf(r.target_id), r.service_date || '-',
+    if (why) e0.push({ cid: cidOf(r.target_id),
+                       v:[ nameOf(r.target_id), r.service_date || '-',
                            r.start_time || '', n || '(비어 있음)', why ] });
   });
 
@@ -618,7 +695,8 @@ function drawAudit() {
       if (t1 == null || t2 == null) continue;
       if (a[i-1].therapist_name === a[i].therapist_name) continue;
       const gap = t2 - t1;
-      if (gap < GAP_MIN) e2.push({ v:[ nameOf(a[i].target_id), a[i].service_date,
+      if (gap < GAP_MIN) e2.push({ cid: cidOf(a[i].target_id),
+        v:[ nameOf(a[i].target_id), a[i].service_date,
         (a[i-1].therapist_name || '?') + ' ' + (a[i-1].start_time || ''),
         (a[i].therapist_name   || '?') + ' ' + (a[i].start_time   || ''),
         gap + '분' ] });
@@ -648,7 +726,7 @@ function drawAudit() {
   Object.keys(cnt).forEach(tid => {
     const g = cnt[tid];
     if (g.ds.length < MONTH_NEED)
-      e4.push({ cls:'warn',
+      e4.push({ cls:'warn', cid: cidOf(tid),
         thr: Object.keys(g.th).join(', ') || thOf(tid) || '담당 치료사 없음',
         v:[ nameOf(tid),
         g.ds.length + '회', g.ds.sort().join(', '),
@@ -795,7 +873,9 @@ function drawAudit() {
     '<div class="asec'
     + (PDF_SKIP.some(k => String(x[0]).indexOf(k) === 0) ? ' pdfskip' : '')
     + '"><h3>' + esc(x[0]) + '</h3>'
-    + (x[4] ? tabByThr(x[1], x[2]) : tab(x[1], x[2])) + '</div>').join('');
+    + (x[4] ? tabByThr(x[1], x[2], memoOn(x[0])) : tab(x[1], x[2], memoOn(x[0])))
+    + '</div>').join('');
+  bindMemo();
 }
 
 // 아동 짝맞추기
