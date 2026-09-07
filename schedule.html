@@ -9,7 +9,112 @@
          margin:0; padding:20px; color:#333; }
   .box { max-width:460px; margin:40px auto; background:#fff; border-radius:12px;
          padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-  .wide { max-width:1500px; margin:16px auto; background:#fff; border-radius:12px;
+  /* 왼쪽 달력 (2026-09-07) — 일 빨강 · 토 청록 · 공휴일 빨강 */
+  .sidecal { background:#fff; border:1px solid #e8ebe4; border-radius:9px;
+             padding:4px 3px; margin-bottom:8px; }
+  .scnav { display:flex; align-items:center; justify-content:space-between;
+           padding:0 2px 4px; }
+  .scnav b { font-size:11px; white-space:nowrap; }
+  .scnav button { border:none; background:none; cursor:pointer;
+                  font-size:20px; color:#2c5c37; padding:0 4px; line-height:1;
+                  font-weight:700; }
+  .scnav button:hover { color:#7cc466; }
+  .scmon { font:inherit; font-size:11px; border:1px solid #e8ebe4;
+           border-radius:5px; padding:1px 2px; background:#fff;
+           color:#2a2f2b; cursor:pointer; }
+  .sctbl { width:100%; border-collapse:collapse; table-layout:fixed; }
+  .sctbl th { font-size:10px; color:#8a908c; font-weight:600; padding:0;
+              white-space:nowrap; }
+  .sctbl th.sun { color:#d23b3b; }
+  .sctbl th.sat { color:#2e8b8b; }
+  .sctbl td { padding:0 !important; text-align:center !important;
+              height:14px !important; line-height:1 !important;
+              font-size:11px !important;
+              border:none !important; background:none !important;
+              vertical-align:middle !important; }
+  .sctbl tr { height:14px !important; }
+  .sctbl th { height:14px !important; line-height:1 !important; }
+  .scd { width:100%; border:none; background:none; cursor:pointer;
+         font:inherit; font-size:11px; padding:0; border-radius:3px;
+         color:#2a2f2b; line-height:1.0; white-space:nowrap; }
+  .scd:hover { background:#eef3ec; }
+  .scd.sat { color:#2e8b8b; }
+  .scd.sun, .scd.holi { color:#d23b3b; }
+  .scd.out { color:#c8ccc9; }
+  /* 지난달·다음달 흐린 날짜도 같은 높이로 (안 그러면 줄이 늘어난다) */
+  .sctbl .scd, .sctbl .scd:disabled {
+    display:block !important; height:14px !important;
+    line-height:14px !important; font-size:11px !important;
+    padding:0 !important; margin:0 !important; }
+  .scd.has { font-weight:700; }
+  .sctbl .scd { background:none !important; }
+  .sctbl .scd.on { background:#2e7d32 !important; color:#fff !important; }
+  .scd.today { outline:1.5px solid #7cc466; }
+  .scd.on { background:#2e7d32; color:#fff; }
+  .scnote { font-size:10px; color:#9aa294; text-align:center; margin-top:3px;
+            white-space:nowrap; }
+
+  /* 주간 보기 — 요일 아래 치료사 (2026-09-07) */
+  table.grid th.wkth { font-size:10px !important; padding:2px 1px !important;
+                       background:#ff8c80 !important; }
+  table.grid th.wkth .thkind { font-size:10px; white-space:nowrap; }
+
+  /* 왼쪽 갈래 단추 (2026-09-07) */
+  .sideview { display:flex !important; gap:3px !important;
+              margin-bottom:8px !important; }
+  .sideview .vtab { flex:1 1 0 !important; width:auto !important;
+             border:1px solid #dfe4e1 !important; background:#f7f8f5 !important;
+             color:#5a6156 !important; font-size:10.5px !important;
+             padding:3px 0 !important; margin:0 !important;
+             border-radius:5px !important; cursor:pointer;
+             line-height:1.4 !important; white-space:nowrap; }
+  .sideview .vtab.on { background:#2e7d32 !important; color:#fff !important;
+             border-color:#2e7d32 !important; }
+
+  /* 왼쪽 치료사 고르기 (2026-09-07) */
+  .sideth { background:#fff; border:1px solid #e8ebe4; border-radius:9px;
+            padding:6px 7px; margin-bottom:8px; }
+  .sideth .sthd { font-size:11px !important; color:#5a6156; font-weight:600;
+                  display:flex !important; justify-content:space-between !important;
+                  align-items:center; margin-bottom:4px; white-space:nowrap; }
+  .sideth .sthd span { white-space:nowrap; }
+  .sideth .sthd button { border:none !important; background:none !important;
+                         cursor:pointer; font-size:10px !important;
+                         color:#2c5c37 !important; padding:0 !important;
+                         margin:0 !important; width:auto !important;
+                         white-space:nowrap; }
+  .sideth .sthrow { display:flex !important; align-items:center !important;
+            justify-content:flex-start !important;
+            gap:4px !important; padding:1px 0 !important; margin:0 !important;
+            font-size:11.5px !important; cursor:pointer; white-space:nowrap;
+            line-height:1.5 !important; text-align:left !important; }
+  .sideth .sthrow input { margin:0 !important; padding:0 !important;
+            cursor:pointer; width:12px !important; height:12px !important;
+            flex:0 0 12px !important; }
+  .sthrow.off { color:#b8beba; }
+  .sthwrap { display:flex !important; gap:6px !important;
+             align-items:flex-start !important; }
+  .sthlist { flex:1 1 50% !important; min-width:0 !important; }
+  .sthbtns { flex:0 0 46% !important;
+             display:flex !important; flex-direction:column !important;
+             gap:3px !important; margin:0 !important; }
+  .sideth .sthb { width:100% !important; border:1px solid #dfe4e1 !important;
+             background:#f7f8f5 !important; color:#5a6156 !important;
+             font-size:10.5px !important; padding:2px 0 !important;
+             margin:0 !important; border-radius:5px !important;
+             cursor:pointer; line-height:1.4 !important; }
+  .sideth .sthb:hover { background:#eef3ec !important; color:#2c5c37 !important; }
+
+  /* 왼쪽 기둥 + 오른쪽 시간표 (2026-09-07) */
+  .cols { display:flex; gap:14px; align-items:flex-start; }
+  .colL { flex:0 0 180px; max-width:180px; min-width:0; }
+  .colR { flex:1 1 auto; min-width:0; }
+  .colL > div { margin-bottom:10px; }
+  @media (max-width:1100px) {
+    .cols { display:block; }
+    .colL { max-width:none; }
+  }
+  .wide { max-width:1850px; margin:16px auto; background:#fff; border-radius:12px;
           padding:22px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
   h1 { font-size:20px; color:#2e7d32; margin:0 0 4px; }
   #monBig { font-size:30px; font-weight:800; color:#1b5e20; letter-spacing:-.02em;
@@ -520,9 +625,6 @@
   </div>
 
   <div class="tools">
-    <button class="vtab on" data-v="day">요일별</button>
-    <button class="vtab" data-v="week">치료사별 주간</button>
-    <button class="vtab" data-v="one">하루씩</button>
     <span class="vgap"></span>
     <span id="oneBar" style="display:none;">
       <button class="tab" id="oneBack">‹ 달력으로</button>
@@ -539,7 +641,7 @@
     <button class="tab" data-wd="토">토</button>
     </span>
     <select id="wkTh" class="sel" style="display:none;"></select>
-    <select id="mon" class="sel"></select>
+    <select id="mon" class="sel" style="display:none;"></select>
     <input id="findName" class="findbox" type="text" placeholder="🔍 아동 이름으로 찾기">
     <button id="findJump" class="jumpbtn" style="display:none;">›</button>
     <div id="findPick" class="findpick" style="display:none;"></div>
@@ -928,21 +1030,33 @@
     <div id="edMsg" class="out"></div>
   </div>
 
-  <div id="calBox" style="display:none;"></div>
-  <div id="oneBox" style="display:none;"></div>
-
-  <div id="gridWrap" class="scroll">
-    <table class="grid">
-      <thead id="ghead"></thead>
-      <tbody id="gbody"></tbody>
-    </table>
+  <!-- 왼쪽 기둥(달력·상자들) + 오른쪽 시간표 (2026-09-07) -->
+  <div class="cols">
+    <div class="colL">
+      <div id="sideCal" class="sidecal"></div>
+      <div class="sideview">
+        <button class="vtab on" data-v="day">시간표</button>
+        <button class="vtab" data-v="week">주간</button>
+        <button class="vtab" data-v="one">하루</button>
+      </div>
+      <div id="sideTh" class="sideth"></div>
+      <div id="calBox" style="display:none !important;"></div>
+      <div id="short" class="shortbox" style="display:none;"></div>
+      <div id="gapBox" class="shortbox" style="display:none;"></div>
+      <div id="prevBox" class="prevbox" style="display:none;"></div>
+      <div id="allok" class="allok" style="display:none;"></div>
+    </div>
+    <div class="colR">
+      <div id="oneBox" style="display:none;"></div>
+      <div id="gridWrap" class="scroll">
+        <table class="grid">
+          <thead id="ghead"></thead>
+          <tbody id="gbody"></tbody>
+        </table>
+      </div>
+      <div id="findOnly" class="findonly" style="display:none;"></div>
+    </div>
   </div>
-
-  <div id="findOnly" class="findonly" style="display:none;"></div>
-  <div id="prevBox" class="prevbox" style="display:none;"></div>
-  <div id="short" class="shortbox" style="display:none;"></div>
-  <div id="gapBox" class="shortbox" style="display:none;"></div>
-  <div id="allok" class="allok" style="display:none;"></div>
   <div class="dockpad"></div>
   <div id="dock" class="dock mini" style="display:none;">
     <div id="dockbar" class="dockbar"></div>
@@ -1151,6 +1265,8 @@ function tmDif(x){
   return '<span class="tmdif">' + h12(a) + '</span>';
 }
 // 치료 종류별 담당 치료사 (언어=1,2,3 / 작업·전산·감통=4,6,7 / 음악=5 / 심리=3 / 일상=전원)
+// 치료 종류별 담당 치료사 (2026-09-07 은정님 확인)
+//   언어 1·2·3 / 작업·전산·감통 4·6·7 / 음악 5 / 심리 3
 const RULE = { 1:[1,2,3], 2:[4,6,7], 3:[4,6,7], 4:[4,6,7], 5:[5], 7:[3] };
 // 그 치료를 맡을 수 있는 선생님인지 — 위 표만 보지 않고 실제 시간표도 함께 본다
 // (같은 치료라도 요일마다 선생님이 다를 수 있어, 표에만 기대면 멀쩡한 담당도 남으로 본다)
@@ -1924,7 +2040,136 @@ $('findName').addEventListener('input', () => { drawFind(); markFind(); });
 $('findJump').onclick = () => jumpTo(hitAt + 1);
 
 // ===== 치료사별 주간 보기 =====
+// ===== 주간 보기 (2026-09-07 새로 만듦) =====
+//   달력에서 고른 날짜가 든 한 주 · 왼쪽에서 켜둔 치료사만
+//   보기만 한다 (넣기·고치기는 「시간표」 보기에서)
 function drawWeek(){
+  buildSplit();
+  // 고른 날짜가 든 주의 월요일을 찾는다
+  let base = oneDate && String(oneDate).slice(0,7) === mon ? oneDate : '';
+  if (!base) {
+    const t0 = new Date();
+    base = (String(mon) === t0.getFullYear() + '-' + String(t0.getMonth()+1).padStart(2,'0'))
+      ? mon + '-' + String(t0.getDate()).padStart(2,'0')
+      : mon + '-01';
+  }
+  const bd = new Date(base + 'T00:00:00');
+  const wd0 = bd.getDay();                       // 0 일 … 6 토
+  const mondayOff = (wd0 === 0) ? -6 : (1 - wd0);
+  const mon0 = new Date(bd); mon0.setDate(bd.getDate() + mondayOff);
+
+  const DAYS = ['월','화','수','목','금','토'];
+  const dates = DAYS.map((d, i2) => {
+    const x = new Date(mon0); x.setDate(mon0.getDate() + i2);
+    return x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0')
+         + '-' + String(x.getDate()).padStart(2,'0');
+  });
+
+  const ths = thShown();
+  const thIds = new Set(ths.map(x => Number(x.id)));
+  const dset = new Set(dates);
+
+  // 그 주 그 요일 칸에 담는다
+  const cell = {};
+  SESS.forEach(s => {
+    if (!s.plan_date || !dset.has(s.plan_date)) return;
+    if (!thIds.has(Number(s.therapist_id))) return;
+    const k = nearest(toMin(s.start_time)).no + '_' + wdOf(s.plan_date)
+            + '_' + s.therapist_id;
+    (cell[k] = cell[k] || []).push(s);
+  });
+  Object.values(cell).forEach(a => a.sort((x,y) =>
+    String(x.start_time).localeCompare(String(y.start_time))));
+
+  $('count').textContent = dayNo(dates[0]) + '일 ~ ' + dayNo(dates[5]) + '일 · 치료사 '
+    + ths.length + '명';
+
+  // 머리줄 두 층 — 위는 요일, 아래는 치료사
+  $('ghead').innerHTML =
+      '<tr><th class="hcol" rowspan="2">교시</th>'
+    + DAYS.map((d, i2) => '<th colspan="' + ths.length + '">'
+        + '<div class="thname">' + d + '요일</div>'
+        + '<div class="thkind">' + dayNo(dates[i2]) + '일</div></th>').join('')
+    + '</tr><tr>'
+    + DAYS.map(() => ths.map(x =>
+        '<th class="wkth"><div class="thkind">' + x.id + '. '
+        + esc(String(x.name || '').slice(0,3)) + '</div></th>').join('')).join('')
+    + '</tr>';
+
+  $('gbody').innerHTML = SLOTS.map(s => {
+    const sat = satOf(s.no);
+    return '<tr>'
+      + '<td class="hcol"><div class="hno">' + s.no + '교시</div>'
+        + '<div class="htime">' + t12(slotT(s, null)) + '</div>'
+        + (sat ? '<div class="hsat">토 ' + t12(sat.hm) + '</div>' : '') + '</td>'
+      + DAYS.map((d, i2) => {
+          if (!slotOnWd(s, d))
+            return ths.map(() => '<td class="cell nosat"></td>').join('');
+          const ds2 = dates[i2];
+          return ths.map(th3 => {
+          const list = cell[s.no + '_' + d + '_' + th3.id] || [];
+          // ＋ 단추 — 그 치료사 자리에 바로 넣는다
+          const plus = CAN_EDIT
+            ? '<button class="addbtn" data-add2="' + s.no + '_' + th3.id + '">'
+              + '＋</button>'
+              + (canOpenAdd()
+                  ? '<button class="lnadd" data-mn="'
+                    + s.no + '_' + th3.id + '_' + d + '_' + ds2
+                    + '" title="보강 넣기">＋보강</button>'
+                  : '')
+            : '';
+          if (!list.length) {
+            const lunch = (d !== '토' && s.no === LUNCH_NO);
+            return '<td class="cell">'
+              + (lunch ? '<span class="lunchtxt">점심</span>' : '')
+              + plus + '</td>';
+          }
+          return '<td class="cell">' + plus + list.map(x => {
+            // 시간표 보기와 같은 모양으로 그린다 (ln 계열)
+            const cls = x.status === '완료' ? 'ln-done'
+                      : x.status === '결석' ? 'ln-abs ln-cut'
+                      : x.status === '휴무' ? 'ln-off ln-cut'
+                      : x.status === '쉼'   ? 'ln-rest'
+                      : x._isEval ? 'ln-eval'
+                      : isMk(x) ? 'ln-mk' : 'ln-plan';
+            const _st = x.support_type_id;
+            const nm = (_st ? (STYPE[_st] || '') + ' ' : '')
+                     + esc(x._name || '') + cidTag(x.child_id);
+            return '<div class="ln ' + cls + '" data-sid="' + x.id + '"'
+              + ' data-kid="' + esc(x._name || '') + '"'
+              + ' data-cid="' + (x.child_id || '') + '">'
+              + '<span class="d">' + dayNo(x.plan_date) + '일</span>'
+              + '<span class="n">' + (isMk(x) ? '🔁 ' : '') + nm
+              + '<span class="rno">'
+              + ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
+                 : (!x.run_no ? '' : monNo(mon) + '-' + x.run_no)) + '</span>'
+              + splitTag(x) + '</span>'
+              + '<span class="brk"></span>'
+              + '<span class="s">' + stWord(x) + '</span>'
+              + '</div>';
+          }).join('') + '</td>';
+          }).join('');
+        }).join('')
+      + '</tr>';
+  }).join('');
+}
+
+// 주간 보기의 ＋ — 치료사를 고른 뒤 창을 연다
+function pickThFor(msg){
+  const list = thShown();
+  if (list.length === 1) return Number(list[0].id);
+  const menu = list.map(x => x.id + '. ' + x.name).join('\n');
+  const v = prompt(msg + '\n\n' + menu + '\n\n치료사 번호를 넣으세요.', '');
+  if (v === null) return 0;
+  const id = Number(String(v).replace(/[^0-9]/g, ''));
+  if (!id || !list.some(x => Number(x.id) === id)) {
+    if (v !== '') alert('그 번호의 치료사가 목록에 없습니다.');
+    return 0;
+  }
+  return id;
+}
+
+function drawWeekOld(){
   buildSplit();
   const th = Number($('wkTh').value) || (THS[0] ? THS[0].id : 0);
   const t  = THS_ALL.find(x => x.id === th);
@@ -2331,7 +2576,98 @@ function oneDefault(){
   return mon + '-01';
 }
 
+// ===== 하루 보기 (2026-09-07 새로 만듦) =====
+//   달력에서 고른 하루 · 왼쪽에서 켜둔 치료사
+//   표기는 시간표 보기와 같게
 function drawOne(){
+  buildSplit();
+  if (!oneDate || String(oneDate).slice(0,7) !== mon) oneDate = oneDefault();
+  $('oneDay').textContent = dayNo(oneDate) + '일 (' + wdOf(oneDate) + ')';
+
+  const ths = thShown();
+  const thIds = new Set(ths.map(x => Number(x.id)));
+  const wd = wdOf(oneDate);
+
+  // 그날 회기를 교시·치료사 칸에 담는다
+  const cell = {};
+  SESS.forEach(s => {
+    if (s.plan_date !== oneDate) return;
+    if (!thIds.has(Number(s.therapist_id))) return;
+    const k = nearest(toMin(s.start_time)).no + '_' + s.therapist_id;
+    (cell[k] = cell[k] || []).push(s);
+  });
+  Object.values(cell).forEach(a => a.sort((x,y) =>
+    String(x.start_time).localeCompare(String(y.start_time))));
+
+  $('count').textContent = dayNo(oneDate) + '일 (' + wd + ') · 치료사 '
+    + ths.length + '명';
+
+  $('ghead').innerHTML = '<tr><th class="hcol">교시</th>'
+    + ths.map(x => '<th><div class="thname">' + esc(x.name || '') + '</div>'
+        + '<div class="thkind">' + x.id + '번</div></th>').join('') + '</tr>';
+
+  $('gbody').innerHTML = SLOTS.map(s => {
+    if (!slotOnWd(s, wd)) return '';
+    const lunch = (wd !== '토' && s.no === LUNCH_NO);
+    return '<tr>'
+      + '<td class="hcol"><div class="hno">' + s.no + '교시</div>'
+        + '<div class="htime">' + t12(slotT(s, null, wd)) + '</div>'
+        + (lunch ? '<div class="thkind">점심</div>' : '') + '</td>'
+      + ths.map(th3 => {
+          const list = cell[s.no + '_' + th3.id] || [];
+          const plus = CAN_EDIT
+            ? '<button class="addbtn" data-add2="' + s.no + '_' + th3.id + '">'
+              + '＋ 수업 넣기</button>'
+              + (canOpenAdd()
+                  ? '<button class="lnadd" data-mn="'
+                    + s.no + '_' + th3.id + '_' + wd + '_' + oneDate
+                    + '" title="보강 넣기">＋보강</button>'
+                  : '')
+            : '';
+          if (!list.length) {
+            const blk = isBlocked(oneDate, th3.id, slotHm(s, th3.id, wd));
+            const cns = consAt(oneDate, th3.id, slotHm(s, th3.id, wd));
+            if (cns !== null)
+              return '<td class="cell"><div class="ln ln-cons">'
+                + '<span class="n">' + esc(kidLabel(cns)) + '</span></div></td>';
+            if (blk)
+              return '<td class="cell"><div class="ln ln-block">'
+                + '<span class="n">시간 막음</span></div></td>';
+            if (isOffFor(oneDate, th3.id))
+              return '<td class="cell"><div class="ln ln-holi">'
+                + '<span class="n">' + (OFFTXT[oneDate] || '휴무') + '</span></div></td>';
+            return '<td class="cell">'
+              + (lunch ? '<span class="lunchtxt">점심</span>' : '')
+              + plus + '</td>';
+          }
+          return '<td class="cell">' + plus + list.map(x => {
+            const cls = x.status === '완료' ? 'ln-done'
+                      : x.status === '결석' ? 'ln-abs ln-cut'
+                      : x.status === '휴무' ? 'ln-off ln-cut'
+                      : x.status === '쉼'   ? 'ln-rest'
+                      : x._isEval ? 'ln-eval'
+                      : isMk(x) ? 'ln-mk' : 'ln-plan';
+            const _st = x.support_type_id;
+            const nm = (_st ? (STYPE[_st] || '') + ' ' : '')
+                     + esc(x._name || '') + cidTag(x.child_id);
+            return '<div class="ln ' + cls + '" data-sid="' + x.id + '"'
+              + ' data-kid="' + esc(x._name || '') + '"'
+              + ' data-cid="' + (x.child_id || '') + '">'
+              + '<span class="n">' + (isMk(x) ? '🔁 ' : '') + nm
+              + '<span class="rno">'
+              + ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
+                 : (!x.run_no ? '' : monNo(mon) + '-' + x.run_no)) + '</span>'
+              + splitTag(x) + '</span>'
+              + '<span class="brk"></span>'
+              + '<span class="s">' + stWord(x) + '</span>'
+              + '</div>';
+          }).join('') + '</td>';
+        }).join('')
+      + '</tr>';
+  }).join('');
+}
+
+function drawOneOld(){
   buildSplit();
   if (!oneDate || String(oneDate).slice(0,7) !== mon) oneDate = oneDefault();
   $('oneDay').textContent = dayNo(oneDate) + '일 (' + wdOf(oneDate) + ')';
@@ -2391,6 +2727,203 @@ function drawOne(){
 
 // ── 달력 (핸드폰 첫 화면) ──────────────────────────
 let calOpen = true;   // true = 달력, false = 그날 목록
+
+// ===== 왼쪽 치료사 고르기 (2026-09-07) =====
+//   여기서 켠 치료사만 주별·한달 시간표에 나온다
+let THPICK = null;      // 켜둔 치료사 번호 (null 이면 전부)
+// 시간표에 그릴 치료사 — 왼쪽에서 켜둔 사람만
+//   ※ 수업 넣기·고치기 창의 목록은 THS 를 그대로 쓴다 (줄이면 안 되므로)
+function thShown(){
+  if (!THPICK || !THPICK.size) return THS;
+  const p = THS.filter(x => THPICK.has(Number(x.id)));
+  return p.length ? p : THS;
+}
+function drawSideTh(){
+  const box = $('sideTh');
+  if (!box) return;
+  const list = (THS_ALL && THS_ALL.length) ? THS_ALL : THS;
+  if (!list || !list.length) { box.innerHTML = ''; return; }
+  if (THPICK === null) THPICK = new Set(list.map(x => Number(x.id)));
+
+  let rows = '';
+  list.forEach(x => {
+    const on = THPICK.has(Number(x.id));
+    rows += '<label class="sthrow' + (on ? '' : ' off') + '">'
+      + '<input type="checkbox" data-th="' + x.id + '"'
+      + (on ? ' checked' : '') + '>'
+      + x.id + '. ' + esc(x.name || '') + '</label>';
+  });
+  const h = '<div class="sthd"><span>치료사</span></div>'
+    + '<div class="sthwrap">'
+    +   '<div class="sthlist">' + rows + '</div>'
+    +   '<div class="sthbtns">'
+    +     '<button class="sthb" data-pick="all">전체</button>'
+    +     '<button class="sthb" data-pick="lang">언어치료</button>'
+    +     '<button class="sthb" data-pick="sens">작업치료</button>'
+    +   '</div>'
+    + '</div>';
+  box.innerHTML = h;
+
+  if (!box.dataset.bound) {
+    box.dataset.bound = '1';
+    box.addEventListener('change', ev => {
+      const el = ev.target;
+      if (!el.dataset.th) return;
+      const id = Number(el.dataset.th);
+      if (el.checked) THPICK.add(id); else THPICK.delete(id);
+      drawSideTh();
+      draw();
+    });
+    box.addEventListener('click', ev => {
+      const b = ev.target.closest('.sthb');
+      if (!b) return;
+      const all = (THS_ALL && THS_ALL.length) ? THS_ALL : THS;
+      const ids = all.map(x => Number(x.id));
+      const p = b.dataset.pick;
+      // 언어치료(심리 포함) = 1·2·3 / 작업치료(작업·전산·감통) = 4·6·7
+      if (p === 'all')  THPICK = new Set(ids);
+      if (p === 'lang') THPICK = new Set(ids.filter(i => [1,2,3].includes(i)));
+      if (p === 'sens') THPICK = new Set(ids.filter(i => [4,6,7].includes(i)));
+      drawSideTh();
+      draw();
+    });
+  }
+}
+
+// ===== 왼쪽 달력 (2026-09-07) =====
+//   일요일·공휴일 빨강 · 토요일 청록
+//   날짜를 누르면 그날 시간표(하루씩 보기)로 간다
+function drawSideCal(){
+  const box = $('sideCal');
+  if (!box) return;
+  const y = Number(String(sideMon).slice(0,4));
+  const m = Number(String(sideMon).slice(5,7));
+  const first = new Date(y, m - 1, 1);
+  const last  = new Date(y, m, 0).getDate();
+  const lead  = first.getDay();              // 일요일부터 시작
+  const prevLast = new Date(y, m - 1, 0).getDate();
+
+  // 그 달에 수업이 있는 날
+  const has = {};
+  (SESS || []).forEach(x => {
+    if (String(x.plan_date).slice(0,7) !== sideMon) return;
+    has[Number(String(x.plan_date).slice(8,10))] = true;
+  });
+
+  const t0 = new Date();
+  const tday = (t0.getFullYear() === y && (t0.getMonth()+1) === m) ? t0.getDate() : 0;
+
+  // 달 고르는 칸 — 위쪽 칸을 여기로 옮겼다 (화면을 단정하게)
+  //   위쪽 칸이 아직 안 채워졌을 수 있어, 비어 있으면 직접 만든다
+  let opts = [...$('mon').options]
+    .map(o => '<option value="' + o.value + '"'
+      + (o.value === sideMon ? ' selected' : '') + '>' + o.textContent + '</option>')
+    .join('');
+  if (!opts) {
+    const nw = new Date();
+    for (let k = 12; k >= -6; k--) {
+      const d2 = new Date(nw.getFullYear(), nw.getMonth() - k, 1);
+      const key = d2.getFullYear() + '-' + String(d2.getMonth()+1).padStart(2,'0');
+      opts += '<option value="' + key + '"'
+        + (key === sideMon ? ' selected' : '') + '>' + key + '</option>';
+    }
+  }
+  let h = '<div class="scnav">'
+    + '<button id="scPrev" title="지난 달">‹</button>'
+    + '<select id="scMon" class="scmon">' + opts + '</select>'
+    + '<button id="scNext" title="다음 달">›</button></div>'
+    + '<table class="sctbl"><tr>'
+    + '<th class="sun">일</th><th>월</th><th>화</th><th>수</th>'
+    + '<th>목</th><th>금</th><th class="sat">토</th></tr><tr>';
+
+  // 지난달 꼬리
+  for (let i = lead - 1; i >= 0; i--) {
+    h += '<td><button class="scd out" disabled>' + (prevLast - i) + '</button></td>';
+  }
+  let col = lead;
+
+  for (let d = 1; d <= last; d++) {
+    if (col === 7) { h += '</tr><tr>'; col = 0; }
+    const ds = sideMon + '-' + String(d).padStart(2,'0');
+    const w  = new Date(y, m - 1, d).getDay();
+    let cls = 'scd';
+    if (w === 0) cls += ' sun';
+    else if (w === 6) cls += ' sat';
+    if (OFFTXT && OFFTXT[ds] !== undefined) cls += ' holi';
+    if (has[d]) cls += ' has';
+    if (d === tday) cls += ' today';
+    if (oneDate === ds) cls += ' on';
+    h += '<td><button class="' + cls + '" data-sd="' + ds + '">'
+      + d + '</button></td>';
+    col++;
+  }
+  // 다음달 머리
+  let nx = 1;
+  while (col < 7) {
+    h += '<td><button class="scd out" disabled>' + (nx++) + '</button></td>';
+    col++;
+  }
+  h += '</tr></table>'
+    ;
+
+  box.innerHTML = h;
+  // 누르는 것은 달력 상자에 한 번만 붙인다
+  //   (달력을 다시 그리면 안쪽 단추가 새로 만들어져 끊기기 때문)
+  if (!box.dataset.bound) {
+    box.dataset.bound = '1';
+    box.addEventListener('click', ev => {
+      const b = ev.target.closest('button');
+      if (!b) return;
+      if (b.id === 'scPrev') { sideMove(-1); return; }
+      if (b.id === 'scNext') { sideMove(1);  return; }
+      // 날짜를 누르면 그날 시간표로
+      const ds = b.dataset.sd;
+      if (!ds) return;
+      (async () => {
+        // 갈래를 먼저 바꾼다 (자료를 읽으면서 draw 가 돌아 되돌아가지 않게)
+        oneDate = ds;
+        VIEW = 'one';
+        document.querySelectorAll('.vtab').forEach(x =>
+          x.classList.toggle('on', x.dataset.v === 'one'));
+        if (ds.slice(0,7) !== mon) {
+          $('mon').value = ds.slice(0,7);
+          mon = ds.slice(0,7);
+          sideMon = ds.slice(0,7);
+          await loadMonth();
+          oneDate = ds;
+          VIEW = 'one';
+        }
+        showOne();
+        draw();
+        drawSideCal();
+      })();
+    });
+    box.addEventListener('change', async ev => {
+      if (!ev.target.classList.contains('scmon')) return;
+      const v = ev.target.value;
+      if (!v) return;
+      $('mon').value = v; mon = v; sideMon = v;
+      await loadMonth();
+    });
+  }
+}
+let sideMon = '';
+async function sideMove(n){
+  const y = Number(String(sideMon).slice(0,4));
+  const m = Number(String(sideMon).slice(5,7));
+  const d = new Date(y, m - 1 + n, 1);
+  const nm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  sideMon = nm;
+  // 위쪽 목록에 있으면 그대로, 없으면 넣어서 시간표를 그 달로 넘긴다
+  const sel = $('mon');
+  if (![...sel.options].some(o => o.value === nm)) {
+    const op = document.createElement('option');
+    op.value = nm; op.textContent = nm;
+    sel.appendChild(op);
+  }
+  sel.value = nm; mon = nm;
+  await loadMonth();
+}
 
 function drawCal(){
   const y = Number(mon.slice(0,4)), m = Number(mon.slice(5,7));
@@ -2468,23 +3001,32 @@ async function calMove(n){
 
 // 달력 <-> 목록 자리 바꾸기
 function showCal(){
+  // 옛 달력은 안 쓴다 (왼쪽 달력으로 대신함, 2026-09-07)
+  $('calBox').style.display = 'none';
+  return;
   $('calBox').style.display = '';
   $('oneBox').style.display = 'none';
   $('oneBar').style.display = 'none';
 }
 function showOne(){
+  // 하루 보기도 시간표 표를 쓴다 (2026-09-07)
   $('calBox').style.display = 'none';
-  $('oneBox').style.display = '';
+  $('oneBox').style.display = 'none';
   $('oneBar').style.display = '';
+  $('gridWrap').style.display = '';
 }
 
 function drawHead(){
   $('ghead').innerHTML = '<tr><th class="hcol">교시</th>'
-    + THS.map(t=>'<th><div class="thname">'+esc(t.name)+'</div>'
+    + thShown().map(t=>'<th><div class="thname">'+esc(t.name)+'</div>'
         + '<div class="thkind">'+t.id+'번</div></th>').join('') + '</tr>';
 }
 
 function draw(){
+  // 왼쪽 달력·치료사 — 보고 있는 달에 맞춰 함께 그린다
+  if (!sideMon) sideMon = mon;
+  drawSideCal();
+  drawSideTh();
   // 다시 그려도 시간표 안에서 보던 자리를 지킨다 (완료 표시할 때 화면이 튀지 않게)
   const _gw = $('gridWrap');
   const _gt = _gw ? _gw.scrollTop : 0;
@@ -2501,8 +3043,8 @@ function draw(){
   }
   drawPrev();
   if (VIEW === 'one')  {
-    if (calOpen) { showCal(); drawCal(); }
-    else { showOne(); drawOne(); }
+    // 옛 달력은 안 쓴다. 늘 하루 보기를 그린다 (2026-09-07)
+    showOne(); drawOne(); afterDraw();
     return;
   }
   if (VIEW === 'week') { drawWeek(); afterDraw(); return; }
@@ -2635,7 +3177,7 @@ function drawDay(){
       + '<td class="hcol"><div class="hno">'+s.no+'교시</div>'
         + '<div class="htime">'+t12(slotT(s, null, wd))+'</div>'
         + (lunch ? '<div class="thkind">점심</div>' : '') + '</td>'
-      + THS.map(t => {
+      + thShown().map(t => {
           const key  = s.no+'_'+t.id;
           const list = cell[key] || [];
           const mks  = mkCell[key] || [];
@@ -2924,6 +3466,23 @@ $('gbody').addEventListener('click', async e => {
   }
   const ab2 = e.target.closest('[data-add2]');
   if (ab2) { e.stopPropagation(); openAdd(ab2.dataset.add2); return; }
+  // 주간 보기 — 치료사를 고른 뒤 연다
+  const wa = e.target.closest('.wkadd');
+  if (wa) {
+    e.stopPropagation();
+    const p = String(wa.dataset.wk).split('_');
+    const id = pickThFor('어느 치료사에게 넣을까요?');
+    if (id) openAdd(p[0] + '_' + id);
+    return;
+  }
+  const wm = e.target.closest('.wkmn');
+  if (wm) {
+    e.stopPropagation();
+    const p = String(wm.dataset.wkmn).split('_');
+    const id = pickThFor('어느 치료사에게 보강을 넣을까요?');
+    if (id) openMn(p[0] + '_' + id + '_' + p[1] + '_' + p[2]);
+    return;
+  }
   const free = e.target.closest('td[data-add]');
   if (free) { openAdd(free.dataset.add); return; }
   const el = e.target.closest('.run, .ln[data-sid]');
@@ -5406,9 +5965,9 @@ document.querySelectorAll('.vtab').forEach(b=>{
     b.classList.add('on');
     VIEW = b.dataset.v;
     $('wdBtns').style.display = (VIEW==='day') ? '' : 'none';
-    $('wkTh').style.display   = (VIEW==='week') ? '' : 'none';
-    $('gridWrap').style.display = (VIEW==='one') ? 'none' : '';
-    if (VIEW === 'one') { calOpen = true; showCal(); }
+    $('wkTh').style.display   = 'none';   // 주간은 왼쪽에서 고른 치료사를 쓴다
+    $('gridWrap').style.display = '';   // 세 갈래 다 시간표 표를 쓴다
+    if (VIEW === 'one') { showOne(); }
     else {
       $('calBox').style.display = 'none';
       $('oneBox').style.display = 'none';
