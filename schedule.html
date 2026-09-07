@@ -71,6 +71,76 @@
   .sideview .vtab.on { background:#2e7d32 !important; color:#fff !important;
              border-color:#2e7d32 !important; }
 
+  /* 화살표 — 펼치면 ↑, 접으면 ↓ (다시 그려도 안 되돌아간다) */
+  .colL .arrow::after { content:'↓'; }
+  .colL.opened-short .arrow[data-for="short"]::after { content:'↑'; }
+  .colL.opened-gapBox .arrow[data-for="gapBox"]::after { content:'↑'; }
+  .colL.opened-prevBox .arrow[data-for="prevBox"]::after { content:'↑'; }
+
+  /* 펼친 목록 안의 제목·찾기 칸은 감춘다 (위 알림 줄과 겹침, 2026-09-07) */
+  .colL #short.openL > .short-t, .colL #gapBox.openL > .short-t,
+  .colL #prevBox.openL > .prev-t,
+  .colL #short.openL > .bxfw, .colL #gapBox.openL > .bxfw,
+  .colL #prevBox.openL > .bxfw { display:none !important; }
+
+  /* 목록 상자 — ↓ 를 누르면 왼쪽 기둥 안에서 펼쳐진다 (2026-09-07) */
+  .colL #short, .colL #gapBox, .colL #prevBox { display:none !important; }
+  .colL #short.openL, .colL #gapBox.openL, .colL #prevBox.openL {
+    display:block !important; max-height:340px; overflow-y:auto;
+    font-size:10.5px !important; padding:6px 7px !important;
+    margin:0 0 8px !important; }
+  .colL #short.openL *, .colL #gapBox.openL *, .colL #prevBox.openL * {
+    max-width:100% !important; white-space:normal !important;
+    overflow-wrap:anywhere !important; }
+
+  /* 알림 줄 셋을 왼쪽 기둥에 맞춘다 (2026-09-07) */
+  .colL .shorttop, .colL .prevhint {
+    display:block !important;
+    font-size:10px !important; padding:6px 7px !important;
+    line-height:1.45 !important; margin:0 0 6px !important;
+    white-space:normal !important; word-break:keep-all;
+    overflow:visible !important; text-align:left !important; }
+  .colL .shorttop > *, .colL .prevhint > * {
+    max-width:100% !important; }
+  .colL .shorttop .findbox, .colL .prevhint .findbox {
+    display:block !important; width:100% !important;
+    box-sizing:border-box !important;
+    margin:5px 0 0 !important; padding:3px 7px !important;
+    font-size:11px !important; }
+  .colL .shorttop a, .colL .prevhint a {
+    display:block !important; margin:4px 0 0 !important;
+    font-size:10.5px !important; text-align:right !important;
+    float:none !important; position:static !important; }
+  .colL .shorttop b, .colL .prevhint b { font-weight:600; }
+  /* 안쪽 글·칸이 상자 폭을 안 넘게 (2026-09-07) */
+  .colL .shorttop .topt, .colL .prevhint .topt {
+    display:block !important; width:auto !important; max-width:100% !important;
+    white-space:normal !important; word-break:keep-all !important;
+    overflow-wrap:anywhere !important; }
+  .colL .shorttop .topf, .colL .prevhint .topf {
+    display:inline-block !important; width:calc(100% - 28px) !important;
+    box-sizing:border-box !important; margin:5px 0 0 !important;
+    vertical-align:middle !important; }
+  .colL .shorttop .go, .colL .prevhint .go {
+    display:inline-block !important; width:22px !important;
+    margin:5px 0 0 4px !important; text-align:center !important;
+    vertical-align:middle !important; white-space:nowrap !important;
+    font-size:13px !important; }
+
+  /* 왼쪽 요일 단추 (2026-09-07) */
+  /* 요일 단추는 숨겨 둔다 (달력이 그 일을 함, 2026-09-07)
+     다시 쓰시려면 아래 none 을 flex 로 바꾸면 된다 */
+  .sidewd { display:none !important; gap:2px !important;
+            margin-bottom:8px !important; }
+  .sidewd .tab { flex:1 1 0 !important; width:auto !important;
+             border:1px solid #dfe4e1 !important; background:#f7f8f5 !important;
+             color:#5a6156 !important; font-size:10.5px !important;
+             padding:3px 0 !important; margin:0 !important;
+             border-radius:5px !important; cursor:pointer;
+             line-height:1.4 !important; }
+  .sidewd .tab.on { background:#2e7d32 !important; color:#fff !important;
+             border-color:#2e7d32 !important; }
+
   /* 왼쪽 치료사 고르기 (2026-09-07) */
   .sideth { background:#fff; border:1px solid #e8ebe4; border-radius:9px;
             padding:6px 7px; margin-bottom:8px; }
@@ -218,7 +288,7 @@
                         box-shadow:0 1px 0 #e05a4e; }
   .thname { font-weight:bold; font-size:13px; }
   .thkind { font-weight:normal; color:#ffe4e0; font-size:11px; }
-  .hcol { width:104px; background:#fafdf7; text-align:center; padding:6px 2px; color:#5a6156;
+  .hcol { width:70px; background:#fafdf7; text-align:center; padding:6px 2px; color:#5a6156;
           position:sticky; left:0; z-index:4; }
   table.grid thead th.hcol { z-index:6; }
   .hno { font-weight:bold; color:#33691e; font-size:12px; }
@@ -241,8 +311,7 @@
         flex-wrap:wrap; }
   .ln:hover { outline:1px solid #9ccc65; }
   .ln.hit { outline:2px solid #ff9800; outline-offset:1px; }
-  .ln.hitnow { outline:3px solid #e65100; outline-offset:1px;
-               box-shadow:0 0 0 4px rgba(255,152,0,.25); }
+  .ln.hitnow { outline:3px solid #e65100; outline-offset:1px; }
   .short-line.hit, .prevone.hit { outline:2px solid #d32f2f; outline-offset:1px; }
   .short-line.hitnow, .prevone.hitnow { outline:3px solid #b71c1c;
                box-shadow:0 0 0 4px rgba(211,47,47,.22); }
@@ -627,18 +696,10 @@
   <div class="tools">
     <span class="vgap"></span>
     <span id="oneBar" style="display:none;">
-      <button class="tab" id="oneBack">‹ 달력으로</button>
-      <b id="oneDay" style="margin:0 10px;font-size:15px;"></b>
+      <button class="tab" id="oneBack" style="display:none;">‹ 달력으로</button>
+      <b id="oneDay" style="display:none;"></b>
       <button class="tab" id="onePrev">‹ 어제</button>
       <button class="tab" id="oneNext">내일 ›</button>
-    </span>
-    <span id="wdBtns">
-    <button class="tab" data-wd="월">월</button>
-    <button class="tab" data-wd="화">화</button>
-    <button class="tab" data-wd="수">수</button>
-    <button class="tab" data-wd="목">목</button>
-    <button class="tab" data-wd="금">금</button>
-    <button class="tab" data-wd="토">토</button>
     </span>
     <select id="wkTh" class="sel" style="display:none;"></select>
     <select id="mon" class="sel" style="display:none;"></select>
@@ -744,9 +805,6 @@
 
   <div id="noSess" class="nosess" style="display:none;"></div>
   <div id="holi" class="holibox" style="display:none;"></div>
-  <div id="shortTop" class="shorttop" style="display:none;"></div>
-  <div id="gapTop" class="shorttop" style="display:none;"></div>
-  <div id="prevHint" class="prevhint" style="display:none;"></div>
 
   <!-- 빈 자리에 보강 넣기 창 -->
   <div id="w5Box" class="panel" style="display:none;">
@@ -1039,7 +1097,18 @@
         <button class="vtab" data-v="week">주간</button>
         <button class="vtab" data-v="one">하루</button>
       </div>
+      <div id="wdBtns" class="sidewd" style="display:none;">
+        <button class="tab" data-wd="월">월</button>
+        <button class="tab" data-wd="화">화</button>
+        <button class="tab" data-wd="수">수</button>
+        <button class="tab" data-wd="목">목</button>
+        <button class="tab" data-wd="금">금</button>
+        <button class="tab" data-wd="토">토</button>
+      </div>
       <div id="sideTh" class="sideth"></div>
+      <div id="shortTop" class="shorttop" style="display:none;"></div>
+      <div id="gapTop" class="shorttop" style="display:none;"></div>
+      <div id="prevHint" class="prevhint" style="display:none;"></div>
       <div id="calBox" style="display:none !important;"></div>
       <div id="short" class="shortbox" style="display:none;"></div>
       <div id="gapBox" class="shortbox" style="display:none;"></div>
@@ -1058,7 +1127,7 @@
     </div>
   </div>
   <div class="dockpad"></div>
-  <div id="dock" class="dock mini" style="display:none;">
+  <div id="dock" class="dock mini" style="display:none !important;">
     <div id="dockbar" class="dockbar"></div>
     <div id="dockbody" class="dockbody"></div>
   </div>
@@ -1557,11 +1626,9 @@ function drawShort(_byScd, _mkOf){
   } else {
     $('shortTop').style.display = 'block';
     $('shortTop').innerHTML = '<span class="topt">⚠️ ' + monNo(mon)
-      + '월 결석·휴무 보강 '
-      + nMiss + '건 (아동 ' + nMissKid + '명)'
-      + (nMissDev ? ' · 발달재활 ' + nMissDev + '건' : '') + '</span>'
+      + '월 결석·휴무 보강 ' + nMiss + '건</span>'
       + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
-      + '<span class="go">아래 목록 보기 ↓</span>';
+      + '<span class="go arrow" data-for="short"></span>';
     $('shortTop').onclick = (ev) => {
       // 찾기 칸이나 그 결과를 눌렀을 때는 화면을 안 옮긴다
       if (ev.target.closest('.topf, .topres')) return;
@@ -1605,10 +1672,9 @@ function drawShort(_byScd, _mkOf){
   } else {
     $('gapTop').style.display = 'block';
     $('gapTop').innerHTML = '<span class="topt">📌 ' + monNo(mon)
-      + '월 회기가 모자란 수업 '
-      + gapRows.length + '건 (아동 ' + nGapKid + '명)</span>'
+      + '월 회기가 모자란 수업 ' + gapRows.length + '건</span>'
       + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
-      + '<span class="go">아래 목록 보기 ↓</span>';
+      + '<span class="go arrow" data-for="gapBox"></span>';
     $('gapTop').onclick = (ev) => {
       if (ev.target.closest('.topf, .topres')) return;
       openDock('gapBox');
@@ -1666,19 +1732,21 @@ function drawShort(_byScd, _mkOf){
 // 상자 두 개를 화면 아래 서랍에 담는다. 얇게 붙어 있다가 누르면 올라온다
 // 서랍을 펼치면서 누른 상자가 맨 위로 오게 한다
 // (두 상자가 한 서랍에 들어 있어, 그냥 펼치면 늘 결석·휴무가 먼저 보였다)
+// 아래 서랍은 안 쓴다. 왼쪽 기둥 안에서 목록을 펼친다 (2026-09-07)
 function openDock(boxId){
-  const dk = $('dock'); if (!dk) return;
-  dk.classList.remove('mini');
-  syncDock();
-  setTimeout(function(){
-    const body = $('dockbody'), box = $(boxId);
-    if (!body || !box) return;
-    body.scrollTop = box.offsetTop - body.offsetTop;
-    box.scrollIntoView({ block: 'nearest' });
+  const box = $(boxId);
+  if (!box) return;
+  const on = box.classList.toggle('openL');
+  // 왼쪽 기둥에 표시를 붙여 화살표를 바꾼다 (꾸밈이 그린다)
+  const colL = box.closest('.colL');
+  if (colL) colL.classList.toggle('opened-' + boxId, on);
+  if (on) setTimeout(function(){
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, 0);
 }
 
 function syncDock(){
+  return;   // 아래 서랍은 안 쓴다 (2026-09-07)
   const dock = $('dock'), body = $('dockbody'), bar = $('dockbar');
   if (!dock || !body || !bar) return;
   const sh = $('short'), gp = $('gapBox'), pv = $('prevBox');
@@ -2037,6 +2105,21 @@ function jumpTo(i){
 }
 
 $('findName').addEventListener('input', () => { drawFind(); markFind(); });
+
+// 왼쪽 목록에서 아동 줄을 누르면 시간표에서 그 아동을 찾아간다 (2026-09-07)
+document.addEventListener('click', ev => {
+  const line = ev.target.closest('#short .short-line, #gapBox .short-line,'
+             + ' #prevBox .short-line, #prevBox .prevone,'
+             + ' #short .prevone, #gapBox .prevone');
+  if (!line) return;
+  // ＋ 단추나 수정 단추를 눌렀을 때는 넘어간다
+  if (ev.target.closest('button')) return;
+  // 아동 번호가 있으면 번호로, 없으면 이름으로 찾는다
+  const q = line.dataset.cid || line.dataset.kid;
+  if (!q) return;
+  $('findName').value = q;
+  drawFind(); markFind();
+});
 $('findJump').onclick = () => jumpTo(hitAt + 1);
 
 // ===== 치료사별 주간 보기 =====
@@ -2479,7 +2562,7 @@ function drawPrev(){
   $('prevHint').innerHTML = '<span class="topt">⏪ ' + monNo(prevMon(mon))
     + '월에서 넘어온 보강 ' + need.length + '건</span>'
     + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
-    + '<span class="go">아래 목록 보기 ↓</span>';
+    + '<span class="go arrow" data-for="prevBox"></span>';
   $('prevHint').onclick = (ev) => {
     if (ev.target.closest('.topf, .topres')) return;
     openDock('prevBox');
@@ -2882,6 +2965,15 @@ function drawSideCal(){
       (async () => {
         // 갈래를 먼저 바꾼다 (자료를 읽으면서 draw 가 돌아 되돌아가지 않게)
         oneDate = ds;
+        // 「시간표」 보기가 쓰는 요일도 함께 바꾼다
+        //   (요일 단추를 숨겼으므로 달력이 그 일을 이어받는다)
+        const _w = wdOf(ds);
+        if (_w !== '일') {
+          wd = _w;
+          keepSet('nl_sched_wd', wd);
+          document.querySelectorAll('.tab[data-wd]').forEach(x =>
+            x.classList.toggle('on', x.dataset.wd === wd));
+        }
         VIEW = 'one';
         document.querySelectorAll('.vtab').forEach(x =>
           x.classList.toggle('on', x.dataset.v === 'one'));
@@ -5966,7 +6058,8 @@ document.querySelectorAll('.vtab').forEach(b=>{
     document.querySelectorAll('.vtab').forEach(x=>x.classList.remove('on'));
     b.classList.add('on');
     VIEW = b.dataset.v;
-    $('wdBtns').style.display = (VIEW==='day') ? '' : 'none';
+    // 요일 단추는 숨겨 둔다 (달력이 그 일을 한다, 2026-09-07)
+    $('wdBtns').style.display = 'none';
     $('wkTh').style.display   = 'none';   // 주간은 왼쪽에서 고른 치료사를 쓴다
     $('gridWrap').style.display = '';   // 세 갈래 다 시간표 표를 쓴다
     if (VIEW === 'one') { showOne(); }
