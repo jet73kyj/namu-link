@@ -2904,6 +2904,7 @@ function drawSideCal(){
       if (!v) return;
       $('mon').value = v; mon = v; sideMon = v;
       await loadMonth();
+      draw();          // 달을 바꾼 뒤 확실히 다시 그린다
     });
   }
 }
@@ -2923,6 +2924,7 @@ async function sideMove(n){
   }
   sel.value = nm; mon = nm;
   await loadMonth();
+  draw();            // 달을 바꾼 뒤 확실히 다시 그린다
 }
 
 function drawCal(){
