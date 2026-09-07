@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>서식 - 나무링크</title>
+<style>
+  body { font-family:'Malgun Gothic','맑은 고딕',sans-serif; background:#f5f7fa; margin:0; }
+  header { background:#2e7d32; color:white; padding:12px 24px; display:flex; align-items:center; gap:12px; }
+  .container { max-width:1100px; margin:16px auto; padding:0 16px; }
+  .page-title { font-size:18px; font-weight:bold; color:#2e7d32; margin:10px 0 4px; }
+  .sub { font-size:13px; color:#888; margin-bottom:16px; }
+
+  .loginbox { max-width:400px; margin:56px auto; background:#fff; border-radius:12px;
+              padding:32px; border:1px solid #e0e0e0; }
+  .loginbox input { border:1px solid #ddd; padding:11px; border-radius:7px; font-size:15px; }
+  .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
+         line-height:1.6; display:none; white-space:pre-wrap; }
+  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
+  .err { background:#ffebee; color:#b71c1c; display:block; }
+
+  .card { background:#fff; border:1px solid #e0e4dc; border-radius:10px;
+          padding:18px 20px; margin-bottom:18px; }
+  .card h3 { margin:0 0 12px; font-size:15px; color:#33691e; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  select, input[type=text] { padding:8px 10px; border:1px solid #ccc;
+          border-radius:6px; font-size:14px; font-family:inherit; }
+  input[type=file] { font-size:13px; }
+  button { border:none; border-radius:6px; padding:9px 16px; font-size:13.5px;
+           font-weight:bold; cursor:pointer; }
+  .btn-go { background:#2e7d32; color:#fff; }
+  .btn-sm { background:#eef3ec; color:#2c5c37; padding:6px 12px; font-size:12.5px; }
+  .btn-del { background:#f6e7e7; color:#a33; padding:6px 12px; font-size:12.5px; }
+  button:disabled { background:#bbb; color:#fff; cursor:default; }
+
+  table { width:100%; border-collapse:collapse; font-size:14px; background:#fff; }
+  th { background:#f1f8e9; color:#33691e; padding:10px 8px; text-align:left;
+       border-bottom:2px solid #c5e1a5; font-size:13px; white-space:nowrap; }
+  td { padding:10px 8px; border-bottom:1px solid #eee; vertical-align:middle; }
+  tr:hover td { background:#fafdf7; }
+  .yr { color:#8d6e63; font-weight:bold; white-space:nowrap; }
+  .cat { display:inline-block; padding:2px 9px; border-radius:11px; font-size:12px;
+         background:#e8f0e2; color:#2f5620; border:1px solid #c6d9b8; white-space:nowrap; }
+  .fn { font-size:12.5px; color:#777; }
+  .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
+</style>
+</head>
+<body>
+
+<!-- 로그인 전 -->
+<div class="loginbox" id="loginBox">
+  <h1 style="font-size:19px;margin:0 0 4px;color:#2e7d32;">서식</h1>
+  <div style="font-size:13px;color:#888;margin-bottom:20px;">나무링크</div>
+  <label style="display:block;font-size:12px;color:#666;margin:12px 0 5px;">이메일</label>
+  <input id="em" type="email" autocomplete="username" placeholder="you@example.com" style="width:100%;">
+  <label style="display:block;font-size:12px;color:#666;margin:12px 0 5px;">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password" style="width:100%;">
+  <button id="btn" style="width:100%;padding:12px;margin-top:20px;background:#2e7d32;color:#fff;border:none;border-radius:7px;font-size:15px;font-weight:bold;cursor:pointer;">로그인</button>
+  <div id="msg" class="out"></div>
+</div>
+
+<div id="mainBox" style="display:none;">
+<header>
+  <span style="font-size:22px;">🌿</span>
+  <h1 style="margin:0;font-size:20px;">나무링크 · 서식</h1>
+  <span style="margin-left:auto;font-size:13px;opacity:.9;" id="who"></span>
+  <a href="index.html" style="background:rgba(255,255,255,.15);color:#fff;text-decoration:none;border-radius:6px;padding:6px 12px;font-size:13px;">🌿 처음으로</a>
+  <button onclick="logout()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;">로그아웃</button>
+</header>
+
+<div class="container">
+  <div class="page-title">서식</div>
+  <div class="sub">정부지원 서식처럼 해마다 새로 나오는 문서를 여기에 담아 둡니다.</div>
+
+  <!-- 올리기 (관리자만) -->
+  <div class="card" id="upCard" style="display:none;">
+    <h3>＋ 서식 올리기</h3>
+    <div class="row" style="margin-bottom:10px;">
+      <select id="u_year"></select>
+      <select id="u_cat">
+        <option value="발달재활서비스">발달재활서비스</option>
+        <option value="치료지원">치료지원</option>
+        <option value="방과후">방과후</option>
+        <option value="세무">세무</option>
+        <option value="인사">인사</option>
+        <option value="그 밖">그 밖</option>
+      </select>
+      <input id="u_title" type="text" placeholder="서식 이름 (예: 제공기록지 서식)" style="width:320px;">
+    </div>
+    <div class="row" style="margin-bottom:8px;">
+      <span style="width:110px;font-size:13px;color:#555;">📄 빈 서식</span>
+      <input id="u_blank" type="file" multiple>
+      <span style="font-size:12px;color:#999;">내려받아 쓰는 파일. 여러 개 골라도 됩니다</span>
+    </div>
+    <div class="row" style="margin-bottom:10px;">
+      <span style="width:110px;font-size:13px;color:#555;">👀 작성 견본</span>
+      <input id="u_sample" type="file" multiple>
+      <span style="font-size:12px;color:#999;">눌러서 보기만 합니다. PDF·사진이 잘 열립니다</span>
+    </div>
+    <div class="row">
+      <button class="btn-go" id="u_go">올리기</button>
+    </div>
+    <div id="msg2" class="out"></div>
+  </div>
+
+  <!-- 걸러보기 -->
+  <div class="row" style="margin-bottom:12px;">
+    <select id="f_year"></select>
+    <select id="f_cat">
+      <option value="">-- 갈래 전체 --</option>
+      <option value="발달재활서비스">발달재활서비스</option>
+      <option value="치료지원">치료지원</option>
+      <option value="방과후">방과후</option>
+      <option value="세무">세무</option>
+      <option value="인사">인사</option>
+      <option value="그 밖">그 밖</option>
+    </select>
+    <span id="cnt" style="font-size:13px;color:#666;margin-left:auto;"></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:70px;">연도</th>
+        <th style="width:130px;">갈래</th>
+        <th>서식 이름 · 딸린 파일</th>
+        <th style="width:110px;">올린 날</th>
+        <th style="width:90px;"></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none;">담긴 서식이 없습니다.</div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: nlStore, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+});
+const $ = id => document.getElementById(id);
+const BUCKET = 'nl-forms';
+
+let ME = null, ALL = [], FILES = {}, CAN_EDIT = false;
+
+function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
+function esc(s) { return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function logout() {
+  nlKeepOff();
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+}
+
+// 연도 고르는 칸 채우기 — 올해 기준 앞뒤로
+function fillYears() {
+  const y = new Date().getFullYear();
+  let a = '', b = '<option value="">-- 연도 전체 --</option>';
+  for (let i = y + 1; i >= y - 5; i--) {
+    a += '<option value="' + i + '"' + (i === y ? ' selected' : '') + '>' + i + '년</option>';
+    b += '<option value="' + i + '"' + (i === y ? ' selected' : '') + '>' + i + '년</option>';
+  }
+  $('u_year').innerHTML = a;
+  $('f_year').innerHTML = b;
+}
+
+function fileLine(f) {
+  const isSample = (f.kind === '작성 견본');
+  return '<div style="padding:2px 0;font-size:13px;">'
+    + (isSample ? '👀 ' : '📄 ')
+    + esc(f.file_name)
+    + ' <button class="btn-sm" data-' + (isSample ? 'see' : 'dl') + '="' + f.id + '">'
+    +   (isSample ? '보기' : '내려받기') + '</button>'
+    + (CAN_EDIT ? ' <button class="btn-del" data-fdel="' + f.id + '">×</button>' : '')
+    + '</div>';
+}
+
+function draw() {
+  const fy = $('f_year').value;
+  const fc = $('f_cat').value;
+  const list = ALL.filter(x =>
+    (!fy || String(x.year) === String(fy)) && (!fc || x.category === fc));
+
+  $('cnt').textContent = list.length + '개';
+  $('empty').style.display = list.length ? 'none' : 'block';
+
+  $('rows').innerHTML = list.map(x => {
+    const fs = (FILES[x.id] || []);
+    const blanks  = fs.filter(f => f.kind !== '작성 견본');
+    const samples = fs.filter(f => f.kind === '작성 견본');
+    let inner = '';
+    if (blanks.length)  inner += blanks.map(fileLine).join('');
+    if (samples.length) inner += samples.map(fileLine).join('');
+    if (!inner) inner = '<div style="font-size:12.5px;color:#bbb;">딸린 파일이 없습니다</div>';
+    return '<tr>'
+      + '<td class="yr">' + x.year + '년</td>'
+      + '<td><span class="cat">' + esc(x.category || '그 밖') + '</span></td>'
+      + '<td><div style="font-weight:bold;margin-bottom:4px;">' + esc(x.title) + '</div>'
+      +   inner
+      +   (CAN_EDIT
+            ? '<div style="margin-top:6px;">'
+              + '<button class="btn-sm" data-add="' + x.id + '">＋ 파일 더하기</button>'
+              + '</div>'
+            : '')
+      + '</td>'
+      + '<td style="font-size:12.5px;color:#777;">'
+      +   String(x.uploaded_at || '').slice(0,10) + '</td>'
+      + '<td style="text-align:right;">'
+      +   (CAN_EDIT ? '<button class="btn-del" data-del="' + x.id + '">지우기</button>' : '')
+      + '</td>'
+      + '</tr>';
+  }).join('');
+
+  document.querySelectorAll('[data-dl]').forEach(b => {
+    b.onclick = () => openFile(Number(b.dataset.dl), true);
+  });
+  document.querySelectorAll('[data-see]').forEach(b => {
+    b.onclick = () => openFile(Number(b.dataset.see), false);
+  });
+  document.querySelectorAll('[data-fdel]').forEach(b => {
+    b.onclick = () => removeFile(Number(b.dataset.fdel));
+  });
+  document.querySelectorAll('[data-del]').forEach(b => {
+    b.onclick = () => removeForm(Number(b.dataset.del));
+  });
+  document.querySelectorAll('[data-add]').forEach(b => {
+    b.onclick = () => addFiles(Number(b.dataset.add));
+  });
+}
+
+async function loadList() {
+  const [a, b] = await Promise.all([
+    sb.from('nl_forms')
+      .select('id, year, title, category, uploaded_at')
+      .order('year', { ascending: false })
+      .order('uploaded_at', { ascending: false }),
+    sb.from('nl_form_files')
+      .select('id, form_id, kind, file_path, file_name')
+      .order('id')
+  ]);
+  if (a.error) { show($('msg2'), '\u274c 목록을 읽지 못했습니다.\n' + a.error.message, false); return; }
+  ALL = a.data || [];
+  FILES = {};
+  (b.data || []).forEach(f => { (FILES[f.form_id] = FILES[f.form_id] || []).push(f); });
+  draw();
+}
+
+function findFile(id) {
+  let hit = null;
+  Object.values(FILES).forEach(arr => arr.forEach(f => { if (f.id === id) hit = f; }));
+  return hit;
+}
+
+// dl 이 참이면 내려받기, 거짓이면 새 탭에서 보기
+async function openFile(id, dl) {
+  const f = findFile(id);
+  if (!f) return;
+  const opt = dl ? { download: f.file_name } : {};
+  const { data, error } = await sb.storage.from(BUCKET)
+    .createSignedUrl(f.file_path, 120, opt);
+  if (error) { alert('열지 못했습니다.\n' + error.message); return; }
+  window.open(data.signedUrl, '_blank');
+}
+
+async function removeFile(id) {
+  const f = findFile(id);
+  if (!f) return;
+  if (!confirm('「' + f.file_name + '」 파일을 지웁니다.\n계속할까요?')) return;
+  await sb.storage.from(BUCKET).remove([f.file_path]);
+  const { error } = await sb.from('nl_form_files').delete().eq('id', id);
+  if (error) { show($('msg2'), '\u274c 지우지 못했습니다.\n' + error.message, false); return; }
+  await loadList();
+}
+
+async function removeForm(id) {
+  const it = ALL.find(x => x.id === id);
+  if (!it) return;
+  if (!confirm('\u300c' + it.title + '\u300d 서식과 딸린 파일을 모두 지웁니다.\n계속할까요?')) return;
+  const paths = (FILES[id] || []).map(f => f.file_path);
+  if (paths.length) await sb.storage.from(BUCKET).remove(paths);
+  const { error } = await sb.from('nl_forms').delete().eq('id', id);
+  if (error) { show($('msg2'), '\u274c 지우지 못했습니다.\n' + error.message, false); return; }
+  show($('msg2'), '\u2705 지웠습니다.', true);
+  await loadList();
+}
+
+// 파일 하나를 저장소에 올리고 딸린 파일 줄을 넣는다
+async function putFile(formId, year, file, kind) {
+  const ext = (file.name.match(/\.[^.]+$/) || [''])[0];
+  const path = year + '/' + Date.now() + '_' + Math.floor(Math.random() * 1000) + ext;
+  const up = await sb.storage.from(BUCKET).upload(path, file, { upsert: false });
+  if (up.error) throw up.error;
+  const ins = await sb.from('nl_form_files').insert({
+    form_id: formId, kind: kind, file_path: path, file_name: file.name
+  });
+  if (ins.error) throw ins.error;
+}
+
+// 이미 있는 서식에 파일을 더 붙인다
+function addFiles(formId) {
+  const it = ALL.find(x => x.id === formId);
+  if (!it) return;
+  const kind = confirm('\u300c' + it.title + '\u300d 에 파일을 더합니다.\n\n'
+    + '확인 = 빈 서식 (내려받는 것)\n취소 = 작성 견본 (보기만 하는 것)')
+    ? '빈 서식' : '작성 견본';
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.multiple = true;
+  inp.onchange = async () => {
+    const fs = Array.from(inp.files || []);
+    if (!fs.length) return;
+    show($('msg2'), '올리는 중...', true);
+    try {
+      for (const f of fs) await putFile(formId, it.year, f, kind);
+      show($('msg2'), '\u2705 ' + fs.length + '개를 더했습니다.', true);
+      await loadList();
+    } catch (e) {
+      show($('msg2'), '\u274c 올리지 못했습니다.\n' + e.message, false);
+    }
+  };
+  inp.click();
+}
+
+$('u_go').onclick = async () => {
+  const title = $('u_title').value.trim();
+  const blanks  = Array.from($('u_blank').files || []);
+  const samples = Array.from($('u_sample').files || []);
+  if (!title) { show($('msg2'), '서식 이름을 적으세요.', false); return; }
+  if (!blanks.length && !samples.length) {
+    show($('msg2'), '파일을 하나 이상 고르세요.', false); return;
+  }
+  const year = Number($('u_year').value);
+
+  $('u_go').disabled = true; $('u_go').textContent = '올리는 중...';
+  try {
+    const ins = await sb.from('nl_forms').insert({
+      year: year, title: title, category: $('u_cat').value,
+      uploaded_by: ME ? ME.id : null
+    }).select('id').single();
+    if (ins.error) throw ins.error;
+    const fid = ins.data.id;
+    for (const f of blanks)  await putFile(fid, year, f, '빈 서식');
+    for (const f of samples) await putFile(fid, year, f, '작성 견본');
+    show($('msg2'), '\u2705 올렸습니다. 빈 서식 ' + blanks.length
+      + '개 · 작성 견본 ' + samples.length + '개', true);
+    $('u_title').value = ''; $('u_blank').value = ''; $('u_sample').value = '';
+    await loadList();
+  } catch (e) {
+    show($('msg2'), '\u274c 올리지 못했습니다.\n' + e.message, false);
+  } finally {
+    $('u_go').disabled = false; $('u_go').textContent = '올리기';
+  }
+};
+
+$('f_year').onchange = draw;
+$('f_cat').onchange = draw;
+
+async function afterLogin(user) {
+  const { data: me, error: e1 } = await sb
+    .from('nl_therapists').select('id, name, role')
+    .eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+  nlKeep(me.id);
+  ME = me;
+  CAN_EDIT = [8, 9, 11].includes(Number(me.id));
+
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display = '';
+  $('who').textContent = me.name + ' (' + (me.role || '') + ')';
+  $('upCard').style.display = CAN_EDIT ? '' : 'none';
+
+  fillYears();
+  await loadList();
+}
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 넣으세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) { await afterLogin(data.session.user); }
+  else { location.replace('index.html'); }
+})();
+</script>
+</body>
+</html>
