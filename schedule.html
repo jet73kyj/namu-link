@@ -5749,7 +5749,50 @@ function applyMonthFilter(){
     (!r.to_month   || r.to_month   >= mon));
 }
 
+// 지난 날의 「예정」을 「완료」로 바꾼다 (2026-09-07)
+//   어제까지 · 오늘은 저녁 9시가 지났을 때만
+//   ※ 결석·휴무·쉼·보강은 안 건드린다. 예정인 것만
+let AUTODONE_DONE = false;
+async function autoDone(){
+  if (AUTODONE_DONE) return;      // 한 번만
+  AUTODONE_DONE = true;
+  if (!CAN_EDIT) return;
+  try {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth()+1).padStart(2,'0');
+    const d = String(now.getDate()).padStart(2,'0');
+    const today = y + '-' + m + '-' + d;
+    // 저녁 9시가 지났으면 오늘까지, 아니면 어제까지
+    let last = today;
+    if (now.getHours() < 21) {
+      const yd = new Date(now); yd.setDate(now.getDate() - 1);
+      last = yd.getFullYear() + '-' + String(yd.getMonth()+1).padStart(2,'0')
+           + '-' + String(yd.getDate()).padStart(2,'0');
+    }
+    // 예정과 보강 둘 다 완료로 바꾼다
+    //   (보강 줄은 🔁 표시가 남으므로 완료가 되어도 알아볼 수 있다)
+    const { data, error } = await sb.from('nl_sessions')
+      .update({ status: '완료' })
+      .in('status', ['예정', '보강'])
+      .lte('plan_date', last)
+      .gte('plan_date', '2026-01-01')
+      .select('id');
+    if (error) return;
+    const n = (data || []).length;
+    // 알림은 하루에 한 번만 (같은 날 다시 열면 안 뜬다)
+    const seen = keepGet('nl_autodone_day');
+    if (n && seen !== today) {
+      keepSet('nl_autodone_day', today);
+      alert('지난 수업 ' + n + '건을 「완료」로 바꿨습니다.\n\n'
+        + '(' + last + ' 까지의 예정 회기)\n'
+        + '결석이었던 것이 있으면 시간표에서 고쳐 주세요.');
+    }
+  } catch (e) {}
+}
+
 async function loadMonth(){
+  await autoDone();
   applyMonthFilter();
   BAL = new Set();
   OFF = new Set(); OFFTXT = {}; BLOCK = new Set(); CONS = {};
