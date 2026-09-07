@@ -55,6 +55,13 @@
             white-space:nowrap; }
 
   /* 주간 보기 — 요일 아래 치료사 (2026-09-07) */
+  /* 주간 보기 — 칸 너비를 못 박아 옆으로 밀며 본다 (2026-09-07) */
+  .wkwide table.grid { table-layout:fixed !important; width:auto !important;
+                       min-width:100% !important; }
+  .wkwide table.grid th.wkth,
+  .wkwide table.grid tbody td:not(.hcol) { width:150px !important;
+                                           min-width:150px !important; }
+  .wkwide table.grid .ln { white-space:normal !important; }
   table.grid th.wkth { font-size:10px !important; padding:2px 1px !important;
                        background:#ff8c80 !important; }
   table.grid th.wkth .thkind { font-size:10px; white-space:nowrap; }
@@ -2160,6 +2167,12 @@ function drawWeek(){
   const ths = thShown();
   const thIds = new Set(ths.map(x => Number(x.id)));
   const dset = new Set(dates);
+  // 칸이 좁아지지 않게 표 너비를 직접 못 박는다 (옆으로 밀며 본다)
+  $('gridWrap').classList.add('wkwide');
+  setTimeout(function(){
+    const tb = document.querySelector('#gridWrap table.grid');
+    if (tb) tb.style.width = (70 + ths.length * 6 * 130) + 'px';
+  }, 0);
 
   // 그 주 그 요일 칸에 담는다
   const cell = {};
@@ -2673,6 +2686,8 @@ function oneDefault(){
 //   달력에서 고른 하루 · 왼쪽에서 켜둔 치료사
 //   표기는 시간표 보기와 같게
 function drawOne(){
+  $('gridWrap').classList.remove('wkwide');
+  { const _t=document.querySelector('#gridWrap table.grid'); if(_t) _t.style.width=''; }
   buildSplit();
   if (!oneDate || String(oneDate).slice(0,7) !== mon) oneDate = oneDefault();
   $('oneDay').textContent = dayNo(oneDate) + '일 (' + wdOf(oneDate) + ')';
@@ -3160,6 +3175,8 @@ function draw(){
 function afterDraw(){ if ($('findName').value.trim()) markFind(); }
 
 function drawDay(){
+  $('gridWrap').classList.remove('wkwide');
+  { const _t=document.querySelector('#gridWrap table.grid'); if(_t) _t.style.width=''; }
   buildSplit();
   // 회기 전체 (모자란 회기 계산용)
   const byScdAll = {};
