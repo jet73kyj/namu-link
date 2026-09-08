@@ -90,6 +90,9 @@
   <select id="pChild" style="min-width:300px;"></select>
   <input id="pMonth" type="month">
   <button id="pLoad">불러오기</button>
+  <label style="font-size:12.5px;color:#555;margin-left:6px;white-space:nowrap;">
+    <input type="checkbox" id="pAll" style="vertical-align:-2px;"> 전체 보기
+  </label>
   <span id="pInfo"></span>
 </div>
 
@@ -131,13 +134,11 @@
 
     <table class="rec-tbl" style="margin-top:-1px;">
       <colgroup>
-        <col style="width:14%;"><col style="width:30%;"><col style="width:30%;"><col>
+        <col style="width:14%;"><col>
       </colgroup>
       <tr>
         <th>회 기</th>
-        <th>오늘 활동</th>
-        <th>아동 반응</th>
-        <th>가정 과제</th>
+        <th>활동 내용</th>
       </tr>
       <tbody id="seqBody"></tbody>
     </table>
@@ -145,16 +146,8 @@
     <table class="rec-tbl" style="margin-top:-1px;">
       <colgroup><col style="width:14%;"><col></colgroup>
       <tr>
-        <td class="lbl">이번 달 총평</td>
-        <td><textarea id="f_sum" style="min-height:52px;"></textarea></td>
-      </tr>
-      <tr>
         <td class="lbl">보호자<br>전달사항</td>
         <td><textarea id="f_guard" style="min-height:52px;"></textarea></td>
-      </tr>
-      <tr>
-        <td class="lbl">다음 달 계획</td>
-        <td><textarea id="f_next" style="min-height:52px;"></textarea></td>
       </tr>
     </table>
 
@@ -248,6 +241,28 @@ function _keepMk(mk) {
   return y2 + '-' + String(m2).padStart(2,'0');
 }
 
+let OTHERKIDS = {};   // 다른 기록지에도 나오는 아동
+
+// 아동 목록 — 「전체 보기」를 안 켜면 센터 수업만 받는 아동만 나온다
+function drawKidList() {
+  const all = $('pAll') && $('pAll').checked;
+  const list = PAIRS.filter(p => all || !OTHERKIDS[p.child.id]);
+  $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
+    + list.map(p => {
+        const i = PAIRS.indexOf(p);
+        const tt = p.tts.map(v => TTYPE[v] || '').filter(v => v).join('·');
+        const wd = [...new Set(p.sched.map(s => s.weekday).filter(v => v))].join('·');
+        return '<option value="' + i + '">' + esc(p.child.name)
+             + (tt ? ' · ' + esc(tt) : '')
+             + (wd ? ' · ' + esc(wd) : '')
+             + (OTHERKIDS[p.child.id] ? ' · [다른 기록지에도 있음]' : '')
+             + '</option>';
+      }).join('');
+  if (ME) $('who').textContent = ME.name + ' (' + ME.role + ') 님 · 센터만 '
+    + list.length + '명' + (all ? ' (전체 보기)' : '')
+    + (_isAllView(ME.role) ? '' : ' (담당)');
+}
+
 async function afterLogin(user) {
   const { data: me, error: e1 } = await sb
     .from('nl_therapists').select('id, name, role')
@@ -258,12 +273,20 @@ async function afterLogin(user) {
   ME = me;
   if (_isBlocked(me.role)) { _blockScreen(me.role); return; }
 
-  const [th, tp] = await Promise.all([
+  const [th, tp, ot] = await Promise.all([
     sb.from('nl_therapists').select('id, name'),
     sb.from('nl_therapies')
       .select('id, child_id, therapy_type_id, ended_on, nl_children!inner(id, name, birth, manager_no, status), nl_therapy_schedules(weekday, start_time, therapist_id, duration, to_month)')
-      .eq('support_type_id', SUPPORT)
+      .eq('support_type_id', SUPPORT),
+    // 발달재활·치료지원·방과후 수업도 받는 아동 — 그쪽 기록지에 이미 나오므로 숨긴다
+    sb.from('nl_therapies').select('child_id, ended_on')
+      .in('support_type_id', [2,3,4,6,7])
   ]);
+  OTHERKIDS = {};
+  (ot.data || []).forEach(r => {
+    if (r.ended_on && String(r.ended_on).slice(0,7) < _keepMk(mkNow())) return;
+    OTHERKIDS[r.child_id] = true;
+  });
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
 
   const mineOnly = !_isAllView(me.role);
@@ -293,17 +316,9 @@ async function afterLogin(user) {
   PAIRS = Object.keys(byKid).map(k => byKid[k]);
   PAIRS.sort((a,b) => (a.child.name||'').localeCompare(b.child.name||''));
 
-  $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
-    + PAIRS.map((p,i) => {
-        const tt = p.tts.map(v => TTYPE[v] || '').filter(v => v).join('·');
-        const wd = [...new Set(p.sched.map(s => s.weekday).filter(v => v))].join('·');
-        return '<option value="' + i + '">' + esc(p.child.name)
-             + (tt ? ' · ' + esc(tt) : '')
-             + (wd ? ' · ' + esc(wd) : '') + '</option>';
-      }).join('');
+  drawKidList();
+  $('pAll').onchange = drawKidList;
   $('pMonth').value = mkNow();
-  $('who').textContent = me.name + ' (' + me.role + ') 님 · 센터비용 ' + PAIRS.length + '건'
-    + (_isAllView(me.role) ? '' : ' (담당)');
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
 }
@@ -388,9 +403,7 @@ function drawAll(saved) {
 
   const pick = k => (saved && saved[k]) || '';
   $('f_goal').value  = pick('goal_short') || (PREV && !saved ? (PREV.next_plan || '') : '');
-  $('f_sum').value   = pick('month_summary');
   $('f_guard').value = pick('guardian_note');
-  $('f_next').value  = pick('next_plan');
 
   // 작성일 = 그 달 마지막 수업일
   let wd = saved && saved.written_on ? String(saved.written_on) : '';
@@ -409,6 +422,13 @@ function drawAll(saved) {
     $('pInfo').textContent += ' · 지난 기록(' + PREV.month_key + ')의 다음 달 계획을 목표로 가져왔습니다';
   }
   buildSeq();
+}
+
+// 예전에 세 칸(오늘 활동·아동 반응·가정 과제)으로 적힌 것은 한 칸으로 합쳐 보여준다
+function _oneText(it) {
+  return [it.content, it.reaction, it.homework]
+    .map(x => String(x == null ? '' : x).trim())
+    .filter(Boolean).join('\n');
 }
 
 function buildSeq() {
@@ -431,20 +451,9 @@ function buildSeq() {
       + '<input type="text" class="q_time" value="' + esc(timeVal) + '" style="text-align:center;margin-top:3px;">'
       + '<div style="font-size:10px;color:#999;margin-top:3px;">결석이면 비우세요</div>'
       + '</td>'
-      + '<td><textarea class="q_content">' + esc(it.content || '') + '</textarea></td>'
-      + '<td><textarea class="q_react">' + esc(it.reaction || '') + '</textarea></td>'
-      + '<td><textarea class="q_home">' + esc(it.homework || '') + '</textarea></td>';
+      + '<td><textarea class="q_content" style="min-height:64px;">'
+      + esc(_oneText(it)) + '</textarea></td>';
     tb.appendChild(tr);
-
-    // 치료사 메모 — 학부모에게 안 나가고 인쇄에도 안 나옴
-    const tr2 = document.createElement('tr');
-    tr2.className = 'memo-row no-print';
-    tr2.innerHTML = '<td class="memo-cell" style="text-align:center;">'
-      + '<span class="memo-tag">치료사 메모</span></td>'
-      + '<td class="memo-cell" colspan="3">'
-      + '<textarea class="q_memo" style="min-height:34px;background:#fffdf5;" '
-      + 'placeholder="학부모에게 보이지 않습니다">' + esc(it.staff_memo || '') + '</textarea></td>';
-    tb.appendChild(tr2);
   }
 }
 
@@ -458,9 +467,7 @@ async function saveRecord() {
       therapy_id: cur.therapy_id, month_key: mk,
       therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
       goal_short:     $('f_goal').value  || null,
-      month_summary:  $('f_sum').value   || null,
       guardian_note:  $('f_guard').value || null,
-      next_plan:      $('f_next').value  || null,
       area_text:      $('f_area').value  || null,
       written_on:     WRITTEN || null,
       updated_at:     new Date().toISOString()
@@ -481,8 +488,7 @@ async function saveRecord() {
     const del = await sb.from('nl_session_items').delete().eq('log_id', LOGID);
     if (del.error) throw del.error;
 
-    const trs = document.querySelectorAll('#seqBody tr:not(.memo-row)');
-    const memos = document.querySelectorAll('#seqBody tr.memo-row');
+    const trs = document.querySelectorAll('#seqBody tr');
     const items = [];
     trs.forEach((tr, i) => {
       const dtxt = tr.querySelector('.q_date').value;
@@ -490,7 +496,6 @@ async function saveRecord() {
       const iso = dm ? year + '-' + String(dm[1]).padStart(2,'0')
                              + '-' + String(dm[2]).padStart(2,'0') : null;
       const tv = tr.querySelector('.q_time').value.split(/[-~]/);
-      const memoEl = memos[i] ? memos[i].querySelector('.q_memo') : null;
       items.push({
         log_id: LOGID, seq_no: i + 1,
         service_date: iso,
@@ -498,9 +503,9 @@ async function saveRecord() {
         end_time:   _hm(tv[1] || ''),
         therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
         content:  tr.querySelector('.q_content').value || null,
-        reaction: tr.querySelector('.q_react').value || null,
-        homework: tr.querySelector('.q_home').value || null,
-        staff_memo: memoEl ? (memoEl.value || null) : null,
+        reaction: null,
+        homework: null,
+        staff_memo: null,
         status: iso ? '출석' : null
       });
     });
