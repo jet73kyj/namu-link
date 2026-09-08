@@ -1384,6 +1384,8 @@ let ROWS_ALL = [];      // 수업(요일) 전체
 let THS  = [];          // 화면에 보이는 치료사
 let THS_ALL = [];       // 치료사 1~7 전부
 let SESS = [];          // 그 달 회기 전체
+// 상자(결석·모자란·넘어온) 셈에만 쓰는 자료 — 치료사가 맡은 아동의 다른 수업까지
+let BOX_SESS = [], BOX_ROWS = [];
 let BAL  = new Set();   // 그 달 발추 아동
 let wd = '월', mon = '';
 // 보던 달·요일을 기억해 둔다. 새로고침해도 그 자리로 돌아온다
@@ -1545,20 +1547,17 @@ function bindFindBtns(){
 }
 
 function drawShort(_byScd, _mkOf){
-  // 치료사에게는 보강·모자란 수업 상자를 안 보여준다
-  //   (자기 담당 회기만 보이므로 셈이 어긋나고, 잡는 것은 관리자·행정이 한다)
-  if (MY_TH) {
-    ['short','shortTop','gapBox','gapTop'].forEach(id => {
-      const el = $(id); if (el) el.style.display = 'none';
-    });
-    const ok0 = $('allok'); if (ok0) ok0.style.display = 'none';
-    bindFindBtns();
-    return;
-  }
+  // 치료사도 상자를 본다 (2026-09-08)
+  //   자기 회기만으로는 셈이 어긋나므로, 자기가 맡은 아동의 다른 수업까지
+  //   창구(nl_th_box_sess · nl_th_box_rows)로 따로 받아 셈에만 쓴다.
+  //   시간표 칸에는 남의 수업이 그려지지 않는다.
+  const SESS_ = (MY_TH && BOX_SESS.length) ? BOX_SESS : SESS;
+  const ROWS_ = (MY_TH && BOX_ROWS.length) ? BOX_ROWS : ROWS;
+  bindFindBtns();
   // 화면마다 넘겨주는 자료가 달라 결과가 어긋나던 문제가 있었다.
   // 이제 상자가 스스로 그 달 회기를 모은다. 어느 화면에서 보든 같다.
   const byScd = {}, mkOf = {};
-  SESS.forEach(x => {
+  SESS_.forEach(x => {
     if (isMk(x)) { mkOf[x.makeup_for] = x; return; }
     if (!x.schedule_id) return;
     // 다른 달 몫인데 날짜만 이 달인 줄(선보강 등)은 회기 수에 안 넣는다
@@ -1572,7 +1571,7 @@ function drawShort(_byScd, _mkOf){
   //   miss  — 결석·휴무인데 보강을 못 잡은 것
   //   gap   — 「발4+발추1」인데 발추 자리가 없어 한 회 모자란 것
   const missRows = [], gapRows = [];
-  ROWS.forEach(r => {
+  ROWS_.forEach(r => {
     const runs = byScd[r.id] || [];
     if (!runs.length) return;
     // 「10분씩 나눠 발추 넣기」를 켠 수업은 그 달 회기를 이미 채운 것이므로
@@ -1596,7 +1595,7 @@ function drawShort(_byScd, _mkOf){
           && (!x.month_key || String(x.month_key) === String(mon));
     };
     const hasX8 = runs.some(isX8Now)
-      || SESS.some(x => x.child_id === r._cid && !x.makeup_for && isX8Now(x));
+      || SESS_.some(x => x.child_id === r._cid && !x.makeup_for && isX8Now(x));
     // 발추가 있어야 하는 달인지
     //   발4+발추1  — 매달 발추 1회
     //   발추5/5    — 그 요일이 5번 있는 달만 발추 1회 (4번뿐인 달은 발달 4회로 끝)
@@ -1611,7 +1610,7 @@ function drawShort(_byScd, _mkOf){
   //   납부가 주인이므로, 그 수만큼 시간표에 자리를 잡아야 한다
   if (mon >= '2026-09') {
     const seen = {};
-    ROWS.forEach(r => {
+    ROWS_.forEach(r => {
       const key = r._cid + '|' + r.support_type_id;
       if (seen[key]) return;                       // 아동·유형당 한 번만
       const cap = PAYCNT[key];
@@ -1620,7 +1619,7 @@ function drawShort(_byScd, _mkOf){
                        && b.row.support_type_id === r.support_type_id)) return;
       // 지금 그 아동·그 유형의 정규 회기 수 (보강·쉼은 안 셈)
       let have = 0;
-      SESS.forEach(x => {
+      SESS_.forEach(x => {
         if (x.child_id !== r._cid) return;
         if (Number(x.support_type_id) !== Number(r.support_type_id)) return;
         if (x.status === '보강' || x.status === '쉼') return;
@@ -1744,7 +1743,7 @@ function drawShort(_byScd, _mkOf){
     $('gapBox').innerHTML = h2;
   }
 
-  $('allok').style.display = (!nMiss && !gapRows.length && SESS.length)
+  $('allok').style.display = (!nMiss && !gapRows.length && SESS_.length)
                              ? 'block' : 'none';
   $('allok').textContent = '✅ ' + monNo(mon)
     + '월 — 보강할 것도, 모자란 회기도 없습니다.';
@@ -2618,13 +2617,7 @@ function seqInPrev(s) {
 
 // ===== 지난 달에서 넘어온 보강 =====
 function drawPrev(){
-  if (MY_TH) {
-    ['prevBox','prevHint'].forEach(id => {
-      const el = $(id); if (el) el.style.display = 'none';
-    });
-    syncDock();
-    return;
-  }
+  // 치료사도 본다 (2026-09-08) — 자기가 맡은 아동의 다른 수업분까지
   const need = prevNeed();
   if (!need.length) {
     $('prevBox').style.display = 'none';
@@ -2918,6 +2911,13 @@ function thPicked(){
 function drawSideTh(){
   const box = $('sideTh');
   if (!box) return;
+  // 치료사 계정은 자기 수업만 보이므로 고르는 상자가 필요 없다
+  //   주간 보기가 빈 화면이 되지 않게 자기 번호를 켜둔다
+  if (!CAN_EDIT) {
+    if (MY_TH) THPICK = new Set([Number(MY_TH)]);
+    box.innerHTML = ''; box.style.display = 'none';
+    return;
+  }
   const list = (THS_ALL && THS_ALL.length) ? THS_ALL : THS;
   if (!list || !list.length) { box.innerHTML = ''; return; }
   // 첫 화면에서는 아무도 안 골라둔다 (비어 있으면 전체가 보인다)
@@ -5975,13 +5975,48 @@ async function loadMonth(){
   }
   if (MY_TH) SESS = SESS.filter(s => s.therapist_id === MY_TH);
 
+  // 치료사 — 상자 셈에 쓸 자료를 따로 받는다 (자기가 맡은 아동의 다른 수업까지)
+  BOX_SESS = []; BOX_ROWS = [];
+  if (MY_TH) {
+    try {
+      const [bs, br] = await Promise.all([
+        sb.rpc('nl_th_box_sess', { p_mon: mon }),
+        sb.rpc('nl_th_box_rows', { p_mon: mon })
+      ]);
+      BOX_SESS = (bs && bs.data) ? bs.data : [];
+      const brows = (br && br.data) ? br.data : [];
+      BOX_ROWS = brows.map(r => {
+        r._cid = r.child_id; r._tt = r.therapy_type_id;
+        r._name = KIDNM[r.child_id] || '';
+        r._cnt = r.monthly_count || 4;
+        r._mode = r.count_mode || '4회만';
+        r._w1 = r.week1 !== false; r._w2 = r.week2 !== false;
+        r._w3 = r.week3 !== false; r._w4 = r.week4 !== false;
+        r._wks = (r._w1?1:0)+(r._w2?1:0)+(r._w3?1:0)+(r._w4?1:0);
+        return r;
+      });
+    } catch (e) { BOX_SESS = []; BOX_ROWS = []; }
+  }
+
   // 지난 달 회기도 불러온다 (이월 보강 때문)
   const pm = prevMon(mon);
   const { data: pv } = await sb.from('nl_sessions')
     .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
     .eq('month_key', pm);
   PREV = pv || [];
-  if (MY_TH) PREV = PREV.filter(s => s.therapist_id === MY_TH);
+  // 치료사 — 자기가 맡은 아동의 다른 수업분 결석도 함께 본다 (보강 조율용)
+  if (MY_TH) {
+    if (BOX_SESS.length) {
+      const kid = new Set(BOX_SESS.map(x => Number(x.child_id)));
+      PREV = PREV.filter(s => kid.has(Number(s.child_id)));
+      const have = new Set(PREV.map(x => x.id));
+      BOX_SESS.forEach(x => {
+        if (String(x.month_key) === String(pm) && !have.has(x.id)) PREV.push(x);
+      });
+    } else {
+      PREV = PREV.filter(s => s.therapist_id === MY_TH);
+    }
+  }
   // 지난 달 회기인데 이번 달 날짜로 잡아 둔 줄은 이번 달 시간표에도 띄운다
   //   보강뿐 아니라 지난달 발추를 이번 달에 잡은 것도 함께 (달은 지난달, 날짜는 이번 달)
   PREV.forEach(s => {
