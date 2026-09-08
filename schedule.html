@@ -1084,6 +1084,10 @@
         <select id="ed_slot"></select>
       </div>
       <div>
+        <label for="ed_hm">직접 시각 <span style="color:#9aa294;">(비우면 왼쪽 시간)</span></label>
+        <input id="ed_hm" type="text" placeholder="예: 14:00" autocomplete="off">
+      </div>
+      <div>
         <label for="ed_th">치료사</label>
         <select id="ed_th"></select>
       </div>
@@ -1477,9 +1481,13 @@ function isBlankRest(x){
 }
 // 회기 시각이 그 칸의 교시 시각과 다르면 실제 시각을 돌려준다
 // (예: 15:00 수업은 15:10 칸에 놓이므로 15:00 이라고 알려준다)
-function tmDif(x){
+function tmDif(x, r){
   if (!x || !x.start_time) return '';
   const a = String(x.start_time).slice(0,5);
+  // 요일줄 시각과 같으면 알릴 것이 없다 (2026-09-09)
+  //   교시와 다른 시각(2:00 처럼)이어도 요일줄이 그 시각이면 정상이다.
+  //   이 딱지는 「요일줄과 회기가 어긋났다」를 알리는 것이므로 그때만 붙인다
+  if (r && r.start_time && String(r.start_time).slice(0,5) === a) return '';
   const sl = nearest(toMin(x.start_time));
   if (!sl || sl.hm === a) return '';
   return '<span class="tmdif">' + h12(a) + '</span>';
@@ -2561,7 +2569,7 @@ function drawWeekOld(){
                 : ((r.support_type_id === 2 && x.run_no === 5)
                    ? '<span class="spadd">이</span>' : '');
               return '<div class="run '+cls+'" data-sid="'+x.id+'">'
-                + tmDif(x) + dif
+                + tmDif(x, r) + dif
                 + '<span class="dt">'+dayNo(x.plan_date)+'일'
                 + '<b class="no">'+monNo(mon)+'-'+x.run_no+'</b>'
                 + splitTag(x) + minTag(x) + fillTag(x) + '</span>'
@@ -3718,7 +3726,7 @@ function drawDay(){
             const cut = (x.status === '결석' || x.status === '휴무') ? ' ln-cut' : '';
             const spn = (x.support_type_id && x.support_type_id !== r.support_type_id)
               ? (STYPE[x.support_type_id] || '') : (STYPE[r.support_type_id] || '?');
-            const nm = tmDif(x) + spn + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name) + cidTag(r._cid);
+            const nm = tmDif(x, r) + spn + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name) + cidTag(r._cid);
             const dur = (r.duration && Number(r.duration) !== 40)
                         ? ' <span class="dur">(' + r.duration + ')</span>' : '';
 
@@ -4122,6 +4130,14 @@ function openEd(scId){
     + ' — 요일·시간·치료사 바꾸기';
   $('ed_wd').value   = r.weekday;
   $('ed_slot').value = String(nearest(toMin(r.start_time)).no);
+  // 교시 시각과 다르면 「직접 시각」에 그대로 보여 준다 (2026-09-09)
+  //   보기 — 2:00 시작인데 교시는 2:20 인 아동
+  (function(){
+    const sl0 = SLOTS.find(x => x.no === Number($('ed_slot').value));
+    const std = sl0 ? slotHm(sl0, r.therapist_id, r.weekday) : '';
+    const now = String(r.start_time || '').slice(0,5);
+    $('ed_hm').value = (now && std && now !== std) ? now : '';
+  })();
   $('ed_th').value   = String(r.therapist_id);
   $('ed_dur').value  = String(r.duration || 40);
   $('ed_tt').value   = String(r._tt || 1);
@@ -4374,13 +4390,21 @@ $('edSave').onclick = async () => {
   // 요일이나 시간이 바뀌면 지난 달은 건드리지 않고 이번 달부터 갈라 준다
   const oldWd = edRow.weekday;
   const oldHm = String(edRow.start_time || '').slice(0,5);
-  const newHm = slotHm(slot, th, nw);
+  // 「직접 시각」을 적었으면 그것을 쓴다. 비었으면 교시 시각 (2026-09-09)
+  let typedHm = String($('ed_hm').value || '').trim();
+  if (typedHm) {
+    const mm0 = typedHm.match(/^(\d{1,2})\s*[:시]?\s*(\d{1,2})?$/);
+    if (!mm0) { alert('직접 시각은 14:00 처럼 적어주세요.'); return; }
+    typedHm = String(Math.min(23, Number(mm0[1]))).padStart(2,'0') + ':'
+            + String(Math.min(59, Number(mm0[2] || 0))).padStart(2,'0');
+  }
+  const newHm = typedHm || slotHm(slot, th, nw);
   if (oldWd !== nw || oldHm !== newHm) {
     if (!confirm('요일·시간이 바뀝니다.\n\n'
       + '· ' + oldWd + '요일 ' + h12(oldHm) + '  →  ' + nw + '요일 ' + h12(newHm) + '\n\n'
       + monNo(mon) + '월부터 바뀌고, 지난 달 시간표는 그대로 남습니다.\n계속할까요?')) return;
     const scId0 = edRow.id;
-    await changeFromThisMonth(nw, slot, th, du);
+    await changeFromThisMonth(nw, slot, th, du, newHm);
     await applySplit(scId0, wantSp);
     draw();
     return;
@@ -4389,7 +4413,7 @@ $('edSave').onclick = async () => {
   $('edSave').disabled = true; $('edSave').textContent = '옮기는 중...';
   try {
     const { data, error } = await sb.from('nl_therapy_schedules')
-      .update({ weekday: nw, start_time: slotHm(slot, th, nw) + ':00',
+      .update({ weekday: nw, start_time: newHm + ':00',
                 therapist_id: th, duration: du,
                 from_date: $('ed_start').value || null,
                 to_date:   $('ed_end').value   || null })
@@ -4419,7 +4443,7 @@ $('edSave').onclick = async () => {
     // 아직 안 지난 회기의 치료사·시각도 함께 고친다
     const today = new Date().toISOString().slice(0,10);
     await sb.from('nl_sessions')
-      .update({ therapist_id: th, start_time: slotHm(slot, th, nw) + ':00' })
+      .update({ therapist_id: th, start_time: newHm + ':00' })
       .eq('schedule_id', edRow.id).gte('plan_date', today).neq('status','보강');
 
     // 회기를 새로 맞춘다 (예정만 다시 깔고 완료·결석·휴무·보강은 그대로)
@@ -4451,7 +4475,7 @@ $('edSave').onclick = async () => {
 // ===== 이번 달부터 바꾸기 =====
 // 옛 줄은 지난 달까지로 끝내고, 새 요일 줄을 따로 만든다.
 // 그래야 지난 달 시간표가 흔들리지 않는다.
-async function changeFromThisMonth(nw, slot, th, du){
+async function changeFromThisMonth(nw, slot, th, du, hm){
   if (!edRow) return;
 
   const y = Number(mon.slice(0,4)), m = Number(mon.slice(5,7));
@@ -4469,7 +4493,7 @@ async function changeFromThisMonth(nw, slot, th, du){
     // ② 새 요일 줄을 이번 달부터로 만든다
     const { data: ns, error: e2 } = await sb.from('nl_therapy_schedules')
       .insert({ therapy_id: edRow.therapy_id, weekday: nw,
-                start_time: slotHm(slot, th, nw) + ':00', therapist_id: th,
+                start_time: (hm || slotHm(slot, th, nw)) + ':00', therapist_id: th,
                 duration: du, from_month: mon,
                 week1: edWk[0], week2: edWk[1],
                 week3: edWk[2], week4: edWk[3] })
