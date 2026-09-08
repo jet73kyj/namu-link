@@ -321,12 +321,15 @@ function calc(){
     // 지금은 특수 단가가 있는 치료사의 60분 아닌 수업 중
     // 메모에 '심리'가 있는 것만 특수로 본다
     const isSp = r.special_fee && String(s.memo||'').includes('심리');
+    // 쪼개서 보강한 줄은 분만큼만 센다. 10분이면 0.25회 (2026-09-08)
+    const part = Number(s.minutes || 40) / 40;
     let fee;
-    if (isSp)          { k.sp++;  fee = r.special_fee; }
-    else if (dur >= 60){ k.m60++; fee = Math.round(r.session_fee * 1.5); }
-    else               { k.m40++; fee = r.session_fee; }
-    k.fee += fee;
+    if (isSp)          { k.sp  += part; fee = r.special_fee * part; }
+    else if (dur >= 60){ k.m60 += part; fee = r.session_fee * 1.5 * part; }
+    else               { k.m40 += part; fee = r.session_fee * part; }
+    k.fee += Math.round(fee);
     k.days.push(dayNo(s.plan_date)
+      + (part !== 1 ? '(+' + Number(s.minutes) + '분)' : '')
       + (s.status==='보강'
           ? ((s.month_key && s.month_key !== mon)
               ? '(' + monNo(s.month_key) + '월분 보강)' : '(보강)')
@@ -337,21 +340,24 @@ function calc(){
   let t40=0, t60=0, tsp=0, tcnt=0, tfee=0;
   $('rows1').innerHTML = names.map(nm => {
     const k = byKid[nm];
-    const cnt = k.m40 + k.m60 + k.sp;
+    const rd = v => Math.round(Number(v) * 100) / 100;
+    const cnt = rd(k.m40 + k.m60 + k.sp);
     t40+=k.m40; t60+=k.m60; tsp+=k.sp; tcnt+=cnt; tfee+=k.fee;
     k.days.sort((a,b)=>parseInt(a)-parseInt(b));
     return '<tr><td>' + esc(nm) + '</td>'
-      + '<td class="n">' + (k.m40||'–') + '</td>'
-      + '<td class="n">' + (k.m60||'–') + '</td>'
-      + '<td class="n">' + (k.sp ||'–') + '</td>'
+      + '<td class="n">' + (k.m40 ? rd(k.m40) : '–') + '</td>'
+      + '<td class="n">' + (k.m60 ? rd(k.m60) : '–') + '</td>'
+      + '<td class="n">' + (k.sp  ? rd(k.sp)  : '–') + '</td>'
       + '<td class="n">' + cnt + '</td>'
       + '<td class="n">' + won(k.fee) + '</td>'
       + '<td class="small">' + k.days.join(', ') + '</td></tr>';
   }).join('');
   const nKid = new Set(done.map(x => x.child_id)).size;
   $('foot1').innerHTML = '<tr><td>세션 소계 아동 ' + nKid + '명 · ' + names.length + '줄</td>'
-    + '<td class="n">' + t40 + '</td><td class="n">' + t60 + '</td>'
-    + '<td class="n">' + tsp + '</td><td class="n">' + tcnt + '</td>'
+    + '<td class="n">' + (Math.round(t40*100)/100) + '</td>'
+    + '<td class="n">' + (Math.round(t60*100)/100) + '</td>'
+    + '<td class="n">' + (Math.round(tsp*100)/100) + '</td>'
+    + '<td class="n">' + (Math.round(tcnt*100)/100) + '</td>'
     + '<td class="n">' + won(tfee) + '</td><td></td></tr>';
 
   // 평가
@@ -516,7 +522,7 @@ async function loadMonth(){
   // 전월 결석분을 이번 달에 보강한 줄도 이번 달 급여에 들어온다.
   // (납부는 billing 화면에서 month_key = 원래 달 기준으로 그대로 센다)
   const { data } = await sb.from('nl_sessions')
-    .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id, month_key')
+    .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id, month_key, minutes')
     .gte('plan_date', mon + '-01').lte('plan_date', monEnd(mon));
   SESS = data || [];
   await loadEvals();
