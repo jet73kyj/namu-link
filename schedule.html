@@ -535,6 +535,8 @@
   .offnone { color:#78909c; font-size:13px; }
   .holibox { background:#eceff1; border:1px solid #b0bec5; border-radius:8px;
              padding:10px 14px; font-size:13.5px; color:#455a64; margin-bottom:12px; }
+  /* 빈 자리에 적는 시작 시각 */
+  .opentm { font-size:11px; color:#9aa; margin-bottom:2px; }
   .mkbtn  { width:auto; margin:0 0 0 5px; padding:2px 7px; font-size:10.5px;
             font-weight:bold; background:#ef6c00; border-radius:10px;
             white-space:nowrap; }
@@ -2163,6 +2165,12 @@ function buildMkOf(){
 }
 function mkTail(x){
   if (x.status !== '결석' && x.status !== '휴무') return '';
+  // 보강 날에도 못 오신 경우 — 그 보강의 날짜를 다른 날로 옮긴다
+  if (isMk(x)) {
+    return CAN_EDIT
+      ? '<button class="mkbtn" data-mkfix="' + x.id + '"'
+        + ' title="보강 날짜 옮기기">＋</button>' : '';
+  }
   const mk = MKOF[x.id];
   // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
   const noNeed = (Number(x.support_type_id) === 2 && !x.run_no);
@@ -2260,7 +2268,9 @@ function drawWeek(){
           if (!list.length) {
             const lunch = (d !== '토' && s.no === LUNCH_NO);
             return '<td class="cell">'
-              + (lunch ? '<span class="lunchtxt">점심</span>' : '')
+              + (lunch ? '<span class="lunchtxt">점심</span>'
+                       : '<div class="opentm">' + dayNo(ds2) + '일 '
+                         + h12(slotHm(s, th3.id, d)) + '</div>')
               + plus + '</td>';
           }
           // 수업이 있는 칸에는 ＋(수업 넣기)를 안 붙인다
@@ -2787,7 +2797,9 @@ function drawOne(){
               return '<td class="cell"><div class="ln ln-holi">'
                 + '<span class="n">' + (OFFTXT[oneDate] || '휴무') + '</span></div></td>';
             return '<td class="cell">'
-              + (lunch ? '<span class="lunchtxt">점심</span>' : '')
+              + (lunch ? '<span class="lunchtxt">점심</span>'
+                       : '<div class="opentm">' + dayNo(oneDate) + '일 '
+                         + h12(slotHm(s, th3.id, wd)) + '</div>')
               + plus + '</td>';
           }
           // 수업이 있는 칸에는 ＋(수업 넣기)를 안 붙인다
@@ -3483,7 +3495,7 @@ function drawDay(){
               html += '<div class="ln ln-open'
                 + (cns2 !== null ? ' ln-cons' : (blk2 ? ' ln-block' : (isOffFor(L2.d, t.id) ? ' ln-holi' : ''))) + '">'
                 + '<span class="d">' + day + '</span>'
-                + hmTag(x, s, t.id, wd)
+                + '<span class="hm">' + h12(slotHm(s, t.id, wd)) + '</span>'
                 + '<span class="n">' + (cns2 !== null ? esc(kidLabel(cns2)) : (blk2 ? '시간 막음' : '빈 자리')) + '</span>'
                 + ((CAN_EDIT && canOpenAdd() && !blk2 && cns2 === null) ? '<button class="lnadd" data-mn="'
                     + s.no + '_' + t.id + '_' + wd + '_' + L2.d + '" title="보강 넣기">＋</button>' : '')
@@ -3526,7 +3538,10 @@ function drawDay(){
                     ? ((L2.kind === 'mn')
                         ? '<button class="lnedit" data-mned="' + x.id + '" title="고치기">수정</button>'
                           + '<button class="lnedit" data-mndel="' + x.id + '">✕</button>'
-                        : '<button class="lnedit" data-mkfix="' + x.id + '">✕</button>')
+                        : (((x.status === '결석' || x.status === '휴무')
+                              ? '<button class="mkbtn" data-mkfix="' + x.id + '"'
+                                + ' title="보강 날짜 옮기기">＋</button>' : '')
+                            + '<button class="lnedit" data-mkfix="' + x.id + '">✕</button>'))
                     : '')
                 + '</div>';
               return;
