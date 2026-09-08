@@ -881,6 +881,8 @@ async function load() {
         s: (HOLDAY[x.plan_date] ? '공휴일' : '휴가') }); return; }
       g.cnt++;
       if (x.status === '결석') g.miss.push({ id: x.id, d: x.plan_date, s: '결석' });
+      // 빠진 날이 없을 때 「보강 없음」에서 고를 수 있게 예정 줄도 모아둔다
+      if (x.status === '예정') (g.plans = g.plans || []).push({ id: x.id, d: x.plan_date });
     });
 
     // 유형별 기준 회기 — 셈방식(count_mode)에 따라 계산한다
@@ -1351,7 +1353,7 @@ function drawKid(c) {
     // need 는 원래 기준 회수 그대로 쓴다
     //   skip 을 빼면 「보강 없음」을 누른 뒤 「보강 잡기」로 되돌릴 때
     //   기준이 줄어 회기를 못 늘린다
-    shorts.push({ st: st, need: need, cnt: g.cnt, miss: g.miss });
+    shorts.push({ st: st, need: need, cnt: g.cnt, miss: g.miss, plans: g.plans || [] });
   });
 
   // 발4+발추1 아동인데 발추(8번) 청구가 빠져 있으면 알려준다
@@ -1371,6 +1373,8 @@ function drawKid(c) {
           + x.miss.map(m => m.id).join(',') + '" data-nmcnt="' + (x.cnt || 0)
           + '" data-nmneed="' + (x.need || 0)
           + '" data-nmadd="' + Math.max(0, (x.need || 0) - (x.cnt || 0))
+          + '" data-nmplan="'
+          + (x.plans || []).map(m => m.id + ':' + m.d).join(',')
           + '" data-nmdays="'
           + x.miss.map(m => dayOnly(m.d) + '일').join(' · ') + '"><b>'
           + (TYPES[x.st] || ('유형'+x.st)) + '</b> '
@@ -2249,9 +2253,30 @@ async function markMakeup(btn) {
 async function markNoMakeup(btn) {
   const line = btn.closest('.shortline');
   if (!line) return;
-  const ids = String(line.dataset.nmids || '')
+  let ids = String(line.dataset.nmids || '')
     .split(',').map(v => Number(v)).filter(v => v);
-  if (!ids.length) return;
+
+  // 빠진 날이 없으면 어느 날을 뺄지 고르게 한다 (2026-09-08)
+  if (!ids.length) {
+    const plans = String(line.dataset.nmplan || '').split(',')
+      .filter(Boolean).map(v => { const p = v.split(':'); return { id: Number(p[0]), d: p[1] }; });
+    if (!plans.length) {
+      alert('뺄 수 있는 날이 없습니다.\n'
+        + '이미 다 마친 수업이면 시간표에서 그 날을 결석으로 바꿔 주세요.');
+      return;
+    }
+    const menu = plans.map((m, i) => (i + 1) + ') ' + dayOnly(m.d) + '일').join('\n');
+    const v = prompt('어느 날을 뺄까요?\n\n' + menu + '\n\n번호를 넣으세요.', '');
+    if (v === null) return;
+    const n = Number(String(v).replace(/[^0-9]/g, ''));
+    if (!n || n < 1 || n > plans.length) { alert('번호를 다시 골라주세요.'); return; }
+    const pick = plans[n - 1];
+    const up = await sb.from('nl_sessions')
+      .update({ status: '결석' }).eq('id', pick.id);
+    if (up.error) { alert('바꾸지 못했습니다.\n' + up.error.message); return; }
+    ids = [pick.id];
+    line.dataset.nmcnt = Math.max(0, Number(line.dataset.nmcnt || 0) - 1);
+  }
 
   if (Number(line.dataset.nmst) === 2) {
     alert('발달재활은 반드시 그 달에 4회를 채워야 합니다.\n'
