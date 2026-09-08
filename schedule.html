@@ -6091,6 +6091,12 @@ async function afterLogin(user){
   MY_TH = (me.id >= 1 && me.id <= 7) ? me.id : null;  // 치료사는 자기 것만
   IS_BOSS = (me.id === 8);
 
+  // 하루 한 번 시간표 자료를 통째로 백업한다 (2026-09-08)
+  //   같은 날 여러 번 열어도 한 번만 담긴다. 14일 지난 것은 저절로 지워진다
+  if (CAN_EDIT) {
+    try { await sb.rpc('nl_sess_backup_today'); } catch (e) {}
+  }
+
   const { data: ths } = await sb.from('nl_therapists').select('id, name').lte('id',7).order('id');
   THS_ALL = ths || [];
   THS = THS_ALL;
