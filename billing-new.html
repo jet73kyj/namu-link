@@ -874,7 +874,7 @@ async function load() {
         g.skip++;
         // 「보강 없음」으로 정한 휴무·결석은 청구 회수에서 뺀다 (2026-09-08)
         if (x.status !== '휴무' && x.status !== '결석') g.cnt++;
-        g.miss.push({ id: x.id, d: x.plan_date,
+        g.miss.push({ id: x.id, d: x.plan_date, nm: true,
           s: (x.status === '휴무'
                 ? (HOLDAY[x.plan_date] ? '공휴일' : '휴가')
                 : '결석') + ' · 보강 없음' });
@@ -1377,7 +1377,8 @@ function drawKid(c) {
           + '" data-nmneed="' + (x.need || 0)
           + '" data-nmadd="' + Math.max(0, (x.need || 0) - (x.cnt || 0))
           + '" data-nmplan="'
-          + (x.plans || []).map(m => m.id + ':' + m.d).join(',')
+          + (x.miss || []).filter(m => !m.nm).map(m => m.id + ':' + m.d + ':' + m.s)
+              .concat((x.plans || []).map(m => m.id + ':' + m.d + ':예정')).join(',')
           + '" data-nmdays="'
           + x.miss.map(m => dayOnly(m.d) + '일').join(' · ') + '"><b>'
           + (TYPES[x.st] || ('유형'+x.st)) + '</b> '
@@ -2256,30 +2257,34 @@ async function markMakeup(btn) {
 async function markNoMakeup(btn) {
   const line = btn.closest('.shortline');
   if (!line) return;
-  let ids = String(line.dataset.nmids || '')
-    .split(',').map(v => Number(v)).filter(v => v);
-
-  // 빠진 날이 없으면 어느 날을 뺄지 고르게 한다 (2026-09-08)
-  if (!ids.length) {
-    const plans = String(line.dataset.nmplan || '').split(',')
-      .filter(Boolean).map(v => { const p = v.split(':'); return { id: Number(p[0]), d: p[1] }; });
-    if (!plans.length) {
-      alert('뺄 수 있는 날이 없습니다.\n'
-        + '이미 다 마친 수업이면 시간표에서 그 날을 결석으로 바꿔 주세요.');
-      return;
-    }
-    const menu = plans.map((m, i) => (i + 1) + ') ' + dayOnly(m.d) + '일').join('\n');
-    const v = prompt('어느 날을 뺄까요?\n\n' + menu + '\n\n번호를 넣으세요.', '');
-    if (v === null) return;
-    const n = Number(String(v).replace(/[^0-9]/g, ''));
-    if (!n || n < 1 || n > plans.length) { alert('번호를 다시 골라주세요.'); return; }
-    const pick = plans[n - 1];
+  // 어느 날을 뺄지 늘 고르게 한다 (2026-09-08)
+  //   결석·휴무 줄뿐 아니라 아직 안 한 예정 줄도 고를 수 있다
+  const cand = String(line.dataset.nmplan || '').split(',')
+    .filter(Boolean).map(v => {
+      const p = v.split(':');
+      return { id: Number(p[0]), d: p[1], s: p[2] || '' };
+    });
+  if (!cand.length) {
+    alert('뺄 수 있는 날이 없습니다.\n'
+      + '이미 「보강 없음」으로 정해 두었거나, 그 달 수업이 없습니다.');
+    return;
+  }
+  const menu = cand.map((m, i) =>
+    (i + 1) + ') ' + dayOnly(m.d) + '일 · ' + m.s).join('\n');
+  const v = prompt('어느 날을 보강 없이 뺄까요?\n\n' + menu
+    + '\n\n번호를 넣으세요.', '');
+  if (v === null) return;
+  const nPick = Number(String(v).replace(/[^0-9]/g, ''));
+  if (!nPick || nPick < 1 || nPick > cand.length) {
+    alert('번호를 다시 골라주세요.'); return;
+  }
+  const pick = cand[nPick - 1];
+  let ids = [pick.id];
+  // 예정 줄을 골랐으면 결석으로도 바꾼다
+  if (pick.s === '예정') {
     const up = await sb.from('nl_sessions')
       .update({ status: '결석' }).eq('id', pick.id);
     if (up.error) { alert('바꾸지 못했습니다.\n' + up.error.message); return; }
-    ids = [pick.id];
-    line.dataset.nmcnt = Math.max(0, Number(line.dataset.nmcnt || 0) - 1);
-    line.dataset.nmids = String(pick.id);
   }
 
   if (Number(line.dataset.nmst) === 2) {
@@ -2294,7 +2299,7 @@ async function markNoMakeup(btn) {
     why = (prompt('사유를 적어주세요.', '') || '').trim();
     if (!why) return;
   }
-  if (!confirm('빠진 ' + ids.length + '회를 보강하지 않고 이대로 청구합니다.\n\n'
+  if (!confirm(dayOnly(pick.d) + '일 수업을 보강하지 않고 이대로 청구합니다.\n\n'
     + '사유 — ' + why + '\n\n계속할까요?')) return;
 
   btn.disabled = true;
