@@ -3557,6 +3557,9 @@ function drawDay(){
           });
 
           abs.forEach(function(x){
+            // 결석 날은 빈 자리 줄을 따로 안 만든다 (2026-09-09)
+            //   결석 줄 하나만 남긴다. 그 자리는 「빈 자리 찾기」가 찾아 준다
+            if (x.status === '결석') return;
             const dd = String(x.plan_date);
             const used = lines.some(function(L2){
               return (L2.kind === 'mk' || L2.kind === 'mn') && L2.d === dd; });
@@ -5721,8 +5724,17 @@ $('mkFind').onclick = () => {
       SLOTS.forEach(sl => {
         const isSat = (dw === '토');
         if (!isSat && sl.no === LUNCH_NO) return;          // 주중 점심은 뺀다
-        const busy = ROWS.some(r => r.therapist_id === th && r.weekday === dw
-                       && nearest(toMin(r.start_time)).no === sl.no)
+        // 고정 수업이 있어도 그 날 그 수업이 결석이면 자리가 빈 것이다 (2026-09-09)
+        //   선생님은 나오시므로 다른 아동 보강을 그 자리에 잡을 수 있다
+        //   회기를 못 찾으면 전처럼 「찼다」로 본다 (안전하게)
+        const fixedBusy = ROWS.some(r => {
+          if (r.therapist_id !== th || r.weekday !== dw) return false;
+          if (nearest(toMin(r.start_time)).no !== sl.no) return false;
+          const ss = SESS.filter(v => v.schedule_id === r.id && v.plan_date === key);
+          if (ss.length && ss.every(v => v.status === '결석')) return false;
+          return true;
+        });
+        const busy = fixedBusy
                   || SESS.some(s => isMk(s) && s.plan_date === key
                        && s.therapist_id === th
                        && nearest(toMin(s.start_time)).no === sl.no);
