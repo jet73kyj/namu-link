@@ -867,7 +867,10 @@ async function load() {
     sess.forEach(x => {
       if (x.status === '보강' || x.status === '쉼') return;
       const k = x.child_id + '|' + (x.support_type_id || 0);
-      const g = SHORTCNT[k] = SHORTCNT[k] || { cnt: 0, miss: [], skip: 0 };
+      const g = SHORTCNT[k] = SHORTCNT[k] || { cnt: 0, miss: [], skip: 0, all: [] };
+      // 「보강 없음」에서 고를 수 있게 그 달 모든 줄을 담아둔다 (2026-09-08)
+      g.all.push({ id: x.id, d: x.plan_date,
+        s: (x.no_makeup ? (x.status + ' · 보강 없음') : x.status) });
       // 「보강 없음」으로 정한 회기 — 세어두되 빠진 날 목록에는 남긴다
       //   (예정인 동안은 「보강 잡기」로 되돌릴 수 있어야 하므로)
       if (x.no_makeup) {
@@ -1356,7 +1359,7 @@ function drawKid(c) {
     // need 는 원래 기준 회수 그대로 쓴다
     //   skip 을 빼면 「보강 없음」을 누른 뒤 「보강 잡기」로 되돌릴 때
     //   기준이 줄어 회기를 못 늘린다
-    shorts.push({ st: st, need: need, cnt: g.cnt, miss: g.miss, plans: g.plans || [] });
+    shorts.push({ st: st, need: need, cnt: g.cnt, miss: g.miss, all: g.all || [] });
   });
 
   // 발4+발추1 아동인데 발추(8번) 청구가 빠져 있으면 알려준다
@@ -1377,8 +1380,7 @@ function drawKid(c) {
           + '" data-nmneed="' + (x.need || 0)
           + '" data-nmadd="' + Math.max(0, (x.need || 0) - (x.cnt || 0))
           + '" data-nmplan="'
-          + (x.miss || []).filter(m => !m.nm).map(m => m.id + ':' + m.d + ':' + m.s)
-              .concat((x.plans || []).map(m => m.id + ':' + m.d + ':예정')).join(',')
+          + (x.all || []).map(m => m.id + ':' + m.d + ':' + m.s).join(',')
           + '" data-nmdays="'
           + x.miss.map(m => dayOnly(m.d) + '일').join(' · ') + '"><b>'
           + (TYPES[x.st] || ('유형'+x.st)) + '</b> '
@@ -2279,9 +2281,14 @@ async function markNoMakeup(btn) {
     alert('번호를 다시 골라주세요.'); return;
   }
   const pick = cand[nPick - 1];
+  if (String(pick.s).indexOf('보강 없음') >= 0) {
+    alert('그 날은 이미 「보강 없음」으로 정해 두었습니다.\n'
+      + '되돌리시려면 「보강 잡기」를 누르세요.');
+    return;
+  }
   let ids = [pick.id];
   // 예정 줄을 골랐으면 결석으로도 바꾼다
-  if (pick.s === '예정') {
+  if (pick.s === '예정' || pick.s === '완료') {
     const up = await sb.from('nl_sessions')
       .update({ status: '결석' }).eq('id', pick.id);
     if (up.error) { alert('바꾸지 못했습니다.\n' + up.error.message); return; }
