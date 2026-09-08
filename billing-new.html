@@ -2307,41 +2307,16 @@ async function markNoMakeup(btn) {
     return;
   }
 
-  // 회기를 실제 한 회수에 맞추고 저장한다
-  //   3회일 때 누르면 3회 그대로, 4회일 때 누르면 3회로 (보강 잡기 취소)
-  const st  = Number(line.dataset.nmst);
-  const box = btn.closest('.kid');
-  const real = Number(line.dataset.nmcnt || 0);   // 실제로 한 회수
-  if (box && real) {
-    const rows = box.querySelectorAll('.line[data-st="' + st + '"]');
-    let now = 0;
-    rows.forEach(tr => {
-      const el = tr.querySelector('.cnt');
-      if (el) now += (parseInt(String(el.value).replace(/[^0-9]/g,''), 10) || 0);
-    });
-    let left = now - real;                        // 줄여야 할 만큼
-    // 뒤 줄부터 하나씩 뺀다
-    for (let i = rows.length - 1; i >= 0 && left > 0; i--) {
-      const el = rows[i].querySelector('.cnt');
-      if (!el) continue;
-      const v = parseInt(String(el.value).replace(/[^0-9]/g,''), 10) || 0;
-      const take = Math.min(v, left);
-      el.value = v - take;
-      left -= take;
-    }
-    calcKid(Number(box.dataset.child));
-    const sbtn = box.querySelector('.ksave2[data-only="card"]')
-              || box.querySelector('.ksave2');
-    if (sbtn) sbtn.click();
-  }
+  // 회기 칸은 손대지 않는다 (2026-09-08)
+  //   「보강 없음」으로 정한 줄은 회기 셈에서 저절로 빠지므로,
+  //   다시 불러오면 바른 회수로 그려진다. 억지로 맞추면 0회가 되던 문제가 있었다
 
   // 예정인 동안은 다시 바꿀 수 있어야 하므로 아동 상자를 새로 그린다
   //   (전에는 그 줄을 글자로 바꿔 「보강 잡기」를 다시 못 눌렀다)
   alert('보강 없음으로 정했습니다.\n\n'
-    + '사유 — ' + why + '\n'
-    + '회기를 ' + real + '회로 맞춰 저장했습니다.\n\n'
-    + '다시 바꾸시려면 「보강 잡기」를 누르세요.\n'
-    + '다 정하시면 이름 옆 「예정」을 눌러 확정으로 바꾸세요.');
+    + '사유 — ' + why + '\n\n'
+    + '금액을 확인하시고 「카드 저장」을 눌러 저장하세요.\n'
+    + '다시 바꾸시려면 「보강 잡기」를 누르세요.');
   await load();
 }
 
