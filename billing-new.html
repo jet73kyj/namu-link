@@ -840,7 +840,9 @@ async function load() {
       // 자리를 안 만들면 회기가 없는 것으로 보고 요일 수로 세어
       // 쉬는 달에도 금액이 생긴다.
       if (SESSCNT[k][sp] == null) SESSCNT[k][sp] = 0;
-      if (x.status !== '휴무' && x.status !== '쉼') SESSCNT[k][sp] += 1;
+      // 「보강 없음」으로 정한 줄은 청구 회수에서 뺀다 (2026-09-08)
+      if (x.status !== '휴무' && x.status !== '쉼' && !x.no_makeup)
+        SESSCNT[k][sp] += 1;
     });
 
     // 보강을 이미 잡은 결석 모으기
@@ -870,7 +872,8 @@ async function load() {
       //   (예정인 동안은 「보강 잡기」로 되돌릴 수 있어야 하므로)
       if (x.no_makeup) {
         g.skip++;
-        if (x.status !== '휴무') g.cnt++;
+        // 「보강 없음」으로 정한 휴무·결석은 청구 회수에서 뺀다 (2026-09-08)
+        if (x.status !== '휴무' && x.status !== '결석') g.cnt++;
         g.miss.push({ id: x.id, d: x.plan_date,
           s: (x.status === '휴무'
                 ? (HOLDAY[x.plan_date] ? '공휴일' : '휴가')
@@ -2276,6 +2279,7 @@ async function markNoMakeup(btn) {
     if (up.error) { alert('바꾸지 못했습니다.\n' + up.error.message); return; }
     ids = [pick.id];
     line.dataset.nmcnt = Math.max(0, Number(line.dataset.nmcnt || 0) - 1);
+    line.dataset.nmids = String(pick.id);
   }
 
   if (Number(line.dataset.nmst) === 2) {
