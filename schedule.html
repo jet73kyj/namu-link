@@ -6184,7 +6184,11 @@ async function afterLogin(user){
   $('bk_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
   drawBlkSlots();
   $('wkTh').innerHTML    = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+' 치료사</option>').join('');
-  if (!CAN_EDIT) $('offBtn').style.display = 'none';
+  if (!CAN_EDIT) {
+    $('offBtn').style.display = 'none';
+    // 치료사 계정에는 엑셀로 저장을 안 보여준다 (2026-09-08)
+    const xb = $('xlsBtn'); if (xb) xb.style.display = 'none';
+  }
 
   await loadMonth();
 
