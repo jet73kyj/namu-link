@@ -880,6 +880,7 @@ async function load() {
         if (x.status !== '휴무' && x.status !== '결석')
           g.cnt += (Number(x.minutes || 40) / 40);
         g.miss.push({ id: x.id, d: x.plan_date, nm: true,
+          why: x.no_makeup_why || '',
           s: (x.status === '휴무'
                 ? (HOLDAY[x.plan_date] ? '공휴일' : '휴가')
                 : '결석') + ' · 보강 없음' });
@@ -1397,7 +1398,8 @@ function drawKid(c) {
                   : x.need + '회 → <b>' + x.cnt + '회</b> (회수 맞음)'))
           + (x.miss.length
               ? ' · 빠진 날 '
-                + x.miss.map(m => dayOnly(m.d) + '일 ' + m.s).join(' · ')
+                + x.miss.map(m => dayOnly(m.d) + '일 ' + m.s
+                    + (m.why ? ' (' + esc(m.why) + ')' : '')).join(' · ')
               : ' · 빠진 날 없음')
           // 발추(8) — 청구가 빠졌다는 것만 알려준다
           + (x.x8

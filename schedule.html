@@ -929,6 +929,7 @@
       <button id="mkFind" class="pbtn" style="background:#e8eff6;color:#2c5980;border:1px solid #c3d9ea;">빈 자리 찾기</button>
       <button id="mkPair" class="pbtn" style="background:#e8eff6;color:#2c5980;border:1px solid #c3d9ea;display:none;">연달아 가능한 자리</button>
       <button id="mkSave" class="pbtn" style="background:#2c6ba8;color:#fff;">저장</button>
+      <button id="mkGiveup" class="pbtn" style="background:#eceeed;color:#5c625e;border:1px solid #c4cac6;">포기 (보강 안 함)</button>
       <button id="mkDel"  class="pbtn grey">보강 취소</button>
       <button id="mkClose" class="pbtn grey">닫기</button>
     </div>
@@ -1417,6 +1418,28 @@ function slotNoOf(x){
   return own.length ? nearest(toMin(own[0].start_time)).no : base;
 }
 
+// 그 결석 줄이 몇 분 채워졌는지 (2026-09-09)
+//   40분 보강 한 줄이면 40분, 10분짜리 세 줄이면 30분
+function filledMin(id, pool){
+  return (pool || SESS.concat(PREV)).reduce(function(t, v){
+    return Number(v.makeup_for) === Number(id) ? t + Number(v.minutes || 40) : t; }, 0);
+}
+// 아직 40분을 못 채웠는가 — 상자에 남길지 정한다
+function needMore(id, pool){ return filledMin(id, pool) < 40; }
+// 상자 줄에 붙는 「+10 (30분 더 필요)」
+function fillNote(id, pool){
+  const parts = (pool || SESS.concat(PREV))
+    .filter(function(v){ return Number(v.makeup_for) === Number(id); })
+    .sort(function(a,b){ return String(a.plan_date).localeCompare(String(b.plan_date)); });
+  if (!parts.length) return '';
+  const sum = parts.reduce(function(t,v){ return t + Number(v.minutes || 40); }, 0);
+  const left = 40 - sum;
+  if (left <= 0) return '';
+  return ' <b class="pwhy">'
+    + parts.map(function(v){ return '+' + Number(v.minutes || 40); }).join(' ')
+    + ' (' + left + '분 더 필요)</b>';
+}
+
 // 쪼갠 보강 줄에 붙는 「+10분」 (2026-09-08)
 function minTag(x){
   const m = Number(x && x.minutes);
@@ -1679,7 +1702,9 @@ function drawShort(_byScd, _mkOf){
     // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 나머지 날로 4회가 저절로 채워진다.
     //   보강할 것이 없으므로 이 상자에도 올리지 않는다 (＋ 단추를 감춘 것과 같은 기준)
     const miss = runs.filter(x =>
-      (x.status === '결석' || x.status === '휴무') && !mkOf[x.id] && !x.no_makeup
+      // 보강을 잡았어도 40분을 다 못 채웠으면 상자에 남긴다 (2026-09-09)
+      (x.status === '결석' || x.status === '휴무')
+      && (!mkOf[x.id] || needMore(x.id, SESS_)) && !x.no_makeup
       && !(Number(x.support_type_id) === 2 && !x.run_no));
     // 「발4+발추1」은 매달 발추 1회가 있어야 한다.
     //   회기 수만 세면, 공휴일로 5주차가 먹힌 달에 발달만 4회 깔려도
@@ -1778,7 +1803,8 @@ function drawShort(_byScd, _mkOf){
           + '<div class="sline1">'
           + '<span class="stxt"><b>[' + (r._cid || '') + '] ' + esc(r._name) + '</b> (' + thn + ') '
           + monNo(mon) + '월 ' + dayNo(x.plan_date) + '일 '
-          + (x.status === '휴무' ? offWord(x.plan_date, x.therapist_id) : '결석') + '입니다.</span>'
+          + (x.status === '휴무' ? offWord(x.plan_date, x.therapist_id) : '결석') + '입니다.'
+          + fillNote(x.id, SESS_) + '</span>'
           + '<button class="sbtn" data-mk="' + x.id + '" title="보강 잡기">＋</button>'
           + '</div>'
           + '<div class="sline2">'
@@ -1984,7 +2010,9 @@ function prevNeed(){
   // 넘어온 보강 목록에 올리지 않는다
   const splitScd = {};
   PREV.forEach(s => { if (s.schedule_id && hasSplitTag(s)) splitScd[s.schedule_id] = 1; });
-  return PREV.filter(s => (s.status === '결석' || s.status === '휴무') && !done[s.id]
+  return PREV.filter(s => (s.status === '결석' || s.status === '휴무')
+                       // 보강을 잡았어도 40분을 다 못 채웠으면 남긴다 (2026-09-09)
+                       && (!done[s.id] || needMore(s.id, PREV))
                        && !s.no_makeup
                        // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
                        && !(Number(s.support_type_id) === 2 && !s.run_no)
@@ -2758,6 +2786,7 @@ function drawPrev(){
             + (s.status === '휴무' ? offWord(s.plan_date, s.therapist_id) : '결석')
             + (t2 ? ' · ' + esc(t2.name) : '')
             + (ok ? '' : ' <b class="pwhy">🔴 ' + esc(carryWhy(q.st, q.seq)) + '</b>')
+            + fillNote(s.id, PREV)
           + '</span>'
           + (CAN_EDIT || MY_TH
               ? '<button class="prevbtn" data-pmk="' + s.id + '"'
@@ -6077,6 +6106,37 @@ $('mkSave').onclick = async () => {
   }
 };
 
+// 「포기 (보강 안 함)」 — 그 회는 하지 않고 회기에서 뺀다 (2026-09-09)
+//   납부 계산 화면의 「보강 없음」과 같은 일을 한다.
+//   발달재활은 그쪽에서 막혀 있어, 시간표에서만 처리할 수 있다.
+$('mkGiveup').onclick = async () => {
+  if (!mkSess) return;
+  const has = SESS.find(x => isMk(x) && x.makeup_for === mkSess.id)
+           || PREV.find(x => isMk(x) && x.makeup_for === mkSess.id);
+  if (has) {
+    mkmsg('이미 보강을 잡아 두었습니다.\n먼저 「보강 취소」를 누르세요.', false);
+    return;
+  }
+  const why = (prompt('이 회는 보강하지 않고 회기에서 뺍니다.\n\n'
+    + '사유를 적어주세요.', '') || '').trim();
+  if (!why) return;
+  if (!confirm(dayNo(mkSess.plan_date) + '일 수업을 보강하지 않습니다.\n\n'
+    + '사유 — ' + why + '\n\n'
+    + '시간표에서는 빈 자리가 되고,\n'
+    + '회기 수·급여·교육비에서 빠집니다.\n\n계속할까요?')) return;
+  const { error } = await sb.from('nl_sessions')
+    .update({ no_makeup: true, no_makeup_why: why })
+    .eq('id', mkSess.id);
+  if (error) { mkmsg('❌ 저장하지 못했습니다.\n' + error.message, false); return; }
+  const put = function(a){ a.forEach(function(x){
+    if (x.id === mkSess.id) { x.no_makeup = true; x.no_makeup_why = why; } }); };
+  put(SESS); put(PREV);
+  mkmsg('✅ 보강하지 않는 것으로 정했습니다.\n'
+    + '되돌리시려면 납부 계산 화면에서 「보강 잡기」를 누르세요.', true);
+  $('mkBox').style.display = 'none';
+  draw();
+};
+
 $('mkDel').onclick = async () => {
   if (!mkSess) return;
   const old = SESS.find(x => isMk(x) && x.makeup_for === mkSess.id)
@@ -6194,7 +6254,7 @@ async function loadMonth(){
   });
 
   const { data, error } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, minutes')
     .eq('month_key', mon);
   SESS = error ? [] : (data || []);
   // 치료사 화면은 자기 회기만 보여준다.
@@ -6252,7 +6312,7 @@ async function loadMonth(){
   // 지난 달 회기도 불러온다 (이월 보강 때문)
   const pm = prevMon(mon);
   const { data: pv } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, minutes')
     .eq('month_key', pm);
   PREV = pv || [];
   // 치료사 — 자기가 맡은 아동의 다른 수업분 결석도 함께 본다 (보강 조율용)
@@ -6277,7 +6337,7 @@ async function loadMonth(){
   // 다음 달 몫인데 이번 달에 미리 한 줄(선보강)도 이번 달 시간표에 띄운다
   const nm2 = nextMon(mon);
   const { data: nx } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, minutes')
     .eq('month_key', nm2);
   NEXTM = nx || [];
   if (MY_TH) NEXTM = NEXTM.filter(s => s.therapist_id === MY_TH);
