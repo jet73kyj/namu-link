@@ -994,6 +994,7 @@ async function load() {
     sess.forEach(x => {
       if (x.status !== '결석') return;
       if (covered[x.id]) return;                 // 보강을 이미 잡았음
+      if (x.no_makeup) return;                   // 「보강 없음」으로 정했음 (2026-09-08)
       const st = x.support_type_id || 0;
       (NOMAKEUP[x.child_id] = NOMAKEUP[x.child_id] || []).push({
         st: st, date: x.plan_date, seq: x._seq || 0,
