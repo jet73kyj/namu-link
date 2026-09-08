@@ -538,7 +538,7 @@
   /* 빈 자리에 적는 시작 시각 */
   .opentm { font-size:11px; color:#9aa; margin-bottom:2px; }
   /* 보강 잡기 창 — 칸 나란히 (2026-09-08) */
-  .mkrow { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .mkrow { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; }
   .mkrow .mkcol input, .mkrow .mkcol select { width:100%; box-sizing:border-box; height:40px; }
   .sub2 { font-weight:normal; color:#8a97a3; font-size:11px; }
   /* 분 고르는 단추 */
@@ -905,7 +905,7 @@
           <span class="sub2">(비우면 왼쪽 시간)</span></label>
         <input id="mk_hm" type="text" placeholder="예: 14:00" autocomplete="off">
       </div>
-      <div style="display:none;">
+      <div class="mkcol">
         <label for="mk_th">치료사</label>
         <select id="mk_th"></select>
       </div>
@@ -6017,6 +6017,16 @@ $('mkSave').onclick = async () => {
       return;
     }
     mkHm = info.hm;   // 그 날 수업이 끝나는 시각
+    // 한 회기는 같은 치료사만 채울 수 있다 (2026-09-09)
+    //   먼저 채운 조각이 있으면 그 선생님과 같아야 한다
+    const madeBy = SESS.concat(PREV)
+      .filter(v => Number(v.makeup_for) === Number(mkSess.id)
+                && Number(v.minutes || 40) !== 40);
+    if (madeBy.length && Number(madeBy[0].therapist_id) !== th) {
+      mkmsg('한 회기는 같은 선생님만 채울 수 있습니다.\n'
+        + '이미 ' + thName(madeBy[0].therapist_id) + ' 선생님이 채우기 시작했습니다.', false);
+      return;
+    }
   }
 
   // 결석한 그 날 그 시각에 그대로 보강을 잡을 수는 없다
