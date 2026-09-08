@@ -229,6 +229,27 @@ function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok
 function esc(s) { return String(s == null ? '' : s)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// 시스템 점검 중이면 화면을 덮어 못 쓰게 한다
+async function nlMaintCheck(){
+  try {
+    const { data } = await sb.from('nl_maint').select('is_on, message').eq('id', 1).maybeSingle();
+    if (!data || !data.is_on) return;
+    const msg = (data.message || '시스템 점검 중입니다.').replace(/\\n/g, '\n');
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(20,30,20,.96);z-index:99999;'
+      + 'display:flex;align-items:center;justify-content:center;text-align:center;'
+      + 'color:#fff;font-size:18px;line-height:2;padding:30px;white-space:pre-wrap;';
+    d.innerHTML = '<div><div style="font-size:40px;margin-bottom:16px;">🔧</div>'
+      + '<b style="font-size:22px;">시스템 점검 중입니다</b><br><br>'
+      + msg.replace(/</g,'&lt;')
+      + '<br><br><span style="font-size:15px;opacity:.8">문의 · 자라는나무 042-488-6011</span></div>';
+    document.body.appendChild(d);
+    throw new Error('점검 중');
+  } catch (e) {
+    if (e && e.message === '점검 중') throw e;
+  }
+}
+
 async function afterLogin(user) {
   const { data: me, error } = await sb
     .from('nl_therapists').select('id, name, role')
@@ -236,6 +257,9 @@ async function afterLogin(user) {
   if (error) { show($('msg'), '❌ 직원 조회 실패\n' + error.message, false); return; }
   if (!me)   { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
+
+  // 시스템 점검 중이면 화면을 덮는다 (대표 8번은 통과)  2026-09-08
+  if (Number(me.id) !== 8) await nlMaintCheck();
 
   const role = String(me.role || '').trim();
   $('who').textContent = me.name + ' (' + role + ') 님';

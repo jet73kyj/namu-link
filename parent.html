@@ -470,7 +470,29 @@ try {
 } catch (e) {}
 
 // ── 로그인 뒤 ───────────────────────────────────────────
+// 시스템 점검 중이면 화면을 덮어 못 쓰게 한다 (2026-09-08)
+async function nlMaintCheck(){
+  try {
+    const { data } = await sb.from('nl_maint').select('is_on, message').eq('id', 1).maybeSingle();
+    if (!data || !data.is_on) return false;
+    const msg = (data.message || '시스템 점검 중입니다.').replace(/\\n/g, '\n');
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(20,30,20,.96);z-index:99999;'
+      + 'display:flex;align-items:center;justify-content:center;text-align:center;'
+      + 'color:#fff;font-size:17px;line-height:2;padding:30px;white-space:pre-wrap;';
+    d.innerHTML = '<div><div style="font-size:40px;margin-bottom:16px;">🔧</div>'
+      + '<b style="font-size:20px;">시스템 점검 중입니다</b><br><br>'
+      + msg.replace(/</g,'&lt;')
+      + '<br><br><span style="font-size:14px;opacity:.8">문의 · 자라는나무 042-488-6011</span></div>';
+    document.body.appendChild(d);
+    return true;
+  } catch (e) { return false; }
+}
+
 async function afterLogin() {
+  // 시스템 점검 중이면 여기서 멈춘다
+  if (await nlMaintCheck()) return;
+
   // 내 자녀 — 표 잠금이 알아서 내 아이만 내려준다
   const { data: kids, error } = await sb
     .from('nl_children').select('id, name').order('id');
