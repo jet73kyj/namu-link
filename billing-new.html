@@ -2257,6 +2257,21 @@ async function markMakeup(btn) {
     + '다 정하시면 이름 옆 「예정」을 눌러 확정으로 바꾸세요.');
 }
 
+// 저장된 [회기…] 표시를 지운다 (2026-09-08)
+//   회기 칸은 저장값을 먼저 쓰므로, 지워야 시간표 회수로 다시 그려진다
+async function clearSavedCnt(cid, st) {
+  try {
+    const { data: prow } = await sb.from('nl_payments')
+      .select('id, memo')
+      .eq('child_id', cid).eq('month_key', LOADED_MK || $('mk').value)
+      .eq('support_type_id', st).maybeSingle();
+    if (prow && prow.memo && /\[회기[0-9,]+\]/.test(prow.memo)) {
+      const m2 = String(prow.memo).replace(/\s*\[회기[0-9,]+\]/g, '').trim();
+      await sb.from('nl_payments').update({ memo: m2 }).eq('id', prow.id);
+    }
+  } catch (e) {}
+}
+
 async function markNoMakeup(btn) {
   const line = btn.closest('.shortline');
   if (!line) return;
@@ -2283,8 +2298,13 @@ async function markNoMakeup(btn) {
   }
   const pick = cand[nPick - 1];
   if (String(pick.s).indexOf('보강 없음') >= 0) {
-    alert('그 날은 이미 「보강 없음」으로 정해 두었습니다.\n'
-      + '되돌리시려면 「보강 잡기」를 누르세요.');
+    // 이미 정해 둔 날이면 저장값만 지워 회기 칸을 바로잡는다 (2026-09-08)
+    await clearSavedCnt(Number(btn.closest('.kid').dataset.child),
+                        Number(line.dataset.nmst));
+    alert('그 날은 이미 「보강 없음」으로 정해 두었습니다.\n\n'
+      + '회기 칸을 시간표에 맞춰 다시 그립니다.\n'
+      + '금액을 확인하시고 「카드 저장」을 눌러 저장하세요.');
+    await load();
     return;
   }
   let ids = [pick.id];
@@ -2320,21 +2340,9 @@ async function markNoMakeup(btn) {
     return;
   }
 
-  // 저장된 회기 값을 지운다 (2026-09-08)
-  //   회기 칸은 저장값을 먼저 쓰므로, 지우지 않으면 옛 회수가 계속 보인다
-  //   지우면 시간표가 세는 회수(보강 없음 줄을 뺀 수)로 다시 그려진다
-  try {
-    const stNow = Number(line.dataset.nmst);
-    const cid = Number(btn.closest('.kid').dataset.child);
-    const { data: prow } = await sb.from('nl_payments')
-      .select('id, memo')
-      .eq('child_id', cid).eq('month_key', LOADED_MK || $('mk').value)
-      .eq('support_type_id', stNow).maybeSingle();
-    if (prow && prow.memo && /\[회기[0-9,]+\]/.test(prow.memo)) {
-      const m2 = String(prow.memo).replace(/\s*\[회기[0-9,]+\]/g, '').trim();
-      await sb.from('nl_payments').update({ memo: m2 }).eq('id', prow.id);
-    }
-  } catch (e) {}
+  // 저장된 회기 값을 지운다 — 회기 칸이 시간표 회수로 다시 그려지게 한다
+  await clearSavedCnt(Number(btn.closest('.kid').dataset.child),
+                      Number(line.dataset.nmst));
 
   // 예정인 동안은 다시 바꿀 수 있어야 하므로 아동 상자를 새로 그린다
   //   (전에는 그 줄을 글자로 바꿔 「보강 잡기」를 다시 못 눌렀다)
