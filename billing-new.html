@@ -797,7 +797,7 @@ async function load() {
       sb.from('nl_payments').select('child_id, support_type_id, memo')
         .eq('month_key', pmk),
       sb.from('nl_sessions')
-        .select('id, child_id, schedule_id, support_type_id, status, plan_date, makeup_for, no_makeup, no_makeup_why')
+        .select('id, child_id, schedule_id, support_type_id, status, plan_date, makeup_for, no_makeup, no_makeup_why, minutes')
         .eq('month_key', mk)
     ]);
 
@@ -841,8 +841,9 @@ async function load() {
       // 쉬는 달에도 금액이 생긴다.
       if (SESSCNT[k][sp] == null) SESSCNT[k][sp] = 0;
       // 「보강 없음」으로 정한 줄은 청구 회수에서 뺀다 (2026-09-08)
+      // 회기는 줄 수가 아니라 분으로 센다. 10분 네 줄이 한 회기 (2026-09-08)
       if (x.status !== '휴무' && x.status !== '쉼' && !x.no_makeup)
-        SESSCNT[k][sp] += 1;
+        SESSCNT[k][sp] += (Number(x.minutes || 40) / 40);
     });
 
     // 보강을 이미 잡은 결석 모으기
@@ -876,7 +877,8 @@ async function load() {
       if (x.no_makeup) {
         g.skip++;
         // 「보강 없음」으로 정한 휴무·결석은 청구 회수에서 뺀다 (2026-09-08)
-        if (x.status !== '휴무' && x.status !== '결석') g.cnt++;
+        if (x.status !== '휴무' && x.status !== '결석')
+          g.cnt += (Number(x.minutes || 40) / 40);
         g.miss.push({ id: x.id, d: x.plan_date, nm: true,
           s: (x.status === '휴무'
                 ? (HOLDAY[x.plan_date] ? '공휴일' : '휴가')
@@ -885,7 +887,7 @@ async function load() {
       }
       if (x.status === '휴무') { g.miss.push({ id: x.id, d: x.plan_date,
         s: (HOLDAY[x.plan_date] ? '공휴일' : '휴가') }); return; }
-      g.cnt++;
+      g.cnt += (Number(x.minutes || 40) / 40);
       if (x.status === '결석') g.miss.push({ id: x.id, d: x.plan_date, s: '결석' });
       // 빠진 날이 없을 때 「보강 없음」에서 고를 수 있게 예정 줄도 모아둔다
       if (x.status === '예정') (g.plans = g.plans || []).push({ id: x.id, d: x.plan_date });
@@ -1118,7 +1120,9 @@ function buildRows(childId, mk) {
     if (cnt && Object.keys(cnt).length) {
       Object.keys(cnt).forEach(sp => {
         const stid = Number(sp) || s.support_type_id;
-        const row = Object.assign({}, base, { count: cnt[sp], row_st: stid });
+        // 분으로 센 값이라 소수가 나올 수 있다. 소수점 둘째까지만 남긴다
+        const c2 = Math.round(Number(cnt[sp]) * 100) / 100;
+        const row = Object.assign({}, base, { count: c2, row_st: stid });
         if (stid !== s.support_type_id) row.label += ' · 5주차';
         (groups[stid] = groups[stid] || []).push(row);
       });

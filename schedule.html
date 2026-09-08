@@ -555,10 +555,16 @@
   .splitin b { color:#0d47a1; }
   /* 시간표 보기 — 줄 높이를 모두 같게 (몇 째 주인지 나란히 보이게) 2026-09-08 */
   #gbody .ln {
-    height:44px; min-height:44px; max-height:44px;
-    box-sizing:border-box; overflow:hidden;
-    font-size:11.5px; line-height:1.3;
+    min-height:48px;
+    box-sizing:border-box;
+    font-size:11.5px; line-height:1.35;
   }
+  /* 첫 줄에 날짜·시각·상태·단추 / 둘째 줄에 이름 (2026-09-08) */
+  #gbody .ln .s,
+  #gbody .ln .go,
+  #gbody .ln button { order:3; }
+  #gbody .ln .brk { order:4; }
+  #gbody .ln .n   { order:5; width:100%; }
   #gbody .ln .n { font-size:11.5px; }
   #gbody .ln .d, #gbody .ln .hm { font-size:11px; }
   #gbody .ln .s, #gbody .ln .go { font-size:10.5px; }
