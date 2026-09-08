@@ -2154,7 +2154,29 @@ $('findJump').onclick = () => jumpTo(hitAt + 1);
 // ===== 주간 보기 (2026-09-07 새로 만듦) =====
 //   달력에서 고른 날짜가 든 한 주 · 왼쪽에서 켜둔 치료사만
 //   보기만 한다 (넣기·고치기는 「시간표」 보기에서)
+// 결석·휴무 줄에 붙는 보강 단추 (시간표 보기와 같은 모양)
+//   MKOF 는 buildMkOf() 로 채운다
+let MKOF = {};
+function buildMkOf(){
+  MKOF = {};
+  SESS.forEach(x => { if (isMk(x) && x.makeup_for) MKOF[x.makeup_for] = x; });
+}
+function mkTail(x){
+  if (x.status !== '결석' && x.status !== '휴무') return '';
+  const mk = MKOF[x.id];
+  // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
+  const noNeed = (Number(x.support_type_id) === 2 && !x.run_no);
+  return (mk
+      ? '<span class="go">→ ' + mkDay(mk) + ' '
+        + h12(nearest(toMin(mk.start_time)).hm) + '</span>' : '')
+    + ((CAN_EDIT && !noNeed)
+      ? '<button class="mkbtn" data-mk="' + x.id + '"'
+        + ' title="' + (mk ? '보강 고치기' : '보강 잡기') + '">＋</button>' : '')
+    + findBtn(x, mk);
+}
+
 function drawWeek(){
+  buildMkOf();
   buildSplit();
   // 고른 날짜가 든 주의 월요일을 찾는다
   let base = oneDate && String(oneDate).slice(0,7) === mon ? oneDate : '';
@@ -2271,6 +2293,7 @@ function drawWeek(){
                  : (!x.run_no ? '' : monNo(mon) + '-' + x.run_no)) + '</span>'
               + splitTag(x) + '</span>'
               + '<span class="brk"></span>'
+              + mkTail(x)
               + '<span class="s">' + stWord(x) + '</span>'
               + '</div>';
           }).join('') + '</td>';
@@ -2707,6 +2730,7 @@ function oneDefault(){
 //   표기는 시간표 보기와 같게
 function drawOne(){
   buildSplit();
+  buildMkOf();
   if (!oneDate || String(oneDate).slice(0,7) !== mon) oneDate = oneDefault();
   $('oneDay').textContent = dayNo(oneDate) + '일 (' + wdOf(oneDate) + ')';
 
@@ -2794,6 +2818,7 @@ function drawOne(){
                  : (!x.run_no ? '' : monNo(mon) + '-' + x.run_no)) + '</span>'
               + splitTag(x) + '</span>'
               + '<span class="brk"></span>'
+              + mkTail(x)
               + '<span class="s">' + stWord(x) + '</span>'
               + '</div>';
           }).join('') + '</td>';
