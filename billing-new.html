@@ -2319,9 +2319,21 @@ async function markNoMakeup(btn) {
     return;
   }
 
-  // 회기 칸은 손대지 않는다 (2026-09-08)
-  //   「보강 없음」으로 정한 줄은 회기 셈에서 저절로 빠지므로,
-  //   다시 불러오면 바른 회수로 그려진다. 억지로 맞추면 0회가 되던 문제가 있었다
+  // 저장된 회기 값을 지운다 (2026-09-08)
+  //   회기 칸은 저장값을 먼저 쓰므로, 지우지 않으면 옛 회수가 계속 보인다
+  //   지우면 시간표가 세는 회수(보강 없음 줄을 뺀 수)로 다시 그려진다
+  try {
+    const stNow = Number(line.dataset.nmst);
+    const cid = Number(btn.closest('.kid').dataset.child);
+    const { data: prow } = await sb.from('nl_payments')
+      .select('id, memo')
+      .eq('child_id', cid).eq('month_key', LOADED_MK || $('mk').value)
+      .eq('support_type_id', stNow).maybeSingle();
+    if (prow && prow.memo && /\[회기[0-9,]+\]/.test(prow.memo)) {
+      const m2 = String(prow.memo).replace(/\s*\[회기[0-9,]+\]/g, '').trim();
+      await sb.from('nl_payments').update({ memo: m2 }).eq('id', prow.id);
+    }
+  } catch (e) {}
 
   // 예정인 동안은 다시 바꿀 수 있어야 하므로 아동 상자를 새로 그린다
   //   (전에는 그 줄을 글자로 바꿔 「보강 잡기」를 다시 못 눌렀다)
