@@ -537,6 +537,42 @@
              padding:10px 14px; font-size:13.5px; color:#455a64; margin-bottom:12px; }
   /* 빈 자리에 적는 시작 시각 */
   .opentm { font-size:11px; color:#9aa; margin-bottom:2px; }
+  /* 보강 잡기 창 — 칸 나란히 (2026-09-08) */
+  .mkrow { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .mkrow .mkcol input, .mkrow .mkcol select { width:100%; box-sizing:border-box; height:40px; }
+  .sub2 { font-weight:normal; color:#8a97a3; font-size:11px; }
+  /* 분 고르는 단추 */
+  #mkMinBtns { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .minbtn { width:100%; margin:0; height:40px; border:1px solid #c3d1dd;
+            background:#fff; color:#4a5b6a; border-radius:7px; font-size:14px;
+            cursor:pointer; }
+  .minbtn.on { background:#3d84cf; color:#fff; border-color:#3d84cf; font-weight:bold; }
+  .minbtn:disabled { background:#eef1f4; color:#b6bfc7; cursor:default; }
+  /* 쪼갠 보강 딱지 (2026-09-08) */
+  /* 정규 줄 안에 붙는 쪼갠 보강 (2026-09-08) */
+  .splitin { display:block; color:#1565c0; font-size:11px;
+             white-space:nowrap; cursor:pointer; margin-top:1px; }
+  .splitin b { color:#0d47a1; }
+  /* 시간표 보기 — 줄 높이를 모두 같게 (몇 째 주인지 나란히 보이게) 2026-09-08 */
+  #gbody .ln {
+    height:44px; min-height:44px; max-height:44px;
+    box-sizing:border-box; overflow:hidden;
+    font-size:11.5px; line-height:1.3;
+  }
+  #gbody .ln .n { font-size:11.5px; }
+  #gbody .ln .d, #gbody .ln .hm { font-size:11px; }
+  #gbody .ln .s, #gbody .ln .go { font-size:10.5px; }
+  #gbody .ln .splitin { font-size:10.5px; }
+  .mintag  { color:#1565c0; font-size:11px; margin-left:3px;
+             white-space:nowrap; }
+  /* 쪼갠 보강 줄은 작게 — 정규 수업보다 커 보이지 않게 */
+  .run.r-mk.splitrun, .ln.ln-mk.splitrun, .oneli.o-mk.splitrun {
+    font-size:11px; line-height:1.25; padding-top:2px; padding-bottom:2px;
+  }
+  .splitrun .s { display:none; }
+  .filltag { display:block; font-size:10.5px; color:#1565c0; margin-top:2px; }
+  .filltag i { color:#a1662f; font-style:normal; }
+  .filltag b { color:#2e7d32; }
   .mkbtn  { width:auto; margin:0 0 0 5px; padding:2px 7px; font-size:10.5px;
             font-weight:bold; background:#ef6c00; border-radius:10px;
             white-space:nowrap; }
@@ -635,6 +671,9 @@
   .ok-btn { background:#2e7d32; }
   .panel.green { background:#f1f8e9; border-color:#c5e1a5; }
   .panel.green .panel-t { color:#33691e; }
+  /* 보강 잡기 창 — 연한 하늘색 (2026-09-08) */
+  .panel.mkskin { background:#f2f7fb; border-color:#c3d9ea; }
+  .panel.mkskin .panel-t { color:#1a5a8f; }
   .panel.blue  { background:#e8f0fe; border-color:#a8c7fa; }
   .panel.blue  .panel-t { color:#1a468f; }
   td.free { cursor:pointer; }
@@ -842,32 +881,48 @@
   </div>
 
   <!-- 보강 잡기 창 -->
-  <div id="mkBox" class="panel" style="display:none;">
+  <div id="mkBox" class="panel mkskin" style="display:none;">
     <div class="panel-t" id="mkTitle"></div>
     <div id="mkWhy" style="display:none;margin:0 0 10px;padding:9px 12px;
          border-radius:6px;font-size:13px;line-height:1.6;"></div>
-    <div class="pgrid">
-      <div>
+    <div class="mkrow">
+      <div class="mkcol">
         <label for="mk_date">보강 날짜</label>
         <input id="mk_date" type="date">
       </div>
-      <div>
+      <div class="mkcol">
         <label for="mk_slot">시간</label>
         <select id="mk_slot"></select>
+      </div>
+      <div class="mkcol">
+        <label for="mk_hm">직접 시각
+          <span class="sub2">(비우면 왼쪽 시간)</span></label>
+        <input id="mk_hm" type="text" placeholder="예: 14:00" autocomplete="off">
       </div>
       <div style="display:none;">
         <label for="mk_th">치료사</label>
         <select id="mk_th"></select>
       </div>
-      <div>
-        <label for="mk_memo">메모</label>
-        <input id="mk_memo" type="text" placeholder="예: 보호자 요청">
-      </div>
     </div>
+    <div style="margin-top:12px;">
+      <label>분</label>
+      <div id="mkMinBtns">
+        <button type="button" class="minbtn on" data-min="40">40분</button>
+        <button type="button" class="minbtn" data-min="10">10분</button>
+        <button type="button" class="minbtn" data-min="20">20분</button>
+        <button type="button" class="minbtn" data-min="30">30분</button>
+      </div>
+      <input id="mk_min" type="hidden" value="40">
+    </div>
+    <div style="margin-top:12px;">
+      <label for="mk_memo">메모</label>
+      <input id="mk_memo" type="text" placeholder="예: 보호자 요청">
+    </div>
+    <div id="mkMinHint" style="font-size:12.5px;color:#7a6a3a;margin:0 0 8px;"></div>
     <div class="pbtns">
-      <button id="mkFind" class="pbtn" style="background:#00695c;">빈 자리 찾기</button>
-      <button id="mkPair" class="pbtn" style="background:#5c6bc0;display:none;">연달아 가능한 자리</button>
-      <button id="mkSave" class="pbtn ok-btn">저장</button>
+      <button id="mkFind" class="pbtn" style="background:#e8eff6;color:#2c5980;border:1px solid #c3d9ea;">빈 자리 찾기</button>
+      <button id="mkPair" class="pbtn" style="background:#e8eff6;color:#2c5980;border:1px solid #c3d9ea;display:none;">연달아 가능한 자리</button>
+      <button id="mkSave" class="pbtn" style="background:#2c6ba8;color:#fff;">저장</button>
       <button id="mkDel"  class="pbtn grey">보강 취소</button>
       <button id="mkClose" class="pbtn grey">닫기</button>
     </div>
@@ -1340,6 +1395,43 @@ let EVALS = [];   // 그 달 평가 일정 (nl_evaluations 에서 읽어 온다)
 let SPLIT = {};
 function buildSplit(){ SPLIT = {}; }
 // 회기에 붙는 +N 딱지 (수정 창에서 켠다)
+// 쪼갠 보강(10·20·30분)은 그 아동 고정 수업 칸에 함께 그린다 (2026-09-08)
+function slotNoOf(x){
+  const base = nearest(toMin(x.start_time)).no;
+  const m = Number(x && x.minutes);
+  if (!m || m === 40) return base;
+  // 그 날 그 아동의 40분 수업 중, 이 줄보다 앞선 마지막 수업의 교시를 쓴다
+  const own = SESS.concat(PREV).filter(v =>
+        String(v.plan_date) === String(x.plan_date)
+     && Number(v.child_id) === Number(x.child_id)
+     && Number(v.minutes || 40) === 40
+     && v.start_time
+     && String(v.start_time) <= String(x.start_time))
+    .sort((a,b) => String(b.start_time).localeCompare(String(a.start_time)));
+  return own.length ? nearest(toMin(own[0].start_time)).no : base;
+}
+
+// 쪼갠 보강 줄에 붙는 「+10분」 (2026-09-08)
+function minTag(x){
+  const m = Number(x && x.minutes);
+  if (!m || m === 40) return '';
+  return '<b class="mintag">+' + m + '</b>';
+}
+// 결석 줄 아래에 붙는 「+10 +10 +10 +10  완료」 (2026-09-08)
+function fillTag(x){
+  if (!x || !x.id) return '';
+  const parts = SESS.concat(PREV)
+    .filter(v => Number(v.makeup_for) === Number(x.id) && Number(v.minutes || 40) !== 40)
+    .sort((a,b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
+  if (!parts.length) return '';
+  const sum = parts.reduce((t, v) => t + Number(v.minutes || 0), 0);
+  const left = 40 - sum;
+  return '<span class="filltag">'
+    + parts.map(v => '+' + Number(v.minutes)).join(' ')
+    + (left > 0 ? ' <i>(' + left + '분 더 필요)</i>' : ' <b>완료</b>')
+    + '</span>';
+}
+
 function splitTag(x){
   const n = splitMin(x);
   if (!n) return '';
@@ -1959,7 +2051,7 @@ function drawFind(){
     const cls = (s.status==='완료' ? 'r-done'
               : s.status==='결석' ? 'r-abs'
               : s.status==='휴무' ? 'r-off'
-              : s._isEval ? 'r-eval' : 'r-mk');
+              : s._isEval ? 'r-eval' : ('r-mk' + (Number(s.minutes||40)!==40 ? ' splitrun' : '')));
     // 다른 달 몫이면 「9월분」처럼 그 달을 적는다 (메모 글자보다 이쪽이 분명함)
     let lb = (s.month_key && String(s.month_key) !== String(mon))
       ? mnLabel(s)
@@ -2220,7 +2312,7 @@ function drawWeek(){
   SESS.forEach(s => {
     if (!s.plan_date || !dset.has(s.plan_date)) return;
     if (!thIds.has(Number(s.therapist_id))) return;
-    const k = nearest(toMin(s.start_time)).no + '_' + wdOf(s.plan_date)
+    const k = slotNoOf(s) + '_' + wdOf(s.plan_date)
             + '_' + s.therapist_id;
     (cell[k] = cell[k] || []).push(s);
   });
@@ -2287,7 +2379,7 @@ function drawWeek(){
                       : x.status === '휴무' ? 'ln-off ln-cut'
                       : x.status === '쉼'   ? 'ln-rest'
                       : x._isEval ? 'ln-eval'
-                      : isMk(x) ? 'ln-mk' : 'ln-plan';
+                      : isMk(x) ? ('ln-mk' + (Number(x.minutes||40)!==40 ? ' splitrun' : '')) : 'ln-plan';
             const _st = x.support_type_id;
             const nm = (_st ? (STYPE[_st] || '') + ' ' : '')
                      + esc(x._name || '') + cidTag(x.child_id);
@@ -2300,7 +2392,7 @@ function drawWeek(){
               + '<span class="rno">'
               + ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
                  : (!x.run_no ? '' : monNo(mon) + '-' + x.run_no)) + '</span>'
-              + splitTag(x) + '</span>'
+              + splitTag(x) + minTag(x) + fillTag(x) + '</span>'
               + '<span class="brk"></span>'
               + mkTail(x)
               + '<span class="s">' + stWord(x) + '</span>'
@@ -2354,7 +2446,7 @@ function drawWeekOld(){
   SESS.forEach(s => {
     if (!isMk(s) || s.therapist_id !== th || !s.plan_date) return;
     if (String(s.plan_date).slice(0,7) !== mon) return;
-    const k = nearest(toMin(s.start_time)).no + '_' + wdOf(s.plan_date);
+    const k = slotNoOf(s) + '_' + wdOf(s.plan_date);
     (mkCell[k] = mkCell[k] || []).push(s);
   });
   // 직접 넣은 보강
@@ -2363,7 +2455,7 @@ function drawWeekOld(){
     if (s.schedule_id || isMk(s)) return;
     if (s.therapist_id !== th || !s.plan_date) return;
     if (String(s.plan_date).slice(0,7) !== mon) return;
-    const k = nearest(toMin(s.start_time)).no + '_' + wdOf(s.plan_date);
+    const k = slotNoOf(s) + '_' + wdOf(s.plan_date);
     (mnCell[k] = mnCell[k] || []).push(s);
   });
 
@@ -2437,7 +2529,7 @@ function drawWeekOld(){
                 + tmDif(x) + dif
                 + '<span class="dt">'+dayNo(x.plan_date)+'일'
                 + '<b class="no">'+monNo(mon)+'-'+x.run_no+'</b>'
-                + splitTag(x) + '</span>'
+                + splitTag(x) + minTag(x) + fillTag(x) + '</span>'
                 + '<span class="brk"></span>'
                 + tail + '</div>';
             });
@@ -2451,7 +2543,7 @@ function drawWeekOld(){
             // 완료면 흰 바탕. 아직 안 한 평가는 핑크, 보강은 하늘색
             const mcls = (x.status==='완료' ? 'r-done'
                        : x.status==='결석' ? 'r-abs'
-                       : x._isEval ? 'r-eval' : 'r-mk')
+                       : x._isEval ? 'r-eval' : ('r-mk' + (Number(x.minutes||40)!==40 ? ' splitrun' : '')))
                        + (x.status==='결석' ? ' r-cut' : '');
             const _org = ROWS_ALL.find(function(rr){ return rr.id === x.schedule_id; });
             const _st2 = x.support_type_id || (_org ? _org.support_type_id : null);
@@ -2746,7 +2838,7 @@ function drawOne(){
   SESS.forEach(s => {
     if (s.plan_date !== oneDate) return;
     if (!thIds.has(Number(s.therapist_id))) return;
-    const k = nearest(toMin(s.start_time)).no + '_' + s.therapist_id;
+    const k = slotNoOf(s) + '_' + s.therapist_id;
     (cell[k] = cell[k] || []).push(s);
   });
   Object.values(cell).forEach(a => a.sort((x,y) =>
@@ -2809,7 +2901,7 @@ function drawOne(){
                       : x.status === '휴무' ? 'ln-off ln-cut'
                       : x.status === '쉼'   ? 'ln-rest'
                       : x._isEval ? 'ln-eval'
-                      : isMk(x) ? 'ln-mk' : 'ln-plan';
+                      : isMk(x) ? ('ln-mk' + (Number(x.minutes||40)!==40 ? ' splitrun' : '')) : 'ln-plan';
             const _st = x.support_type_id;
             const nm = (_st ? (STYPE[_st] || '') + ' ' : '')
                      + esc(x._name || '') + cidTag(x.child_id);
@@ -2821,7 +2913,7 @@ function drawOne(){
               + '<span class="rno">'
               + ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
                  : (!x.run_no ? '' : monNo(mon) + '-' + x.run_no)) + '</span>'
-              + splitTag(x) + '</span>'
+              + splitTag(x) + minTag(x) + fillTag(x) + '</span>'
               + '<span class="brk"></span>'
               + mkTail(x)
               + '<span class="s">' + stWord(x) + '</span>'
@@ -2870,14 +2962,14 @@ function drawOneOld(){
     else if (x.status === '휴무') cls = 'o-off o-cut';
     else if (x.status === '쉼')   cls = 'o-rest o-cut';
     else if (x._isEval) cls = 'o-eval';
-    else if (isMk(x)) cls = 'o-mk';
+    else if (isMk(x)) cls = 'o-mk' + (Number(x.minutes||40)!==40 ? ' splitrun' : '');
 
     h += '<div class="oneli ' + cls + '" data-sid="' + x.id + '">'
       +  '<span class="ot">' + hm + '</span>'
       +  '<span class="on2">' + (sp ? sp + ' ' : '') + esc(nm)
       +  ((r && r.duration && Number(r.duration) !== 40)
           ? ' <span class="dur">(' + r.duration + ')</span>' : '')
-      +  splitTag(x)
+      +  splitTag(x) + minTag(x) + fillTag(x)
       +  '<span class="rno">'
       +  ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
           : (!x.schedule_id && !x.run_no) ? ''
@@ -3206,8 +3298,12 @@ function showOne(){
 }
 
 function drawHead(){
-  $('ghead').innerHTML = '<tr><th class="hcol">교시</th>'
-    + thShown().map(t=>'<th><div class="thname">'+esc(t.name)+'</div>'
+  // 치료사 칸 너비를 모두 같게 (2026-09-08)
+  //   table-layout:fixed 는 첫 줄 너비를 따르므로 머리줄에서 못 박는다
+  const ths = thShown();
+  const w = (88 / Math.max(ths.length, 1)).toFixed(3) + '%';
+  $('ghead').innerHTML = '<tr><th class="hcol" style="width:12%">교시</th>'
+    + ths.map(t=>'<th style="width:' + w + '"><div class="thname">'+esc(t.name)+'</div>'
         + '<div class="thkind">'+t.id+'번</div></th>').join('') + '</tr>';
 }
 
@@ -3316,7 +3412,7 @@ function drawDay(){
     if (!isMk(s) || !s.plan_date) return;
     if (String(s.plan_date).slice(0,7) !== mon) return;
     if (wdOf(s.plan_date) !== wd) return;
-    const k = nearest(toMin(s.start_time)).no + '_' + s.therapist_id;
+    const k = slotNoOf(s) + '_' + s.therapist_id;
     (mkCell[k] = mkCell[k] || []).push(s);
   });
 
@@ -3326,7 +3422,7 @@ function drawDay(){
     if (s.schedule_id || isMk(s) || !s.plan_date) return;
     if (String(s.plan_date).slice(0,7) !== mon) return;
     if (wdOf(s.plan_date) !== wd) return;
-    const k = nearest(toMin(s.start_time)).no + '_' + s.therapist_id;
+    const k = slotNoOf(s) + '_' + s.therapist_id;
     (mnCell[k] = mnCell[k] || []).push(s);
   });
 
@@ -3342,7 +3438,7 @@ function drawDay(){
     // 요일줄이 다른 요일이면 위쪽 「고정 수업 담기」가 이미 그린다. 두 번 그리지 않는다
     if (sc.weekday !== wd) return;
     if (nearest(toMin(s.start_time)).no === nearest(toMin(sc.start_time)).no) return;
-    const k = nearest(toMin(s.start_time)).no + '_' + s.therapist_id;
+    const k = slotNoOf(s) + '_' + s.therapist_id;
     (farCell[k] = farCell[k] || []).push({ r: sc, x: s });
   });
 
@@ -3353,12 +3449,12 @@ function drawDay(){
     if (!x.plan_date) return;
     if (String(x.plan_date).slice(0,7) !== mon) return;
     if (wdOf(x.plan_date) !== wd) return;
-    const k = nearest(toMin(x.start_time)).no + '_' + x.therapist_id;
+    const k = slotNoOf(x) + '_' + x.therapist_id;
     (absCell[k] = absCell[k] || []).push(x);
   });
 
   const isSat = (wd === '토');
-  const colW = 'width:' + Math.floor(88/Math.max(THS.length,1)) + '%';
+  const colW = 'width:' + (88/Math.max(thShown().length,1)).toFixed(3) + '%';
 
   $('gbody').innerHTML = SLOTS.filter(s => slotOnWd(s, wd)).map(s => {
     const lunch = (!isSat && s.no === LUNCH_NO);
@@ -3416,7 +3512,7 @@ function drawDay(){
             (byScd[r.id] || []).forEach(x => {
               if (isSplitRun(x)) return;   // 나눠 진행하는 발추 줄은 감춘다
               // 제 시각이 이 칸의 교시와 다르면 여기 말고 제 교시 칸에 그린다
-              if (x.start_time && nearest(toMin(x.start_time)).no !== s.no) return;
+              if (x.start_time && slotNoOf(x) !== s.no) return;
               lines.push({ d: String(x.plan_date), kind: 'run', r: r, x: x });
             });
           });
@@ -3462,6 +3558,22 @@ function drawDay(){
             const used = lines.some(function(L2){ return L2.d === dd; });
             if (!used) lines.push({ d: dd, kind: 'open', x: { plan_date: dd } });
           });
+
+          // 쪼갠 보강(10·20·30분)은 그 날 정규 줄 안에 작게 붙인다 (2026-09-08)
+          const splitOf = {};
+          for (let i2 = lines.length - 1; i2 >= 0; i2--) {
+            const L3 = lines[i2];
+            if ((L3.kind === 'mk' || L3.kind === 'mn')
+                && L3.x && Number(L3.x.minutes || 40) !== 40) {
+              const hasRun = lines.some(function(v){
+                return v.kind === 'run' && v.d === L3.d
+                  && v.x && Number(v.x.child_id) === Number(L3.x.child_id); });
+              if (hasRun) {
+                (splitOf[L3.d] = splitOf[L3.d] || []).push(L3.x);
+                lines.splice(i2, 1);
+              }
+            }
+          }
 
           lines.sort(function(a, b){
             return a.d.localeCompare(b.d)
@@ -3530,7 +3642,7 @@ function drawDay(){
                 + ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
                    : (L2.kind === 'mn' && !x.run_no) ? ''
                    : monNo(mon) + '-' + x.run_no) + '</span>'
-                + splitTag(x) + '</span>'
+                + splitTag(x) + minTag(x) + fillTag(x) + '</span>'
                 + '<span class="brk"></span>'
                 + '<span class="go">' + tag + '</span>'
                 + '<span class="s">' + stWord(x) + '</span>'
@@ -3593,7 +3705,14 @@ function drawDay(){
               + hmTag(x, s, x.therapist_id, wdOf(x.plan_date))
               + '<span class="n' + cut + '">' + nm + dur
               + '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span>'
-              + splitTag(x) + '</span>'
+              + splitTag(x) + minTag(x) + fillTag(x)
+              + ((splitOf[L2.d] || [])
+                  .filter(function(v){ return Number(v.child_id) === Number(r._cid); })
+                  .map(function(v){
+                    return '<span class="splitin" data-sid="' + v.id + '" title="쪼개서 보강">'
+                      + mnLabel(v) + ' <b>+' + Number(v.minutes) + '</b></span>'; })
+                  .join(''))
+              + '</span>'
               + '<span class="brk"></span>'
               + tail + thb + ed + '</div>';
           });
@@ -5428,6 +5547,72 @@ async function putW5(absId){
   }
 }
 
+// 쪼개서 보강 — 그 아동의 그 날 고정 수업 뒤에 붙인다 (2026-09-08)
+//   10분은 언제나 / 20·30분은 다음 교시에 그 치료사 수업이 없을 때만
+//   40분은 지금처럼 교시를 골라 넣는다
+function mkTailInfo(){
+  const d = $('mk_date').value;
+  if (!d || !mkSess) return null;
+  // 그 날 그 아동의 고정 수업 (보강 줄·쪼갠 줄은 뺀다)
+  const own = SESS.concat(PREV).filter(x =>
+        String(x.plan_date) === String(d)
+     && Number(x.child_id) === Number(mkSess.child_id)
+     && !isMk(x)
+     && Number(x.minutes || 40) === 40
+     && x.status !== '휴무' && x.status !== '쉼')
+    .sort((a2,b2) => String(b2.start_time).localeCompare(String(a2.start_time)));
+  if (!own.length) return { none: true };
+  const base = own[0];                       // 그 날 마지막 수업
+  const endM = toMin(base.start_time) + 40;   // 끝나는 시각
+  const hh = String(Math.floor(endM / 60)).padStart(2,'0');
+  const mm = String(endM % 60).padStart(2,'0');
+  // 그 뒤 교시에 그 치료사 수업이 있는지
+  const nx = SLOTS.find(x => x.no === nearest(toMin(base.start_time)).no + 1);
+  let nextBusy = false;
+  if (nx) {
+    nextBusy = SESS.some(x => String(x.plan_date) === String(d)
+      && Number(x.therapist_id) === Number(base.therapist_id)
+      && x.start_time
+      && x.status !== '결석' && x.status !== '휴무' && x.status !== '쉼'
+      && Number(x.minutes || 40) === 40
+      && nearest(toMin(x.start_time)).no === nx.no);
+  }
+  return { none:false, base:base, hm: hh + ':' + mm, nextBusy: nextBusy };
+}
+
+function mkMinCheck(){
+  const sel = $('mk_min'); if (!sel) return;
+  const hint = $('mkMinHint');
+  const btns = document.querySelectorAll('#mkMinBtns .minbtn');
+  const cur  = Number(sel.value) || 40;
+  const info = mkTailInfo();
+
+  btns.forEach(b => {
+    const v = Number(b.dataset.min);
+    b.disabled = (v > 10 && v < 40 && info && !info.none && info.nextBusy);
+    b.classList.toggle('on', v === cur);
+  });
+
+  if (!hint) return;
+  if (cur === 40) { hint.textContent = ''; return; }
+  if (!info) { hint.textContent = '보강 날짜를 먼저 고르세요.'; return; }
+  if (info.none) {
+    hint.textContent = '⚠️ 그 날은 이 아동 수업이 없습니다. 쪼개서 붙일 수 없습니다.';
+    return;
+  }
+  hint.textContent = '그 날 수업 ' + String(info.base.start_time).slice(0,5)
+    + ' 뒤 ' + info.hm + ' 부터 ' + cur + '분 들어갑니다'
+    + (info.nextBusy ? ' (다음 교시에 수업이 있어 10분만 됩니다)' : '');
+}
+
+// 분 단추 누르기
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('#mkMinBtns .minbtn');
+  if (!b || b.disabled) return;
+  $('mk_min').value = b.dataset.min;
+  mkMinCheck();
+});
+
 // ===== 보강 잡기 =====
 function openMk(absId){
   const s = findSess(absId);
@@ -5447,8 +5632,11 @@ function openMk(absId){
                            : String(nearest(toMin(s.start_time)).no);
   $('mk_th').value   = String(has ? has.therapist_id : s.therapist_id);
   $('mk_memo').value = has ? (has.memo || '') : '';
+  $('mk_hm').value   = has ? String(has.start_time).slice(0,5) : '';
+  $('mk_min').value  = String(has ? (has.minutes || 40) : 40);
   $('mkDel').style.display = has ? '' : 'none';
   $('mkFree').innerHTML = '';
+  mkMinCheck();
 
   // 왜 비었는지 — 상태에 따라 색을 달리해 알려준다
   const why = $('mkWhy');
@@ -5737,6 +5925,10 @@ $('mkPair').onclick = async () => {
 $('mkClose').onclick = () => { $('mkBox').style.display='none'; mkSess=null;
   $('mkFree').innerHTML=''; };
 
+// 날짜·교시를 바꾸면 고를 수 있는 분을 다시 본다
+if ($('mk_date')) $('mk_date').onchange = mkMinCheck;
+if ($('mk_slot')) $('mk_slot').onchange = mkMinCheck;
+
 $('mkSave').onclick = async () => {
   if (!mkSess) return;
   const d = $('mk_date').value;
@@ -5744,9 +5936,35 @@ $('mkSave').onclick = async () => {
   const slot = SLOTS.find(x => x.no === Number($('mk_slot').value));
   const th   = Number($('mk_th').value);
 
+  // 몇 분짜리인지 (10·20·30·40) — 40이면 여느 보강과 같다
+  const mkMin = Number($('mk_min').value) || 40;
+  let mkHm = String($('mk_hm').value || '').trim();
+  if (mkHm) {
+    const m = mkHm.match(/^(\d{1,2})\s*[:시]?\s*(\d{1,2})?$/);
+    if (!m) { mkmsg('시각은 14:00 처럼 적어주세요.', false); return; }
+    const hh = String(Math.min(23, Number(m[1]))).padStart(2,'0');
+    const mm = String(Math.min(59, Number(m[2] || 0))).padStart(2,'0');
+    mkHm = hh + ':' + mm;
+  }
+
+  // 쪼개서 붙이는 것(10·20·30분)은 그 아동 그 날 수업 뒤로 잡는다
+  if (mkMin !== 40) {
+    const info = mkTailInfo();
+    if (!info || info.none) {
+      mkmsg('그 날은 이 아동 수업이 없습니다.\n쪼개서 붙이려면 수업이 있는 날을 고르세요.', false);
+      return;
+    }
+    if (mkMin > 10 && info.nextBusy) {
+      mkmsg('다음 교시에 수업이 있어 10분만 넣을 수 있습니다.', false);
+      return;
+    }
+    mkHm = info.hm;   // 그 날 수업이 끝나는 시각
+  }
+
   // 결석한 그 날 그 시각에 그대로 보강을 잡을 수는 없다
   // (교시가 아니라 실제 시각으로 견준다. 15:10 과 14:20 은 다른 시각)
-  if (slot && String(d) === String(mkSess.plan_date)
+  if (Number($('mk_min').value) === 40
+      && slot && String(d) === String(mkSess.plan_date)
       && (slotHm(slot, th, wdOf(d)) + ':00') === String(mkSess.start_time)) {
     mkmsg('결석한 날(' + dayNo(mkSess.plan_date) + '일 '
       + String(mkSess.start_time).slice(0,5) + ')과 똑같은 날·똑같은 시각입니다.\n'
@@ -5754,13 +5972,16 @@ $('mkSave').onclick = async () => {
     return;
   }
 
+  // 쪼갠 보강(10·20·30분)은 쉬는 시간에 붙이는 것이라 겹침을 안 본다
+  const skipBusy = (mkMin !== 40);
+
   // 그 칸이 이미 찼는지 살펴본다 (결석·휴무·쉼으로 비는 자리는 빈 것으로 본다)
-  const taken = SESS.filter(s => s.plan_date === d
+  const taken = skipBusy ? [] : SESS.filter(s => s.plan_date === d
                   && s.therapist_id === th
                   && !isMk(s)
                   && s.status !== '결석' && s.status !== '휴무' && s.status !== '쉼'
                   && nearest(toMin(s.start_time)).no === slot.no);
-  const takenMk = SESS.filter(s => isMk(s) && s.plan_date === d
+  const takenMk = skipBusy ? [] : SESS.filter(s => isMk(s) && s.plan_date === d
                   && s.therapist_id === th
                   && nearest(toMin(s.start_time)).no === slot.no
                   && s.makeup_for !== mkSess.id);
@@ -5791,7 +6012,8 @@ $('mkSave').onclick = async () => {
     plan_date:  d,
     status:     '보강',
     therapist_id: th,
-    start_time: slotHm(slot, th, wdOf(d)) + ':00',
+    start_time: (mkHm || slotHm(slot, th, wdOf(d))) + ':00',
+    minutes:    mkMin,
     makeup_for: mkSess.id,
     // 사업(지원유형)도 원래 결석 줄에서 그대로 물려받는다.
     // 빠뜨리면 납부 화면에서 같은 수업이 두 줄로 그려진다
