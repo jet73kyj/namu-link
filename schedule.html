@@ -5138,7 +5138,12 @@ $('mnFind').onclick = () => {
                   || SESS.some(v => v.plan_date === key
                        && v.therapist_id === th
                        && v.status !== '결석' && v.status !== '휴무' && v.status !== '쉼'
-                       && nearest(toMin(v.start_time)).no === sl.no);
+                       && nearest(toMin(v.start_time)).no === sl.no)
+                  // 그 아동이 이미 다른 수업을 받는 시각도 뺀다 (2026-09-09)
+                  || (mnKid && SESS.some(v => v.plan_date === key
+                       && Number(v.child_id) === Number(mnKid.id)
+                       && v.status !== '결석' && v.status !== '휴무' && v.status !== '쉼'
+                       && nearest(toMin(v.start_time)).no === sl.no));
         if (!busy) cand.push({ date:key, dw:dw, slot:sl,
                      gap: Math.abs(new Date(key) - new Date(base)) });
       });
@@ -6594,6 +6599,18 @@ async function afterLogin(user){
     r._wks = (r._w1?1:0)+(r._w2?1:0)+(r._w3?1:0)+(r._w4?1:0);
     return r;
   }).filter(Boolean);
+
+  // 발추 담당 — 납부 메모에 없으면 그 아동의 발달재활 수업 담당을 쓴다 (2026-09-09)
+  //   발추는 발달재활에 얹히는 한 회라 담당이 늘 같다
+  //   납부를 아직 저장 안 한 달에도 보강 자리를 잡을 수 있게 하려는 것
+  ROWS.forEach(r => {
+    if (Number(r.support_type_id) !== 2) return;
+    if (!r.therapist_id) return;
+    if (r.to_month && r.to_month < mon) return;
+    if (r.from_month && r.from_month > mon) return;
+    if (PAYX8[r._cid]) return;
+    PAYX8[r._cid] = Number(r.therapist_id);
+  });
 
   // 치료사면 자기 칸만
   if (MY_TH) {
