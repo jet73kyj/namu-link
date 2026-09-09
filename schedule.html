@@ -2328,13 +2328,15 @@ function buildMkOf(){
   SESS.forEach(x => { if (isMk(x) && x.makeup_for) MKOF[x.makeup_for] = x; });
 }
 function mkTail(x){
-  if (x.status !== '결석' && x.status !== '휴무') return '';
-  // 보강 날에도 못 오신 경우 — 그 보강의 날짜를 다른 날로 옮긴다
+  // 보강 줄에는 지우기(✕)만 붙인다 (2026-09-09)
+  //   ＋(날짜 옮기기)는 고정 수업이 결석·휴무일 때만 쓴다
   if (isMk(x)) {
-    return CAN_EDIT
-      ? '<button class="mkbtn" data-mkfix="' + x.id + '"'
-        + ' title="보강 날짜 옮기기">＋</button>' : '';
+    if (!CAN_EDIT) return '';
+    return '<button class="mkbtn" data-mkdel="' + x.id + '"'
+      + ' title="보강 지우기" style="background:#f6e3e3;color:#8c2b2b;'
+      + 'border:1px solid #e0b4b4;">✕</button>';
   }
+  if (x.status !== '결석' && x.status !== '휴무') return '';
   const mk = MKOF[x.id];
   // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
   const noNeed = (Number(x.support_type_id) === 2 && !x.run_no);
@@ -3858,6 +3860,12 @@ $('gbody').addEventListener('click', async e => {
   if (spl) { e.stopPropagation(); openEd(Number(spl.dataset.edsp)); return; }
   const mne = e.target.closest('[data-mned]');
   if (mne) { e.stopPropagation(); openMnEdit(Number(mne.dataset.mned)); return; }
+  const mkd = e.target.closest('[data-mkdel]');
+  if (mkd) {
+    e.stopPropagation();
+    delMakeup(Number(mkd.dataset.mkdel));
+    return;
+  }
   const mkf = e.target.closest('[data-mkfix]');
   if (mkf) {
     e.stopPropagation();
@@ -5813,6 +5821,23 @@ document.addEventListener('click', ev => {
 });
 
 // ===== 보강 잡기 =====
+// 보강 줄 지우기 — 원래 결석·휴무 줄은 그대로 남는다
+async function delMakeup(sid){
+  const x = SESS.find(v => v.id === sid) || PREV.find(v => v.id === sid);
+  if (!x) return;
+  if (!confirm('이 보강을 지울까요?\n\n'
+    + dayNo(x.plan_date) + '일 ' + String(x.start_time).slice(0,5)
+    + ' · ' + (x._name || '') + '\n\n'
+    + '원래 결석·휴무 줄은 그대로 남습니다.\n'
+    + '지운 뒤에는 되돌릴 수 없습니다.')) return;
+  const { error } = await sb.from('nl_sessions').delete().eq('id', sid);
+  if (error) { alert('지우지 못했습니다.\n' + error.message); return; }
+  SESS = SESS.filter(v => v.id !== sid);
+  PREV = PREV.filter(v => v.id !== sid);
+  await loadMonth();
+  draw();
+}
+
 function openMk(absId){
   const s = findSess(absId);
   if (!s) return;
