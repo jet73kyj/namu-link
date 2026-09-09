@@ -1223,7 +1223,14 @@ $('saveEdit').onclick = async () => {
   }
 };
 
-$('q').addEventListener('input', draw);
+$('q').addEventListener('input', () => {
+  // 고치기 창이 열려 있으면 목록이 아래로 밀려 안 보인다. 닫아준다 (2026-09-09)
+  if ($('edBox') && $('edBox').style.display !== 'none') {
+    $('edBox').style.display = 'none';
+    edId = null;
+  }
+  draw();
+});
 $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
 
 // 이미 로그인되어 있으면 바로 목록 표시
