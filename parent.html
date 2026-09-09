@@ -88,6 +88,7 @@
   .prevmk { display:inline-block; font-size:11px; font-weight:600;
             padding:2px 7px; border-radius:6px; margin-left:5px;
             background:#e3f2fd; color:#1565c0; }
+  .fillnote { font-size:12px; color:#1565c0; margin-top:2px; }
 
   /* 자녀가 하나일 때 이름 */
   .onekid { font-size:15px; font-weight:700; color:#3c5a44;
@@ -900,10 +901,10 @@ async function loadMonth() {
   $('mkLabel').textContent = CURMK.slice(0, 4) + '년 ' + (+CURMK.slice(5, 7)) + '월';
   $('list').innerHTML = '<div class="none">불러오는 중...</div>';
 
-  const { data, error } = await sb
+  let { data, error } = await sb
     .from('nl_sessions')
     .select('id, plan_date, start_time, status, therapist_id, therapy_id,'
-          + ' support_type_id, run_no, makeup_for')
+          + ' support_type_id, run_no, makeup_for, minutes, no_makeup')
     .eq('child_id', CURKID)
     .eq('month_key', CURMK)
     .order('plan_date').order('start_time');
@@ -912,6 +913,8 @@ async function loadMonth() {
     $('list').innerHTML = '<div class="none">시간표를 가져오지 못했습니다.<br>센터로 연락해 주세요.</div>';
     return;
   }
+  // 「보강 없음」으로 뺀 날은 학부모 시간표에도 안 그린다 (2026-09-09)
+  if (data) data = data.filter(r => !r.no_makeup);
   if (!data || !data.length) {
     $('list').innerHTML = '<div class="none">이 달에는 수업이 없습니다.'
       + (CURMK < '2026-08'
@@ -1041,11 +1044,29 @@ async function loadMonth() {
         }
       }
 
+      // 쪼개서 보강한 줄 — 몇 분인지 밝힌다 (2026-09-08)
+      const mn = Number(r.minutes || 40);
+      if (mn !== 40) mtag += '<span class="prevmk">+' + mn + '분</span>';
+
+      // 결석 줄에 쪼갠 보강이 붙어 있으면 그 내역을 함께 적는다
+      let filltag = '';
+      {
+        const parts = (data || []).filter(v =>
+          Number(v.makeup_for) === Number(r.id) && Number(v.minutes || 40) !== 40);
+        if (parts.length) {
+          const sum = parts.reduce((t, v) => t + Number(v.minutes || 0), 0);
+          filltag = '<div class="fillnote">'
+            + parts.map(v => '+' + Number(v.minutes)).join(' ')
+            + (sum >= 40 ? ' · 완료' : ' · ' + (40 - sum) + '분 남음')
+            + '</div>';
+        }
+      }
+
       return '<div class="row">'
         + '<div class="tm">' + esc(hhmm(r.start_time)) + '</div>'
         + '<div class="nm">' + stag + ' ' + esc(tname) + ' ' + rn
         + (thn ? ' <span class="th">' + esc(thn) + ' 선생님</span>' : '')
-        + mtag + '</div>'
+        + mtag + filltag + '</div>'
         + (txt ? '<span class="' + cls + '">' + esc(txt) + '</span>' : '')
         + btn
         + '</div>';
@@ -1264,10 +1285,12 @@ async function loadPay() {
   });
 
   // 이 달 회기 — 무슨 수업을 몇 번 받았는지 세려고
-  const { data: ses } = await sb
+  let { data: ses } = await sb
     .from('nl_sessions')
-    .select('child_id, support_type_id, therapist_id, therapy_id, plan_date, status')
+    .select('child_id, support_type_id, therapist_id, therapy_id, plan_date, status, minutes, no_makeup')
     .in('child_id', ids).eq('month_key', CURMK);
+  // 「보강 없음」으로 뺀 날은 교육비 회수에서도 뺀다 (2026-09-09)
+  if (ses) ses = ses.filter(r => !r.no_makeup);
 
   // 치료 종류 이름
   const tids2 = [...new Set((ses || []).map(r => r.therapy_id).filter(Boolean))];
@@ -1324,7 +1347,8 @@ async function loadPay() {
       const thn = THRS[r.therapist_id] || '';
       const wd  = DAYS[new Date(r.plan_date + 'T00:00:00').getDay()] + '요일';
       const key = tn + '|' + thn + '|' + wd;
-      bag[key] = (bag[key] || 0) + 1;
+      // 쪼개서 보강한 줄은 분만큼만 센다 (10분이면 0.25회) 2026-09-08
+      bag[key] = (bag[key] || 0) + (Number(r.minutes || 40) / 40);
     });
     // 쉬어서 빠진 회기 — 왜 회수가 적은지 알려 주려고
     const off = (ses || []).filter(r =>
@@ -1341,7 +1365,7 @@ async function loadPay() {
 
     return Object.keys(bag).map((key, i) => {
       const p = key.split('|');
-      const n = isDev ? 4 : bag[key];
+      const n = isDev ? 4 : (Math.round(Number(bag[key]) * 100) / 100);
       return p[0] + (p[1] ? ' (' + p[1] + ')' : '') + ' ' + p[2] + ' · ' + n + '회';
     });
   }
