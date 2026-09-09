@@ -619,18 +619,18 @@ function planPopup(kid, mk, plan) {
       const bag = {};
       ses.filter(r => Number(r.support_type_id) === Number(st)).forEach(r => {
         const s = String(r.status || '');
-        if (s === '취소') return;
+        // 고정 수업만 적는다. 결석·휴무·쉼·보강은 뺀다 (2026-09-09)
+        if (s === '취소' || s === '결석' || s === '휴무' || s === '쉼') return;
+        if (r.makeup_for) return;
         const tn  = TYPES[TT[r.therapy_id]] || '수업';
         const thn = THRS[r.therapist_id] || '';
         const wd  = DAYS[new Date(r.plan_date + 'T00:00:00').getDay()] + '요일';
-        const mk2 = r.makeup_for ? '보강' : '';
-        bag[tn + '|' + wd + '|' + hhmm(r.start_time) + '|' + thn + '|' + mk2] = true;
+        bag[tn + '|' + wd + '|' + hhmm(r.start_time) + '|' + thn] = true;
       });
       return Object.keys(bag).map(k2 => {
         const p = k2.split('|');
         return p[0] + ' · ' + p[1] + ' ' + p[2]
-             + (p[3] ? ' · ' + p[3] + ' 선생님' : '')
-             + (p[4] ? ' (보강)' : '');
+             + (p[3] ? ' · ' + p[3] + ' 선생님' : '');
       });
     }
 
@@ -1480,7 +1480,7 @@ async function openAsk(d) {
   let slots = [];
   try {
     const { data: fs } = await sb.rpc('nl_free_slots', {
-      p_therapist_id: Number(d.thr), p_last: last
+      p_therapist_id: Number(d.thr), p_last: last, p_child: CURKID
     });
     slots = fs || [];
   } catch (e) {}
