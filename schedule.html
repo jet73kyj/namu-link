@@ -3850,7 +3850,7 @@ $('gbody').addEventListener('click', async e => {
   const edb = e.target.closest('.edbtn, .lnedit[data-ed]');
   if (edb) { e.stopPropagation(); openEd(Number(edb.dataset.ed)); return; }
   const mkb = e.target.closest('.mkbtn');
-  if (mkb) { e.stopPropagation(); openMk(Number(mkb.dataset.mk)); return; }
+  if (mkb && mkb.dataset.mk) { e.stopPropagation(); openMk(Number(mkb.dataset.mk)); return; }
   const thc = e.target.closest('[data-thch]');
   if (thc) { e.stopPropagation(); changeSessTher(thc.dataset.thch); return; }
   // 보강 줄의 ✕ — 보강 창을 연다 (날짜 바꾸기·보강 취소)
@@ -5217,7 +5217,14 @@ $('mnSave').onclick = async () => {
       : Number(($('mn_tp').value || '').split('_')[1] || 0);
     if (spv === 8) {
       // 발추 담당은 납부 계산 화면에서 정한 사람이어야 한다
-      const x8 = PAYX8[mnKid.id];
+      let x8 = PAYX8[mnKid.id];
+      if (!x8) {
+        const dev = ROWS.find(r => Number(r._cid) === Number(mnKid.id)
+          && Number(r.support_type_id) === 2 && r.therapist_id
+          && !(r.to_month && r.to_month < mon)
+          && !(r.from_month && r.from_month > mon));
+        if (dev) x8 = Number(dev.therapist_id);
+      }
       if (!x8) {
         mnmsg('❌ 이 아동은 ' + monNo(mon) + '월 발추 담당이 정해져 있지 않습니다.\n'
           + '납부 계산 화면에서 발추 담당자를 먼저 정하고 오세요.', false);
