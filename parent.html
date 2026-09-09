@@ -118,6 +118,37 @@
   .askbtns .popbtn { flex:1; }
   .popbtn.gray { background:#9aa19c; }
 
+  /* 보강이 필요한 수업 */
+  .needbox { background:#fff8ec; border:1px solid #ffd9a0; border-radius:12px;
+             padding:14px; margin-bottom:14px; }
+  .needttl { font-size:14px; font-weight:700; color:#c25e00; margin-bottom:10px; }
+  .needone { background:#fff; border-radius:9px; padding:10px 12px; margin-bottom:8px; }
+  .needone:last-child { margin-bottom:0; }
+  .needd { font-size:13.5px; color:#2e3d2c; font-weight:600; }
+  .needw { font-size:12.5px; color:#7d8479; margin-top:3px; }
+  .needbtn { margin-top:8px; padding:7px 14px; border:none; border-radius:8px;
+             background:#4a7c59; color:#fff; font-size:12.5px; font-weight:600;
+             cursor:pointer; }
+  .needbtn.gray { background:#fff; border:1px solid #cfd8cc; color:#7d8479; }
+  .needlock { background:#f4f7f2; border:1px solid #e6e9e2; border-radius:12px;
+              padding:14px; margin-bottom:14px; font-size:13px; color:#5a6156;
+              line-height:1.6; }
+  .fixbtn { margin-top:10px; padding:11px 16px; border:none; border-radius:9px;
+            background:#4a7c59; color:#fff; font-size:14px; font-weight:700;
+            cursor:pointer; width:100%; }
+  .fixbtn.gray { background:#fff; border:1px solid #cfd8cc; color:#7d8479; }
+
+  /* 수업 안내 창 */
+  .plbody { max-height:52vh; overflow:auto; }
+  .plgrp { border:1px solid #e6e9e2; border-radius:10px;
+           padding:11px 13px; margin-bottom:9px; }
+  .plst { font-size:14px; font-weight:700; color:#2e3d2c; }
+  .plln { font-size:13px; color:#5a6156; margin-top:5px; }
+  .plam { font-size:13.5px; font-weight:700; color:#4a7c59;
+          text-align:right; margin-top:7px; }
+  .pltot { font-size:15px; font-weight:700; color:#2e3d2c;
+           text-align:right; padding:8px 4px 2px; }
+
   /* 치료기록지 */
   .rc { background:#fff; border:1px solid #e6e9e2; border-radius:12px;
         padding:16px; margin-bottom:12px; }
@@ -319,6 +350,7 @@
 
   <div id="rectabs" class="rtabs" style="display:none;"></div>
 
+  <div id="need" style="display:none;"></div>
   <div id="list"></div>
   <div id="paylist" style="display:none;"></div>
   <div id="reclist" style="display:none;"></div>
@@ -523,6 +555,136 @@ async function afterLogin() {
     drawDot();
     showPopups();
   } catch (e) {}
+
+  try { await showPlan(); } catch (e) {}
+}
+
+// ── 다음 달 수업 안내 창 ───────────────────────────────
+// 25일부터 말일까지는 다음 달, 그 밖의 날은 이 달을 보여준다
+// 확정하실 때까지 들어오실 때마다 뜬다
+function planMonth() {
+  const n = new Date();
+  const y = n.getFullYear(), m = n.getMonth() + 1, d = n.getDate();
+  const mk = y + '-' + String(m).padStart(2, '0');
+  return (d >= 25) ? shiftMonth(mk, 1) : mk;
+}
+
+async function showPlan() {
+  const mk = planMonth();
+  for (const k of KIDS) {
+    let fixed = false;
+    try {
+      const { data: fx } = await sb.from('nl_pay_fix')
+        .select('fixed').eq('child_id', k.id).eq('month_key', mk).maybeSingle();
+      fixed = !!(fx && fx.fixed);
+    } catch (e) {}
+    if (fixed) continue;
+
+    let plan = [];
+    try {
+      const { data: pl } = await sb.rpc('nl_parent_plan',
+        { p_child: k.id, p_mk: mk });
+      plan = pl || [];
+    } catch (e) {}
+    if (!plan.length) continue;
+
+    const go = await planPopup(k, mk, plan);
+    if (!go) break;    // 「다시 보기」를 누르시면 더 안 띄운다
+  }
+}
+
+// 창 하나 — 확정하면 true, 닫으면 false
+function planPopup(kid, mk, plan) {
+  return new Promise(async resolve => {
+    // 요일·시각·담당은 회기 줄에서 가져온다
+    let ses = [];
+    try {
+      const { data: s } = await sb.from('nl_sessions')
+        .select('support_type_id, therapy_id, therapist_id, plan_date, start_time, status')
+        .eq('child_id', kid.id).eq('month_key', mk);
+      ses = s || [];
+    } catch (e) {}
+    const tids = [...new Set(ses.map(r => r.therapy_id).filter(Boolean))];
+    const TT = {};
+    if (tids.length) {
+      try {
+        const { data: t } = await sb.from('nl_therapies')
+          .select('id, therapy_type_id').in('id', tids);
+        (t || []).forEach(r => { TT[r.id] = r.therapy_type_id; });
+      } catch (e) {}
+    }
+
+    // 지원유형별로 「치료 · 요일 · 시각 · 담당」 줄을 만든다
+    function lines(st) {
+      const bag = {};
+      ses.filter(r => Number(r.support_type_id) === Number(st)).forEach(r => {
+        const s = String(r.status || '');
+        if (s === '취소') return;
+        const tn  = TYPES[TT[r.therapy_id]] || '수업';
+        const thn = THRS[r.therapist_id] || '';
+        const wd  = DAYS[new Date(r.plan_date + 'T00:00:00').getDay()] + '요일';
+        bag[tn + '|' + wd + '|' + hhmm(r.start_time) + '|' + thn] = true;
+      });
+      return Object.keys(bag).map(k2 => {
+        const p = k2.split('|');
+        return p[0] + ' · ' + p[1] + ' ' + p[2]
+             + (p[3] ? ' · ' + p[3] + ' 선생님' : '');
+      });
+    }
+
+    let tot = 0;
+    let body = '';
+    plan.forEach(p => {
+      const st = Number(p.support_type_id);
+      tot += Number(p.amount || 0);
+      body += '<div class="plgrp"><div class="plst">'
+            + esc(SN_LABEL[st] || '수업')
+            + (p.cnt != null ? ' · ' + Number(p.cnt) + '회' : '')
+            + '</div>';
+      const ls = lines(st);
+      if (ls.length) {
+        body += ls.map(t => '<div class="plln">' + esc(t) + '</div>').join('');
+      }
+      body += '<div class="plam">'
+            + (Number(p.amount || 0) > 0 ? won(p.amount)
+               : (st === 2 ? '본인부담금 없음' : '지원금으로 냅니다'))
+            + '</div></div>';
+    });
+
+    const w = document.createElement('div');
+    w.className = 'popwrap';
+    w.innerHTML =
+        '<div class="popbox">'
+      + '<div class="poptitle">' + esc(kid.name) + ' · '
+      + (+mk.slice(5, 7)) + '월 수업 안내</div>'
+      + '<div class="plbody">' + body
+      + '<div class="pltot">모두 ' + won(tot) + '</div></div>'
+      + '<button class="fixbtn" id="plOk">이대로 좋습니다</button>'
+      + '<button class="fixbtn gray" id="plNo">다시 보기</button>'
+      + '<div class="popmore">고칠 곳이나 잘못된 곳이 있으면<br>'
+      + '이 화면을 캡처해 채널로 알려주세요<br>'
+      + '자라는나무 042-488-6011</div>'
+      + '</div>';
+    document.body.appendChild(w);
+
+    $('plNo').onclick = () => { w.remove(); resolve(false); };
+    $('plOk').onclick = async () => {
+      const b = $('plOk');
+      b.disabled = true; b.textContent = '보내는 중...';
+      try {
+        const { data: res, error } = await sb.rpc('nl_parent_confirm',
+          { p_child: kid.id, p_month: mk });
+        if (error) throw error;
+        if (String(res) !== '확정') { alert(String(res)); w.remove(); resolve(true); return; }
+        w.remove();
+        await reload();
+        resolve(true);
+      } catch (e) {
+        b.disabled = false; b.textContent = '이대로 좋습니다';
+        alert('확정하지 못했습니다.\n센터로 연락해 주세요.');
+      }
+    };
+  });
 }
 
 function drawKids() {
@@ -573,6 +735,8 @@ function drawTabs() {
   $('tabNt').className  = (TAB === 'nt'  ? 'on' : '');
   $('tabNw').className  = (TAB === 'nw'  ? 'on' : '');
   $('list').style.display    = (TAB === 'sch' ? 'block' : 'none');
+  if ($('need')) $('need').style.display =
+    (TAB === 'sch' && $('need').innerHTML) ? 'block' : 'none';
   $('paylist').style.display = (TAB === 'pay' ? 'block' : 'none');
   $('reclist').style.display = (TAB === 'rec' ? 'block' : 'none');
   $('ntlist').style.display  = (TAB === 'nt'  ? 'block' : 'none');
@@ -1075,12 +1239,165 @@ async function loadMonth() {
   }).join('');
 
   bindAsk();
+  await drawNeed();
+}
+
+// ── 보강이 필요한 수업 ─────────────────────────────────
+// 셈은 하지 않는다. 저장된 납부 회기와 회기 줄만 본다
+async function drawNeed() {
+  const box = $('need');
+  if (!box) return;
+  box.innerHTML = ''; box.style.display = 'none';
+  if (TAB !== 'sch') return;
+
+  // ① 이 달 교육비가 저장되었는가
+  let saved = 0;
+  try {
+    const { data: pv } = await sb.from('nl_payments')
+      .select('child_id').eq('child_id', CURKID).eq('month_key', CURMK);
+    saved = (pv || []).length;
+  } catch (e) {}
+  if (!saved) return;
+
+  // ② 확정되었는가
+  let fixed = false;
+  try {
+    const { data: fx } = await sb.from('nl_pay_fix')
+      .select('fixed').eq('child_id', CURKID).eq('month_key', CURMK).maybeSingle();
+    fixed = !!(fx && fx.fixed);
+  } catch (e) {}
+
+  if (!fixed) {
+    box.innerHTML =
+        '<div class="needlock">이 달 교육비가 아직 <b>확정 전</b>입니다.<br>'
+      + '교육비 갈래에서 내용을 보시고 <b>「이대로 좋습니다」</b>를 눌러 주세요.<br>'
+      + '확정하시면 보강 잡기가 열립니다.'
+      + '<button class="fixbtn" id="goFix">교육비 보러 가기</button></div>';
+    box.style.display = 'block';
+    const g = $('goFix');
+    if (g) g.onclick = () => { TAB = 'pay'; keepParent(); drawTabs(); reload(); };
+    return;
+  }
+
+  // ③ 아직 자리를 못 잡은 결석·휴무 (이 달 + 지난 두 달)
+  const from = shiftMonth(CURMK, -2);
+  let miss = [];
+  try {
+    const { data: ms } = await sb.from('nl_sessions')
+      .select('id, plan_date, start_time, status, therapist_id, therapy_id,'
+            + ' support_type_id, month_key, minutes, no_makeup, makeup_for')
+      .eq('child_id', CURKID).gte('month_key', from).lte('month_key', CURMK)
+      .order('plan_date');
+    const all = ms || [];
+    const done = {};   // 이미 보강 줄이 붙은 것
+    all.forEach(r => { if (r.makeup_for) done[r.makeup_for] = true; });
+    miss = all.filter(r =>
+      !r.makeup_for && !r.no_makeup && !done[r.id]
+      && (String(r.status || '') === '결석' || String(r.status || '') === '휴무'));
+  } catch (e) {}
+
+  // ④ 이미 낸 신청
+  let reqs = [];
+  try {
+    const { data: rq } = await sb.from('nl_absence_requests')
+      .select('id, session_id, state, makeup_date, makeup_time')
+      .eq('child_id', CURKID);
+    reqs = rq || [];
+  } catch (e) {}
+  const RQ = {};
+  reqs.forEach(r => { if (r.state !== '반려') RQ[r.session_id] = r; });
+
+  // ⑤ 자리 자체가 모자란 회 (창구가 숫자만 돌려준다)
+  let shorts = [];
+  try {
+    const { data: sh } = await sb.rpc('nl_parent_short',
+      { p_child: CURKID, p_mk: CURMK });
+    shorts = sh || [];
+  } catch (e) {}
+
+  if (!miss.length && !shorts.length) return;
+
+  // 치료 종류 이름
+  const tid3 = [...new Set(miss.map(r => r.therapy_id).filter(Boolean))];
+  const T3 = {};
+  if (tid3.length) {
+    try {
+      const { data: t3 } = await sb.from('nl_therapies')
+        .select('id, therapy_type_id').in('id', tid3);
+      (t3 || []).forEach(r => { T3[r.id] = r.therapy_type_id; });
+    } catch (e) {}
+  }
+  // 공휴일 이름
+  const HOL3 = {};
+  const ds3 = [...new Set(miss.map(r => r.plan_date))];
+  if (ds3.length) {
+    try {
+      const { data: o3 } = await sb.from('nl_offdays')
+        .select('off_date, reason').in('off_date', ds3);
+      (o3 || []).forEach(r => { HOL3[r.off_date] = r.reason || '공휴일'; });
+    } catch (e) {}
+  }
+
+  let h = '<div class="needbox"><div class="needttl">보강이 필요한 수업 '
+        + (miss.length + shorts.length) + '</div>';
+
+  miss.forEach(r => {
+    const dd = new Date(r.plan_date + 'T00:00:00');
+    const day = (+r.plan_date.slice(5, 7)) + '월 ' + (+r.plan_date.slice(8, 10))
+              + '일 (' + DAYS[dd.getDay()] + ')';
+    const tn  = TYPES[T3[r.therapy_id]] || '수업';
+    const thn = THRS[r.therapist_id] || '';
+    const st  = String(r.status || '');
+    let why = st === '휴무'
+      ? (HOL3[r.plan_date] ? HOL3[r.plan_date] + ' · 공휴일' : '선생님 휴가')
+      : '결석';
+    if (r.month_key < CURMK) why = '지난달에서 넘어온 것 · ' + why;
+    const q = RQ[r.id];
+    h += '<div class="needone">'
+       + '<div class="needd">' + esc(day) + ' · ' + esc(hhmm(r.start_time))
+       + ' · ' + esc(tn) + '</div>'
+       + '<div class="needw">' + esc(why) + (thn ? ' · ' + esc(thn) + ' 선생님' : '')
+       + (q ? ' · <b>신청 중</b>'
+            + (q.makeup_date
+               ? ' (' + (+q.makeup_date.slice(5, 7)) + '/' + (+q.makeup_date.slice(8, 10))
+                 + ' ' + String(q.makeup_time || '').slice(0, 5) + '로 요청)'
+               : ' (보강일은 나중에)')
+          : '')
+       + '</div>'
+       + (q
+          ? '<button class="needbtn gray" data-cancel="' + q.id + '">신청 취소</button>'
+          : '<button class="needbtn" data-ask="' + r.id + '"'
+            + ' data-d="' + r.plan_date + '" data-t="' + hhmm(r.start_time) + '"'
+            + ' data-thr="' + (r.therapist_id || '') + '"'
+            + ' data-st="' + (r.support_type_id || '') + '"'
+            + ' data-nm="' + esc(tn) + '" data-done="1">보강 잡기</button>')
+       + '</div>';
+  });
+
+  shorts.forEach(s => {
+    const nm = ST_LABEL[Number(s.support_type_id)] || '수업';
+    h += '<div class="needone">'
+       + '<div class="needd">' + esc(nm) + ' · ' + Number(s.short) + '회 모자랍니다</div>'
+       + '<div class="needw">이 달에 받으실 ' + Number(s.need) + '회 가운데 '
+       + Number(s.have) + '회만 잡혀 있습니다. 센터로 말씀해 주세요.</div>'
+       + '</div>';
+  });
+
+  h += '</div>';
+  box.innerHTML = h;
+  box.style.display = 'block';
+  bindAsk();
 }
 
 // 지원유형 이름표 — 학부모께 보일 짧은 이름
 const ST_LABEL = { 1:'센터', 2:'발달재활', 3:'치료지원', 4:'치료지원',
                    5:'방과후활동', 6:'방과후치료', 7:'방과후치료',
                    8:'발달추가', 9:'평가' };
+// 안내 창에 쓰는 긴 이름
+const SN_LABEL = { 1:'센터비용', 2:'발달재활서비스', 3:'치료지원(언어)',
+                   4:'치료지원(작업)', 5:'방과후활동비',
+                   6:'방과후치료지원(언어)', 7:'방과후치료지원(작업)',
+                   8:'발달추가비용', 9:'평가비' };
 
 // ── 결석·보강 신청 ─────────────────────────────────────
 let REQS = {};      // 수업번호 -> 이미 낸 신청
@@ -1121,15 +1438,17 @@ async function cancelAsk(id) {
 
 // 신청 창 열기
 async function openAsk(d) {
+  const done = d.done === '1';    // 이미 못 한 회 — 사유를 다시 묻지 않는다
   const w = document.createElement('div');
   w.className = 'popwrap';
   w.innerHTML =
       '<div class="popbox">'
-    + '<div class="poptitle">못 가는 수업 알리기</div>'
+    + '<div class="poptitle">' + (done ? '보강 잡기' : '못 가는 수업 알리기') + '</div>'
     + '<div class="askinfo">' + esc(d.d.slice(5).replace('-', '월 ')) + '일 · '
     + esc(d.t) + ' · ' + esc(d.nm) + '</div>'
-    + '<label class="asklb">왜 못 오시는지 짧게 적어주세요</label>'
-    + '<input id="askWhy" type="text" placeholder="예) 감기로 병원에 갑니다" maxlength="60">'
+    + (done ? ''
+       : '<label class="asklb">왜 못 오시는지 짧게 적어주세요</label>'
+         + '<input id="askWhy" type="text" placeholder="예) 감기로 병원에 갑니다" maxlength="60">')
     + '<label class="asklb">보강을 언제로 할까요?</label>'
     + '<div id="askSlots" class="slots">빈 자리를 찾는 중...</div>'
     + '<div class="askbtns">'
@@ -1162,7 +1481,8 @@ async function openAsk(d) {
     slots = fs || [];
   } catch (e) {}
 
-  let sh = '<button class="slot on" data-later="1">보강은 나중에 정할게요</button>';
+  let sh = done ? ''
+    : '<button class="slot on" data-later="1">보강은 나중에 정할게요</button>';
   slots.slice(0, 60).forEach(s => {
     const dd = new Date(s.slot_date + 'T00:00:00');
     sh += '<button class="slot" data-sd="' + s.slot_date + '" data-st="' + s.slot_time + '">'
@@ -1189,8 +1509,14 @@ async function openAsk(d) {
   });
 
   w.querySelector('#askGo').onclick = async () => {
-    const why = (w.querySelector('#askWhy').value || '').trim();
-    if (!why) { alert('왜 못 오시는지 짧게 적어주세요.'); return; }
+    let why;
+    if (done) {
+      if (!pick) { alert('보강 자리를 하나 골라주세요.'); return; }
+      why = '보강 요청';
+    } else {
+      why = (w.querySelector('#askWhy').value || '').trim();
+      if (!why) { alert('왜 못 오시는지 짧게 적어주세요.'); return; }
+    }
     const go = w.querySelector('#askGo');
     go.disabled = true; go.textContent = '보내는 중...';
     try {
@@ -1523,6 +1849,58 @@ async function loadPay() {
 
   html += '<div class="pfoot">문의 : 042-488-6011</div>';
   $('paylist').innerHTML = html;
+  await drawFixBtn();
+}
+
+// ── 이대로 좋습니다 ────────────────────────────────────
+// 저장된 교육비가 있고 아직 확정 전일 때만 단추가 나온다
+async function drawFixBtn() {
+  let saved = 0;
+  try {
+    const { data: pv } = await sb.from('nl_payments')
+      .select('child_id').eq('child_id', CURKID).eq('month_key', CURMK);
+    saved = (pv || []).length;
+  } catch (e) {}
+  if (!saved) return;
+
+  let fixed = false;
+  try {
+    const { data: fx } = await sb.from('nl_pay_fix')
+      .select('fixed').eq('child_id', CURKID).eq('month_key', CURMK).maybeSingle();
+    fixed = !!(fx && fx.fixed);
+  } catch (e) {}
+
+  const mm = (+CURMK.slice(5, 7)) + '월';
+  if (fixed) {
+    $('paylist').innerHTML +=
+        '<div class="needlock">' + esc(mm) + ' 교육비가 <b>확정</b>되었습니다.'
+      + '<br>보강이 필요한 수업은 시간표 갈래에서 잡으실 수 있습니다.</div>';
+    return;
+  }
+  $('paylist').innerHTML +=
+      '<div class="needlock">위 내용이 맞으면 아래를 눌러 주세요.<br>'
+    + '확정하시면 보강 잡기가 열립니다.<br>'
+    + '고칠 곳이나 잘못된 곳이 있으면 이 화면을 캡처해 채널로 알려주세요.'
+    + '<button class="fixbtn" id="okFix">이대로 좋습니다</button></div>';
+
+  const b = $('okFix');
+  if (!b) return;
+  b.onclick = async () => {
+    if (!confirm(mm + ' 교육비를 이대로 확정할까요?')) return;
+    b.disabled = true; b.textContent = '보내는 중...';
+    try {
+      const { data: res, error } = await sb.rpc('nl_parent_confirm',
+        { p_child: CURKID, p_month: CURMK });
+      if (error) throw error;
+      if (String(res) !== '확정') { alert(String(res)); b.disabled = false;
+        b.textContent = '이대로 좋습니다'; return; }
+      alert('확정했습니다.\n시간표 갈래에서 보강을 잡으실 수 있습니다.');
+      await loadPay();
+    } catch (e) {
+      b.disabled = false; b.textContent = '이대로 좋습니다';
+      alert('확정하지 못했습니다.\n센터로 연락해 주세요.');
+    }
+  };
 }
 
 // 이미 로그인해 있으면 바로 들어간다
