@@ -286,6 +286,14 @@
           style="width:auto;margin:8px 0 0;padding:7px 14px;background:#eef3ec;
                  color:#2c5c37;font-size:13px;font-weight:600;">＋ 연락처 한 줄 더</button>
       </div>
+      <div style="grid-column:1 / -1;">
+        <div style="border:1px solid #cfd8cc;border-radius:10px;
+                    background:#f4f7f2;padding:12px 14px;">
+          <div style="font-size:13px;font-weight:700;color:#2c5c37;
+                      margin-bottom:8px;">👪 학부모 계정</div>
+          <div id="e_acc" style="font-size:13px;color:#5a6156;">불러오는 중...</div>
+        </div>
+      </div>
       <div>
         <label for="e_diagnosis">진단명</label>
         <input id="e_diagnosis" type="text">
@@ -975,6 +983,69 @@ function openEdit(id) {
   $('edBox').style.display = 'block';
   $('edBox').scrollIntoView({ behavior:'smooth', block:'start' });
   loadGrade(id);
+  drawAcc(id);
+}
+
+// ── 학부모 계정 ──────────────────────────────
+// 번호가 바뀌면 표의 아이디만 고친다. 계정과 비밀번호는 그대로 둔다
+async function drawAcc(cid) {
+  const box = $('e_acc');
+  if (!box) return;
+  box.innerHTML = '불러오는 중...';
+  try {
+    const { data: pc } = await sb.from('nl_parent_children')
+      .select('account_id').eq('child_id', cid);
+    if (!pc || !pc.length) { box.innerHTML = '이 아동에게 이어진 계정이 없습니다.'; return; }
+    const ids = pc.map(x => x.account_id);
+    const { data: acc } = await sb.from('nl_parent_accounts')
+      .select('id, login_id, last_login, active').in('id', ids);
+    if (!acc || !acc.length) { box.innerHTML = '이 아동에게 이어진 계정이 없습니다.'; return; }
+    box.innerHTML = acc.map(a =>
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'
+      + '<b style="font-size:17px;color:#2e3d2c;letter-spacing:0.5px;">'
+      + esc(a.login_id) + '</b>'
+      + '<span style="font-size:12px;color:#9aa19c;">'
+      + (a.last_login
+          ? '마지막 로그인 ' + String(a.last_login).slice(5,10).replace('-','월 ') + '일'
+          : '아직 들어온 적 없음')
+      + (a.active === false ? ' · 꺼짐' : '') + '</span>'
+      + '<button type="button" class="accchg" data-acc="' + a.id + '"'
+      + ' data-lid="' + esc(a.login_id) + '"'
+      + ' style="width:auto;margin:0;padding:8px 16px;background:#2c5c37;'
+      + 'color:#fff;font-size:13px;font-weight:700;border:none;border-radius:8px;'
+      + 'cursor:pointer;">번호 바꾸기</button>'
+      + '</div>').join('')
+      + '<div style="font-size:12px;color:#9aa19c;">'
+      + '한 계정으로 형제·자매를 함께 봅니다. 번호를 바꾸면 그 집 전체에 적용됩니다.<br>'
+      + '비밀번호는 그대로입니다. 새 번호와 쓰시던 비밀번호로 들어오십니다.</div>';
+    box.querySelectorAll('.accchg').forEach(b => { b.onclick = () => changeAcc(b); });
+  } catch (e) {
+    box.innerHTML = '계정을 가져오지 못했습니다.';
+  }
+}
+
+async function changeAcc(btn) {
+  const old = String(btn.dataset.lid || '');
+  const v = prompt('새 휴대폰 번호를 넣으세요 (숫자만)\n\n지금 아이디 : ' + old, '');
+  if (v === null) return;
+  const nw = String(v).replace(/[^0-9]/g, '');
+  if (nw.length < 10 || nw.length > 11) { alert('휴대폰 번호를 다시 넣어주세요.'); return; }
+  if (nw === old) { alert('지금 번호와 같습니다.'); return; }
+
+  try {
+    const { data: dup } = await sb.from('nl_parent_accounts')
+      .select('id').eq('login_id', nw).maybeSingle();
+    if (dup) { alert('그 번호를 쓰는 계정이 이미 있습니다.\n다른 번호를 넣어주세요.'); return; }
+  } catch (e) {}
+
+  if (!confirm('아이디를 ' + old + ' → ' + nw + ' 로 바꿀까요?\n\n'
+    + '비밀번호는 그대로입니다.\n형제·자매가 있으면 함께 적용됩니다.')) return;
+
+  const { error } = await sb.from('nl_parent_accounts')
+    .update({ login_id: nw }).eq('id', Number(btn.dataset.acc));
+  if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
+  alert('바꿨습니다.\n\n새 번호 ' + nw + ' 와 쓰시던 비밀번호로 들어오시면 됩니다.');
+  drawAcc(edId);
 }
 
 // ── 발달재활 등급 ────────────────────────────

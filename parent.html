@@ -88,7 +88,8 @@
   .prevmk { display:inline-block; font-size:11px; font-weight:600;
             padding:2px 7px; border-radius:6px; margin-left:5px;
             background:#e3f2fd; color:#1565c0; }
-  .fillnote { font-size:12px; color:#1565c0; margin-top:2px; }
+  .fillnote { font-size:12px; color:#1565c0; margin-top:2px; }
+
 
   /* 자녀가 하나일 때 이름 */
   .onekid { font-size:15px; font-weight:700; color:#3c5a44;
@@ -417,13 +418,20 @@ $('btn').onclick = async () => {
       return;
     }
 
+    // 번호가 바뀌어도 되도록, 그 집의 로그인 메일을 표에서 찾아 쓴다 (2026-09-09)
+    let mail = phone + MAIL_TAIL;
+    try {
+      const { data: em } = await sb.rpc('nl_parent_email', { p_login: phone });
+      if (em) mail = String(em);
+    } catch (e) {}
+
     // 임시 비번은 4자리 그대로, 학부모가 바꾼 뒤에는 뒤에 표시가 붙는다
     let { error } = await sb.auth.signInWithPassword({
-      email: phone + MAIL_TAIL, password: pw
+      email: mail, password: pw
     });
     if (error) {
       const r2 = await sb.auth.signInWithPassword({
-        email: phone + MAIL_TAIL, password: pw + PW_TAIL
+        email: mail, password: pw + PW_TAIL
       });
       error = r2.error;
     }
@@ -542,11 +550,21 @@ async function afterLogin() {
   await reload();
 
   // 공지 — 내 계정 번호를 알아두고, 안 읽은 중요 공지를 띄운다
+  //   번호가 바뀌면 메일과 login_id 가 다를 수 있어 메일로도 찾는다 (2026-09-09)
   try {
     const em = (await sb.auth.getUser()).data.user.email;
     const lid = String(em).split('@')[0];
-    const { data: acc } = await sb.from('nl_parent_accounts')
-      .select('id').eq('login_id', lid).maybeSingle();
+    let acc = null;
+    {
+      const r = await sb.from('nl_parent_accounts')
+        .select('id').eq('auth_email', em).maybeSingle();
+      acc = r.data;
+    }
+    if (!acc) {
+      const r2 = await sb.from('nl_parent_accounts')
+        .select('id').eq('login_id', lid).maybeSingle();
+      acc = r2.data;
+    }
     ACCID = acc ? acc.id : null;
   } catch (e) { ACCID = null; }
 
@@ -713,7 +731,11 @@ function keepParent(){
     localStorage.setItem('nl_parent_tab', TAB);
   } catch (e) {}
 }
-$('prev').onclick = async () => { CURMK = shiftMonth(CURMK, -1); keepParent(); drawTabs(); await reload(); };
+$('prev').onclick = async () => {
+  // 기록지는 이 달과 지난 두 달까지만 (표 잠금도 그만큼만 내려준다)
+  if (TAB === 'rec' && shiftMonth(CURMK, -1) < shiftMonth(thisMonth(), -2)) return;
+  CURMK = shiftMonth(CURMK, -1); keepParent(); drawTabs(); await reload();
+};
 $('next').onclick = async () => {
   // 기록지는 그 달이 끝나야 작성되므로 앞으로는 못 가게 한다
   if (TAB === 'rec' && shiftMonth(CURMK, 1) > thisMonth()) return;
@@ -754,6 +776,10 @@ function drawTabs() {
   // 기록지는 이번 달까지만 (그 달이 끝나야 작성되므로)
   const stop = (TAB === 'rec' && shiftMonth(CURMK, 1) > thisMonth());
   $('next').style.visibility = stop ? 'hidden' : 'visible';
+  // 기록지는 지난 두 달까지만 거슬러 간다
+  const stopBack = (TAB === 'rec'
+    && shiftMonth(CURMK, -1) < shiftMonth(thisMonth(), -2));
+  $('prev').style.visibility = stopBack ? 'hidden' : 'visible';
 }
 
 async function reload() {
@@ -1853,65 +1879,25 @@ async function loadPay() {
 
   html += '<div class="pfoot">문의 : 042-488-6011</div>';
   $('paylist').innerHTML = html;
-  await drawFixBtn();
+  await drawFixNote();
 }
 
-// ── 이대로 좋습니다 ────────────────────────────────────
-// 저장된 교육비가 있고 아직 확정 전일 때만 단추가 나온다
-async function drawFixBtn() {
-  let saved = 0;
-  try {
-    const { data: sv } = await sb.from('nl_sessions')
-      .select('id').eq('child_id', CURKID).eq('month_key', CURMK);
-    saved = (sv || []).length;
-  } catch (e) {}
-  if (!saved) {
-    try {
-      const { data: pv } = await sb.from('nl_payments')
-        .select('child_id').eq('child_id', CURKID).eq('month_key', CURMK);
-      saved = (pv || []).length;
-    } catch (e) {}
-  }
-  if (!saved) return;
-
+// ── 확정 안내 ─────────────────────────────────────────
+// 확정은 수업 안내 창에서만 한다. 여기서는 알려주기만 한다
+async function drawFixNote() {
   let fixed = false;
   try {
     const { data: fx } = await sb.from('nl_pay_fix')
       .select('fixed').eq('child_id', CURKID).eq('month_key', CURMK).maybeSingle();
     fixed = !!(fx && fx.fixed);
   } catch (e) {}
-
   const mm = (+CURMK.slice(5, 7)) + '월';
-  if (fixed) {
-    $('paylist').innerHTML +=
-        '<div class="needlock">' + esc(mm) + ' 교육비가 <b>확정</b>되었습니다.'
-      + '<br>보강이 필요한 수업은 시간표 갈래에서 잡으실 수 있습니다.</div>';
-    return;
-  }
-  $('paylist').innerHTML +=
-      '<div class="needlock">위 내용이 맞으면 아래를 눌러 주세요.<br>'
-    + '확정하시면 보강 잡기가 열립니다.<br>'
-    + '고칠 곳이나 잘못된 곳이 있으면 이 화면을 캡처해 채널로 알려주세요.'
-    + '<button class="fixbtn" id="okFix">이대로 좋습니다</button></div>';
-
-  const b = $('okFix');
-  if (!b) return;
-  b.onclick = async () => {
-    if (!confirm(mm + ' 교육비를 이대로 확정할까요?')) return;
-    b.disabled = true; b.textContent = '보내는 중...';
-    try {
-      const { data: res, error } = await sb.rpc('nl_parent_confirm',
-        { p_child: CURKID, p_month: CURMK });
-      if (error) throw error;
-      if (String(res) !== '확정') { alert(String(res)); b.disabled = false;
-        b.textContent = '이대로 좋습니다'; return; }
-      alert('확정했습니다.\n시간표 갈래에서 보강을 잡으실 수 있습니다.');
-      await loadPay();
-    } catch (e) {
-      b.disabled = false; b.textContent = '이대로 좋습니다';
-      alert('확정하지 못했습니다.\n센터로 연락해 주세요.');
-    }
-  };
+  $('paylist').innerHTML += fixed
+    ? '<div class="needlock">' + esc(mm) + ' 교육비가 <b>확정</b>되었습니다.'
+      + '<br>보강이 필요한 수업은 시간표 갈래에서 잡으실 수 있습니다.</div>'
+    : '<div class="needlock">' + esc(mm) + ' 교육비는 아직 <b>확정 전</b>입니다.'
+      + '<br>수업 안내 창에서 「이대로 좋습니다」를 눌러 주세요.'
+      + '<br>고칠 곳이나 잘못된 곳이 있으면 이 화면을 캡처해 채널로 알려주세요.</div>';
 }
 
 // 이미 로그인해 있으면 바로 들어간다
