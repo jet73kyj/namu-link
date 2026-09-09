@@ -553,6 +553,7 @@
   .splitin { display:block; color:#1565c0; font-size:11px;
              white-space:nowrap; cursor:pointer; margin-top:1px; }
   .splitin b { color:#0d47a1; }
+  .splitin b.bfhm { color:#c25e00; }
   /* 시간표 보기 — 줄 높이를 모두 같게 (몇 째 주인지 나란히 보이게) 2026-09-08 */
   #gbody .ln {
     min-height:48px;
@@ -950,6 +951,14 @@
         <button type="button" class="minbtn" data-min="30">30분</button>
       </div>
       <input id="mk_min" type="hidden" value="40">
+      <div id="mkSideWrap" style="display:none;margin-top:8px;">
+        <label>어디에 붙일까요</label>
+        <div id="mkSideBtns">
+          <button type="button" class="minbtn" data-side="before">수업 앞</button>
+          <button type="button" class="minbtn on" data-side="after">수업 뒤</button>
+        </div>
+      </div>
+      <input id="mk_side" type="hidden" value="after">
     </div>
     <div style="margin-top:12px;">
       <label for="mk_memo">메모</label>
@@ -3793,15 +3802,12 @@ function drawDay(){
               + ' data-cid="' + (r._cid || '') + '">'
               + '<span class="d">' + day + '</span>'
               + hmTag(x, s, x.therapist_id, wdOf(x.plan_date))
-              + '<span class="n' + cut + '">' + nm + dur
+              + '<span class="n' + cut + '">'
+              + splitPieces(x, splitOf[L2.d], r._cid, true)
+              + nm + dur
               + '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span>'
               + splitTag(x) + minTag(x) + fillTag(x)
-              + ((splitOf[L2.d] || [])
-                  .filter(function(v){ return Number(v.child_id) === Number(r._cid); })
-                  .map(function(v){
-                    return '<span class="splitin" data-sid="' + v.id + '" title="쪼개서 보강">'
-                      + mnLabel(v) + ' <b>+' + Number(v.minutes) + '</b></span>'; })
-                  .join(''))
+              + splitPieces(x, splitOf[L2.d], r._cid, false)
               + '</span>'
               + '<span class="brk"></span>'
               + tail + thb + ed + '</div>';
@@ -5764,6 +5770,24 @@ async function putW5(absId){
 // 쪼개서 보강 — 그 아동의 그 날 고정 수업 뒤에 붙인다 (2026-09-08)
 //   10분은 언제나 / 20·30분은 다음 교시에 그 치료사 수업이 없을 때만
 //   40분은 지금처럼 교시를 골라 넣는다
+// 쪼갠 보강 조각 딱지
+//   앞에 붙은 것은 회차 번호 위에, 뒤에 붙은 것은 아래에 적는다 (2026-09-09)
+function splitPieces(x, arr, cid, before){
+  return (arr || [])
+    .filter(function(v){ return Number(v.child_id) === Number(cid); })
+    .filter(function(v){
+      var bf = !!(x.start_time && v.start_time
+        && String(v.start_time) < String(x.start_time));
+      return before ? bf : !bf;
+    })
+    .map(function(v){
+      return '<span class="splitin" data-sid="' + v.id + '" title="쪼개서 보강">'
+        + (before ? '<b class="bfhm">' + h12(String(v.start_time).slice(0,5))
+                    + ' 시작</b> · ' : '')
+        + mnLabel(v) + ' <b>+' + Number(v.minutes) + '</b></span>';
+    }).join('');
+}
+
 function mkTailInfo(){
   const d = $('mk_date').value;
   if (!d || !mkSess) return null;
@@ -5776,22 +5800,36 @@ function mkTailInfo(){
      && x.status !== '휴무' && x.status !== '쉼')
     .sort((a2,b2) => String(b2.start_time).localeCompare(String(a2.start_time)));
   if (!own.length) return { none: true };
-  const base = own[0];                       // 그 날 마지막 수업
-  const endM = toMin(base.start_time) + 40;   // 끝나는 시각
+  // 결석한 그 수업과 같은 요일줄이 그 날 있으면 거기에 붙인다 (2026-09-09)
+  //   전에는 그 날 마지막 수업 뒤로만 붙어, 엉뚱한 자리에 그려졌다
+  const same = own.find(x => mkSess.schedule_id
+    && Number(x.schedule_id) === Number(mkSess.schedule_id));
+  const base  = same || own[0];                // 뒤에 붙일 때 기준
+  const first = same || own[own.length - 1];   // 앞에 붙일 때 기준
+  const endM = toMin(base.start_time) + 40;    // 끝나는 시각
   const hh = String(Math.floor(endM / 60)).padStart(2,'0');
   const mm = String(endM % 60).padStart(2,'0');
-  // 그 뒤 교시에 그 치료사 수업이 있는지
-  const nx = SLOTS.find(x => x.no === nearest(toMin(base.start_time)).no + 1);
-  let nextBusy = false;
-  if (nx) {
-    nextBusy = SESS.some(x => String(x.plan_date) === String(d)
-      && Number(x.therapist_id) === Number(base.therapist_id)
+  // 옆 교시에 그 치료사 수업이 있는지 살펴본다
+  function busyAt(no, thId) {
+    const sl = SLOTS.find(x => x.no === no);
+    if (!sl) return false;
+    return SESS.some(x => String(x.plan_date) === String(d)
+      && Number(x.therapist_id) === Number(thId)
       && x.start_time
       && x.status !== '결석' && x.status !== '휴무' && x.status !== '쉼'
       && Number(x.minutes || 40) === 40
-      && nearest(toMin(x.start_time)).no === nx.no);
+      && nearest(toMin(x.start_time)).no === sl.no);
   }
-  return { none:false, base:base, hm: hh + ':' + mm, nextBusy: nextBusy };
+  const nextBusy = busyAt(nearest(toMin(base.start_time)).no + 1, base.therapist_id);
+  const prevBusy = busyAt(nearest(toMin(first.start_time)).no - 1, first.therapist_id);
+  // 앞에 붙일 때 시작 시각 — 고른 분만큼 당긴다
+  const cur = Number($('mk_min') ? $('mk_min').value : 40) || 40;
+  const bgM = toMin(first.start_time) - cur;
+  const bh = String(Math.floor(bgM / 60)).padStart(2,'0');
+  const bm = String(bgM % 60).padStart(2,'0');
+  return { none:false, base:base, first:first,
+           hm: hh + ':' + mm, beforeHm: bh + ':' + bm,
+           nextBusy: nextBusy, prevBusy: prevBusy };
 }
 
 function mkMinCheck(){
@@ -5801,10 +5839,22 @@ function mkMinCheck(){
   const cur  = Number(sel.value) || 40;
   const info = mkTailInfo();
 
+  const side = $('mk_side') ? String($('mk_side').value || 'after') : 'after';
   btns.forEach(b => {
     const v = Number(b.dataset.min);
-    b.disabled = (v > 10 && v < 40 && info && !info.none && info.nextBusy);
+    const bz = (side === 'before') ? (info && info.prevBusy) : (info && info.nextBusy);
+    b.disabled = (v > 10 && v < 40 && info && !info.none && bz);
     b.classList.toggle('on', v === cur);
+  });
+
+  // 앞·뒤 고르는 단추는 쪼갤 때만 보인다
+  const wrap = $('mkSideWrap');
+  if (wrap) wrap.style.display = (cur === 40) ? 'none' : '';
+  document.querySelectorAll('#mkSideBtns .minbtn').forEach(b => {
+    b.classList.toggle('on', String(b.dataset.side) === side);
+    b.disabled = (String(b.dataset.side) === 'before')
+      ? !!(info && !info.none && info.prevBusy && cur > 10)
+      : !!(info && !info.none && info.nextBusy && cur > 10);
   });
 
   if (!hint) return;
@@ -5814,17 +5864,30 @@ function mkMinCheck(){
     hint.textContent = '⚠️ 그 날은 이 아동 수업이 없습니다. 쪼개서 붙일 수 없습니다.';
     return;
   }
-  hint.textContent = '그 날 수업 ' + String(info.base.start_time).slice(0,5)
-    + ' 뒤 ' + info.hm + ' 부터 ' + cur + '분 들어갑니다'
-    + (info.nextBusy ? ' (다음 교시에 수업이 있어 10분만 됩니다)' : '');
+  hint.textContent = (side === 'before')
+    ? ('그 날 수업 ' + String(info.first.start_time).slice(0,5)
+       + ' 앞 ' + info.beforeHm + ' 부터 ' + cur + '분 들어갑니다'
+       + (info.prevBusy ? ' (앞 교시에 수업이 있어 10분만 됩니다)' : ''))
+    : ('그 날 수업 ' + String(info.base.start_time).slice(0,5)
+       + ' 뒤 ' + info.hm + ' 부터 ' + cur + '분 들어갑니다'
+       + (info.nextBusy ? ' (다음 교시에 수업이 있어 10분만 됩니다)' : ''));
 }
 
 // 분 단추 누르기
 document.addEventListener('click', ev => {
   const b = ev.target.closest('#mkMinBtns .minbtn');
-  if (!b || b.disabled) return;
-  $('mk_min').value = b.dataset.min;
-  mkMinCheck();
+  if (b && !b.disabled) {
+    $('mk_min').value = b.dataset.min;
+    if (Number(b.dataset.min) === 40 && $('mk_side')) $('mk_side').value = 'after';
+    mkMinCheck();
+    return;
+  }
+  // 수업 앞 / 수업 뒤 고르기
+  const sb = ev.target.closest('#mkSideBtns .minbtn');
+  if (sb && !sb.disabled) {
+    $('mk_side').value = sb.dataset.side;
+    mkMinCheck();
+  }
 });
 
 // ===== 보강 잡기 =====
@@ -6194,11 +6257,13 @@ $('mkSave').onclick = async () => {
       mkmsg('그 날은 이 아동 수업이 없습니다.\n쪼개서 붙이려면 수업이 있는 날을 고르세요.', false);
       return;
     }
-    if (mkMin > 10 && info.nextBusy) {
-      mkmsg('다음 교시에 수업이 있어 10분만 넣을 수 있습니다.', false);
+    const side = String($('mk_side').value || 'after');
+    if (mkMin > 10 && ((side === 'before') ? info.prevBusy : info.nextBusy)) {
+      mkmsg((side === 'before' ? '앞' : '다음') + ' 교시에 수업이 있어 10분만 넣을 수 있습니다.', false);
       return;
     }
-    mkHm = info.hm;   // 그 날 수업이 끝나는 시각
+    // 수업 앞이면 그만큼 당긴 시각, 뒤면 수업이 끝나는 시각
+    mkHm = (side === 'before') ? info.beforeHm : info.hm;
     // 한 회기는 같은 치료사만 채울 수 있다 (2026-09-09)
     //   먼저 채운 조각이 있으면 그 선생님과 같아야 한다
     const madeBy = SESS.concat(PREV)
@@ -6207,6 +6272,13 @@ $('mkSave').onclick = async () => {
     if (madeBy.length && Number(madeBy[0].therapist_id) !== th) {
       mkmsg('한 회기는 같은 선생님만 채울 수 있습니다.\n'
         + '이미 ' + thName(madeBy[0].therapist_id) + ' 선생님이 채우기 시작했습니다.', false);
+      return;
+    }
+    // 이미 채운 분과 더해 40분을 넘기지 않는다
+    const done = madeBy.reduce((n, v) => n + Number(v.minutes || 0), 0);
+    if (done + mkMin > 40) {
+      mkmsg('이미 ' + done + '분을 채웠습니다.\n'
+        + '남은 것은 ' + (40 - done) + '분입니다.', false);
       return;
     }
   }
@@ -6273,8 +6345,15 @@ $('mkSave').onclick = async () => {
 
   $('mkSave').disabled = true; $('mkSave').textContent = '저장 중...';
   try {
-    const old = SESS.find(x => isMk(x) && x.makeup_for === mkSess.id)
-             || PREV.find(x => isMk(x) && x.makeup_for === mkSess.id);
+    // 쪼갠 보강(10·20·30분)은 여러 줄로 채우므로 새 줄로 넣는다 (2026-09-09)
+    //   전에는 늘 옛 줄을 고쳐, 두 번째부터 앞의 것이 덮어써졌다
+    //   같은 날·같은 시각에 이미 조각이 있으면 그것만 고친다
+    const all = SESS.concat(PREV).filter(x => isMk(x)
+      && Number(x.makeup_for) === Number(mkSess.id));
+    const old = (mkMin === 40)
+      ? all.find(x => Number(x.minutes || 40) === 40)
+      : all.find(x => String(x.plan_date) === String(d)
+          && String(x.start_time).slice(0,5) === String(row.start_time).slice(0,5));
     let data, error;
     if (old) {
       ({ data, error } = await sb.from('nl_sessions')
