@@ -749,6 +749,7 @@
       <button id="tabOff"  class="offtab on">휴무</button>
       <button id="tabBlk" class="offtab">시간 막음</button>
       <button id="tabCns" class="offtab">평가 상담</button>
+      <button id="tabWk" class="offtab">나오는 날</button>
     </div>
 
     <!-- 갈래 1 — 휴무 -->
@@ -821,6 +822,36 @@
       <div class="pbtns">
         <button id="cnsSave" class="pbtn ok-btn">상담 넣기</button>
         <button id="cnsClose" class="pbtn grey">닫기</button>
+      </div>
+    </div>
+    <!-- 갈래 4 — 나오는 날 -->
+    <div id="wkPane" style="display:none;">
+      <div class="pgrid">
+        <div>
+          <label for="wk_date">날짜</label>
+          <input id="wk_date" type="date">
+        </div>
+        <div>
+          <label for="wk_th">치료사</label>
+          <select id="wk_th"></select>
+        </div>
+        <div>
+          <label for="wk_start">출근시각</label>
+          <select id="wk_start"></select>
+        </div>
+        <div>
+          <label for="wk_end">퇴근시각</label>
+          <select id="wk_end"></select>
+        </div>
+        <div>
+          <label for="wk_reason">사유</label>
+          <input id="wk_reason" type="text" placeholder="예: 보강 채우기">
+        </div>
+      </div>
+      <div id="wk_hint" class="blkhint">날짜와 시각을 고르면 열리는 교시가 여기에 나옵니다.</div>
+      <div class="pbtns">
+        <button id="wkSave" class="pbtn ok-btn">나오는 날 넣기</button>
+        <button id="wkClose" class="pbtn grey">닫기</button>
       </div>
     </div>
     <div id="offMsg" class="out"></div>
@@ -5124,6 +5155,7 @@ $('mnSave').onclick = async () => {
 };
 
 // ===== 휴무 관리 =====
+let OFFTAB = 'off';   // 지금 열린 갈래 (off / blk / cns / wk)
 function offmsg(t, ok){ $('offMsg').textContent=t; $('offMsg').className='out '+(ok?'ok':'err'); }
 
 $('offBtn').onclick = () => {
@@ -5135,6 +5167,7 @@ $('offBtn').onclick = () => {
   $('of_reason').value = '';
   $('bk_date').value = '';
   $('bk_slots').querySelectorAll('.blkslot.on').forEach(el => el.classList.remove('on'));
+  if ($('wk_date')) { $('wk_date').value = ''; $('wk_reason').value = ''; }
   offTab('off');
   offmsg('', true); $('offMsg').className='out';
   drawOffList();
@@ -5185,18 +5218,25 @@ $('of_kind').onchange = () => {
 
 // ===== 휴무 / 시간 막음 갈래 =====
 function offTab(which){
+  OFFTAB = which;
   $('tabOff').classList.toggle('on', which === 'off');
   $('tabBlk').classList.toggle('on', which === 'blk');
   $('tabCns').classList.toggle('on', which === 'cns');
+  $('tabWk').classList.toggle('on', which === 'wk');
   $('offPane').style.display = (which === 'off') ? '' : 'none';
   $('blkPane').style.display = (which === 'blk') ? '' : 'none';
   $('cnsPane').style.display = (which === 'cns') ? '' : 'none';
+  $('wkPane').style.display = (which === 'wk') ? '' : 'none';
   if (which === 'cns') { fillCnsTh(); fillCnsKid(); drawCnsSlots(); }
+  if (which === 'wk')  { fillWkTh(); drawWkTimes(); }
+  drawOffList();
   $('offMsg').textContent = ''; $('offMsg').className = 'out';
 }
 $('tabOff').onclick = () => offTab('off');
 $('tabBlk').onclick = () => offTab('blk');
 $('tabCns').onclick = () => offTab('cns');
+$('tabWk').onclick = () => offTab('wk');
+$('wkClose').onclick = () => { $('offBox').style.display='none'; };
 $('blkClose').onclick = () => { $('offBox').style.display='none'; };
 $('cnsClose').onclick = () => { $('offBox').style.display='none'; };
 if ($('cs_date')) $('cs_date').onchange = () => drawCnsSlots();
@@ -5283,21 +5323,102 @@ function drawBlkSlots(){
   });
 }
 
+// ===== 나오는 날 (추가근무) =====
+// 원래 안 나오는 날에 특별히 나오실 때. 그 사이 교시가 빈 자리로 열린다
+function fillWkTh(){
+  if ($('wk_th').options.length) return;
+  $('wk_th').innerHTML = (THS_ALL || THS).map(x =>
+    '<option value="' + x.id + '">' + esc(x.name) + '</option>').join('');
+}
+// 고른 날짜의 요일에 맞는 교시로 출근·퇴근 칸을 다시 그린다
+function drawWkTimes(){
+  const d = $('wk_date') ? $('wk_date').value : '';
+  const wd = d ? wdOf(d) : '';
+  const list = SLOTS.filter(s => slotOnWd(s, wd));
+  const opt = list.map(s => {
+    const hm = slotHm(s, null, wd);
+    return '<option value="' + hm + '">' + s.no + '교시 · ' + h12(hm) + '</option>';
+  }).join('');
+  const keepS = $('wk_start').value, keepE = $('wk_end').value;
+  $('wk_start').innerHTML = opt;
+  $('wk_end').innerHTML = opt + '<option value="">그날 끝까지</option>';
+  if (keepS) $('wk_start').value = keepS;
+  if (keepE !== null) $('wk_end').value = keepE;
+  wkHint();
+}
+// 어느 교시가 열리는지 글로 알려준다
+function wkHint(){
+  const d = $('wk_date') ? $('wk_date').value : '';
+  if (!d) { $('wk_hint').textContent = '날짜와 시각을 고르면 열리는 교시가 여기에 나옵니다.'; return; }
+  const wd = d ? wdOf(d) : '';
+  const st = $('wk_start').value, en = $('wk_end').value;
+  const opened = SLOTS.filter(s => slotOnWd(s, wd))
+    .map(s => slotHm(s, null, wd))
+    .filter(hm => hm >= st && (!en || hm < en));
+  $('wk_hint').textContent = opened.length
+    ? '이 자리가 빈 자리로 열립니다 · ' + opened.map(h12).join(' · ')
+    : '열리는 교시가 없습니다. 퇴근시각을 뒤로 옮겨 주세요.';
+}
+if ($('wk_date'))  $('wk_date').onchange  = () => drawWkTimes();
+if ($('wk_start')) $('wk_start').onchange = () => wkHint();
+if ($('wk_end'))   $('wk_end').onchange   = () => wkHint();
+
+$('wkSave').onclick = async () => {
+  const d = $('wk_date').value;
+  if (!d) { offmsg('날짜를 고르세요.', false); return; }
+  const th = Number($('wk_th').value);
+  if (!th) { offmsg('치료사를 고르세요.', false); return; }
+  const st = $('wk_start').value;
+  if (!st) { offmsg('출근시각을 고르세요.', false); return; }
+  const en = $('wk_end').value;
+  if (en && en <= st) { offmsg('퇴근시각은 출근시각보다 뒤여야 합니다.', false); return; }
+
+  $('wkSave').disabled = true; $('wkSave').textContent = '넣는 중...';
+  try {
+    const { error } = await sb.from('nl_offdays').insert({
+      off_date: d, kind: '추가근무', therapist_id: th,
+      start_time: st + ':00', end_time: en ? en + ':00' : null,
+      reason: $('wk_reason').value.trim() || null
+    });
+    if (error) throw error;
+    offmsg('✅ 넣었습니다. 그 시간이 보강 잡을 수 있는 빈 자리로 열립니다.', true);
+    $('wk_reason').value = '';
+    await loadMonth(); drawOffList(); draw();
+  } catch (e) {
+    const m = String(e.message || '');
+    offmsg(m.includes('duplicate')
+      ? '❌ 그 날 그 치료사의 나오는 날이 이미 들어 있습니다. 아래 목록에서 지우고 다시 넣어 주세요.'
+      : '❌ 넣지 못했습니다.\n' + m, false);
+  } finally {
+    $('wkSave').disabled = false; $('wkSave').textContent = '나오는 날 넣기';
+  }
+};
+
 async function drawOffList(){
   const { data } = await sb.from('nl_offdays')
-    .select('id, off_date, kind, therapist_id, reason, start_time, child_id')
+    .select('id, off_date, kind, therapist_id, reason, start_time, end_time, child_id')
     .gte('off_date', mon + '-01').lte('off_date', monEnd(mon))
     .order('off_date');
-  if (!data || !data.length) {
-    $('offList').innerHTML = '<div class="offnone">이 달에 넣은 휴무가 없습니다.</div>';
+  const KINDOF = { off:['공휴일','센터휴무','치료사휴무'], blk:['시간막음'],
+                   cns:['상담'], wk:['추가근무'] };
+  const NAMEOF = { off:'이 달 휴무', blk:'이 달 시간 막음',
+                   cns:'이 달 평가 상담', wk:'이 달 나오는 날' };
+  const want = KINDOF[OFFTAB] || KINDOF.off;
+  const rows = (data || []).filter(o => want.includes(o.kind));
+  const tt = document.querySelector('#offBox .offlist-t');
+  if (tt) tt.textContent = NAMEOF[OFFTAB] || '이 달 휴무';
+  if (!rows.length) {
+    $('offList').innerHTML = '<div class="offnone">이 달에 넣은 것이 없습니다.</div>';
     return;
   }
-  $('offList').innerHTML = data.map(o => {
+  $('offList').innerHTML = rows.map(o => {
     const th = o.therapist_id ? THS.find(t => t.id === o.therapist_id) : null;
     return '<span class="offone">' + dayNo(o.off_date) + '일(' + wdOf(o.off_date) + ') '
       + esc(o.kind === '상담' ? '평가 상담' : o.kind) + (th ? ' · ' + esc(th.name) : '')
       + (o.child_id ? ' · ' + o.child_id + '번 ' + esc(KIDNM[o.child_id] || '') : '')
-      + (o.start_time ? ' · ' + h12(String(o.start_time).slice(0,5)) : '')
+      + (o.start_time ? ' · ' + h12(String(o.start_time).slice(0,5))
+          + (o.kind === '추가근무'
+              ? ' ~ ' + (o.end_time ? h12(String(o.end_time).slice(0,5)) : '끝까지') : '') : '')
       + (o.reason ? ' · ' + esc(o.reason) : '')
       + '<span class="del" data-off="' + o.id + '">✕</span></span>';
   }).join('');
