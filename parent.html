@@ -600,7 +600,7 @@ function planPopup(kid, mk, plan) {
     let ses = [];
     try {
       const { data: s } = await sb.from('nl_sessions')
-        .select('support_type_id, therapy_id, therapist_id, plan_date, start_time, status')
+        .select('support_type_id, therapy_id, therapist_id, plan_date, start_time, status, makeup_for')
         .eq('child_id', kid.id).eq('month_key', mk);
       ses = s || [];
     } catch (e) {}
@@ -623,12 +623,14 @@ function planPopup(kid, mk, plan) {
         const tn  = TYPES[TT[r.therapy_id]] || '수업';
         const thn = THRS[r.therapist_id] || '';
         const wd  = DAYS[new Date(r.plan_date + 'T00:00:00').getDay()] + '요일';
-        bag[tn + '|' + wd + '|' + hhmm(r.start_time) + '|' + thn] = true;
+        const mk2 = r.makeup_for ? '보강' : '';
+        bag[tn + '|' + wd + '|' + hhmm(r.start_time) + '|' + thn + '|' + mk2] = true;
       });
       return Object.keys(bag).map(k2 => {
         const p = k2.split('|');
         return p[0] + ' · ' + p[1] + ' ' + p[2]
-             + (p[3] ? ' · ' + p[3] + ' 선생님' : '');
+             + (p[3] ? ' · ' + p[3] + ' 선생님' : '')
+             + (p[4] ? ' (보강)' : '');
       });
     }
 
@@ -644,6 +646,8 @@ function planPopup(kid, mk, plan) {
       const ls = lines(st);
       if (ls.length) {
         body += ls.map(t => '<div class="plln">' + esc(t) + '</div>').join('');
+      } else if (st === 8) {
+        body += '<div class="plln">일정 미정 · 자리가 정해지면 알려드립니다</div>';
       }
       body += '<div class="plam">'
             + (Number(p.amount || 0) > 0 ? won(p.amount)
@@ -1250,12 +1254,12 @@ async function drawNeed() {
   box.innerHTML = ''; box.style.display = 'none';
   if (TAB !== 'sch') return;
 
-  // ① 이 달 교육비가 저장되었는가
+  // ① 이 달에 수업이 있는가 (청구가 0원이면 납부 줄이 없을 수 있다)
   let saved = 0;
   try {
-    const { data: pv } = await sb.from('nl_payments')
-      .select('child_id').eq('child_id', CURKID).eq('month_key', CURMK);
-    saved = (pv || []).length;
+    const { data: sv } = await sb.from('nl_sessions')
+      .select('id').eq('child_id', CURKID).eq('month_key', CURMK);
+    saved = (sv || []).length;
   } catch (e) {}
   if (!saved) return;
 
@@ -1857,10 +1861,17 @@ async function loadPay() {
 async function drawFixBtn() {
   let saved = 0;
   try {
-    const { data: pv } = await sb.from('nl_payments')
-      .select('child_id').eq('child_id', CURKID).eq('month_key', CURMK);
-    saved = (pv || []).length;
+    const { data: sv } = await sb.from('nl_sessions')
+      .select('id').eq('child_id', CURKID).eq('month_key', CURMK);
+    saved = (sv || []).length;
   } catch (e) {}
+  if (!saved) {
+    try {
+      const { data: pv } = await sb.from('nl_payments')
+        .select('child_id').eq('child_id', CURKID).eq('month_key', CURMK);
+      saved = (pv || []).length;
+    } catch (e) {}
+  }
   if (!saved) return;
 
   let fixed = false;
