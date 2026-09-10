@@ -6680,15 +6680,73 @@ async function autoDone(){
       .gte('plan_date', '2026-01-01')
       .select('id');
     if (error) return;
-    const n = (data || []).length;
-    // 알림은 하루에 한 번만 (같은 날 다시 열면 안 뜬다)
-    const seen = keepGet('nl_autodone_day');
-    if (n && seen !== today) {
-      keepSet('nl_autodone_day', today);
-      alert('지난 수업 ' + n + '건을 「완료」로 바꿨습니다.\n\n'
-        + '(' + last + ' 까지의 예정 회기)\n'
-        + '결석이었던 것이 있으면 시간표에서 고쳐 주세요.');
+
+    // 바꾼 줄을 담아 둔다 (2026-09-10)
+    //   먼저 연 컴퓨터가 다 바꿔 놓으면 다음 컴퓨터는 알림을 못 본다.
+    //   그래서 무엇을 바꿨는지 표에 남겨, 컴퓨터마다 한 번씩 보여 준다
+    if ((data || []).length) {
+      try {
+        await sb.from('nl_autodone').insert(
+          data.map(function(v){ return { session_id: v.id, done_date: today }; }));
+      } catch (e) {}
+      try {
+        const old = new Date(now); old.setDate(now.getDate() - 10);
+        await sb.from('nl_autodone').delete()
+          .lt('done_date', old.getFullYear() + '-'
+            + String(old.getMonth()+1).padStart(2,'0') + '-'
+            + String(old.getDate()).padStart(2,'0'));
+      } catch (e) {}
     }
+
+    // 알림은 이 컴퓨터에서 하루에 한 번만
+    const seen = keepGet('nl_autodone_day');
+    if (seen === today) return;
+
+    // 오늘 바뀐 줄을 표에서 읽는다 (다른 컴퓨터가 바꾼 것까지 함께 보인다)
+    const { data: logs } = await sb.from('nl_autodone')
+      .select('session_id').eq('done_date', today);
+    const ids = (logs || []).map(function(v){ return v.session_id; });
+    if (!ids.length) return;
+
+    let rows = [];
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data: ss } = await sb.from('nl_sessions')
+        .select('id, child_id, plan_date, start_time, makeup_for')
+        .in('id', ids.slice(i, i + 200));
+      rows = rows.concat(ss || []);
+    }
+    if (!rows.length) return;
+
+    // 아동 이름 — 화면이 이미 가진 이름표를 쓰고, 없으면 따로 읽는다
+    const need = Array.from(new Set(rows.map(function(s){ return s.child_id; })
+                                        .filter(function(c){ return !KIDNM[c]; })));
+    if (need.length) {
+      const { data: kk } = await sb.from('nl_children').select('id, name').in('id', need);
+      (kk || []).forEach(function(k){ KIDNM[k.id] = k.name; });
+    }
+
+    rows.sort(function(a, b){
+      return String(a.plan_date).localeCompare(String(b.plan_date))
+          || String(a.start_time).localeCompare(String(b.start_time));
+    });
+    const line = function(s){
+      const d = String(s.plan_date).slice(5).replace('-', '/');
+      return '  ' + d + ' ' + h12(s.start_time) + '  '
+           + s.child_id + '번 ' + (KIDNM[s.child_id] || '');
+    };
+    const fix = rows.filter(function(s){ return !s.makeup_for; });
+    const mkk = rows.filter(function(s){ return !!s.makeup_for; });
+
+    let msg = '지난 수업 ' + rows.length + '건을 「완료」로 바꿨습니다.\n'
+            + '(' + last + ' 까지)\n';
+    if (fix.length) msg += '\n[고정 수업 ' + fix.length + '건]\n'
+                         + fix.map(line).join('\n') + '\n';
+    if (mkk.length) msg += '\n[보강 ' + mkk.length + '건]\n'
+                         + mkk.map(line).join('\n') + '\n';
+    msg += '\n결석이었던 것이 있으면 시간표에서 고쳐 주세요.';
+
+    keepSet('nl_autodone_day', today);
+    alert(msg);
   } catch (e) {}
 }
 
