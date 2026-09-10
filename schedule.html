@@ -2847,6 +2847,25 @@ function dtWithMon(d){
   return Number(s.slice(5,7)) + '월 ' + Number(s.slice(8,10)) + '일';
 }
 
+// 그 시각 앞뒤 40분 안에 그 치료사의 다른 수업이 있으면 빈 자리가 아니다 (2026-09-10)
+//   수업은 40분 단위이므로 2:00과 2:20은 함께 쓸 수 없다
+//   결석·휴무·쉼은 실제로 안 하는 것이므로 막지 않는다
+function slotBusy(dd, thId, hm){
+  const t0 = toMin(hm);
+  if (t0 === null || t0 === undefined || isNaN(t0)) return false;
+  return SESS.concat(PREV).some(function(v){
+    if (String(v.plan_date) !== String(dd)) return false;
+    if (Number(v.therapist_id) !== Number(thId)) return false;
+    if (v.status === '결석' || v.status === '휴무' || v.status === '쉼') return false;
+    if (v.no_makeup) return false;
+    const t1 = toMin(String(v.start_time || '').slice(0,5));
+    if (t1 === null || t1 === undefined || isNaN(t1)) return false;
+    if (t1 === t0) return false;               // 같은 자리는 따로 그려진다
+    const len = Number(v.minutes || v.duration || 40) || 40;
+    return Math.abs(t1 - t0) < Math.max(40, len);
+  });
+}
+
 function wk5Pairs(r, byScd, wdName, viewOnly){
   const runs = byScd[r.id] || [];
   const has = {};
@@ -3691,6 +3710,8 @@ function drawDay(){
                 // 공휴일·센터휴무·치료사 휴가인 날은 자리가 빈 것이 아니다 (2026-09-09)
                 //   선생님이 안 나오시므로 다른 아동 보강도 못 잡는다
                 .filter(function(dd){ return !isOffFor(dd, t.id); })
+                // 수업은 40분짜리다. 앞뒤 40분 안에 다른 수업이 있으면 빈 자리가 아니다 (2026-09-10)
+                .filter(function(dd){ return !slotBusy(dd, t.id, slotHm(s, t.id, wd)); })
                 .map(function(dd){
                 const blk = isBlocked(dd, t.id, slotHm(s, t.id, wd));
                 const cns = consAt(dd, t.id, slotHm(s, t.id, wd));
@@ -3750,6 +3771,7 @@ function drawDay(){
             (byScd[r.id] || []).forEach(x => has[String(x.plan_date)] = true);
             wdDates(mon, wd).forEach(function(dd){
               if (has[dd]) return;
+              if (slotBusy(dd, t.id, slotHm(s, t.id, wd))) return;
               const used = lines.some(function(L2){
                 return (L2.kind === 'mk' || L2.kind === 'mn') && L2.d === dd; });
               if (used) return;
@@ -3776,7 +3798,9 @@ function drawDay(){
           // (5주차, 보강만 있는 칸, 다른 요일 회기가 들어온 칸 모두 포함)
           wdDates(mon, wd).forEach(function(dd){
             const used = lines.some(function(L2){ return L2.d === dd; });
-            if (!used) lines.push({ d: dd, kind: 'open', x: { plan_date: dd } });
+            if (used) return;
+            if (slotBusy(dd, t.id, slotHm(s, t.id, wd))) return;
+            lines.push({ d: dd, kind: 'open', x: { plan_date: dd } });
           });
 
           // 쪼갠 보강(10·20·30분)은 그 날 정규 줄 안에 작게 붙인다 (2026-09-08)
