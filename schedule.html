@@ -1447,8 +1447,10 @@ function mnLabel(x){
       : (monNo(om) + '월 ' + dayNo(o.plan_date) + '일분'));
   }
   const k = x && x.month_key ? String(x.month_key) : '';
-  if (k && k !== String(mon)) return monNo(k) + '월분';
-  return '전월분';
+  // 원래 결석 줄을 못 찾았다 — 그 줄이 지워졌을 수 있다 (2026-09-10)
+  //   전에는 「전월분」이라고만 적어 지난달 것으로 오해하기 쉬웠다
+  const no2 = (x && x.run_no) ? (monNo(k || mon) + '-' + x.run_no + ' · ') : '';
+  return no2 + '원래 줄 없음';
 }
 function isMk(x){ return !!(x && x.makeup_for); }
 // 보강 날짜 — 이 달이 아니면 달을 함께 적는다 (8월 시간표에서 9월 보강이 「5일」로만 보이던 것)
@@ -1546,7 +1548,13 @@ function fillTag(x){
 }
 
 function splitTag(x){
-  const n = splitMin(x);
+  let n = splitMin(x);
+  // 보강 줄은 원래 결석 줄의 「+10」 표시를 물려받는다 (2026-09-10)
+  //   보강도 수업이므로 상담 10분이 함께 붙는다
+  if (!n && x && x.makeup_for) {
+    const o0 = findSess(x.makeup_for);
+    if (o0) n = splitMin(o0);
+  }
   if (!n) return '';
   // 실제로 수업하는 줄에만 붙인다. 보강도 수업이므로 붙이고,
   // 공휴일·휴무·결석·쉼처럼 안 한 날에만 뺀다
