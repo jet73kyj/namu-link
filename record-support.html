@@ -15,7 +15,7 @@
   .btn-print { background:#1565c0; color:white; }
   .sheet { background:white; padding:26px 32px; border:1px solid #ddd;
            box-shadow:0 1px 4px rgba(0,0,0,0.05); margin-bottom:22px; }
-  .sheetlogo { text-align:center; margin-top:18px; }
+  .sheetlogo { text-align:center; margin-top:12px; }
   .sheetlogo img { height:40px; }
   .sheet h2.title { text-align:center; font-size:16px; margin:0 0 14px; letter-spacing:2px; }
   .rec-tbl { border-collapse:collapse; width:100%; font-size:12px; table-layout:fixed; }
@@ -31,6 +31,10 @@
   textarea.opin { min-height:92px; }
   .sign { text-align:center; font-size:12.5px; line-height:2.4; margin-top:22px; }
   .sign .line { margin-top:6px; }
+  /* 두 서명을 한 줄에 담는다 (2026-09-10) */
+  .sign .signrow { display:flex; justify-content:center; align-items:center;
+                   gap:38px; flex-wrap:wrap; }
+  .sign .signone { white-space:nowrap; }
   /* 직인 — 「(인)」 글자 위에 겹쳐 찍는다 */
   .ins { position:relative; display:inline-block; }
   .ins img { position:absolute; left:50%; top:50%;
@@ -72,6 +76,10 @@
     .rec-tbl tr { page-break-inside:avoid; page-break-after:auto; }
     .rec-tbl thead { display:table-header-group; }
     .sheet { overflow:visible !important; }
+    .sign { margin-top:14px; line-height:2.1; }
+    .sign .signrow { gap:30px; }
+    .sheetlogo { margin-top:8px; page-break-inside:avoid; }
+    .sheetlogo img { height:32px; }
   }
 </style>
 </head>
@@ -192,8 +200,10 @@
     <div class="sign">
       상기 내용이 이상 없음을 확인합니다.
       <div class="line" id="signDate">20&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;일</div>
-      <div class="line">담당치료사 <span id="signThr" style="display:inline-block;min-width:110px;border-bottom:1px solid #999;">&nbsp;</span> (인)</div>
-      <div class="line">치료지원담당(기관장) <span style="display:inline-block;min-width:110px;border-bottom:1px solid #999;">자라는나무</span> <span class="ins">(인)<img id="stampImg" alt=""></span></div>
+      <div class="line signrow">
+        <span class="signone">담당치료사 <span id="signThr" style="display:inline-block;min-width:110px;border-bottom:1px solid #999;">&nbsp;</span> (인)</span>
+        <span class="signone">치료지원담당(기관장) <span style="display:inline-block;min-width:110px;border-bottom:1px solid #999;">자라는나무</span> <span class="ins">(인)<img id="stampImg" alt=""></span></span>
+      </div>
     </div>
     <div class="sheetlogo"><img src="img/nl-logo.png" alt="자라는나무"></div>
   </div>
