@@ -2513,7 +2513,10 @@ function drawWeek(){
   // 그 주 그 요일 칸에 담는다
   const cell = {};
   SESS.forEach(s => {
-    if (s.no_makeup) return;          // 「보강 없음」으로 뺀 날은 빈 자리로 둔다 (2026-09-09)
+    // 「보강 없음」으로 제외한 날은 빈 자리로 둔다 (2026-09-09)
+    //   다만 휴무(공휴일·치료사 휴가)는 그대로 그린다.
+    //   선생님이 안 나오시는 날이라 빈 자리가 아니기 때문 (2026-09-10)
+    if (s.no_makeup && s.status !== '휴무') return;
     if (!s.plan_date || !dset.has(s.plan_date)) return;
     if (!thIds.has(Number(s.therapist_id))) return;
     const k = slotNoOf(s) + '_' + wdOf(s.plan_date)
@@ -3063,7 +3066,10 @@ function drawOne(){
   // 그날 회기를 교시·치료사 칸에 담는다
   const cell = {};
   SESS.forEach(s => {
-    if (s.no_makeup) return;          // 「보강 없음」으로 뺀 날은 빈 자리로 둔다 (2026-09-09)
+    // 「보강 없음」으로 제외한 날은 빈 자리로 둔다 (2026-09-09)
+    //   다만 휴무(공휴일·치료사 휴가)는 그대로 그린다.
+    //   선생님이 안 나오시는 날이라 빈 자리가 아니기 때문 (2026-09-10)
+    if (s.no_makeup && s.status !== '휴무') return;
     if (s.plan_date !== oneDate) return;
     if (!thIds.has(Number(s.therapist_id))) return;
     const k = slotNoOf(s) + '_' + s.therapist_id;
@@ -3583,7 +3589,10 @@ function drawDay(){
   // 이 요일 칸에 그릴 회기만 (회기의 실제 날짜가 이 요일인 것)
   const byScd = {};
   SESS.forEach(s => {
-    if (s.no_makeup) return;          // 「보강 없음」으로 뺀 날은 빈 자리로 둔다 (2026-09-09)
+    // 「보강 없음」으로 제외한 날은 빈 자리로 둔다 (2026-09-09)
+    //   다만 휴무(공휴일·치료사 휴가)는 그대로 그린다.
+    //   선생님이 안 나오시는 날이라 빈 자리가 아니기 때문 (2026-09-10)
+    if (s.no_makeup && s.status !== '휴무') return;
     if (isMk(s)) return;
     if (!s.schedule_id || !s.plan_date) return;
     if (wdOf(s.plan_date) !== wd) return;
