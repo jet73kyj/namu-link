@@ -36,7 +36,8 @@
   }
   textarea { resize:vertical; min-height:60px; }
   @media print {
-    @page { size: A4 portrait; margin: 4mm 6mm; }
+    /* 위쪽 여백을 늘리고 종이를 가득 채운다 (2026-09-10) */
+    @page { size: A4 portrait; margin: 12mm 8mm 8mm; }
     html, body { height:100%; }
     header, nav, .form-actions, .page-title, .no-print { display:none !important; }
     body { background:white; margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -44,14 +45,15 @@
     .sheet {
       border:none; box-shadow:none; padding:0; margin:0;
       page-break-after:always; page-break-inside:avoid;
-      display:flex; flex-direction:column; height:100vh; box-sizing:border-box;
+      display:flex; flex-direction:column; box-sizing:border-box;
+      height:277mm;   /* A4 297mm − 위 12 − 아래 8 */
     }
     .sheet:last-child { page-break-after:auto; }
     .sheet h2.title { font-size:13px; margin:0 0 4px; flex-shrink:0; }
     .sheet, .info-tbl, .status-tbl { font-size:10px !important; }
     .info-tbl { flex-shrink:0; }
     .info-tbl td { padding:3px 5px; }
-    .cal-tbl { flex:1; font-size:10px; }
+    .cal-tbl { flex:1; font-size:10px; }   /* 달력을 줄이고 아래를 넓힌다 */
     .cal-tbl th { height:14px; padding:2px; font-size:10px; }
     .cal-tbl td { height:auto; padding:3px 5px; font-size:10px; vertical-align:top; }
     .cal-tbl td .evt { font-size:9px; }
@@ -59,7 +61,7 @@
     .info-tbl input, .info-tbl textarea, .cal-tbl input, .status-tbl input, .status-tbl textarea {
       border:none; padding:1px 3px; font-size:10px; background:transparent;
     }
-    .status-tbl { flex:1; }
+    .status-tbl { flex:2; }   /* 달력보다 두 배 넓게 */
     .status-tbl th, .status-tbl td { padding:4px; font-size:10px; vertical-align:top; }
   }
 
