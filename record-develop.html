@@ -36,40 +36,58 @@
   }
   textarea { resize:vertical; min-height:60px; }
   @media print {
-    /* 위쪽 여백을 늘리고 종이를 가득 채운다 (2026-09-10) */
+    /* 인쇄 차림 — 늘리지 않는 방식 (2026-09-10)
+       표마다 제 크기를 정하고, 남는 자리는 아래 여백으로 둔다.
+       억지로 늘리면 빈 칸이 커 보이고, 넘치면 로고가 밀려 나간다 */
     @page { size: A4 portrait; margin: 12mm 14mm 10mm; }
-    html, body { height:100%; }
     header, nav, .form-actions, .page-title, .no-print { display:none !important; }
-    body { background:white; margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    .container { max-width:none; margin:0; padding:0; height:100%; }
+    body { background:white; margin:0; padding:0;
+           -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .container { max-width:none; margin:0; padding:0; }
     .sheet {
       border:none; box-shadow:none; padding:0; margin:0;
       page-break-after:always; page-break-inside:avoid;
-      display:flex; flex-direction:column; box-sizing:border-box;
-      height:275mm;   /* A4 297mm − 위 12 − 아래 10 */
     }
     .sheet:last-child { page-break-after:auto; }
-    .sheet h2.title { font-size:13px; margin:0 0 6mm; flex-shrink:0; }
+
+    /* 제목 — 아래를 6mm 띄운다 */
+    .sheet h2.title { font-size:13.5px; margin:0 0 6mm; }
+
+    /* 글자 크기 */
     .sheet, .info-tbl, .status-tbl { font-size:10px !important; }
-    .info-tbl { flex-shrink:0; }
-    .info-tbl td { padding:3px 5px; }
-    /* 달력 높이를 종이 단위로 못 박는다 (2026-09-10)
-       전에는 flex:1 이라 남는 자리를 달력이 다 차지했다 */
-    .cal-tbl { flex:0 0 auto; height:72mm; font-size:9.5px; margin:0 0 3mm; }
-    .cal-tbl td { line-height:1.25; }
-    /* 「내용/월일」 표도 종이 단위로 못 박는다 (2026-09-10) */
-    #sheet1 > table.info-tbl:last-of-type { flex:0 0 auto; height:95mm; }
-    /* 표 사이를 조금씩 띄운다 */
-    .sec-title { margin-top:3mm; }
-    .cal-tbl th { height:14px; padding:2px; font-size:10px; }
-    .cal-tbl td { height:auto; padding:3px 5px; font-size:10px; vertical-align:top; }
-    .cal-tbl td .evt { font-size:9px; }
-    .sec-title { padding:2px 6px; font-size:10px; flex-shrink:0; }
-    .info-tbl input, .info-tbl textarea, .cal-tbl input, .status-tbl input, .status-tbl textarea {
+    .info-tbl input, .info-tbl textarea, .cal-tbl input,
+    .status-tbl input, .status-tbl textarea {
       border:none; padding:1px 3px; font-size:10px; background:transparent;
     }
-    .status-tbl { flex:1 1 auto; }   /* 둘째 장을 가득 채운다 */
-    .status-tbl th, .status-tbl td { padding:4px; font-size:10px; vertical-align:top; }
+
+    /* 위 표 둘 — 한 줄 7mm */
+    .info-tbl { margin-bottom:3mm; }
+    .info-tbl td { padding:0 5px; height:7mm; }
+
+    /* 달력 — 한 칸 10mm, 여섯 줄이면 약 64mm */
+    .cal-tbl { margin:0 0 3mm; font-size:9.5px; }
+    .cal-tbl th { height:6mm; padding:0 2px; font-size:9.5px; }
+    .cal-tbl td { height:10mm; padding:1px 4px; font-size:9.5px;
+                  vertical-align:top; line-height:1.25; }
+    .cal-tbl td .evt { font-size:8.5px; }
+
+    /* 묶음 제목 — 위를 3mm 띄운다 */
+    .sec-title { padding:1.5mm 6px; font-size:10px; margin-top:3mm; }
+
+    /* 내용/월일 — 한 줄 8mm (손으로 적기 좋은 크기) */
+    #sheet1 > table.info-tbl:last-of-type td { height:8mm; }
+
+    /* 로고 — 표 아래 8mm */
+    .sheetlogo { margin-top:8mm; }
+    .sheetlogo img { height:30px; }
+
+    /* 둘째 장 — 회기 수만큼 늘어나므로 종이를 채운다 */
+    #sheet2 { display:flex; flex-direction:column; height:275mm;
+              box-sizing:border-box; }
+    #sheet2 .status-tbl { flex:1 1 auto; }
+    .status-tbl th, .status-tbl td { padding:4px; font-size:10px;
+                                     vertical-align:top; }
+    #sheet2 .sheetlogo { flex-shrink:0; }
   }
 
   .loginbox { max-width:400px; margin:56px auto; background:#fff; border-radius:12px;
