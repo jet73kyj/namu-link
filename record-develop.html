@@ -39,7 +39,8 @@
     /* 인쇄 차림 — 늘리지 않는 방식 (2026-09-10)
        표마다 제 크기를 정하고, 남는 자리는 아래 여백으로 둔다.
        억지로 늘리면 빈 칸이 커 보이고, 넘치면 로고가 밀려 나간다 */
-    @page { size: A4 portrait; margin: 12mm 14mm 10mm; }
+    /* 철을 해야 하므로 위쪽 여백을 넓게 둔다 (2026-09-10) */
+    @page { size: A4 portrait; margin: 22mm 14mm 10mm; }
     header, nav, .form-actions, .page-title, .no-print { display:none !important; }
     body { background:white; margin:0; padding:0;
            -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -79,10 +80,10 @@
 
     /* 로고 — 표 아래 8mm */
     .sheetlogo { margin-top:8mm; }
-    .sheetlogo img { height:30px; }
+    .sheetlogo img { height:90px; }
 
     /* 둘째 장 — 회기 수만큼 늘어나므로 종이를 채운다 */
-    #sheet2 { display:flex; flex-direction:column; height:275mm;
+    #sheet2 { display:flex; flex-direction:column; height:265mm;
               box-sizing:border-box; }
     #sheet2 .status-tbl { flex:1 1 auto; }
     .status-tbl th, .status-tbl td { padding:4px; font-size:10px;
