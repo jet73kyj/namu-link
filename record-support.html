@@ -66,6 +66,12 @@
     input, textarea { border:none; padding:1px 3px; font-size:10.5px; background:transparent; }
     textarea { min-height:38px; }
     textarea.opin { min-height:76px; }
+    /* 긴 내용이 잘리지 않게 (2026-09-10) */
+    textarea { overflow:hidden !important; height:auto; resize:none; }
+    .rec-tbl { page-break-inside:auto; }
+    .rec-tbl tr { page-break-inside:avoid; page-break-after:auto; }
+    .rec-tbl thead { display:table-header-group; }
+    .sheet { overflow:visible !important; }
   }
 </style>
 </head>
@@ -585,6 +591,35 @@ $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click
   else {
     // 로그인이 없으면 첫 화면으로 보낸다 (빈 화면이 열리는 것을 막기 위함)
     location.replace('index.html');
+  }
+})();
+</script>
+<script>
+// 인쇄할 때 글상자의 높이를 내용만큼 늘린다 (2026-09-10)
+//   그래야 긴 글이 잘리지 않고 다음 장으로 넘어간다
+(function(){
+  var saved = [];
+  function grow(){
+    saved = [];
+    var list = document.querySelectorAll('textarea');
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      saved.push([a, a.style.height]);
+      a.style.height = 'auto';
+      a.style.height = (a.scrollHeight + 4) + 'px';
+    }
+  }
+  function back(){
+    for (var i = 0; i < saved.length; i++) saved[i][0].style.height = saved[i][1];
+    saved = [];
+  }
+  window.addEventListener('beforeprint', grow);
+  window.addEventListener('afterprint', back);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('print');
+    if (mq.addEventListener) {
+      mq.addEventListener('change', function(e){ if (e.matches) grow(); else back(); });
+    }
   }
 })();
 </script>
