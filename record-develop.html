@@ -37,7 +37,7 @@
   textarea { resize:vertical; min-height:60px; }
   @media print {
     /* 위쪽 여백을 늘리고 종이를 가득 채운다 (2026-09-10) */
-    @page { size: A4 portrait; margin: 12mm 8mm 8mm; }
+    @page { size: A4 portrait; margin: 12mm 14mm 10mm; }
     html, body { height:100%; }
     header, nav, .form-actions, .page-title, .no-print { display:none !important; }
     body { background:white; margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -46,19 +46,21 @@
       border:none; box-shadow:none; padding:0; margin:0;
       page-break-after:always; page-break-inside:avoid;
       display:flex; flex-direction:column; box-sizing:border-box;
-      height:277mm;   /* A4 297mm − 위 12 − 아래 8 */
+      height:275mm;   /* A4 297mm − 위 12 − 아래 10 */
     }
     .sheet:last-child { page-break-after:auto; }
-    .sheet h2.title { font-size:13px; margin:0 0 4px; flex-shrink:0; }
+    .sheet h2.title { font-size:13px; margin:0 0 6mm; flex-shrink:0; }
     .sheet, .info-tbl, .status-tbl { font-size:10px !important; }
     .info-tbl { flex-shrink:0; }
     .info-tbl td { padding:3px 5px; }
     /* 달력 높이를 종이 단위로 못 박는다 (2026-09-10)
        전에는 flex:1 이라 남는 자리를 달력이 다 차지했다 */
-    .cal-tbl { flex:0 0 auto; height:62mm; font-size:9.5px; margin:4px 0; }
+    .cal-tbl { flex:0 0 auto; height:72mm; font-size:9.5px; margin:0 0 3mm; }
     .cal-tbl td { line-height:1.25; }
-    /* 남는 자리는 맨 아래 「내용/월일」 표가 차지한다 */
-    #sheet1 > table.info-tbl:last-of-type { flex:1 1 auto; }
+    /* 「내용/월일」 표도 종이 단위로 못 박는다 (2026-09-10) */
+    #sheet1 > table.info-tbl:last-of-type { flex:0 0 auto; height:95mm; }
+    /* 표 사이를 조금씩 띄운다 */
+    .sec-title { margin-top:3mm; }
     .cal-tbl th { height:14px; padding:2px; font-size:10px; }
     .cal-tbl td { height:auto; padding:3px 5px; font-size:10px; vertical-align:top; }
     .cal-tbl td .evt { font-size:9px; }
@@ -66,7 +68,7 @@
     .info-tbl input, .info-tbl textarea, .cal-tbl input, .status-tbl input, .status-tbl textarea {
       border:none; padding:1px 3px; font-size:10px; background:transparent;
     }
-    .status-tbl { flex:2; }   /* 달력보다 두 배 넓게 */
+    .status-tbl { flex:1 1 auto; }   /* 둘째 장을 가득 채운다 */
     .status-tbl th, .status-tbl td { padding:4px; font-size:10px; vertical-align:top; }
   }
 
