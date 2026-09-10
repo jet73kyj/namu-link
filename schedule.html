@@ -1117,15 +1117,26 @@
       #edBox .edend-row input { width:auto; }
       #edBox .edend-note { font-size:11.5px; color:#9c5a5a; margin-top:7px; line-height:1.6; }
       #edBox .pbtn.locked { background:#c3c8c0 !important; cursor:not-allowed; }
+      /* 지금 모습 — 글로만 (2026-09-10) */
+      #edBox .ednow { background:#f2f6f0; border:1px solid #cfdcc9; border-radius:8px;
+                      padding:11px 14px; margin:2px 0 12px; font-size:13.5px;
+                      line-height:1.75; color:#2f4a2a; }
+      #edBox .ednow b { font-size:14.5px; }
+      #edBox .ednow .nowline2 { color:#4b6046; }
+      #edBox .edsec-t { font-weight:800; font-size:13.5px; color:#33691e;
+                        border-top:1px solid #dfe6db; padding-top:11px; margin-bottom:8px; }
     </style>
     <div class="panel-t" id="edTitle"></div>
+    <!-- 지금 모습 — 글로만 보여 준다 (2026-09-10) -->
+    <div class="ednow" id="edNow"></div>
+    <div class="edsec-t">변경</div>
     <div class="pgrid">
       <div>
-        <label for="ed_wd">요일</label>
-        <select id="ed_wd"></select>
+        <label for="ed_apply">변경 시작일 <span style="color:#9aa294;">(비우면 이 달 처음부터)</span></label>
+        <input id="ed_apply" type="date">
       </div>
       <div>
-        <label for="ed_slot">시간</label>
+        <label for="ed_slot">변경 시간</label>
         <select id="ed_slot"></select>
       </div>
       <div>
@@ -1133,16 +1144,20 @@
         <input id="ed_hm" type="text" placeholder="예: 14:00" autocomplete="off">
       </div>
       <div>
-        <label for="ed_th">치료사</label>
-        <select id="ed_th"></select>
+        <label for="ed_wd">요일</label>
+        <select id="ed_wd"></select>
       </div>
       <div>
-        <label for="ed_dur">수업 시간</label>
+        <label for="ed_dur">수업 소요시간</label>
         <select id="ed_dur">
           <option value="40">40분</option>
           <option value="50">50분</option>
           <option value="60">60분</option>
         </select>
+      </div>
+      <div>
+        <label for="ed_th">치료사</label>
+        <select id="ed_th"></select>
       </div>
       <div id="ed_splitbox" style="grid-column:1 / -1;background:#fff8e1;border:1px solid #f0c36d;
            border-radius:6px;padding:9px 11px;">
@@ -1162,17 +1177,14 @@
           (시간표에는 안 보이는 줄이 하나 만들어집니다).
         </div>
       </div>
+      <input id="ed_start" type="hidden">
       <div>
-        <label for="ed_start">시작 날짜 <span style="color:#9aa294;">(비우면 달 처음부터)</span></label>
-        <input id="ed_start" type="date">
+        <label for="ed_st2">지원유형</label>
+        <select id="ed_st2"></select>
       </div>
       <div>
         <label for="ed_tt">치료 종류</label>
         <select id="ed_tt"></select>
-      </div>
-      <div>
-        <label for="ed_st2">지원유형</label>
-        <select id="ed_st2"></select>
       </div>
       <div>
         <label for="ed_cnt">회기 방식</label>
@@ -1203,7 +1215,7 @@
     <div class="edend">
       <div class="edend-t">수업 끝내기</div>
       <div class="edend-row">
-        <label for="ed_end">마지막 수업 날짜</label>
+        <label for="ed_end">수업 종결일</label>
         <input id="ed_end" type="date">
         <button id="edEnd" class="pbtn red">이 수업 종결</button>
       </div>
@@ -1402,6 +1414,10 @@ const TTYPE = {1:'언어',2:'작업',3:'전산',4:'감통',5:'음악',6:'일상'
 //   (TTYPE 은 시간표 칸이 좁아 짧게 쓰는 것이라 따로 둔다)
 let TTNAME = {};
 const STYPE = {1:'센',2:'발',3:'치언',4:'치작',5:'방',6:'방치언',7:'방치작',8:'이',9:'평가'};
+// 수정 창의 「지금 모습」에 쓰는 긴 이름 (2026-09-10)
+const SFULL = {1:'센터비용', 2:'발달재활서비스', 3:'치료지원(언어)', 4:'치료지원(작업)',
+               5:'방과후활동비', 6:'방과후치료지원(언어)', 7:'방과후치료지원(작업)',
+               8:'발달추가비용', 9:'평가비'};
 const NEXT  = { '예정':'완료', '완료':'결석', '결석':'예정' };
 // 보강인지 — 상태가 아니라 '메울 결석(makeup_for)이 있는가' 로 본다
 // (완료로 바꿔도 보강으로 계속 알아본다)
@@ -4229,8 +4245,32 @@ function openEd(scId){
   edRow = r;
   edWk = [r._w1 !== false, r._w2 !== false, r._w3 !== false, r._w4 !== false];
   drawEdWks();
-  $('edTitle').textContent = (STYPE[r.support_type_id]||'') + ' ' + (r._name||'')
-    + ' — 요일·시간·치료사 바꾸기';
+  $('edTitle').textContent = '[' + (r._cid || '') + '] ' + (r._name || '')
+    + ' — 수업 고치기';
+  // 지금 모습을 글로 보여 준다 (고칠 수 없는 칸)
+  (function(){
+    const _th  = THS_ALL.find(t => t.id === r.therapist_id);
+    const _hm  = String(r.start_time || '').slice(0,5);
+    const _du  = Number(r.duration || 40);
+    const _end = (function(){
+      const mm = toMin(_hm); if (!mm && mm !== 0) return '';
+      const e = mm + _du;
+      return String(Math.floor(e/60)).padStart(2,'0') + ':'
+           + String(e%60).padStart(2,'0');
+    })();
+    const _wkTxt = (r._mode === '주차선택')
+      ? [1,2,3,4].filter(function(n){ return r['_w'+n] !== false; })
+                 .map(function(n){ return n + '주'; }).join(', ')
+      : (r._mode || '');
+    $('edNow').innerHTML =
+      '<div><b>' + (SFULL[r.support_type_id] || STYPE[r.support_type_id] || '')
+        + '</b> · ' + (TTYPE[r._tt] || '') + ' · ' + _du + '분 · '
+        + (_th ? esc(_th.name) : '') + ' 선생님</div>'
+      + '<div class="nowline2">' + r.weekday + '요일 ' + h12(_hm)
+        + (_end ? ' ~ ' + h12(_end) : '')
+        + (_wkTxt ? ' · ' + esc(_wkTxt) : '') + '</div>';
+  })();
+  $('ed_apply').value = '';
   $('ed_wd').value   = r.weekday;
   $('ed_slot').value = String(nearest(toMin(r.start_time)).no);
   // 교시 시각과 다르면 「직접 시각」에 그대로 보여 준다 (2026-09-09)
@@ -4502,12 +4542,21 @@ $('edSave').onclick = async () => {
             + String(Math.min(59, Number(mm0[2] || 0))).padStart(2,'0');
   }
   const newHm = typedHm || slotHm(slot, th, nw);
+  // 변경 시작일 — 비우면 이 달 1일부터 (2026-09-10)
+  const applyD = String($('ed_apply').value || '').trim();
+  if (applyD && String(applyD).slice(0,7) !== String(mon)) {
+    alert('변경 시작일은 지금 보고 있는 ' + monNo(mon) + '월 안의 날짜로 적어 주세요.');
+    return;
+  }
   if (oldWd !== nw || oldHm !== newHm) {
     if (!confirm('요일·시간이 바뀝니다.\n\n'
       + '· ' + oldWd + '요일 ' + h12(oldHm) + '  →  ' + nw + '요일 ' + h12(newHm) + '\n\n'
-      + monNo(mon) + '월부터 바뀌고, 지난 달 시간표는 그대로 남습니다.\n계속할까요?')) return;
+      + (applyD
+          ? applyD + ' 부터 바뀝니다.\n그 날 앞의 회기는 그대로 남습니다.'
+          : monNo(mon) + '월 1일부터 바뀌고, 지난 달 시간표는 그대로 남습니다.')
+      + '\n계속할까요?')) return;
     const scId0 = edRow.id;
-    await changeFromThisMonth(nw, slot, th, du, newHm);
+    await changeFromThisMonth(nw, slot, th, du, newHm, applyD);
     await applySplit(scId0, wantSp);
     draw();
     return;
@@ -4578,26 +4627,44 @@ $('edSave').onclick = async () => {
 // ===== 이번 달부터 바꾸기 =====
 // 옛 줄은 지난 달까지로 끝내고, 새 요일 줄을 따로 만든다.
 // 그래야 지난 달 시간표가 흔들리지 않는다.
-async function changeFromThisMonth(nw, slot, th, du, hm){
+async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
   if (!edRow) return;
 
   const y = Number(mon.slice(0,4)), m = Number(mon.slice(5,7));
   const pd = new Date(y, m - 2, 1);
   const prev = pd.getFullYear() + '-' + String(pd.getMonth()+1).padStart(2,'0');
 
+  // 변경 시작일이 있으면 날짜로 끊는다 (2026-09-10)
+  //   옛 줄  — 끝날 = 그 날 하루 전 · 끝난달 = 이 달 (다음 달부터 안 나옴)
+  //   새 줄  — 시작날 = 그 날
+  //   비어 있으면 예전처럼 달 단위로 끊는다
+  const _d = String(applyD || '').trim();
+  let oldUpd, newFrom = null;
+  if (_d) {
+    const dd = new Date(_d + 'T00:00:00');
+    dd.setDate(dd.getDate() - 1);
+    const before = dd.getFullYear() + '-'
+      + String(dd.getMonth()+1).padStart(2,'0') + '-'
+      + String(dd.getDate()).padStart(2,'0');
+    oldUpd  = { to_month: mon, to_date: before };
+    newFrom = _d;
+  } else {
+    oldUpd = { to_month: prev };
+  }
+
   $('edSave').disabled = true; $('edSave').textContent = '바꾸는 중...';
   $('edFrom').disabled = true;
   try {
-    // ① 옛 줄을 지난 달까지로 끝낸다
+    // ① 옛 줄을 여기까지로 끝낸다
     const { error: e1 } = await sb.from('nl_therapy_schedules')
-      .update({ to_month: prev }).eq('id', edRow.id);
+      .update(oldUpd).eq('id', edRow.id);
     if (e1) throw e1;
 
-    // ② 새 요일 줄을 이번 달부터로 만든다
+    // ② 새 요일 줄을 만든다
     const { data: ns, error: e2 } = await sb.from('nl_therapy_schedules')
       .insert({ therapy_id: edRow.therapy_id, weekday: nw,
                 start_time: (hm || slotHm(slot, th, nw)) + ':00', therapist_id: th,
-                duration: du, from_month: mon,
+                duration: du, from_month: mon, from_date: newFrom,
                 week1: edWk[0], week2: edWk[1],
                 week3: edWk[2], week4: edWk[3] })
       .select().single();
@@ -4620,9 +4687,17 @@ async function changeFromThisMonth(nw, slot, th, du, hm){
     //    (완료·결석·보강은 그대로 남긴다)
     //    휴무·쉼도 지워야 한다. 안 지우면 시각이나 지원유형을 고쳤을 때
     //    옛 줄이 남아 같은 날에 두 줄이 그려진다
-    await sb.from('nl_sessions').delete()
-      .eq('schedule_id', edRow.id).gte('month_key', mon)
-      .in('status', ['예정','쉼','휴무']);
+    //    변경 시작일이 있으면 그 날부터의 것만 지운다.
+    //    그 날 앞의 회기(이미 한 수업)는 옛 시각 그대로 남는다
+    if (_d) {
+      await sb.from('nl_sessions').delete()
+        .eq('schedule_id', edRow.id).gte('plan_date', _d)
+        .in('status', ['예정','쉼','휴무']);
+    } else {
+      await sb.from('nl_sessions').delete()
+        .eq('schedule_id', edRow.id).gte('month_key', mon)
+        .in('status', ['예정','쉼','휴무']);
+    }
 
     // ④-2 요일줄과 연결이 끊긴 예정 회기도 함께 지운다
     //     옛날에 요일줄을 지우던 시절의 흔적이 남아 있으면
@@ -4635,12 +4710,15 @@ async function changeFromThisMonth(nw, slot, th, du, hm){
     // ⑤ 새 요일로 이번 달 회기를 깐다
     await sb.rpc('nl_make_sessions', { p_month: mon });
 
-    edmsg('✅ ' + monNo(mon) + '월부터 ' + nw + '요일 ' + slot.t + ' 로 바꿨습니다.\n'
-      + monNo(prev) + '월까지는 지금 요일 그대로 남아 있습니다.\n'
-      + '다음 달 회기는 그 달 화면에서 다시 깔아 주세요.', true);
+    edmsg((_d
+      ? '✅ ' + _d + ' 부터 ' + nw + '요일 ' + h12(hm || slotHm(slot, th, nw))
+        + ' 로 바꿨습니다.\n그 날 앞의 회기는 옛 시각 그대로 남아 있습니다.'
+      : '✅ ' + monNo(mon) + '월부터 ' + nw + '요일 ' + slot.t + ' 로 바꿨습니다.\n'
+        + monNo(prev) + '월까지는 지금 요일 그대로 남아 있습니다.')
+      + '\n다음 달 회기는 그 달 화면에서 다시 깔아 주세요.', true);
 
     const old = ROWS_ALL.find(x => x.id === edRow.id);
-    if (old) old.to_month = prev;
+    if (old) Object.assign(old, oldUpd);
     ROWS_ALL.push(Object.assign({}, ns, {
       _cid: edRow._cid, _tt: ntt, support_type_id: nst, _name: edRow._name,
       _mode: nmode, _cnt: wkCnt + ((nmode !== '4회만') ? 1 : 0),
