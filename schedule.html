@@ -1224,6 +1224,11 @@
         <input id="ed_end" type="date">
         <button id="edEnd" class="pbtn red">이 수업 종결</button>
       </div>
+      <div class="edend-row" style="margin-top:7px;">
+        <label for="ed_endwhy">종결 사유</label>
+        <input id="ed_endwhy" type="text" placeholder="예: 타 기관 이동 · 목표 달성 · 이사"
+               autocomplete="off" style="flex:1 1 auto;min-width:220px;">
+      </div>
       <div class="edend-note">
         날짜를 적고 <b>「이 수업 종결」</b>만 누르시면 됩니다.
         <b>「저장」은 누르지 않으셔도 됩니다.</b><br>
@@ -4432,6 +4437,7 @@ function openEd(scId){
   $('ed_splitmin').value = String(_cur || 10);
   $('ed_start').value = r.from_date || '';
   $('ed_end').value   = r.to_date   || '';
+  if ($('ed_endwhy')) $('ed_endwhy').value = '';
   edLockSave();
   showSplitBox();
   drawRestBtn();
@@ -5147,9 +5153,19 @@ $('edEnd').onclick = async () => {
       + '\n남은 수업은 그대로 진행됩니다.\n'
     : '\n이 아동의 마지막 수업입니다.\n';
 
+  // 종결 사유 — 나중에 무엇 때문에 끝났는지 볼 수 있게 (2026-09-10)
+  let _why = String(($('ed_endwhy') || {}).value || '').trim();
+  if (!_why) {
+    _why = (prompt('종결 사유를 적어 주세요.\n\n'
+      + '  ' + _what + '\n\n'
+      + '(예: 타 기관 이동 · 목표 달성 · 이사 · 학부모 요청)', '') || '').trim();
+    if (!_why) { edmsg('종결 사유를 적어 주세요.', false); return; }
+  }
+
   if (!confirm('아래 수업을 정말 그만둘까요?\n\n'
     + '  ' + _what + '\n'
     + '  마지막 수업 날짜 · ' + d + '\n'
+    + '  종결 사유 · ' + _why + '\n'
     + _restTxt + '\n'
     + '이 아동의 이 수업이 맞는지 한 번 더 봐 주세요.\n'
     + '지난 기록은 그대로 남습니다.')) return;
@@ -5157,7 +5173,7 @@ $('edEnd').onclick = async () => {
   $('edEnd').disabled = true;
   try {
     const { error: e1 } = await sb.from('nl_therapies')
-      .update({ ended_on: d, end_reason: '수업 종료' }).eq('id', edRow.therapy_id);
+      .update({ ended_on: d, end_reason: _why }).eq('id', edRow.therapy_id);
     if (e1) throw e1;
     // ⚠️ 요일줄을 지우지 않는다. 지우면 그 달 납부 계산 화면에서
     //    수업이 사라져 납부 내역이 안 보인다. 끝난달만 넣어 다음 달부터 안 나오게 한다
