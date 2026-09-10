@@ -554,6 +554,7 @@
              white-space:nowrap; cursor:pointer; margin-top:1px; }
   .splitin b { color:#0d47a1; }
   .splitin b.bfhm { color:#c25e00; }
+  b.bfhm { color:#c25e00; font-size:11px; }
   /* 시간표 보기 — 줄 높이를 모두 같게 (몇 째 주인지 나란히 보이게) 2026-09-08 */
   #gbody .ln {
     min-height:48px;
@@ -1488,7 +1489,21 @@ function fillNote(id, pool){
 function minTag(x){
   const m = Number(x && x.minutes);
   if (!m || m === 40) return '';
-  return '<b class="mintag">+' + m + '</b>';
+  return bfTag(x) + '<b class="mintag">+' + m + '</b>';
+}
+// 수업 앞에 붙은 조각이면 실제 시작 시각을 주황으로 적는다 (2026-09-09)
+function bfTag(x){
+  const m = Number(x && x.minutes);
+  if (!m || m === 40 || !x.start_time) return '';
+  const own = SESS.concat(PREV).filter(v =>
+        String(v.plan_date) === String(x.plan_date)
+     && Number(v.child_id) === Number(x.child_id)
+     && Number(v.minutes || 40) === 40
+     && v.start_time);
+  const after = own.some(v => String(v.start_time) > String(x.start_time));
+  const before = own.some(v => String(v.start_time) < String(x.start_time));
+  if (!after || before) return '';
+  return '<b class="bfhm">' + h12(String(x.start_time).slice(0,5)) + ' 시작</b> ';
 }
 // 결석 줄 아래에 붙는 「+10 +10 +10 +10  완료」 (2026-09-08)
 function fillTag(x){
@@ -2190,7 +2205,7 @@ function drawFind(){
 
     return '<div class="findrow">'
       + '<div class="fr-top">'
-        + '<span class="fr-nm">' + esc(r._name) + '</span>'
+        + '<span class="fr-nm">' + (r._cid ? '[' + r._cid + '] ' : '') + esc(r._name) + '</span>'
         + '<span class="fr-when">' + r.weekday + ' ' + h12(sl.hm) + '</span>'
         + '<span class="fr-th">' + (STYPE[r.support_type_id]||'') + ' · '
           + (TTYPE[r._tt]||'') + ' · ' + (th ? esc(th.name) : '') + ' · '
