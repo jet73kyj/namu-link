@@ -481,6 +481,9 @@
         <button type="button" id="dvAdd" class="tab"
                 style="background:#fff8e1;border-color:#f0c36d;color:#8a6116;
                        font-weight:600;padding:5px 12px;">＋ 평가 줄 추가</button>
+        <button type="button" id="dvOther" class="tab"
+                style="background:#e3f0fb;border:1px solid #85b7eb;color:#0c447c;
+                       font-weight:600;padding:5px 12px;">📎 타기관 평가보고서 <span id="dvOtherN"></span></button>
         <span style="font-weight:normal;color:#888;font-size:12.5px;">
           — 고치면 아래 「저장」을 누르세요</span>
       </label>
@@ -548,6 +551,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
+<script src="nl-evaldocs.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
@@ -790,6 +794,7 @@ async function openDetail(id) {
   EVALS.filter(e => e.child_id === r.child_id)
     .sort((a, b) => String(a.eval_date).localeCompare(String(b.eval_date)))
     .forEach(e => dvAddRow(e));
+  refreshDocs(r.child_id);
 
   $('l_date').value = today();
   $('l_content').value = '';
@@ -1059,8 +1064,8 @@ function dvAddRow(e) {
     +   '<input class="dv_card" type="text" style="width:140px;" value="'
     +   esc(e && e.card_no || '') + '"></div>'
     + stSeg('dv', e && e.status)
-    + '<button type="button" class="tab dv_del" style="padding:6px 12px;">'
-    +   (e ? '이 평가 지우기' : '줄 지우기') + '</button>'
+    + '<button type="button" class="tab dv_rep" style="padding:6px 12px;background:#e3f0fb;'
+    +   'border:1px solid #85b7eb;color:#0c447c;">📎 평가보고서 <span class="dv_repn"></span></button>'
     + '</div></div>';
   $('dvRows').insertAdjacentHTML('beforeend', html);
   const box = $('dvRows').lastElementChild;
@@ -1073,18 +1078,50 @@ function dvAddRow(e) {
   box.querySelector('.dv_type').oninput  = upd;
   box.querySelector('.dv_cnt').oninput   = upd;
   wireSt(box, 'dv', true);   // 저장된 평가는 누르면 바로 저장
-  box.querySelector('.dv_del').onclick = async () => {
+  // 평가보고서 — 저장된 평가에만 붙일 수 있다 (평가 번호가 있어야 하므로)
+  box.querySelector('.dv_rep').onclick = () => {
     const eid = box.dataset.id;
-    if (!eid) { box.remove(); return; }
-    if (!confirm('이 평가 기록을 지웁니다. 되돌릴 수 없습니다.\n계속할까요?')) return;
-    const { error } = await sb.from('nl_evaluations').delete().eq('id', Number(eid));
-    if (error) { showBox('msgD', '❌ 지우지 못했습니다.\n' + error.message, false); return; }
-    EVALS = EVALS.filter(x => x.id !== Number(eid));
-    box.remove(); draw();
-    showBox('msgD', '✅ 평가를 지웠습니다.', true);
+    if (!eid) { alert('평가를 먼저 아래 「저장」으로 저장한 뒤 보고서를 올려 주세요.'); return; }
+    const r   = ALL.find(x => x.id === openId);
+    const cid = r ? r.child_id : null;
+    if (!cid) return;
+    const t  = EVTYPES.find(x => x.id === Number(box.querySelector('.dv_type').value));
+    const dd = box.querySelector('.dv_date').value;
+    NLDocs.open({
+      cid: cid, kid: cid + '번 ' + kidName(cid), source: '센터', evalId: Number(eid),
+      title: (t ? t.name : '평가') + ' 결과보고서', date: dd,
+      onChange: () => refreshDocs(cid)
+    });
   };
   if (!e) upd();
 }
+
+// 평가보고서 개수를 단추에 붙인다
+async function refreshDocs(cid) {
+  if (!window.NLDocs || !NLDocs.canUse()) {
+    if ($('dvOther')) $('dvOther').style.display = 'none';
+    document.querySelectorAll('#dvRows .dv_rep').forEach(b => b.style.display = 'none');
+    return;
+  }
+  const c = await NLDocs.count(cid);
+  $('dvOtherN').textContent = c.other ? c.other : '';
+  document.querySelectorAll('#dvRows .dvrow').forEach(b => {
+    const n = b.dataset.id ? (c.byEval[Number(b.dataset.id)] || 0) : 0;
+    const sp = b.querySelector('.dv_repn');
+    if (sp) sp.textContent = n ? n : '';
+  });
+}
+
+// 타기관 평가보고서 — 평가 줄과 상관없이 아동에게 붙는다
+$('dvOther').onclick = () => {
+  const r   = ALL.find(x => x.id === openId);
+  const cid = r ? r.child_id : null;
+  if (!cid) return;
+  NLDocs.open({
+    cid: cid, kid: cid + '번 ' + kidName(cid), source: '타기관',
+    onChange: () => refreshDocs(cid)
+  });
+};
 
 // 평가 줄의 상태 단추 셋 (예정·완료·취소)
 // 값은 숨은 칸(.dv_st / .nv_st)에 담는다 → 저장하는 곳은 그대로 이 칸을 읽는다
@@ -1159,7 +1196,6 @@ function nvAddRow() {
     + '<div><label style="font-size:12px;">카드 승인번호</label>'
     +   '<input class="nv_card" type="text" style="width:140px;"></div>'
     + stSeg('nv', '예정')
-    + '<button type="button" class="tab nv_del" style="padding:6px 12px;">줄 지우기</button>'
     + '</div></div>';
   $('nvRows').insertAdjacentHTML('beforeend', html);
   const box = $('nvRows').lastElementChild;
@@ -1172,7 +1208,6 @@ function nvAddRow() {
   box.querySelector('.nv_type').oninput  = upd;
   box.querySelector('.nv_cnt').oninput   = upd;
   wireSt(box, 'nv', false);  // 새 줄은 고르기만. 아래 「등록」 때 함께 저장
-  box.querySelector('.nv_del').onclick = () => box.remove();
   upd();
 }
 
@@ -1821,6 +1856,7 @@ async function afterLogin(user) {
     show('이 화면은 관리자와 행정만 볼 수 있습니다.', false); return;
   }
   ME = me;
+  NLDocs.init(sb, me.id);   // 평가보고서 창구 준비
 
   // 아동 이름표
   const { data: kids, error: e2 } = await sb
