@@ -19,6 +19,7 @@
   .sheet { background:white; padding:26px 32px; border:1px solid #ddd; box-shadow:0 1px 4px rgba(0,0,0,0.05); margin-bottom:22px; page-break-after:always; }
   .sheetlogo { text-align:center; margin-top:18px; }
   .sheetlogo img { height:40px; }
+  .printlogo { display:none; }
   .sheet h2.title { text-align:center; font-size:16px; margin:0 0 12px; letter-spacing:2px; }
   .info-tbl { border-collapse:collapse; width:100%; font-size:12px; margin-bottom:10px; }
   .info-tbl td { border:1px solid #333; padding:5px 8px; }
@@ -78,12 +79,15 @@
     /* 내용/월일 — 한 줄 8mm (손으로 적기 좋은 크기) */
     #sheet1 > table.info-tbl:last-of-type td { height:8mm; }
 
-    /* 로고 — 표 아래 8mm */
-    .sheetlogo { margin-top:8mm; }
-    .sheetlogo img { height:90px; }
+    /* 로고 — 줄 안에 두면 내용을 밀어내므로
+       종이 아래에 따로 붙인다 (두 장 모두 나온다) */
+    .sheetlogo { display:none !important; }
+    .printlogo { display:block; position:fixed; left:0; right:0; bottom:0;
+                 text-align:center; }
+    .printlogo img { height:90px; }
 
     /* 둘째 장 — 회기 수만큼 늘어나므로 종이를 채운다 */
-    #sheet2 { display:flex; flex-direction:column; height:265mm;
+    #sheet2 { display:flex; flex-direction:column; height:238mm;
               box-sizing:border-box; }
     #sheet2 .status-tbl { flex:1 1 auto; }
     .status-tbl th, .status-tbl td { padding:4px; font-size:10px;
@@ -306,6 +310,9 @@
     <div class="sheetlogo"><img src="img/nl-logo.png" alt="자라는나무"></div>
   </div>
 </div>
+
+<!-- 인쇄할 때 종이마다 아래에 붙는 로고 (2026-09-10) -->
+<div class="printlogo"><img src="img/nl-logo.png" alt="자라는나무"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
