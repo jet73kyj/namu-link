@@ -4677,19 +4677,46 @@ async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
     if (e1) throw e1;
 
     // ② 새 요일 줄을 만든다
-    const { data: ns, error: e2 } = await sb.from('nl_therapy_schedules')
-      .insert({ therapy_id: edRow.therapy_id, weekday: nw,
-                start_time: (hm || slotHm(slot, th, nw)) + ':00', therapist_id: th,
-                duration: du, from_month: mon, from_date: newFrom,
-                week1: edWk[0], week2: edWk[1],
-                week3: edWk[2], week4: edWk[3] })
-      .select().single();
-    if (e2) {
-      // 새 줄을 못 만들면 옛 줄을 원래대로 되돌린다 (반쯤 걸친 상태를 막는다)
-      await sb.from('nl_therapy_schedules').update(backUpd).eq('id', edRow.id);
-      throw new Error('새 수업 줄을 만들지 못했습니다.\n'
-        + '같은 요일·같은 시각에 이 아동의 옛 수업 줄이 남아 있을 수 있습니다.\n'
-        + '(자료는 원래대로 되돌렸습니다)\n\n' + e2.message);
+    const _newHm = (hm || slotHm(slot, th, nw)) + ':00';
+    let ns = null;
+    {
+      const { data: d2, error: e2 } = await sb.from('nl_therapy_schedules')
+        .insert({ therapy_id: edRow.therapy_id, weekday: nw,
+                  start_time: _newHm, therapist_id: th,
+                  duration: du, from_month: mon, from_date: newFrom,
+                  week1: edWk[0], week2: edWk[1],
+                  week3: edWk[2], week4: edWk[3] })
+        .select().single();
+      if (!e2) {
+        ns = d2;
+      } else {
+        // 같은 자리(치료·요일·시각·치료사)에 옛 줄이 이미 있으면 그것을 되살려 쓴다
+        //   한 치료에 같은 자리 줄은 하나만 둘 수 있다 (uq_sched_slot)
+        //   딸린 지난 달 기록은 그대로 살아 있는다
+        const { data: same } = await sb.from('nl_therapy_schedules')
+          .select('*')
+          .eq('therapy_id', edRow.therapy_id).eq('weekday', nw)
+          .eq('start_time', _newHm).eq('therapist_id', th)
+          .neq('id', edRow.id).limit(1);
+        if (same && same.length) {
+          const { data: d3, error: e3b } = await sb.from('nl_therapy_schedules')
+            .update({ duration: du, to_month: null, to_date: null,
+                      from_month: mon, from_date: newFrom,
+                      week1: edWk[0], week2: edWk[1],
+                      week3: edWk[2], week4: edWk[3] })
+            .eq('id', same[0].id).select().single();
+          if (e3b) {
+            await sb.from('nl_therapy_schedules').update(backUpd).eq('id', edRow.id);
+            throw new Error('옛 수업 줄을 되살리지 못했습니다.\n'
+              + '(자료는 원래대로 되돌렸습니다)\n\n' + e3b.message);
+          }
+          ns = d3;
+        } else {
+          await sb.from('nl_therapy_schedules').update(backUpd).eq('id', edRow.id);
+          throw new Error('새 수업 줄을 만들지 못했습니다.\n'
+            + '(자료는 원래대로 되돌렸습니다)\n\n' + e2.message);
+        }
+      }
     }
 
     // ③ 치료 종류 · 지원유형 · 회기 방식도 함께 고친다
@@ -4741,6 +4768,10 @@ async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
 
     const old = ROWS_ALL.find(x => x.id === edRow.id);
     if (old) Object.assign(old, oldUpd);
+    // 되살려 쓴 줄이면 이미 목록에 있으므로 먼저 빼고 다시 넣는다
+    for (let i = ROWS_ALL.length - 1; i >= 0; i--) {
+      if (ROWS_ALL[i].id === ns.id) ROWS_ALL.splice(i, 1);
+    }
     ROWS_ALL.push(Object.assign({}, ns, {
       _cid: edRow._cid, _tt: ntt, support_type_id: nst, _name: edRow._name,
       _mode: nmode, _cnt: wkCnt + ((nmode !== '4회만') ? 1 : 0),
