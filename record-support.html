@@ -32,8 +32,9 @@
   .sign { text-align:center; font-size:12.5px; line-height:2.4; margin-top:22px; }
   .sign .line { margin-top:6px; }
   /* 두 서명을 한 줄에 담는다 (2026-09-10) */
-  .sign .signrow { display:flex; justify-content:center; align-items:center;
-                   gap:38px; flex-wrap:wrap; }
+  /* 담당치료사 아래에 치료지원담당이 오도록 세로로 (2026-09-10) */
+  .sign .signrow { display:flex; flex-direction:column; align-items:center;
+                   gap:8px; }
   .sign .signone { white-space:nowrap; }
   /* 직인 — 「(인)」 글자 위에 겹쳐 찍는다 */
   .ins { position:relative; display:inline-block; }
@@ -79,9 +80,9 @@
     .rec-tbl thead { display:table-header-group; }
     .sheet { overflow:visible !important; }
     .sign { margin-top:14px; line-height:2.1; }
-    .sign .signrow { gap:30px; }
-    .sheetlogo { margin-top:8px; page-break-inside:avoid; }
-    .sheetlogo img { height:32px; }
+    .sign .signrow { gap:7px; }
+    .sheetlogo { margin-top:20mm; page-break-inside:avoid; }
+    .sheetlogo img { height:45px; }
   }
 </style>
 </head>
