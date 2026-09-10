@@ -472,6 +472,10 @@
   .r-rest { background:#f0f2f1 !important; color:#8a908c !important;
             border-color:#d6dad8 !important; }
   .r-eval { background:#ffc2d8; color:#6d1338; border-color:#e0679b; }
+  /* 발추 자리를 아직 못 잡았을 때 알려주는 회색 칸 (2026-09-10) */
+  .r-ghost { background:#eceeed !important; color:#6f7a72 !important;
+             border:1px dashed #a8aeaa !important; }
+  .r-ghost:hover { outline:none; }
   .wk5    { background:#c8e6c9; color:#33691e; opacity:.75; cursor:default; }
   .wk5:hover { outline:none; }
   .wk5 .st { font-weight:normal; font-size:10.5px; }
@@ -2185,10 +2189,13 @@ function drawFind(){
                      : '')
                     + findBtn(x, mk))))
         : stWord(x);
-      const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
-        ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
-        : ((r.support_type_id === 2 && x.run_no === 5)
-           ? '<span class="spadd">이</span>' : '');
+      // 회차 앞에 사업 이름표를 늘 붙인다 (발 · 센 · 치언 · 치작 · 방 · 방치언 · 방치작)
+      //   발추는 파란 「이」로 갈라 보인다
+      const _st  = Number(x.support_type_id || r.support_type_id);
+      const _isX = (_st === 8) || (Number(r.support_type_id) === 2 && Number(x.run_no) === 5);
+      const dif = _isX
+        ? '<span class="spadd">이</span>'
+        : '<span class="spdif">' + (STYPE[_st] || '') + '</span>';
       return '<span class="run ' + cls + '" data-sid="'+x.id+'" style="display:inline-flex;">'
         + dif
         + '<span class="no">' + monNo(mon) + '-' + x.run_no + '</span>'
@@ -2203,6 +2210,32 @@ function drawFind(){
     const runs = mergeRuns(_rl, _rh,
       wk5Pairs(r, byScd, r.weekday, true).concat(_xp));
 
+    // 발추가 있어야 하는 달인데 자리를 못 잡았으면 회색 「일정 미정」 칸을 더한다
+    //   발4+발추1   — 매달 1회
+    //   발4+5주발추 — 그 요일이 5번 있는 달만 1회
+    let ghost = '';
+    if (Number(r.support_type_id) === 2) {
+      const isX8N = function(x){
+        return Number(x.support_type_id) === 8
+            && Number(x.run_no) > 0
+            && (!x.month_key || String(x.month_key) === String(mon));
+      };
+      const hasX8 = _rl.some(isX8N) || _xs.some(isX8N)
+        || SESS.some(function(x){
+             return x.child_id === r._cid && !x.makeup_for && isX8N(x); });
+      const needX8 = (r._mode === '발4+발추1')
+        || (r._mode === '발4+5주발추' && countWd(mon, r.weekday) >= 5);
+      if (needX8 && !hasX8) {
+        ghost = '<span class="run r-ghost" style="display:inline-flex;">'
+          + '<span class="spadd">이</span>'
+          + '<span class="dt">일정 미정</span>'
+          + (CAN_EDIT
+              ? '<button class="mkbtn" data-x8="' + r.id + '" title="발추 자리 잡기">＋</button>'
+              : '')
+          + '</span>';
+      }
+    }
+
     return '<div class="findrow">'
       + '<div class="fr-top">'
         + '<span class="fr-nm">' + (r._cid ? '[' + r._cid + '] ' : '') + esc(r._name) + '</span>'
@@ -2212,7 +2245,9 @@ function drawFind(){
           + (r.duration||'') + '분</span>'
         + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'" title="고치기">수정</button>' : '')
       + '</div>'
-      + '<div class="fr-runs">' + (runs || '<span class="findnone">이 달 회기 없음</span>')
+      + '<div class="fr-runs">'
+        + ((runs || ghost) ? (runs + ghost)
+                           : '<span class="findnone">이 달 회기 없음</span>')
         + '</div>'
       + '</div>';
   }).join('');
@@ -2226,7 +2261,12 @@ function drawFind(){
     el.onclick = () => openEd(Number(el.dataset.ed));
   });
   $('findRows').querySelectorAll('.mkbtn').forEach(el => {
-    el.onclick = (e) => { e.stopPropagation(); openMk(Number(el.dataset.mk)); };
+    el.onclick = (e) => {
+      e.stopPropagation();
+      // 「일정 미정」 칸의 ＋ 는 발추 자리를 잡는 창을 연다
+      if (el.dataset.x8) { openPlan(Number(el.dataset.x8)); return; }
+      openMk(Number(el.dataset.mk));
+    };
   });
   $('findRows').querySelectorAll('.run').forEach(el => {
     el.onclick = async (e) => {
