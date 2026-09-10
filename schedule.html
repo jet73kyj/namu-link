@@ -1860,12 +1860,15 @@ function drawShort(_byScd, _mkOf){
       if (gapRows.some(b => b.row._cid === r._cid
                        && b.row.support_type_id === r.support_type_id)) return;
       // 지금 그 아동·그 유형의 정규 회기 수 (보강·쉼은 안 셈)
+      //   공휴일·센터휴무인 날과 「보강 없음」으로 정한 회는 실제로 안 하므로 뺀다 (2026-09-10)
       let have = 0;
       SESS_.forEach(x => {
         if (x.child_id !== r._cid) return;
         if (Number(x.support_type_id) !== Number(r.support_type_id)) return;
         if (x.status === '보강' || x.status === '쉼') return;
         if (x.makeup_for) return;
+        if (x.no_makeup) return;
+        if (x.status === '휴무' && isHoli(x.plan_date)) return;
         have++;
       });
       if (have >= cap) return;
