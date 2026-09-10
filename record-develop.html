@@ -55,7 +55,8 @@
     .info-tbl td { padding:3px 5px; }
     /* 달력 높이를 종이 단위로 못 박는다 (2026-09-10)
        전에는 flex:1 이라 남는 자리를 달력이 다 차지했다 */
-    .cal-tbl { flex:0 0 auto; height:78mm; font-size:10px; margin:5px 0; }
+    .cal-tbl { flex:0 0 auto; height:62mm; font-size:9.5px; margin:4px 0; }
+    .cal-tbl td { line-height:1.25; }
     /* 남는 자리는 맨 아래 「내용/월일」 표가 차지한다 */
     #sheet1 > table.info-tbl:last-of-type { flex:1 1 auto; }
     .cal-tbl th { height:14px; padding:2px; font-size:10px; }
