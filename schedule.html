@@ -1646,6 +1646,10 @@ function offWord(dd, thId){
   if (OFFTXT && OFFTXT[String(dd)] !== undefined) return '공휴일';
   return '휴가';
 }
+// 센터 전체가 쉬는 날인가 (공휴일·센터휴무) — 치료사 개인 휴가는 아니다 (2026-09-10)
+function isHoli(dd){
+  return !!(OFFTXT && OFFTXT[String(dd)] !== undefined);
+}
 function isOffFor(dd, thId) {
   const d = String(dd);
   return OFF.has(d) || (thId != null && OFF.has(d + '#' + thId));
@@ -1801,7 +1805,21 @@ function drawShort(_byScd, _mkOf){
       // 보강을 잡았어도 40분을 다 못 채웠으면 상자에 남긴다 (2026-09-09)
       (x.status === '결석' || x.status === '휴무')
       && (!mkOf[x.id] || needMore(x.id, SESS_)) && !x.no_makeup
+      // 공휴일·센터휴무는 이 상자에 안 넣는다 (2026-09-10)
+      //   그날은 아무도 안 나오므로 보강 자리도 아니다.
+      //   발달재활은 아래에서 「회기가 모자란 수업」으로 따로 올린다
+      && !isHoli(x.plan_date)
       && !(Number(x.support_type_id) === 2 && !x.run_no));
+    // 발달재활은 그 달에 4회를 반드시 채운다.
+    //   공휴일로 빠진 회는 「회기가 모자란 수업」 상자에 올려 다른 날에 잡게 한다
+    if (Number(r.support_type_id) === 2) {
+      const holiN = runs.filter(x => x.status === '휴무'
+        && isHoli(x.plan_date) && !x.no_makeup && !mkOf[x.id]).length;
+      if (holiN) {
+        const haveN = runs.filter(x => x.status !== '쉼').length - holiN;
+        gapRows.push({ row:r, have:haveN, need:haveN + holiN, why:'공휴일' });
+      }
+    }
     // 「발4+발추1」은 매달 발추 1회가 있어야 한다.
     //   회기 수만 세면, 공휴일로 5주차가 먹힌 달에 발달만 4회 깔려도
     //   「다 채웠다」고 보아 발추가 새어나간다. 그래서 발추 줄이 있는지를 본다
@@ -1862,7 +1880,7 @@ function drawShort(_byScd, _mkOf){
   const findBar = '<div class="bxfw">'
     + '<input class="bxf" type="text" placeholder="🔍 아동 이름으로 걸러보기"></div>';
 
-  // ── ① 결석·휴무 보강 ──────────────────────────
+  // ── ① 결석 보강 ──────────────────────────
   const nMiss = missRows.reduce((n, b) => n + b.miss.length, 0);
   const nMissKid = new Set(missRows.map(b => b.row._cid)).size;
   const nMissDev = missRows.filter(b => b.row.support_type_id === 2)
@@ -1874,7 +1892,7 @@ function drawShort(_byScd, _mkOf){
   } else {
     $('shortTop').style.display = 'block';
     $('shortTop').innerHTML = '<span class="topt">⚠️ ' + monNo(mon)
-      + '월 결석·휴무 보강 ' + nMiss + '건</span>'
+      + '월 결석 보강 ' + nMiss + '건</span>'
       + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
       + '<span class="go arrow" data-for="short"></span>';
     $('shortTop').onclick = (ev) => {
@@ -1885,7 +1903,7 @@ function drawShort(_byScd, _mkOf){
     topFind('shortTop', 'short');
 
     let h1 = '<div class="short-t">⚠️ ' + monNo(mon)
-      + '월 결석·휴무 보강 ' + nMiss + '건 (아동 ' + nMissKid + '명)'
+      + '월 결석 보강 ' + nMiss + '건 (아동 ' + nMissKid + '명)'
       + (nMissDev ? ' <span class="mustdo">— 발달재활 ' + nMissDev
                     + '건은 반드시 그 달에</span>' : '')
       + '</div>' + findBar;
@@ -1945,6 +1963,8 @@ function drawShort(_byScd, _mkOf){
         + monNo(mon) + '월 '
         + (b.why === '납부'
             ? '납부에서 ' + nd + '회로 정하셨습니다.'
+            : b.why === '공휴일'
+            ? '공휴일로 한 회가 빠졌습니다. 발달재활은 그 달에 4회를 채워야 합니다.'
             : '발추 자리가 없습니다.') + '</span>'
         + '<button class="sbtn" data-plan="' + r.id + '">일정 잡기</button>'
         + '</div>'
@@ -2438,6 +2458,9 @@ function buildNeedMk(){
   all.forEach(function(s){
     if (s.status !== '결석' && s.status !== '휴무') return;
     if (s.no_makeup) return;
+    // 공휴일·센터휴무는 뺀다 (2026-09-10)
+    //   그날은 아무도 안 나오므로 보강 자리가 아니다
+    if (isHoli(s.plan_date)) return;
     if (Number(s.support_type_id) === 2 && !s.run_no) return;   // 공휴일 회차 0
     if (s.schedule_id && splitScd[s.schedule_id]) return;
     if (done[s.id] && !needMore(s.id, all)) return;
@@ -3639,7 +3662,7 @@ function drawDay(){
       return dayNo(p[0]) + '일 ' + (t ? t.name : p[1]+'번') + ' ' + OFFTH[k];
     });
   // 「○요일 중 쉬는 날」 줄은 없앴다.
-  // 그 일은 「결석·휴무 보강」 상자가 대신한다.
+  // 그 일은 「결석 보강」 상자가 대신한다.
   $('holi').style.display = 'none';
 
   // 고정 수업을 칸에 담기
