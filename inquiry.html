@@ -121,6 +121,17 @@
   .evsum { margin-left:auto; font-size:13px; color:#666; }
   .evrow .kn { font-weight:bold; min-width:70px; }
   .evrow .unpaid { color:#c62828; font-weight:bold; }
+  /* 평가 줄 상태 단추 (예정·완료·취소) */
+  .stseg { display:flex; border:1px solid #cfd6cc; border-radius:7px; overflow:hidden; }
+  .stseg .stb { width:auto; margin:0; padding:8px 12px; background:#fff; color:#777;
+                border:none; border-left:1px solid #e0e5df; border-radius:0;
+                font-size:13px; font-weight:normal; }
+  .stseg .stb:first-child { border-left:none; }
+  .stseg .stb.on[data-v="예정"] { background:#d3f5c8; color:#1b5e20; font-weight:bold; }
+  .stseg .stb.on[data-v="완료"] { background:#2e7d32; color:#fff;    font-weight:bold; }
+  .stseg .stb.on[data-v="취소"] { background:#9aa19c; color:#fff;    font-weight:bold; }
+  .evoff { background:#eeefed !important; }
+  .evoff input, .evoff select { color:#9a9a9a; text-decoration:line-through; background:#f4f4f2; }
 </style>
 </head>
 <body>
@@ -1041,14 +1052,13 @@ function dvAddRow(e) {
     + '<div><label style="font-size:12px;">평가비</label>'
     +   '<input class="dv_fee" type="text" inputmode="numeric" style="width:110px;" value="'
     +   (e ? Number(e.fee || 0).toLocaleString() : '') + '"></div>'
-    + '<div><label style="font-size:12px;">상태</label>'
-    +   '<select class="dv_st" style="width:90px;">' + stOpt + '</select></div>'
     + '<div><label style="font-size:12px;">납부일</label>'
     +   '<input class="dv_paid" type="date" style="width:140px;" value="'
     +   esc(e && e.paid_on || '') + '"></div>'
     + '<div><label style="font-size:12px;">카드 승인번호</label>'
     +   '<input class="dv_card" type="text" style="width:140px;" value="'
     +   esc(e && e.card_no || '') + '"></div>'
+    + stSeg('dv', e && e.status)
     + '<button type="button" class="tab dv_del" style="padding:6px 12px;">'
     +   (e ? '이 평가 지우기' : '줄 지우기') + '</button>'
     + '</div></div>';
@@ -1062,6 +1072,7 @@ function dvAddRow(e) {
   box.querySelector('.dv_cnt').onchange  = upd;
   box.querySelector('.dv_type').oninput  = upd;
   box.querySelector('.dv_cnt').oninput   = upd;
+  wireSt(box, 'dv', true);   // 저장된 평가는 누르면 바로 저장
   box.querySelector('.dv_del').onclick = async () => {
     const eid = box.dataset.id;
     if (!eid) { box.remove(); return; }
@@ -1073,6 +1084,50 @@ function dvAddRow(e) {
     showBox('msgD', '✅ 평가를 지웠습니다.', true);
   };
   if (!e) upd();
+}
+
+// 평가 줄의 상태 단추 셋 (예정·완료·취소)
+// 값은 숨은 칸(.dv_st / .nv_st)에 담는다 → 저장하는 곳은 그대로 이 칸을 읽는다
+function stSeg(pre, cur) {
+  cur = cur || '예정';
+  return '<div><label style="font-size:12px;">상태</label>'
+    + '<input type="hidden" class="' + pre + '_st" value="' + esc(cur) + '">'
+    + '<div class="stseg">'
+    + ['예정','완료','취소'].map(v =>
+        '<button type="button" class="stb' + (v === cur ? ' on' : '') + '" data-v="' + v + '">'
+        + v + '</button>').join('')
+    + '</div></div>';
+}
+
+// 단추를 누르면 — 색을 바꾸고, 취소면 줄을 흐리게.
+// live 이고 이미 저장된 평가(data-id 있음)면 상태만 바로 저장한다
+function wireSt(box, pre, live) {
+  const hid = box.querySelector('.' + pre + '_st');
+  const paint = v => {
+    box.querySelectorAll('.stb').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+    box.classList.toggle('evoff', v === '취소');
+  };
+  paint(hid.value);
+  box.querySelectorAll('.stb').forEach(b => {
+    b.onclick = async () => {
+      const v = b.dataset.v, old = hid.value;
+      if (v === old) return;
+      hid.value = v; paint(v);
+      const eid = live ? box.dataset.id : '';
+      if (!eid) return;
+      const { data, error } = await sb.from('nl_evaluations')
+        .update({ status: v }).eq('id', Number(eid)).select().single();
+      if (error) {
+        hid.value = old; paint(old);
+        showBox('msgD', '❌ 평가 상태를 저장하지 못했습니다.\n' + error.message, false);
+        return;
+      }
+      const k = EVALS.findIndex(x => x.id === Number(eid));
+      if (k >= 0) EVALS[k] = data;
+      draw();
+      showBox('msgD', '✅ 평가 상태를 저장했습니다 — ' + v, true);
+    };
+  });
 }
 
 function nvAddRow() {
@@ -1099,14 +1154,11 @@ function nvAddRow() {
     +   '<select class="nv_thr" style="width:120px;">' + thrOpt + '</select></div>'
     + '<div><label style="font-size:12px;">평가비</label>'
     +   '<input class="nv_fee" type="text" inputmode="numeric" style="width:110px;"></div>'
-    + '<div><label style="font-size:12px;">상태</label>'
-    +   '<select class="nv_st" style="width:90px;">'
-    +   '<option value="예정">예정</option><option value="완료">완료</option>'
-    +   '<option value="취소">취소</option></select></div>'
     + '<div><label style="font-size:12px;">납부일</label>'
     +   '<input class="nv_paid" type="date" style="width:140px;"></div>'
     + '<div><label style="font-size:12px;">카드 승인번호</label>'
     +   '<input class="nv_card" type="text" style="width:140px;"></div>'
+    + stSeg('nv', '예정')
     + '<button type="button" class="tab nv_del" style="padding:6px 12px;">줄 지우기</button>'
     + '</div></div>';
   $('nvRows').insertAdjacentHTML('beforeend', html);
@@ -1119,6 +1171,7 @@ function nvAddRow() {
   box.querySelector('.nv_cnt').onchange  = upd;
   box.querySelector('.nv_type').oninput  = upd;
   box.querySelector('.nv_cnt').oninput   = upd;
+  wireSt(box, 'nv', false);  // 새 줄은 고르기만. 아래 「등록」 때 함께 저장
   box.querySelector('.nv_del').onclick = () => box.remove();
   upd();
 }
