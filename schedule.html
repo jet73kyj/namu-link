@@ -2190,9 +2190,10 @@ function drawFind(){
                     + findBtn(x, mk))))
         : stWord(x);
       // 회차 앞에 사업 이름표를 늘 붙인다 (발 · 센 · 치언 · 치작 · 방 · 방치언 · 방치작)
-      //   발추는 파란 「이」로 갈라 보인다
+      //   「이」는 사업 8번(발달추가비용)일 때만 붙인다 (2026-09-10)
+      //   발달재활 회차 5번은 발추가 아니다. 4주뿐인 달에는 발달이 5번까지 갈 수 있다
       const _st  = Number(x.support_type_id || r.support_type_id);
-      const _isX = (_st === 8) || (Number(r.support_type_id) === 2 && Number(x.run_no) === 5);
+      const _isX = (_st === 8);
       const dif = _isX
         ? '<span class="spadd">이</span>'
         : '<span class="spdif">' + (STYPE[_st] || '') + '</span>';
@@ -2661,10 +2662,12 @@ function drawWeekOld(){
                      + ' title="'+(mk ? '보강 고치기' : '보강 잡기')+'">＋</button>' : '')
                    + findBtn(x, mk))
                 : '<span class="st">'+stWord(x)+'</span>';
-              const dif = (x.support_type_id && x.support_type_id !== r.support_type_id)
-                ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
-                : ((r.support_type_id === 2 && x.run_no === 5)
-                   ? '<span class="spadd">이</span>' : '');
+              // 「이」는 사업 8번(발달추가비용)일 때만 (2026-09-10)
+              const dif = (Number(x.support_type_id) === 8)
+                ? '<span class="spadd">이</span>'
+                : ((x.support_type_id && x.support_type_id !== r.support_type_id)
+                   ? '<span class="spdif">' + (STYPE[x.support_type_id]||'') + '</span>'
+                   : '');
               return '<div class="run '+cls+'" data-sid="'+x.id+'">'
                 + tmDif(x, r) + dif
                 + '<span class="dt">'+dayNo(x.plan_date)+'일'
