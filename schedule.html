@@ -3772,6 +3772,9 @@ function drawDay(){
             wdDates(mon, wd).forEach(function(dd){
               if (has[dd]) return;
               if (slotBusy(dd, t.id, slotHm(s, t.id, wd))) return;
+              // 이 칸에 그 날 이미 무엇인가 놓였으면 빈 자리가 아니다 (2026-09-10)
+              //   같은 교시 칸에 요일줄이 둘일 때(2:00·2:20) 빈 자리가 겹쳐 나오던 것
+              if (lines.some(function(L2){ return L2.d === dd; })) return;
               const used = lines.some(function(L2){
                 return (L2.kind === 'mk' || L2.kind === 'mn') && L2.d === dd; });
               if (used) return;
