@@ -472,6 +472,11 @@
   .r-rest { background:#f0f2f1 !important; color:#8a908c !important;
             border-color:#d6dad8 !important; }
   .r-eval { background:#ffc2d8; color:#6d1338; border-color:#e0679b; }
+  /* 하루 보기 — 보강을 잡아야 하는 아동 알림 (2026-09-10) */
+  .needmk { flex-basis:100%; margin-top:3px; font-size:10.5px; font-weight:700;
+            color:#b3261e; background:#fdecea; border:1px solid #f0b3ac;
+            border-radius:5px; padding:2px 5px; line-height:1.45;
+            white-space:normal; }
   /* 발추 자리를 아직 못 잡았을 때 알려주는 회색 칸 (2026-09-10) */
   .r-ghost { background:#eceeed !important; color:#6f7a72 !important;
              border:1px dashed #a8aeaa !important; }
@@ -2408,6 +2413,48 @@ function buildMkOf(){
   MKOF = {};
   SESS.forEach(x => { if (isMk(x) && x.makeup_for) MKOF[x.makeup_for] = x; });
 }
+
+// 아직 자리를 못 잡은 결석·휴무를 아동별로 모은다 (2026-09-10)
+//   하루 보기에서 「보강 잡아주세요」로 알려 주는 데 쓴다
+//   이번 달과 지난 달을 함께 본다
+let NEEDMK = {};
+function buildNeedMk(){
+  NEEDMK = {};
+  const all = SESS.concat(PREV);
+  const done = {};
+  all.forEach(function(x){ if (isMk(x) && x.makeup_for) done[x.makeup_for] = x; });
+  // 「10분씩 나눠 발추 넣기」를 켠 수업은 이미 채운 것으로 본다
+  const splitScd = {};
+  all.forEach(function(x){ if (x.schedule_id && hasSplitTag(x)) splitScd[x.schedule_id] = 1; });
+
+  all.forEach(function(s){
+    if (s.status !== '결석' && s.status !== '휴무') return;
+    if (s.no_makeup) return;
+    if (Number(s.support_type_id) === 2 && !s.run_no) return;   // 공휴일 회차 0
+    if (s.schedule_id && splitScd[s.schedule_id]) return;
+    if (done[s.id] && !needMore(s.id, all)) return;
+    const c = Number(s.child_id);
+    (NEEDMK[c] = NEEDMK[c] || []).push(s);
+  });
+  Object.keys(NEEDMK).forEach(function(c){
+    NEEDMK[c].sort(function(a,b){
+      return String(a.plan_date).localeCompare(String(b.plan_date)); });
+  });
+}
+
+// 그 아동의 칸 아래에 붙일 빨간 알림 줄
+function needMkNote(cid){
+  const list = NEEDMK[Number(cid)];
+  if (!list || !list.length) return '';
+  const txt = list.map(function(s){
+    const mk2 = Number(String(s.month_key || mon).slice(5,7));
+    const d = new Date(String(s.plan_date) + 'T00:00:00');
+    return mk2 + '-' + (s.run_no || 0) + ' · '
+      + (d.getMonth()+1) + '월 ' + d.getDate() + '일 '
+      + h12(s.start_time);
+  }).join(' / ');
+  return '<div class="needmk">⚠ ' + txt + ' 보강 잡아주세요</div>';
+}
 function mkTail(x){
   // 보강 줄에는 지우기(✕)만 붙인다 (2026-09-09)
   //   ＋(날짜 옮기기)는 고정 수업이 결석·휴무일 때만 쓴다
@@ -2986,6 +3033,7 @@ function oneDefault(){
 function drawOne(){
   buildSplit();
   buildMkOf();
+  buildNeedMk();
   if (!oneDate || String(oneDate).slice(0,7) !== mon) oneDate = oneDefault();
   $('oneDay').textContent = dayNo(oneDate) + '일 (' + wdOf(oneDate) + ')';
 
@@ -3078,6 +3126,8 @@ function drawOne(){
               + '<span class="brk"></span>'
               + mkTail(x)
               + '<span class="s">' + stWord(x) + '</span>'
+              + ((x.status === '결석' || x.status === '휴무' || isMk(x))
+                   ? '' : needMkNote(x.child_id))
               + '</div>';
           }).join('') + '</td>';
         }).join('')
