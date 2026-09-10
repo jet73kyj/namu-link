@@ -3134,6 +3134,12 @@ function drawOne(){
                     + '" title="보강 넣기">＋보강</button>'
                   : '')
             : '';
+          // 공휴일·센터휴무인 날은 「공휴일」 한 줄만 그린다 (2026-09-10)
+          if (isHoli(oneDate)) {
+            return '<td class="cell"><div class="ln ln-off">'
+              + '<span class="n">' + esc(OFFTXT[oneDate] || '공휴일')
+              + '</span></div></td>';
+          }
           if (!list.length) {
             const blk = isBlocked(oneDate, th3.id, slotHm(s, th3.id, wd));
             const cns = consAt(oneDate, th3.id, slotHm(s, th3.id, wd));
@@ -3869,6 +3875,11 @@ function drawDay(){
           let html = '';
           html += restHtml;
 
+          // 공휴일·센터휴무인 날은 「공휴일」 한 줄만 그린다 (2026-09-10)
+          //   아동 이름·회차·＋ 단추를 감춰 학부모 문의를 줄인다
+          //   회기 줄과 회차는 자료에 그대로 있다
+          const holiDone = {};
+
           let lastKid = null;
           lines.forEach(function(L2){
             const x = L2.x;
@@ -3887,6 +3898,17 @@ function drawDay(){
             // 사유 없는 쉼은 그리지 않는다
             // (그 날짜의 「빈 자리」 줄은 아래 abs 처리에서 이미 만들어진다)
             if (L2.kind === 'run' && isBlankRest(x)) return;
+
+            // 공휴일인 날은 「공휴일」 한 줄만 (2026-09-10)
+            if (isHoli(L2.d)) {
+              if (holiDone[L2.d]) return;
+              holiDone[L2.d] = 1;
+              html += '<div class="ln ln-off">'
+                + '<span class="d">' + day + '</span>'
+                + '<span class="n">' + esc(OFFTXT[L2.d] || '공휴일') + '</span>'
+                + '</div>';
+              return;
+            }
 
             if (L2.kind === 'open') {
               // 공휴일·센터휴무·치료사 휴가인 날은 자리가 빈 것이 아니다 (2026-09-09)
