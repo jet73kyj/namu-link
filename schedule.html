@@ -4654,7 +4654,23 @@ async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
 
   $('edSave').disabled = true; $('edSave').textContent = '바꾸는 중...';
   $('edFrom').disabled = true;
+  // 실패했을 때 되돌리려고 지금 값을 붙잡아 둔다 (2026-09-10)
+  const backUpd = { to_month: (edRow.to_month || null),
+                    to_date:  (edRow.to_date  || null) };
   try {
+    // ⓪ 같은 치료의 옛 요일줄 중 「딸린 회기가 하나도 없는 것」을 먼저 지운다
+    //    안 지우면 옛 자리로 되돌아갈 때 「같은 자리가 이미 있다」며 막힌다
+    //    회기가 하나라도 있는 줄은 절대 안 건드린다 (지난 달 기록 보호)
+    {
+      const { data: sibs } = await sb.from('nl_therapy_schedules')
+        .select('id').eq('therapy_id', edRow.therapy_id).neq('id', edRow.id);
+      for (const sb2 of (sibs || [])) {
+        const { count } = await sb.from('nl_sessions')
+          .select('id', { count: 'exact', head: true }).eq('schedule_id', sb2.id);
+        if (!count) await sb.from('nl_therapy_schedules').delete().eq('id', sb2.id);
+      }
+    }
+
     // ① 옛 줄을 여기까지로 끝낸다
     const { error: e1 } = await sb.from('nl_therapy_schedules')
       .update(oldUpd).eq('id', edRow.id);
@@ -4668,7 +4684,13 @@ async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
                 week1: edWk[0], week2: edWk[1],
                 week3: edWk[2], week4: edWk[3] })
       .select().single();
-    if (e2) throw e2;
+    if (e2) {
+      // 새 줄을 못 만들면 옛 줄을 원래대로 되돌린다 (반쯤 걸친 상태를 막는다)
+      await sb.from('nl_therapy_schedules').update(backUpd).eq('id', edRow.id);
+      throw new Error('새 수업 줄을 만들지 못했습니다.\n'
+        + '같은 요일·같은 시각에 이 아동의 옛 수업 줄이 남아 있을 수 있습니다.\n'
+        + '(자료는 원래대로 되돌렸습니다)\n\n' + e2.message);
+    }
 
     // ③ 치료 종류 · 지원유형 · 회기 방식도 함께 고친다
     const ntt  = Number($('ed_tt').value);
