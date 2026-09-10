@@ -50,15 +50,28 @@
   .picker #pInfo { font-size:12.5px; color:#777; margin-left:4px; }
 
   @media print {
-    @page { size:A4 portrait; margin:8mm 8mm; }
+    /* 발달재활·누가기록지와 같은 차림 (2026-09-10)
+       위를 넓게 두어 철하실 자리를 만든다 */
+    @page { size:A4 portrait; margin:22mm 14mm 10mm; }
     header, .form-actions, .page-title, .picker, .no-print { display:none !important; }
     body { background:white; }
     .container { max-width:none; margin:0; padding:0; }
     .sheet { border:none; box-shadow:none; padding:0; margin:0; }
-    .rec-tbl { font-size:10.5px; }
+    .sheet h2.title { font-size:14px; margin:0 0 2mm; }
+    .sheet .subtitle { font-size:10px; margin-bottom:6mm; }
+    .rec-tbl { font-size:10.5px; margin-bottom:3mm; }
     .rec-tbl td, .rec-tbl th { padding:4px 6px; }
     input, textarea { border:none; padding:1px 3px; font-size:10.5px; background:transparent; }
     textarea { min-height:36px; }
+    /* 긴 내용이 잘리지 않게 */
+    textarea { overflow:hidden !important; height:auto; resize:none; }
+    .rec-tbl { page-break-inside:auto; }
+    .rec-tbl tr { page-break-inside:avoid; page-break-after:auto; }
+    .rec-tbl thead { display:table-header-group; }
+    .sign { margin-top:10px; line-height:1.9; }
+    /* 로고 — 표 아래 8mm (더 내리면 다음 장으로 넘어간다) */
+    .sheetlogo { margin-top:8mm; page-break-inside:avoid; }
+    .sheetlogo img { height:40px; }
     .memo-row { display:none !important; }   /* 치료사 메모는 인쇄에 안 나옴 */
   }
 </style>
@@ -543,6 +556,34 @@ $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click
   else {
     // 로그인이 없으면 첫 화면으로 보낸다 (빈 화면이 열리는 것을 막기 위함)
     location.replace('index.html');
+  }
+})();
+</script>
+<script>
+// 인쇄할 때 글상자의 높이를 내용만큼 늘린다 (2026-09-10)
+(function(){
+  var saved = [];
+  function grow(){
+    saved = [];
+    var list = document.querySelectorAll('textarea');
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      saved.push([a, a.style.height]);
+      a.style.height = 'auto';
+      a.style.height = (a.scrollHeight + 4) + 'px';
+    }
+  }
+  function back(){
+    for (var i = 0; i < saved.length; i++) saved[i][0].style.height = saved[i][1];
+    saved = [];
+  }
+  window.addEventListener('beforeprint', grow);
+  window.addEventListener('afterprint', back);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('print');
+    if (mq.addEventListener) {
+      mq.addEventListener('change', function(e){ if (e.matches) grow(); else back(); });
+    }
   }
 })();
 </script>
