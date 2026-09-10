@@ -4602,6 +4602,33 @@ $('edSave').onclick = async () => {
     return;
   }
   if (oldWd !== nw || oldHm !== newHm) {
+    // 변경 시작일부터 이미 「완료·결석·보강」으로 표시한 회기가 있으면 막는다 (2026-09-10)
+    //   그 줄은 손으로 기록한 것이라 안 지워지므로, 새로 깔면 같은 날에 두 줄이 된다
+    {
+      const from = applyD || (mon + '-01');
+      const hit = SESS.filter(function(v){
+        return v.schedule_id === edRow.id
+            && String(v.plan_date) >= from
+            && (v.status === '완료' || v.status === '결석' || v.status === '보강');
+      }).sort(function(a,b){
+        return String(a.plan_date).localeCompare(String(b.plan_date)); });
+      if (hit.length) {
+        const last2 = hit[hit.length - 1];
+        const nx = new Date(String(last2.plan_date) + 'T00:00:00');
+        nx.setDate(nx.getDate() + 1);
+        const nxs = nx.getFullYear() + '-'
+          + String(nx.getMonth()+1).padStart(2,'0') + '-'
+          + String(nx.getDate()).padStart(2,'0');
+        alert('⚠ 그대로 저장하면 같은 날에 수업이 두 줄로 생깁니다.\n\n'
+          + hit.map(function(v){
+              const d = new Date(String(v.plan_date) + 'T00:00:00');
+              return '  ' + (d.getMonth()+1) + '월 ' + d.getDate() + '일 · 이미 「'
+                   + v.status + '」로 표시된 수업이 있습니다.'; }).join('\n')
+          + '\n\n변경 시작일을 ' + nxs + ' 이후로 바꿔 주세요.\n'
+          + '(마지막으로 표시한 수업 다음 날부터가 안전합니다)');
+        return;
+      }
+    }
     if (!confirm('요일·시간이 바뀝니다.\n\n'
       + '· ' + oldWd + '요일 ' + h12(oldHm) + '  →  ' + nw + '요일 ' + h12(newHm) + '\n\n'
       + (applyD
