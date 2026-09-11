@@ -1202,7 +1202,7 @@ async function loadMonth() {
       const rq = REQS[r.id];
       if (rq) {
         btn = rq.state === '신청'
-          ? '<button class="absbtn wait" data-cancel="' + rq.id + '">신청 중 · 취소</button>'
+          ? '<button class="absbtn wait" data-cancel="' + rq.id + '">확인 중 · 요청 취소</button>'
           : '';
       } else if (st === '예정' && canAsk(d, r.start_time)) {
         btn = '<button class="absbtn" data-ask="' + r.id + '"'
@@ -1360,7 +1360,7 @@ async function drawNeed() {
        + '<div class="needd">' + esc(day) + ' · ' + esc(hhmm(r.start_time))
        + ' · ' + esc(tn) + '</div>'
        + '<div class="needw">' + esc(why) + (thn ? ' · ' + esc(thn) + ' 선생님' : '')
-       + (q ? ' · <b>신청 중</b>'
+       + (q ? ' · <b>행정샘 확인 중</b>'
             + (q.makeup_date
                ? ' (' + (+q.makeup_date.slice(5, 7)) + '/' + (+q.makeup_date.slice(8, 10))
                  + ' ' + String(q.makeup_time || '').slice(0, 5) + '로 요청)'
@@ -1432,7 +1432,7 @@ function bindAsk() {
 
 // 낸 신청 취소하기
 async function cancelAsk(id) {
-  if (!confirm('낸 신청을 취소할까요?')) return;
+  if (!confirm('보낸 요청을 취소할까요?')) return;
   try {
     const { error } = await sb.from('nl_absence_requests').delete().eq('id', id);
     if (error) throw error;
@@ -1449,19 +1449,19 @@ async function openAsk(d) {
   w.className = 'popwrap';
   w.innerHTML =
       '<div class="popbox">'
-    + '<div class="poptitle">' + (done ? '보강 잡기' : '못 가는 수업 알리기') + '</div>'
+    + '<div class="poptitle">' + (done ? '보강 요청' : '못 가는 수업 알리기') + '</div>'
     + '<div class="askinfo">' + esc(d.d.slice(5).replace('-', '월 ')) + '일 · '
     + esc(d.t) + ' · ' + esc(d.nm) + '</div>'
     + (done ? ''
        : '<label class="asklb">왜 못 오시는지 짧게 적어주세요</label>'
          + '<input id="askWhy" type="text" placeholder="예) 감기로 병원에 갑니다" maxlength="60">')
-    + '<label class="asklb">보강을 언제로 할까요?</label>'
+    + '<label class="asklb">보강을 원하시는 시간을 골라 주세요</label>'
     + '<div id="askSlots" class="slots">빈 자리를 찾는 중...</div>'
     + '<div class="askbtns">'
-    + '<button id="askGo" class="popbtn">신청하기</button>'
+    + '<button id="askGo" class="popbtn">요청하기</button>'
     + '<button id="askNo" class="popbtn gray">닫기</button>'
     + '</div>'
-    + '<div class="popmore">센터가 확인한 뒤 시간표에 반영됩니다.</div>'
+    + '<div class="popmore">요청하신 일정은 행정샘 확인 후 보강 확정해 드릴게요.<br>확정되면 시간표에 나옵니다.</div>'
     + '</div>';
   document.body.appendChild(w);
 
@@ -1538,14 +1538,14 @@ async function openAsk(d) {
       });
       if (error) throw error;
       w.remove();
-      alert('신청했습니다.\n센터가 확인한 뒤 시간표에 반영됩니다.');
+      alert('요청을 보냈습니다.\n\n요청하신 일정은 행정샘 확인 후 보강 확정해 드릴게요.');
       await loadMonth();
     } catch (e) {
-      go.disabled = false; go.textContent = '신청하기';
+      go.disabled = false; go.textContent = '요청하기';
       const m = String(e.message || e);
       alert(m.indexOf('duplicate') >= 0
         ? '방금 다른 분이 그 자리를 먼저 잡으셨습니다.\n다른 자리를 골라주세요.'
-        : '신청하지 못했습니다.\n센터로 연락해 주세요.');
+        : '요청을 보내지 못했습니다.\n센터로 연락해 주세요.');
     }
   };
 }
