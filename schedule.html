@@ -2399,6 +2399,14 @@ function drawFind(){
       //   발달재활 회차 5번은 발추가 아니다. 4주뿐인 달에는 발달이 5번까지 갈 수 있다
       const _st  = Number(x.support_type_id || r.support_type_id);
       const _isX = (_st === 8);
+      // 공휴일·센터휴무이고 보강할 회가 아니면 이름표·회차 없이 「25일 추석 연휴」만 (2026-09-11)
+      //   회차가 붙어 있으면 보강을 잡아야 하는 것처럼 보였다
+      //   발달재활처럼 그 달 안에 채워야 하는 공휴일(서버가 보강 필요로 본 줄)은 회차와 ＋를 그대로 둔다
+      if (x.status === '휴무' && isHoli(x.plan_date) && !mk && !srvNeed(x.id)) {
+        return '<span class="run r-off" data-sid="'+x.id+'" style="display:inline-flex;">'
+          + '<span class="dt">' + dtWithMon(x.plan_date) + '</span>'
+          + '<span class="st">' + esc(OFFTXT[String(x.plan_date)] || '공휴일') + '</span></span>';
+      }
       const dif = _isX
         ? '<span class="spadd">이</span>'
         : '<span class="spdif">' + (STYPE[_st] || '') + '</span>';
