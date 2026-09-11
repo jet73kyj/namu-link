@@ -597,6 +597,15 @@
   .spsum.ok { color:#2e7d32; }
   .spnone { font-size:12.5px; color:#8a8f8b; padding:4px 0; }
   .fb[data-sid] { cursor:pointer; }
+  /* ④ 옛 입구 숨기기 (2026-09-11 원칙 7·8·9) — 보강 잡기·고치기는 찾기 창에서만
+       시간표 칸의 ＋보강 · 보강 잡기 ＋ · 보강 ✕ · 5주차 자리 보강 · 주간 보강 넣기 · 줄 「수정」
+       세 상자의 ＋ · 수정 창의 「발추 1회를 나눠서 진행」(입력만 숨김, 읽는 셈은 남김)
+       빈 칸의 ＋(새 수업 넣기)와 쉼 「되돌리기」는 남긴다 */
+  .lnadd, .mkbtn, .w5btn, .wkmn, .edbtn, .mnedit,
+  .lnedit[data-ed][title="고치기"], .lnedit[data-mned],
+  #short .sbtn, #gapBox .sbtn, #prevBox .sbtn,
+  #ed_splitbox { display:none !important; }
+  .run, .ln[data-sid], .oneli[data-sid] { cursor:pointer; }
   .minbtn:disabled { background:#eef1f4; color:#b6bfc7; cursor:default; }
   /* 쪼갠 보강 딱지 (2026-09-08) */
   /* 정규 줄 안에 붙는 쪼갠 보강 (2026-09-08) */
@@ -4382,6 +4391,17 @@ function drawDay(){
 }
 
 // ===== 회기 누르기 =====
+// 하루 보기(핸드폰) 줄을 누르면 그 날 창 (2026-09-11 원칙 9)
+if ($('oneBox')) $('oneBox').addEventListener('click', e => {
+  const el = e.target.closest('.oneli[data-sid]');
+  if (!el) return;
+  const s = SESS.find(x => String(x.id) === String(el.dataset.sid)) || findSess(Number(el.dataset.sid));
+  if (!s) return;
+  if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
+  if (s.status === '쉼') return;
+  lastClick = { clientX: e.clientX, clientY: e.clientY };
+  openDay(s.id);
+});
 $('gbody').addEventListener('click', async e => {
   const mnb = e.target.closest('.mnbtn, .lnadd');
   if (mnb) { e.stopPropagation(); openMn(mnb.dataset.mn); return; }
@@ -4408,8 +4428,7 @@ $('gbody').addEventListener('click', async e => {
   // 보강 줄의 ✕ — 보강 창을 연다 (날짜 바꾸기·보강 취소)
   // 직접 넣은 보강의 「수정」 — 고치기 창을 연다
   // +N 딱지 — 수정 창을 연다
-  const spl = e.target.closest('[data-edsp]');
-  if (spl) { e.stopPropagation(); openEd(Number(spl.dataset.edsp)); return; }
+  // +N 딱지 — 옛날엔 수정 창을 열었다. 이제는 그 줄 누르기(그 날 창)로 넘긴다 (원칙 8)
   const mne = e.target.closest('[data-mned]');
   if (mne) { e.stopPropagation(); openMnEdit(Number(mne.dataset.mned)); return; }
   const mkd = e.target.closest('[data-mkdel]');
@@ -4447,33 +4466,19 @@ $('gbody').addEventListener('click', async e => {
   }
   const free = e.target.closest('td[data-add]');
   if (free) { openAdd(free.dataset.add); return; }
-  const el = e.target.closest('.run, .ln[data-sid]');
+  // 시간표 회기 줄을 누르면 찾기 창과 같은 「그 날 창」이 열린다 (2026-09-11 원칙 9)
+  //   시간표 줄은 보여 주기만 한다. 예정·완료·결석 표기와 보강 잡기는 그 날 창에서
+  //   하루 보기(핸드폰)의 줄도 같다
+  const el = e.target.closest('.run, .ln[data-sid], .oneli[data-sid]');
   if (!el) return;
   const _sid = el.dataset.sid;
-  const s  = SESS.find(x => String(x.id) === String(_sid));
+  const s  = SESS.find(x => String(x.id) === String(_sid)) || findSess(Number(_sid));
   if (!s) return;
   if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
-  const id = Number(_sid);
-  // 보강 줄은 눌러서 완료·결석으로 바꾼다 (창을 열려면 옆의 ✕)
-  if (s.status === '쉼') return;                                             // 쉼은 보강 대상이 아니다
-  if (s.status === '휴무') { openMk(s.id); return; }                          // 휴무는 상태를 안 바꾸고 보강창을 연다
-
-  const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
-      // 직접 넣은 보강(요일줄 없음)은 완료 → 예정 → 결석 으로 돈다
-      const isMn = !s.schedule_id && !s.makeup_for;
-      const MNNEXT = { '완료':'예정', '예정':'결석', '결석':'완료' };
-      const nx = isMn ? (MNNEXT[s.status] || '완료')
-               : isMk(s) ? (MKNEXT[s.status] || '완료')
-               : (NEXT[s.status] || '완료');
-  if (!(await askDropMakeup(s, nx))) return;
-  const { error } = await sb.from('nl_sessions')
-    .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
-  s.status = nx;
-  // 다시 그린 뒤에도 보고 있던 자리를 지킨다 (화면이 튀지 않게)
-  const _sx = window.scrollX, _sy = window.scrollY;
-  draw();
-  window.scrollTo(_sx, _sy);
+  if (s.status === '쉼') return;
+  e.stopPropagation();
+  lastClick = { clientX: e.clientX, clientY: e.clientY };
+  openDay(s.id);
 });
 
 // ===== 수업 넣기 =====
@@ -6927,9 +6932,13 @@ function openDay2(sid){
   $('mkHave').innerHTML = hv;
   $('mkHave').style.display = hv ? '' : 'none';
   // 보강 잡기 칸 — 결석·쉬는 날에만, 8·9·11번만 (원칙 10)
-  const need = CAN_EDIT && (s.status === '결석' || s.status === '휴무');
+  //   납부 계산에서 청구하지 않는(회색) 날이면 보강 칸 대신 안내 (서버 장치 trg_l_mk_billed 와 같은 규칙)
+  const grey = !fOn(s);
+  const need = CAN_EDIT && (s.status === '결석' || s.status === '휴무') && !grey;
   $('mkSec').style.display = need ? '' : 'none';
   if (need) mkmsg('기한 ' + dLbl(mkLimit(s)) + '까지 (' + (sp === 2 ? '발달재활 — 그 달 안' : '다음 달 끝까지') + ')', true);
+  else if (CAN_EDIT && (s.status === '결석' || s.status === '휴무') && grey)
+    mkmsg('이 날은 납부 계산에서 청구하지 않는 날(회색)입니다.\n보강하시려면 납부 계산에서 그 날 단추를 먼저 켜 주세요.', false);
 }
 // 상태 단추 — 누르면 바로 바뀐다
 document.addEventListener('click', async ev => {
