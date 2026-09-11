@@ -1309,22 +1309,16 @@ async function drawNeed() {
     return;
   }
 
-  // ③ 아직 자리를 못 잡은 결석·휴무 (이 달 + 지난 두 달)
-  const from = shiftMonth(CURMK, -2);
-  let miss = [];
+  // ③ 보강이 필요한 줄 — 셈은 서버 창구 한 곳에서만 한다 (2026-09-11)
+  //   시간표 「결석 보강」·「회기가 모자란 수업」·「넘어온 보강」과 같은 규칙
+  //   이 달 전부 + 지난달(발달재활은 뺌). 화면은 받은 줄을 그리기만 한다
+  let rows = [];
   try {
-    const { data: ms } = await sb.from('nl_sessions')
-      .select('id, plan_date, start_time, status, therapist_id, therapy_id,'
-            + ' support_type_id, month_key, minutes, no_makeup, makeup_for')
-      .eq('child_id', CURKID).gte('month_key', from).lte('month_key', CURMK)
-      .order('plan_date');
-    const all = ms || [];
-    const done = {};   // 이미 보강 줄이 붙은 것
-    all.forEach(r => { if (r.makeup_for) done[r.makeup_for] = true; });
-    miss = all.filter(r =>
-      !r.makeup_for && !r.no_makeup && !done[r.id]
-      && (String(r.status || '') === '결석' || String(r.status || '') === '휴무'));
+    const { data: nd } = await sb.rpc('nl_parent_need', { p_child: CURKID, p_mk: CURMK });
+    rows = nd || [];
   } catch (e) {}
+  const miss   = rows.filter(r => r.session_id);   // 날짜가 있는 줄 → 「보강 잡기」
+  const shorts = rows.filter(r => !r.session_id);  // 자리 자체가 모자란 회 → 센터로 말씀
 
   // ④ 이미 낸 신청
   let reqs = [];
@@ -1336,14 +1330,6 @@ async function drawNeed() {
   } catch (e) {}
   const RQ = {};
   reqs.forEach(r => { if (r.state !== '반려') RQ[r.session_id] = r; });
-
-  // ⑤ 자리 자체가 모자란 회 (창구가 숫자만 돌려준다)
-  let shorts = [];
-  try {
-    const { data: sh } = await sb.rpc('nl_parent_short',
-      { p_child: CURKID, p_mk: CURMK });
-    shorts = sh || [];
-  } catch (e) {}
 
   if (!miss.length && !shorts.length) return;
 
@@ -1357,16 +1343,6 @@ async function drawNeed() {
       (t3 || []).forEach(r => { T3[r.id] = r.therapy_type_id; });
     } catch (e) {}
   }
-  // 공휴일 이름
-  const HOL3 = {};
-  const ds3 = [...new Set(miss.map(r => r.plan_date))];
-  if (ds3.length) {
-    try {
-      const { data: o3 } = await sb.from('nl_offdays')
-        .select('off_date, reason').in('off_date', ds3);
-      (o3 || []).forEach(r => { HOL3[r.off_date] = r.reason || '공휴일'; });
-    } catch (e) {}
-  }
 
   let h = '<div class="needbox"><div class="needttl">보강이 필요한 수업 '
         + (miss.length + shorts.length) + '</div>';
@@ -1377,12 +1353,9 @@ async function drawNeed() {
               + '일 (' + DAYS[dd.getDay()] + ')';
     const tn  = TYPES[T3[r.therapy_id]] || '수업';
     const thn = THRS[r.therapist_id] || '';
-    const st  = String(r.status || '');
-    let why = st === '휴무'
-      ? (HOL3[r.plan_date] ? HOL3[r.plan_date] + ' · 공휴일' : '선생님 휴가')
-      : '결석';
-    if (r.month_key < CURMK) why = '지난달에서 넘어온 것 · ' + why;
-    const q = RQ[r.id];
+    let why = String(r.why || '');
+    if (r.kind === 'prev') why = '지난달에서 넘어온 것 · ' + why;
+    const q = RQ[r.session_id];
     h += '<div class="needone">'
        + '<div class="needd">' + esc(day) + ' · ' + esc(hhmm(r.start_time))
        + ' · ' + esc(tn) + '</div>'
@@ -1396,7 +1369,7 @@ async function drawNeed() {
        + '</div>'
        + (q
           ? '<button class="needbtn gray" data-cancel="' + q.id + '">신청 취소</button>'
-          : '<button class="needbtn" data-ask="' + r.id + '"'
+          : '<button class="needbtn" data-ask="' + r.session_id + '"'
             + ' data-d="' + r.plan_date + '" data-t="' + hhmm(r.start_time) + '"'
             + ' data-thr="' + (r.therapist_id || '') + '"'
             + ' data-st="' + (r.support_type_id || '') + '"'
@@ -1406,10 +1379,13 @@ async function drawNeed() {
 
   shorts.forEach(s => {
     const nm = ST_LABEL[Number(s.support_type_id)] || '수업';
+    const x8 = Number(s.support_type_id) === 8;
     h += '<div class="needone">'
        + '<div class="needd">' + esc(nm) + ' · ' + Number(s.short) + '회 모자랍니다</div>'
-       + '<div class="needw">이 달에 받으실 ' + Number(s.need) + '회 가운데 '
-       + Number(s.have) + '회만 잡혀 있습니다. 센터로 말씀해 주세요.</div>'
+       + '<div class="needw">'
+       + (x8 ? '이 달 발달추가 수업 자리가 아직 없습니다.'
+             : '이 달에 받으실 회수보다 ' + Number(s.short) + '회 적게 잡혀 있습니다.')
+       + ' 센터로 말씀해 주세요.</div>'
        + '</div>';
   });
 
