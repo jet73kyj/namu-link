@@ -2540,9 +2540,9 @@ function drawFind(){
           + ((nOn && nOn < days.length) ? ' · 월 ' + nOn + '회' : '') + '</span>'
         + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'" title="고치기">수정</button>' : '')
       + '</div>'
-      + '<div class="fbt">' + ext + main
+      // 한 줄로 — 발추(이) 등 요일 밖 단추도 같은 줄 끝에 붙인다 (2026-09-11 시간표 칸이 줄어 들어서)
+      + '<div class="fbt">' + ext + main + oth + ghost
         + (dup ? '<span class="fdup">회기 줄 ' + dup + '개 더</span>' : '') + '</div>'
-      + ((oth || ghost) ? '<div class="fbt">' + oth + ghost + '</div>' : '')
       + '</div>';
   }).join('');
 
