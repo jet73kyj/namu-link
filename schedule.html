@@ -1711,6 +1711,30 @@ function nearest(m){ if(m==null) return SLOTS[0];
 function monNo(k){ return Number(String(k).split('-')[1]); }
 function dayNo(d){ return Number(String(d).split('-')[2]); }
 function wdOf(d){ const p=String(d).split('-'); return WDS[new Date(p[0],p[1]-1,p[2]).getDay()]; }
+// 보강 자리가 선생님 출근 요일·수업 시각 밖인지 본다 (2026-09-11)
+//   밖이면 알림 글을, 안이면 빈 글을 돌려준다
+//   「나오는 날」은 부르는 쪽에서 먼저 따진다 (나오는 날이 이긴다)
+//   출근 요일 표가 없는 선생님은 막지 않는다
+function workdayWhy(th, d, hm){
+  const t = THDAYS[Number(th)];
+  if (!t) return '';
+  const wd  = wdOf(d);
+  const p   = String(d).split('-');
+  const who = Number(th) + '번 ' + thName(Number(th)) + ' 선생님';
+  const day = Number(p[1]) + '월 ' + Number(p[2]) + '일(' + wd + ')';
+  const go  = '\n\n🏖 휴무 관리 → 「나오는 날」에서 ';
+  const r = t[wd];
+  if (!r || !r.works)
+    return who + '은 ' + day + '에 출근하지 않으십니다.'
+      + go + '이 날을 먼저 등록한 뒤 보강을 잡아 주세요.';
+  const x = String(hm || '').slice(0, 5);
+  if (x && ((r.f && x < r.f) || (r.l && x > r.l)))
+    return who + '의 ' + day + ' 수업 시각은 '
+      + (r.f ? h12(r.f) : '처음') + ' ~ ' + (r.l ? h12(r.l) : '끝') + ' 입니다.\n'
+      + h12(x) + ' 은 그 밖입니다.'
+      + go + '이 시각이 들어가게 먼저 등록한 뒤 보강을 잡아 주세요.';
+  return '';
+}
 function countWd(k, w){
   const p=String(k).split('-'), y=Number(p[0]), m=Number(p[1]);
   const i=WDS.indexOf(w); let n=0; const d=new Date(y,m-1,1);
@@ -6404,7 +6428,10 @@ async function putW5(absId){
       + w5Slot.hm + ' 로 잡았습니다.', true);
     draw();
   } catch (e) {
-    w5msg('❌ 넣지 못했습니다.\n' + e.message, false);
+    // 서버 장치가 출근 요일·시각으로 막았으면 알림 창으로 알린다 (2026-09-11)
+    const em = String((e && e.message) || '');
+    if (em.indexOf('나오는 날') >= 0) { w5msg('❌ ' + em, false); alert(em); }
+    else w5msg('❌ 넣지 못했습니다.\n' + em, false);
   }
 }
 
@@ -7001,18 +7028,22 @@ $('mkSave').onclick = async () => {
                                || (o.kind === '치료사휴무' && Number(o.therapist_id) === Number(th)));
     const slotOff = offs.find(o => (o.kind === '시간막음' || o.kind === '상담')
       && Number(o.therapist_id) === Number(th) && hmOf(o.start_time) === hmChk);
+    // 출근 요일·수업 시각 밖이면 누구든 막는다 (2026-09-11)
+    //   서버 장치(trg_i_mk_workday)도 같은 것을 막는다. 대표도 막힌다
+    //   휴무 관리 → 「나오는 날」을 먼저 등록하면 열린다
+    if (!work) {
+      const wk = workdayWhy(th, d, hmChk);
+      if (wk) {
+        mkmsg('❌ ' + wk, false);
+        alert(wk);
+        return;
+      }
+    }
     let why = '';
     if (slotOff) why = (slotOff.kind === '상담' ? '평가 상담 자리' : '시간 막음 자리')
                      + (slotOff.reason ? ' (' + slotOff.reason + ')' : '');
     else if (dayOff && !work) why = (dayOff.kind === '치료사휴무' ? '선생님 휴가' : (dayOff.reason || dayOff.kind))
                                   + ' 인 날';
-    else if (!work && THDAYS[Number(th)]) {
-      // 출근 요일·첫 수업~마지막 수업 (수수료 정산 화면의 표) — 나오는 날이면 통과
-      const r = THDAYS[Number(th)][wdOf(d)];
-      if (!r || !r.works) why = wdOf(d) + '요일은 출근하지 않는 날 (나오는 날로 넣으면 열립니다)';
-      else if (r.f && hmChk < r.f) why = '첫 수업(' + h12(r.f) + ')보다 이른 시각';
-      else if (r.l && hmChk > r.l) why = '마지막 수업(' + h12(r.l) + ')보다 늦은 시각';
-    }
     if (why) {
       const msg = dayNo(d) + '일 ' + h12(hmChk) + ' 은 ' + thName(th) + ' 선생님의 ' + why + '입니다.';
       if (!IS_BOSS) {
@@ -7069,7 +7100,10 @@ $('mkSave').onclick = async () => {
     $('mkDel').style.display = '';
     draw();
   } catch (e) {
-    mkmsg('❌ 저장하지 못했습니다.\n' + e.message, false);
+    // 서버 장치가 출근 요일·시각으로 막았으면 알림 창으로 알린다 (2026-09-11)
+    const em = String((e && e.message) || '');
+    if (em.indexOf('나오는 날') >= 0) { mkmsg('❌ ' + em, false); alert(em); }
+    else mkmsg('❌ 저장하지 못했습니다.\n' + em, false);
   } finally {
     $('mkSave').disabled = false; $('mkSave').textContent = '저장';
   }
