@@ -78,6 +78,11 @@
     + '#nlDocWrap button.go{background:#2e7d32;border-color:#2e7d32;color:#fff;font-weight:bold;}'
     + '#nlDocWrap button.del{color:#c62828;}'
     + '#nlDocWrap button:disabled{background:#bbb;border-color:#bbb;color:#fff;}'
+    + '#nlDocWrap .dz{flex-basis:100%;border:2px dashed #85b7eb;border-radius:10px;background:#e6f1fb;padding:20px 12px;text-align:center;color:#0c447c;font-size:14px;cursor:pointer;}'
+    + '#nlDocWrap .dz small{display:block;color:#185fa5;font-size:12px;margin-top:4px;}'
+    + '#nlDocWrap .dz.over{background:#b5d4f4;border-color:#378add;}'
+    + '#nlDocWrap .dz.busy{background:#eee;border-color:#bbb;color:#888;cursor:default;}'
+    + '#nlDocWrap .f{display:none;}'
     + '#nlDocWrap .msg{margin-top:10px;font-size:13px;white-space:pre-wrap;}'
     + '#nlDocWrap .grp{border:1px solid #e0e5df;border-radius:9px;margin-top:12px;overflow:hidden;}'
     + '#nlDocWrap .gh{background:#f1f8e9;padding:9px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}'
@@ -126,9 +131,10 @@
           +   '<input type="text" class="t" style="width:230px;" placeholder="'
           +   (isCenter ? '언어평가 결과보고서' : '○○대학병원 발달평가') + '" value="' + esc(o.title || '') + '"></div>'
           + '<div><label>평가 받은 날</label><input type="date" class="d" value="' + esc(o.date || '') + '"></div>'
-          + '<div><label>파일 (사진·PDF · 여러 개 한꺼번에)</label>'
-          +   '<input type="file" class="f" multiple accept="image/*,.pdf,application/pdf"></div>'
-          + '<button type="button" class="go" data-a="up">올리기</button>'
+          + '<div class="dz">⬆ 여기에 사진·PDF를 끌어다 놓으면 바로 올라갑니다'
+          +   '<small>여러 개를 한꺼번에 놓아도 됩니다 · 눌러서 고를 수도 있습니다</small></div>'
+          + '<input type="file" class="f" multiple accept="image/*,.pdf,application/pdf">'
+          + '<button type="button" class="go" data-a="up" style="display:none;">준비된 파일 올리기</button>'
           + '</div>'
         : '')
       + '<div class="msg"></div>'
@@ -252,14 +258,62 @@
       }
     });
 
-    // 올리기
+    // 올리기 — 끌어다 놓거나 골라서 넣은 파일을 바로 올린다
+    //   이름을 안 적었으면 기다린다 → 이름을 적고 Enter(또는 칸을 벗어나면) 올라간다
     const upBtn = wrap.querySelector('[data-a="up"]');
-    if (upBtn) upBtn.onclick = async () => {
-      const title = wrap.querySelector('.t').value.trim();
+    const dz    = wrap.querySelector('.dz');
+    const fin   = wrap.querySelector('.f');
+    const tIn   = wrap.querySelector('.t');
+    let PENDING = [], BUSY = false;
+    const nameLbl = isCenter ? '문서 이름' : '기관·문서 이름';
+
+    function take(list) {
+      if (BUSY) return;
+      const files = Array.from(list || []).filter(f =>
+        /^image\//.test(f.type || '') || /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+      const skip = (list ? list.length : 0) - files.length;
+      if (!files.length) { say('⚠️ 사진이나 PDF 파일만 올릴 수 있습니다.', false); return; }
+      PENDING = PENDING.concat(files);
+      if (!tIn.value.trim()) {
+        upBtn.style.display = '';
+        upBtn.textContent = '준비된 ' + PENDING.length + '개 올리기';
+        say('⚠️ 파일 ' + PENDING.length + '개가 준비되었습니다.\n위 「' + nameLbl + '」을 먼저 적어 주세요. 적고 Enter 를 누르면 올라갑니다.'
+          + (skip ? '\n(사진·PDF가 아닌 ' + skip + '개는 뺐습니다)' : ''), false);
+        tIn.focus();
+        return;
+      }
+      go();
+    }
+
+    if (dz) {
+      dz.onclick = () => { if (!BUSY) fin.click(); };
+      ['dragenter', 'dragover'].forEach(n => dz.addEventListener(n, ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        if (!BUSY) dz.classList.add('over');
+      }));
+      dz.addEventListener('dragleave', ev => { ev.preventDefault(); dz.classList.remove('over'); });
+      dz.addEventListener('drop', ev => {
+        ev.preventDefault(); ev.stopPropagation();
+        dz.classList.remove('over');
+        take(ev.dataTransfer && ev.dataTransfer.files);
+      });
+      fin.onchange = () => { take(fin.files); fin.value = ''; };
+      // 상자 밖에 잘못 놓아도 브라우저가 파일을 열어 버리지 않게
+      ['dragover', 'drop'].forEach(n => wrap.addEventListener(n, ev => ev.preventDefault()));
+      tIn.addEventListener('keydown', ev => { if (ev.key === 'Enter' && PENDING.length) go(); });
+      tIn.addEventListener('change', () => { if (PENDING.length) go(); });
+    }
+
+    async function go() {
+      if (BUSY) return;
+      const title = tIn.value.trim();
       const dd    = wrap.querySelector('.d').value || null;
-      const files = Array.from(wrap.querySelector('.f').files || []);
-      if (!title)        { say('⚠️ ' + (isCenter ? '문서 이름' : '기관·문서 이름') + '을 적어 주세요.', false); return; }
-      if (!files.length) { say('⚠️ 올릴 파일을 골라 주세요.', false); return; }
+      const files = PENDING.slice();
+      if (!title)        { say('⚠️ ' + nameLbl + '을 적어 주세요.', false); return; }
+      if (!files.length) { say('⚠️ 올릴 파일을 끌어다 놓아 주세요.', false); return; }
+      PENDING = [];
+      BUSY = true;
+      if (dz) { dz.classList.add('busy'); }
       // 파일 이름 차례대로 (1쪽, 2쪽 … 이 섞이지 않게)
       files.sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }));
 
@@ -267,7 +321,7 @@
       const already = ROWS.filter(r => (r.title || '') === title && (r.doc_date || null) === dd);
       let pno = already.reduce((m, r) => Math.max(m, r.page_no || 0), 0);
 
-      upBtn.disabled = true;
+      upBtn.style.display = 'none';
       let okN = 0, fail = [];
       const stamp = Date.now();
       for (let i = 0; i < files.length; i++) {
@@ -296,13 +350,14 @@
         }
         okN++;
       }
-      upBtn.disabled = false;
-      wrap.querySelector('.f').value = '';
+      BUSY = false;
+      if (dz) dz.classList.remove('busy');
       say((okN ? '✅ ' + okN + '개를 올렸습니다.' : '')
         + (fail.length ? '\n❌ 못 올린 것 ' + fail.length + '개\n' + fail.join('\n') : ''), !fail.length);
       await load();
       if (o.onChange) o.onChange();
-    };
+    }
+    if (upBtn) upBtn.onclick = () => go();
 
     await load();
   }

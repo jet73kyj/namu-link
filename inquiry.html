@@ -493,6 +493,7 @@
     <div class="btns">
       <button id="saveDet" class="tab" style="background:#2e7d32;color:#fff;font-weight:bold;">저장</button>
       <button id="closeDet" class="tab">닫기</button>
+      <button id="goNew" class="tab" style="background:#eaf3de;color:#27500a;border:1px solid #97c459;font-weight:bold;">＋ 새 문의 등록</button>
     </div>
     <div id="msgD" class="out"></div>
 
@@ -833,6 +834,15 @@ async function loadLogs(id) {
 
 $('closeDet').onclick = () => { $('detBox').style.display = 'none'; openId = null;
   $('addBox').style.display = 'block'; };
+
+// 열기 창에서 곧장 새 문의 등록으로 — 열기 창을 닫고, 등록 창을 비워서 그 자리로 올라간다
+$('goNew').onclick = () => {
+  if (window.NLDocs) NLDocs.close();
+  $('detBox').style.display = 'none'; openId = null;
+  resetAddBox();
+  draw();
+  $('addBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
 $('saveDet').onclick = async () => {
   if (!openId) return;
