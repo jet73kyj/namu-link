@@ -114,6 +114,22 @@
   .lookttl { font-size:11px; color:#6b7a6e; }
   .lookcnt { font-size:12.5px; }
   .lookam  { font-size:11.5px; }
+  /* 회기 단추 줄 (2026-09-11) — 수업마다 그 달 날짜 단추. 색 있음 = 청구 / 회색 = 청구 안 함 */
+  .sbrow { display:flex; flex-wrap:wrap; gap:5px; padding:1px 0 7px 182px; }
+  .sb { font-size:12px; padding:4px 8px; border-radius:6px; border:1px solid;
+        cursor:pointer; line-height:1.3; white-space:nowrap; user-select:none; }
+  .sb.s1 { background:#E6F1FB; color:#0C447C; border-color:#378ADD; }
+  .sb.s2 { background:#EAF3DE; color:#27500A; border-color:#639922; }
+  .sb.s3, .sb.s4 { background:#EEEDFE; color:#3C3489; border-color:#7F77DD; }
+  .sb.s5 { background:#FAECE7; color:#712B13; border-color:#D85A30; }
+  .sb.s6, .sb.s7 { background:#FBEAF0; color:#72243E; border-color:#D4537E; }
+  .sb.s8 { background:#FAEEDA; color:#633806; border-color:#BA7517; }
+  .sb.off { background:#F1EFE8; color:#5F5E5A; border-color:#B4B2A9; }
+  .sb.lock { cursor:default; }
+  .sb.busy { opacity:.5; pointer-events:none; }
+  .r input.cnt.ro { border-color:transparent; background:transparent; font-weight:600; }
+  .cntwarn { display:block; font-size:10.5px; color:#b3261e; white-space:nowrap;
+             cursor:pointer; text-decoration:underline; }
   .r select.evsel { padding:4px 6px; font-size:12.5px; border-radius:6px;
                     border:1px solid var(--line); max-width:190px; }
   .r select.xmode { padding:4px 6px; font-size:12.5px; border-radius:6px;
@@ -251,6 +267,7 @@
     .r { flex-wrap:wrap; gap:8px; }
     .r .nm { flex:0 0 100%; }
     .r .de { flex:1 1 auto; }
+    .sbrow { padding-left:0; }
   }
 
   .btn-home { display:inline-block; padding:8px 16px; background:#2e7d32; color:#fff;
@@ -306,9 +323,10 @@
   <!-- 도움말은 접어 둔다 (2026-09-11). 「도움말」을 누르면 펼쳐진다 -->
   <details class="note helpfold">
     <summary>ℹ️ 도움말 (눌러서 펼치기)</summary>
-    <b>회기</b>는 시간표의 회기 표에서 가져옵니다. 공휴일·휴가·보강·쉼은 빼고 셉니다.<br>
-    <b>회기 칸을 누르면</b> 주차 고르기가 펼쳐집니다. 끈 주차는 「쉼」이 되어 회기에서 빠지고,
-    그 시간은 다른 아동 보강에 쓸 수 있습니다. 저장해야 반영됩니다.<br>
+    <b>회기</b>는 수업 줄 아래 <b>날짜 단추</b>로 정합니다. 색 있음 = 청구, 회색 = 청구 안 함. 회기 수 = 켜진 단추 수.<br>
+    켜진 단추를 누르면 회색(보강 없음), 회색 쉬는 날을 누르면 켜짐(보강 받음 → 시간표 「회기가 모자란 수업」).
+    발달재활 단추는 여기서 바꾸지 않습니다. 매달 되풀이하는 주차는 시간표 수정 창 「오는 주차」에서 바꿉니다.<br>
+    저장한 회기와 단추 수가 다르면 회기 아래에 빨간 「단추 ○회」가 뜹니다. 누르면 단추 수로 맞춥니다.<br>
     회기가 아직 없는 달이면 요일 수로 채워집니다. 다르면 숫자를 고치세요.<br>
     <b>적용단가</b>를 넣으면 치료사 단가 대신 그 값으로 계산합니다 (할인 등). 다음 달에도 이어집니다.
     할인을 끝낼 때는 칸을 비우세요.<br>
@@ -374,6 +392,22 @@ function carryWhy(supportTypeId, seq) {
 }
 let SCHED = {};             // child_id -> 수업 목록
 let SESSCNT = {};           // 수업번호 -> { 지원유형: 회기수 }
+// 회기 단추 (2026-09-11) — 켜진 단추 수 = 청구 회수 (예정 교육비 nl_estimate_calc 와 같은 규칙)
+let SROWS   = {};           // '수업번호|지원유형' -> 그 달 원래 수업 줄들 (날짜 차례)
+let SBYID_G = {};           // 회기 줄 번호 -> 줄
+let X8SESS  = {};           // 아동번호 -> 그 달 발추 줄 (단추 글의 날짜)
+const ABBR = {1:'센', 2:'발', 3:'치언', 4:'치작', 5:'방', 6:'방언', 7:'방작', 8:'이'};
+// 이 줄이 청구에 들어가나 (단추가 켜져 있나)
+//   「보강 없음」 → 꺼짐
+//   쉬는 날(휴무) — 발달재활·발추는 늘 켜짐 (회차 0 은 채울 것이 없어 꺼짐)
+//                  그 밖은 「보강 받음」(want_makeup)이 켜진 것만
+function sessOn(x) {
+  if (x.no_makeup) return false;
+  if (x.status !== '휴무') return true;
+  const sp = Number(x.support_type_id) || 0;
+  if (sp === 2 || sp === 8) return Number(x.run_no || 0) > 0;
+  return !!x.want_makeup;
+}
 let WKWAS   = {};           // 요일줄번호 -> 불러올 때의 주차 상태
 let SAVED = {};             // child_id -> 저장된 납부 (이번 달)
 let PREV  = {};             // child_id -> 지난달 납부 (적용단가·발추방식 이어받기용)
@@ -820,7 +854,7 @@ async function load() {
       sb.from('nl_payments').select('child_id, support_type_id, memo')
         .eq('month_key', pmk),
       sb.from('nl_sessions')
-        .select('id, child_id, schedule_id, support_type_id, status, plan_date, makeup_for, no_makeup, no_makeup_why, minutes')
+        .select('id, child_id, schedule_id, support_type_id, status, plan_date, start_time, month_key, run_no, makeup_for, no_makeup, no_makeup_why, want_makeup, minutes')
         .eq('month_key', mk)
     ]);
 
@@ -832,10 +866,11 @@ async function load() {
       const _to = _nx.getFullYear() + '-'
                 + String(_nx.getMonth() + 1).padStart(2, '0') + '-01';
       const { data: _off, error: _oe } = await sb.from('nl_offdays')
-        .select('off_date, therapist_id')
+        .select('off_date, therapist_id, kind, reason')
         .gte('off_date', mk + '-01').lt('off_date', _to);
       if (_oe) console.warn('공휴일 못 가져옴', _oe);
-      (_off || []).forEach(o => { if (!o.therapist_id) HOLDAY[o.off_date] = true; });
+      // 공휴일 이름도 담아 둔다 (날짜 단추 글 「25일 추석 연휴」에 씀)
+      (_off || []).forEach(o => { if (!o.therapist_id) HOLDAY[o.off_date] = o.reason || o.kind || '공휴일'; });
     } catch (e) { console.warn('공휴일 못 가져옴', e); }
     if (th.error)  throw th.error;
     if (fe.error)  throw fe.error;
@@ -864,24 +899,34 @@ async function load() {
       if (x.status === '취소' || x.status === '쉼') return false;
       return Number(x.minutes || 40) === 40 || x.status === '완료';
     };
+    // 회기 단추 (2026-09-11) — 켜진 단추 수 = 청구 회수
+    //   원래 수업 줄만 단추가 된다. 보강·조각 줄은 세지 않는다
+    //   (쉬는 날을 메운 보강은 그 쉬는 날 단추가 「보강 받음」으로 켜져 한 회로 셈)
     SESSCNT = {};
     WKWAS   = {};
+    SROWS   = {};
+    SBYID_G = SBYID;
+    X8SESS  = {};
     sess.forEach(x => {
-      if (x.makeup_for) { if (!mkCount(x)) return; }
-      else if (x.status === '보강') return;
+      if (!x.makeup_for && Number(x.support_type_id) === 8 && Number(x.run_no || 0) > 0)
+        X8SESS[x.child_id] = x;
+      if (x.makeup_for || x.status === '보강') return;
       const k = x.schedule_id;
       const sp = x.support_type_id || 0;
       (SESSCNT[k] = SESSCNT[k] || {});
-      // 휴무·쉼은 자리만 만들어 둔다 (회기 수는 안 올린다).
+      // 쉼·취소는 자리만 만들어 둔다 (회기 수는 안 올린다).
       // 그래야 「한 달 통째로 쉼」인 수업이 0회로 그려진다.
       // 자리를 안 만들면 회기가 없는 것으로 보고 요일 수로 세어
       // 쉬는 달에도 금액이 생긴다.
       if (SESSCNT[k][sp] == null) SESSCNT[k][sp] = 0;
-      // 「보강 없음」으로 정한 줄은 청구 회수에서 뺀다 (2026-09-08)
+      if (x.status === '쉼' || x.status === '취소') return;
+      (SROWS[k + '|' + sp] = SROWS[k + '|' + sp] || []).push(x);
       // 회기는 줄 수가 아니라 분으로 센다. 10분 네 줄이 한 회기 (2026-09-08)
-      if (x.status !== '휴무' && x.status !== '쉼' && !x.no_makeup)
-        SESSCNT[k][sp] += (Number(x.minutes || 40) / 40);
+      if (sessOn(x)) SESSCNT[k][sp] += (Number(x.minutes || 40) / 40);
     });
+    Object.keys(SROWS).forEach(k => SROWS[k].sort((a, b) =>
+      String(a.plan_date).localeCompare(String(b.plan_date))
+      || String(a.start_time || '').localeCompare(String(b.start_time || ''))));
 
     // 보강을 이미 잡은 결석 모으기
     const covered = {};
@@ -1388,6 +1433,156 @@ function drawAll() {
 
 function dayOnly(v) { return Number(String(v || '').slice(8, 10)) || ''; }
 
+// ── 회기 단추 (2026-09-11) ────────────────────────
+// 회기 칸 — 날짜 단추가 있으면 켜진 단추 수를 보여 주기만 한다 (고치지 않음)
+//   저장한 회기가 단추 수와 다르면 아래에 빨간 「단추 ○회」 — 누르면 단추 수로 맞춘다
+//   이 달 회기가 아직 없으면 지금처럼 숫자를 고칠 수 있다
+function cntHtml(it, cnt) {
+  const rows = SROWS[it.sched_id + '|' + it.row_st];
+  if (!rows || !rows.length)
+    return '<input class="cnt" type="text" inputmode="numeric" value="' + cnt + '"'
+      + ' title="시간표에 이 달 회기가 아직 없어 요일 수로 채웠습니다. 다르면 고치세요.">';
+  const on = Math.round(Number(it.count || 0) * 100) / 100;
+  return '<input class="cnt ro" type="text" readonly value="' + cnt + '"'
+    + ' title="켜진 날짜 단추 수입니다. 단추를 눌러 바꿉니다.">'
+    + (Number(cnt) !== on
+        ? '<span class="cntwarn" data-n="' + on + '" title="눌러서 단추 수로 맞춥니다">단추 ' + on + '회</span>'
+        : '');
+}
+// 한 수업 줄의 날짜 단추 줄
+function btnRowHtml(it) {
+  const rows = SROWS[it.sched_id + '|' + it.row_st];
+  if (!rows || !rows.length) return '';
+  return '<div class="sbrow" data-sched="' + it.sched_id + '" data-bst="' + it.row_st + '">'
+    + rows.map(sbHtml).join('') + '</div>';
+}
+// 날짜 단추 하나 — 글은 사업 약칭 + 회차 + 날짜만. 쉬는 날은 「8일 치료사 휴가」
+function sbHtml(x) {
+  const sp  = Number(x.support_type_id) || 0;
+  const dev = (sp === 2 || sp === 8);
+  const on  = sessOn(x);
+  const d   = dayOnly(x.plan_date);
+  let txt;
+  if (x.status === '휴무') {
+    txt = d + '일 ' + (HOLDAY[x.plan_date] ? HOLDAY[x.plan_date] : '치료사 휴가');
+  } else {
+    const mn = Number(String(x.month_key || LOADED_MK || '').slice(5, 7));
+    txt = (ABBR[sp] || '') + ' '
+        + (Number(x.run_no) > 0 ? mn + '-' + x.run_no + ' · ' : '') + d + '일';
+  }
+  const tip = (x.no_makeup ? '보강 없음'
+              : x.status === '휴무' ? (on ? '쉬는 날 · 보강 받음' : '쉬는 날')
+              : (x.status || ''))
+    + (dev ? ' · 발달재활은 여기서 바꾸지 않습니다'
+           : (on ? ' · 누르면 회색 (청구 안 함)' : ' · 누르면 켜짐 (청구)'));
+  return '<span class="sb s' + sp + (on ? '' : ' off') + (dev ? ' lock' : '') + '"'
+    + ' data-sid="' + x.id + '" title="' + esc(tip) + '">'
+    + esc(txt) + (dev && x.status === '휴무' ? ' \uD83D\uDD12' : '') + '</span>';
+}
+// 발추 단추 (이) — 켜짐 = 이번 달 발추 청구 / 회색 = 청구 안 함 (적용 없음)
+function x8BtnHtml(cid, mode, cnt) {
+  const s8 = X8SESS[cid];
+  const mn = Number(String(LOADED_MK || '').slice(5, 7));
+  const on = Number(mode) !== 3 && numOf(cnt) > 0;
+  return '<div class="sbrow"><span class="sb s8 x8b' + (on ? '' : ' off') + '"'
+    + ' title="발추 · 누르면 켜고 끕니다 (적용방식이 함께 바뀜)">'
+    + '이 ' + mn + '-5' + (s8 ? ' · ' + dayOnly(s8.plan_date) + '일' : '') + '</span></div>';
+}
+// 발추 단추를 적용방식 · 회기 칸에 맞춘다
+function syncX8(box) {
+  const row = box.querySelector('.gsum[data-st="8"]');
+  const bt  = box.querySelector('.x8b');
+  if (!row || !bt) return;
+  const md = row.querySelector('.xmode'), xc = row.querySelector('.xcnt');
+  const on = !!md && Number(md.value) !== 3 && numOf(xc ? xc.value : 0) > 0;
+  bt.classList.toggle('off', !on);
+}
+// 날짜 단추를 눌렀을 때
+//   켜짐 → 회색 : 쉬는 날이면 「보강 받음」을 끔 / 그 밖은 「보강 없음」 (예정·완료는 결석으로)
+//   회색 → 켜짐 : 쉬는 날이면 「보강 받음」을 켬 / 그 밖은 「보강 없음」을 풂
+//   사유는 묻지 않는다. 보강이 잡힌 날은 서버 장치가 막는다
+async function toggleSb(el) {
+  const kid = el.closest('.kid');
+  if (!kid) return;
+  const cid = Number(kid.dataset.child);
+  if (isFixed(cid)) {
+    alert('확정한 아동입니다.\n이름 옆 「확정」을 눌러 예정으로 되돌린 뒤 바꾸세요.');
+    return;
+  }
+  // 발추 단추 — 회기 표는 건드리지 않고 적용방식만 바꾼다
+  if (el.classList.contains('x8b')) {
+    const row = kid.querySelector('.gsum[data-st="8"]');
+    const md = row ? row.querySelector('.xmode') : null;
+    const xc = row ? row.querySelector('.xcnt') : null;
+    if (!md || !xc) return;
+    if (el.classList.contains('off')) { md.value = '1'; xc.value = 1; }
+    else { md.value = '3'; xc.value = 0; }
+    calcKid(cid); sumAll(); unDone(row);
+    return;
+  }
+  if (el.classList.contains('lock')) {
+    alert('발달재활은 그 달 4회를 채워야 해서 여기서 끄지 않습니다.\n'
+      + '보강을 못 하면 시간표 보강 잡기 창의 「포기」를 쓰세요.');
+    return;
+  }
+  const x = SBYID_G[Number(el.dataset.sid)];
+  if (!x) return;
+  const on = sessOn(x);
+  let upd;
+  if (on) {
+    if (x.status === '휴무') upd = { want_makeup: false };
+    else {
+      upd = { no_makeup: true, no_makeup_why: null };
+      if (x.status === '예정' || x.status === '완료') upd.status = '결석';
+    }
+  } else {
+    if (x.status === '휴무') upd = { want_makeup: true, no_makeup: false, no_makeup_why: null };
+    else {
+      upd = { no_makeup: false, no_makeup_why: null };
+      // 이 화면에서 결석으로 바꿨던 날이면 원래 상태로 되돌린다
+      if (x._was && x.status === '결석') upd.status = x._was;
+    }
+  }
+  el.classList.add('busy');
+  const { data, error } = await sb.from('nl_sessions').update(upd).eq('id', x.id)
+    .select('id, status, no_makeup, no_makeup_why, want_makeup').single();
+  el.classList.remove('busy');
+  if (error) {
+    alert(/보강/.test(error.message || '')
+      ? error.message + '\n\n시간표에서 보강을 먼저 지운 뒤 다시 누르세요.'
+      : '바꾸지 못했습니다.\n' + (error.message || error));
+    return;
+  }
+  if (on && upd.status === '결석') x._was = x.status;
+  else if (!on && upd.status) delete x._was;
+  Object.assign(x, data);
+
+  // 단추 · 회기 칸 · 금액을 다시 그린다
+  const rowEl = el.closest('.sbrow');
+  const sched = rowEl ? rowEl.dataset.sched : '';
+  const bst   = rowEl ? rowEl.dataset.bst : '';
+  el.outerHTML = sbHtml(x);
+  const list = SROWS[sched + '|' + bst] || [];
+  let n = 0;
+  list.forEach(v => { if (sessOn(v)) n += (Number(v.minutes || 40) / 40); });
+  n = Math.round(n * 100) / 100;
+  if (SESSCNT[sched]) SESSCNT[sched][bst] = n;
+  const line = kid.querySelector('.r.line[data-sched="' + sched + '"][data-st="' + bst + '"]');
+  if (line) {
+    const inp = line.querySelector('.cnt');
+    if (inp) inp.value = n;
+    const w = line.querySelector('.cntwarn');
+    if (w) w.remove();
+    unDone(line);
+  } else {
+    // 발달재활 보기 줄 — 회수 글만 고친다
+    const look = rowEl ? rowEl.previousElementSibling : null;
+    const lc = look ? look.querySelector('.lookcnt') : null;
+    if (lc) lc.textContent = '발 ' + n + '회';
+  }
+  calcKid(cid); sumAll();
+}
+
 function drawKid(c) {
   const mk = LOADED_MK;
   const groups = buildRows(c.id, mk);
@@ -1411,123 +1606,16 @@ function drawKid(c) {
     b += '<div class="warn">수업이 등록되어 있지 않습니다. 평가비만 넣을 수 있습니다.</div>';
   }
 
-  // 회기가 기준보다 적은 유형 알려주기
-  // 이미 저장한 납부 회기와 시간표 회기가 같으면 확정된 것이라 안 띄운다
-  const shorts = [];
-  Object.keys(NEEDCNT).forEach(k => {
-    const p = k.split('|');
-    if (Number(p[0]) !== c.id) return;
-    const st = Number(p[1]);
-    let need = NEEDCNT[k];
-    if (!need) return;
-    const g = SHORTCNT[k];
-    if (!g) return;
-    // 「확정」이면 안 띄운다
-    //   예정인 동안은 「보강 없음」과 「보강 잡기」를 몇 번이든 바꿀 수 있다
-    //   다 정하시면 이름 옆 딱지를 눌러 확정으로 바꾸시면 단추가 사라진다
-    if (isFixed(c.id)) return;
-
-    // 예정인 동안은 늘 띄운다 (2026-09-08)
-    //   아동 사정이 바뀌어 보강을 했다 안 했다 할 수 있으므로,
-    //   회수가 맞고 빠진 날이 없어도 단추를 보여드린다
-
-    // 발달재활(2번)은 시간표가 보강·결석·모자란 수업을 다 알려주므로
-    // 여기서는 띄우지 않는다
-    if (st === 2) return;
-
-    // need 는 원래 기준 회수 그대로 쓴다
-    //   skip 을 빼면 「보강 없음」을 누른 뒤 「보강 잡기」로 되돌릴 때
-    //   기준이 줄어 회기를 못 늘린다
-    shorts.push({ st: st, need: need, cnt: g.cnt, miss: g.miss, all: g.all || [] });
-  });
-
-  // 발4+발추1 아동인데 발추(8번) 청구가 빠져 있으면 알려준다
-  //   일정은 다음 달로 넘겨도 되지만 납부는 그 달에 해야 하므로,
-  //   「적용 없음」이거나 금액이 0원일 때만 띄운다
+  // 「몇 회 적음」 상자와 「보강을 아직 못 잡은 결석」 상자는 없앴다 (2026-09-11 회기 단추)
+  //   회기는 수업 줄 아래 날짜 단추로 켜고 끈다. 보강할 것은 시간표 상자가 알려 준다
+  // 발4+발추1 아동인데 발추(8번) 청구가 빠져 있으면 알려준다 (그대로 남김)
   if (X8NEED[c.id]) {
     const s8 = sv[8];
     const m8 = (s8 !== undefined) ? (xmodeOf(s8) || 3) : 1;
     if (m8 === 3 || (s8 !== undefined && !(Number(s8.amount) > 0)))
-      shorts.push({ st: 8, need: 1, cnt: 0, miss: [], x8: true });
-  }
-
-  if (shorts.length) {
-    b += '<div class="shortc">'
-      + shorts.map(x =>
-          '<div class="shortline" data-nmst="' + x.st + '" data-nmids="'
-          + x.miss.map(m => m.id).join(',') + '" data-nmcnt="' + (x.cnt || 0)
-          + '" data-nmneed="' + (x.need || 0)
-          + '" data-nmadd="' + Math.max(0, (x.need || 0) - (x.cnt || 0))
-          + '" data-nmplan="'
-          + (x.all || []).map(m => m.id + ':' + m.d + ':' + m.s).join(',')
-          + '" data-nmdays="'
-          + x.miss.map(m => dayOnly(m.d) + '일').join(' · ') + '"><b>'
-          + (TYPES[x.st] || ('유형'+x.st)) + '</b> '
-          + (x.x8
-              ? '<b class="sred">발추 1회 청구가 빠져 있습니다</b>'
-              : (x.need - x.cnt > 0
-                  ? x.need + '회 → <b class="sred">' + x.cnt + '회</b> '
-                    + '(' + (x.need - x.cnt) + '회 적음)'
-                  : x.need + '회 → <b>' + x.cnt + '회</b> (회수 맞음)'))
-          + (x.miss.length
-              ? ' · 빠진 날 '
-                + x.miss.map(m => dayOnly(m.d) + '일 ' + m.s
-                    + (m.why ? ' (' + esc(m.why) + ')' : '')).join(' · ')
-              : ' · 빠진 날 없음')
-          // 발추(8) — 청구가 빠졌다는 것만 알려준다
-          + (x.x8
-              ? '<div class="shortmust">「적용 없음」을 「매월 1회」로 바꿔 주세요.</div>'
-              : '')
-          + (!x.x8
-              ? '<div class="shortact">'
-                + '<select class="nmwhy">'
-                +   '<option value="">— 사유를 고르세요 —</option>'
-                +   '<option value="치료사 휴가">치료사 휴가</option>'
-                +   '<option value="공휴일">공휴일</option>'
-                +   '<option value="보호자 요청">보호자 요청</option>'
-                +   '<option value="월말이라 못 잡음">월말이라 못 잡음</option>'
-                +   '<option value="아동 사정">아동 사정</option>'
-                +   '<option value="기타">기타 (직접 적기)</option>'
-                + '</select>'
-                + '<button type="button" class="nmbtn"'
-                +   ' title="보강을 잡지 않고 이 회기를 뺀 금액으로 청구합니다.'
-                +   ' 시간표의 보강 목록에서도 빠집니다.">보강 없음</button>'
-                + '<button type="button" class="mkbtn"'
-                +   ' title="회기를 원래 수로 채우고 저장합니다.'
-                +   ' 시간표의 「회기가 모자란 수업」에서 자리를 잡으세요.">보강 잡기</button>'
-                + '</div>'
-              : '')
-          + '</div>').join('')
-      + '</div>';
-  }
-
-  // 보강을 아직 못 잡은 결석 알려주기
-  const nm = NOMAKEUP[c.id] || [];
-  if (nm.length) {
-    const must = nm.filter(x => !x.ok);
-    const can  = nm.filter(x => x.ok);
-    b += '<div class="nmk' + (must.length ? ' nmk-hot' : '') + '">'
-      + '<b>보강을 아직 못 잡은 결석 ' + nm.length + '건'
-        + (nm.length
-            ? ' — ' + Number(String(LOADED_MK || '').slice(5,7)) + '월 '
-              + nm.map(x => dayOnly(x.date) + '일').join(' · ')
-            : '')
-        + '</b>'
-      + (must.length
-          ? '<div class="nmkline nmk-must">🔴 당월에 꼭 보강해야 함 ' + must.length + '건 — '
-            + must.map(x => (TYPES[x.st] || ('유형'+x.st)) + ' '
-                + dayOnly(x.date) + '일(' + x.seq + '회기'
-                + (x.why && x.why !== '결석' ? ' · ' + esc(x.why) : '') + ')').join(' · ')
-            + '<div class="nmkwhy">' + esc(carryWhy(must[0].st, must[0].seq)) + '</div></div>'
-          : '')
-      + (can.length
-          ? '<div class="nmkline nmk-can">🟡 다음 달로 넘겨도 되는 것 ' + can.length + '건 — '
-            + can.map(x => (TYPES[x.st] || ('유형'+x.st)) + ' '
-                + dayOnly(x.date) + '일(' + x.seq + '회기'
-                + (x.why && x.why !== '결석' ? ' · ' + esc(x.why) : '') + ')').join(' · ')
-            + '</div>'
-          : '')
-      + '</div>';
+      b += '<div class="shortc"><div class="shortline"><b>' + esc(TYPES[8] || '발추') + '</b> '
+        + '<b class="sred">발추 1회 청구가 빠져 있습니다</b>'
+        + '<div class="shortmust">발추 단추(이)를 눌러 켜 주세요.</div></div></div>';
   }
 
   b += '<div class="sect">카드결제</div>';
@@ -1559,30 +1647,12 @@ function drawKid(c) {
           + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
           + '<span class="ap"><input class="apu" type="text" inputmode="numeric" placeholder="적용단가" value="'
           + (ap ? ap.toLocaleString() : '') + '"></span>'
-          + '<span class="ct"><input class="cnt" type="text" inputmode="numeric" value="' + cnt + '">'
-          + (it.sched_id ? '<button class="wkopen" type="button">주차</button>' : '')
-          + '</span>'
+          + '<span class="ct">' + cntHtml(it, cnt) + '</span>'
           + '<span class="up upbox">' + (it.unit == null ? '<span class="warn">단가없음</span>' : it.unit.toLocaleString()) + '</span>'
           + '<span class="am lineamt" data-unit="' + (it.unit == null ? '' : it.unit) + '">0</span>'
           + '</div>'
-          + wkBoxHtml(it);
+          + btnRowHtml(it);
       });
-      // 발달재활 수업도 여기에 보이게 한다 (금액은 안 셈. 계좌입금 상자에서 셈함)
-      if (g.support_type_id === 1) {
-        const devG = groups.find(x => x.support_type_id === 2);
-        if (devG && devG.items && devG.items.length) {
-          devG.items.forEach(it => {
-            b += '<div class="r look">'
-              + '<span class="nm"></span>'
-              + '<span class="de">' + tagOf(it) + esc(it.label)
-              + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
-              + '<span class="ap"></span>'
-              + '<span class="ct"></span>'
-              + '<span class="up"></span>'
-              + '<span class="am"></span></div>';
-          });
-        }
-      }
       if (g.deduction > 0) {
         b += '<div class="r sub2"><span class="nm"></span>'
           + '<span class="de">지원금 제외</span><span class="ct"></span><span class="up"></span>'
@@ -1633,6 +1703,25 @@ function drawKid(c) {
         + '<span class="ct"><input class="cnt xcnt" type="text" inputmode="numeric" value="' + cnt + '"></span>'
         + '<span class="up xunit">' + feeExtra(curT).toLocaleString() + '</span>'
         + '<span class="am gamt">0</span></div>';
+      // 발추 단추 (이) — 적용방식을 켜고 끈다. 금액은 카드결제에서 셈 (2026-09-11)
+      b += x8BtnHtml(c.id, mode, cnt);
+      // 발달재활 수업 — 보기만 한다 (본인부담금은 계좌입금 상자). 날짜 단추는 잠김
+      const devG = groups.find(x => x.support_type_id === 2);
+      if (devG && devG.items && devG.items.length) {
+        devG.items.forEach(it => {
+          const dn = Math.round(Number(it.count || 0) * 100) / 100;
+          b += '<div class="r look">'
+            + '<span class="nm"></span>'
+            + '<span class="de">' + tagOf(it) + esc(it.label)
+            + ' · <b class="thr">' + esc(it.therapist_name) + '</b>'
+            + ' · 본인부담금은 아래 계좌입금</span>'
+            + '<span class="ap"></span>'
+            + '<span class="ct"><span class="lookcnt">발 ' + dn + '회</span></span>'
+            + '<span class="up"></span>'
+            + '<span class="am"></span></div>'
+            + btnRowHtml(it);
+        });
+      }
     }
   });
 
@@ -1938,6 +2027,7 @@ function calcKid(childId) {
   box.querySelector('.ktotal').textContent = won(total);
   box.dataset.total = total;
   box.dataset.parts = JSON.stringify(parts);
+  syncX8(box);
 }
 
 function sumAll() {
@@ -2173,7 +2263,9 @@ async function saveKid(childId, btn, only) {
     });
     const wkMsg = await saveWeeks(box);
     const evMsg = await markEvalPaid(childId, rows);
-    const nmMsg = await releaseNoMakeup(childId, box, only);
+    // 회기를 늘려 저장할 때 「보강 없음」을 풀지 묻던 것은 뺐다 (2026-09-11 회기 단추)
+    //   이제 날짜 단추를 켜면 바로 풀린다
+    const nmMsg = '';
     const unpaid = rows.filter(r => !r.paid_on).length;
     show($('msg2'), '✅ ' + rows.length + '건 저장했습니다.'
       + (deadSt.length ? ' (0원이 된 ' + deadSt.length + '건은 지웠습니다)' : '')
@@ -2526,6 +2618,22 @@ async function markNoMakeup(btn) {
 }
 
 $('kids').addEventListener('click', e => {
+  // 날짜 단추 (2026-09-11)
+  const sbEl = e.target.closest ? e.target.closest('.sb') : null;
+  if (sbEl) { toggleSb(sbEl); return; }
+  // 저장 회기와 단추 수가 다를 때 — 눌러서 단추 수로 맞춘다
+  if (e.target.classList.contains('cntwarn')) {
+    const line = e.target.closest('.r.line');
+    const inp  = line ? line.querySelector('.cnt') : null;
+    if (inp) {
+      inp.value = e.target.dataset.n;
+      e.target.remove();
+      unDone(line);
+      calcKid(Number(line.closest('.kid').dataset.child));
+      sumAll();
+    }
+    return;
+  }
   if (e.target.classList.contains('nmbtn')) { markNoMakeup(e.target); return; }
   if (e.target.classList.contains('mkbtn')) { markMakeup(e.target); return; }
 
