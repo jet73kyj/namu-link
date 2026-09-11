@@ -1475,6 +1475,7 @@ function drawKid(c) {
           + (!x.x8
               ? '<div class="shortact">'
                 + '<select class="nmwhy">'
+                +   '<option value="">— 사유를 고르세요 —</option>'
                 +   '<option value="치료사 휴가">치료사 휴가</option>'
                 +   '<option value="공휴일">공휴일</option>'
                 +   '<option value="보호자 요청">보호자 요청</option>'
@@ -2464,21 +2465,36 @@ async function markNoMakeup(btn) {
       + '이대로 청구할 수 없습니다. 보강을 잡아 주세요.');
     return;
   }
-  // 예정 줄을 골랐으면 결석으로도 바꾼다
+  // 사유를 먼저 받는다 — 결석으로 바꾸기 전에 (2026-09-11)
+  //   전에는 사유 칸 첫 칸이 「치료사 휴가」라, 안 고르고 누르면 아동 결석에도
+  //   「치료사 휴가」로 저장됐다 (85번 9/5)
+  const sel = line.querySelector('.nmwhy');
+  let why = sel ? sel.value : '';
+  if (!why) { alert('사유를 먼저 고르세요.\n(「보강 없음」 왼쪽 칸)'); return; }
+  if (why === '기타') {
+    why = (prompt('사유를 적어주세요.', '') || '').trim();
+    if (!why) return;
+  }
+  // 고른 날의 상태와 사유가 어긋나면 한 번 더 묻는다
+  //   결석 · 예정 · 완료 줄 = 아동 쪽 사정 / 휴무 줄 = 공휴일·선생님 휴가
+  const _st = String(pick.s || '');
+  const _isOff = _st.indexOf('휴무') >= 0 || _st.indexOf('공휴일') >= 0 || _st.indexOf('휴가') >= 0;
+  const _whyOff = (why === '치료사 휴가' || why === '공휴일');
+  if (_isOff !== _whyOff) {
+    if (!confirm(dayOnly(pick.d) + '일은 「' + _st + '」인데 사유가 「' + why + '」입니다.\n\n'
+        + (_isOff ? '쉬는 날(공휴일·선생님 휴가)인데 아동 쪽 사유를 고르셨습니다.'
+                  : '아동이 결석한 날인데 공휴일·선생님 휴가를 고르셨습니다.')
+        + '\n\n그래도 이 사유로 정할까요?')) return;
+  }
+  if (!confirm(dayOnly(pick.d) + '일 수업을 보강하지 않고 이대로 청구합니다.\n\n'
+    + '사유 — ' + why + '\n\n계속할까요?')) return;
+
+  // 예정 줄을 골랐으면 결석으로도 바꾼다 (사유를 다 받은 뒤에)
   if (pick.s === '예정' || pick.s === '완료') {
     const up = await sb.from('nl_sessions')
       .update({ status: '결석' }).eq('id', pick.id);
     if (up.error) { alert('바꾸지 못했습니다.\n' + up.error.message); return; }
   }
-
-  const sel = line.querySelector('.nmwhy');
-  let why = sel ? sel.value : '';
-  if (why === '기타') {
-    why = (prompt('사유를 적어주세요.', '') || '').trim();
-    if (!why) return;
-  }
-  if (!confirm(dayOnly(pick.d) + '일 수업을 보강하지 않고 이대로 청구합니다.\n\n'
-    + '사유 — ' + why + '\n\n계속할까요?')) return;
 
   btn.disabled = true;
   const { error } = await sb.from('nl_sessions')
