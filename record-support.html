@@ -533,8 +533,9 @@ async function saveRecord() {
       written_on: WRITTEN || null,
       updated_at: new Date().toISOString()
     };
+    // 잠금 uq_session_log_th — 아동·지원유형·달·수업 (2026-09-11)
     const { data: lg, error: e1 } = await sb.from('nl_session_logs')
-      .upsert(logRow, { onConflict: 'child_id,support_type_id,month_key' })
+      .upsert(logRow, { onConflict: 'child_id,support_type_id,month_key,therapy_id' })
       .select('id').single();
     if (e1) throw e1;
     LOGID = lg.id;
