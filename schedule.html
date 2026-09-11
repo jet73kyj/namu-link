@@ -1225,7 +1225,7 @@
     <div class="edend">
       <div class="edend-t">수업 끝내기</div>
       <div class="edend-row">
-        <label for="ed_end">수업 종결일</label>
+        <label for="ed_end" title="이날부터 수업이 없습니다">종결일 <span style="font-weight:normal;font-size:11px;">(이날부터 수업 없음)</span></label>
         <input id="ed_end" type="date">
         <button id="edEnd" class="pbtn red">이 수업 종결</button>
       </div>
@@ -1235,9 +1235,12 @@
                autocomplete="off" style="flex:1 1 auto;min-width:220px;">
       </div>
       <div class="edend-note">
-        날짜를 적고 <b>「이 수업 종결」</b>만 누르시면 됩니다.
+        <b>종결일 = 수업이 없어지는 첫날</b>입니다.
+        11일 수업까지 하고 끝나면 <b>12일</b>, 11일 수업부터 안 하면 <b>11일</b>.<br>
+        비워 두고 <b>「이 수업 종결」</b>을 누르면 마지막 완료 수업의 다음 날을 넣어 드립니다.
         <b>「저장」은 누르지 않으셔도 됩니다.</b><br>
-        이 날짜 뒤의 회기는 지워지고, 다음 달부터 시간표에 안 나옵니다.
+        종결일부터의 줄 중 보강을 조금이라도 한 줄은 완료로 남고, 나머지는 지워집니다.
+        누르기 전에 목록을 먼저 보여 드립니다.
       </div>
     </div>
 
@@ -1553,7 +1556,7 @@ function fillTag(x){
   const left = 40 - sum;
   return '<span class="filltag">'
     + parts.map(v => '+' + Number(v.minutes)).join(' ')
-    + (left > 0 ? ' <i>(' + left + '분 더 필요)</i>' : ' <b>완료</b>')
+    + ((left > 0 && x.status !== '완료') ? ' <i>(' + left + '분 더 필요)</i>' : ' <b>완료</b>')
     + '</span>';
 }
 
@@ -2214,7 +2217,7 @@ function drawFind(){
     a.sort(function(x,y){ return String(x.plan_date + x.start_time).localeCompare(String(y.plan_date + y.start_time)); });
   });
   // 원래 줄에 붙는 글 — 「+10 4일·11일·11일·18일 완료」 / 「+10 4일·11일 (20분 더)」
-  function partsTxt(id){
+  function partsTxt(id, st){
     const ps = PARTS[id];
     if (!ps || !ps.length) return '';
     const sum = ps.reduce(function(t,v){ return t + Number(v.minutes || 0); }, 0);
@@ -2224,7 +2227,7 @@ function drawFind(){
       ? '+' + m0 + ' ' + ps.map(mkDay).join('·')
       : ps.map(function(v){ return '+' + Number(v.minutes) + ' ' + mkDay(v); }).join(' · ');
     return '<b class="mintag" style="margin-left:0;">' + txt + '</b>'
-      + (sum >= 40 ? ' 완료' : ' <i style="color:#a1662f;font-style:normal;">(' + (40 - sum) + '분 더)</i>');
+      + ((sum >= 40 || st === '완료') ? ' 완료' : ' <i style="color:#a1662f;font-style:normal;">(' + (40 - sum) + '분 더)</i>');
   }
 
   function extraOf(r){
@@ -2283,7 +2286,7 @@ function drawFind(){
       // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
       const noNeed1 = (Number(x.support_type_id) === 2 && !x.run_no);
       // 보강이 잡혀 있으면 그 날짜와 함께 「완료·보강예정」까지 보여 준다
-      const _pt = partsTxt(x.id);
+      const _pt = partsTxt(x.id, x.status);
       const _sum = (PARTS[x.id] || []).reduce(function(t,v){ return t + Number(v.minutes || 0); }, 0);
       const tail = _pt
         ? (_pt + ((x.status==='결석' || x.status==='휴무') && _sum < 40 && CAN_EDIT
@@ -4492,7 +4495,8 @@ function openEd(scId){
   $('ed_split').checked = !!_cur;
   $('ed_splitmin').value = String(_cur || 10);
   $('ed_start').value = r.from_date || '';
-  $('ed_end').value   = r.to_date   || '';
+  // 요일줄의 to_date 는 「마지막 수업 날」이다. 창에는 「종결일(다음 날)」로 보여 준다 (2026-09-11)
+  $('ed_end').value   = r.to_date ? dayAdd(r.to_date, 1) : '';
   if ($('ed_endwhy')) $('ed_endwhy').value = '';
   edLockSave();
   showSplitBox();
@@ -4799,7 +4803,7 @@ $('edSave').onclick = async () => {
       .update({ weekday: nw, start_time: newHm + ':00',
                 therapist_id: th, duration: du,
                 from_date: $('ed_start').value || null,
-                to_date:   $('ed_end').value   || null })
+                to_date:   $('ed_end').value ? dayAdd($('ed_end').value, -1) : null })
       .eq('id', edRow.id).select().single();
     if (error) throw error;
     Object.assign(edRow, data);
@@ -5157,24 +5161,29 @@ $('edEnd').onclick = async () => {
     + (edRow.weekday || '') + '요일 '
     + String(edRow.start_time || '').slice(0, 5);
 
-  // 위 칸에 적어 두셨으면 그 날짜를 쓰고, 비어 있으면 물어본다
+  // 종결일 = 수업이 없어지는 첫날 (2026-09-11 바꿈)
+  //   11일 수업까지 하고 끝남 → 12일 / 11일 수업부터 안 함 → 11일
+  //   비어 있으면 「마지막 완료 수업의 다음 날」을 넣어 물어본다
   let d = $('ed_end').value || '';
-  if (d) {
-    if (!confirm('❗ 아래 수업을 그만둡니다.\n\n'
-      + '  ' + _what + '\n\n'
-      + '마지막 수업 날짜 — ' + d + '\n\n'
-      + '이 날짜 뒤의 회기는 지워지고,\n다음 달부터 시간표에 안 나옵니다.\n\n'
-      + '계속할까요?')) return;
-  } else {
+  if (!d) {
+    let _def = '';
+    try {
+      const { data: lastDone } = await sb.from('nl_sessions')
+        .select('plan_date').eq('schedule_id', edRow.id).eq('status', '완료')
+        .is('makeup_for', null).order('plan_date', { ascending: false }).limit(1);
+      if (lastDone && lastDone.length) _def = dayAdd(lastDone[0].plan_date, 1);
+    } catch (e) {}
     d = prompt('❗ 아래 수업을 그만둡니다.\n\n'
       + '  ' + _what + '\n\n'
-      + '⚠️ 시작하는 날이 아니라 「마지막 수업 날짜」를 적으세요.\n'
-      + '이 날짜 뒤의 회기는 지워지고, 다음 달부터 시간표에 안 나옵니다.\n\n'
-      + '날짜를 2026-09-30 모양으로 적으세요.',
-                   mon + '-30') || '';
+      + '「종결일」을 적으세요. 이날부터 수업이 없습니다.\n'
+      + '  · 11일 수업까지 하고 끝나면 → 12일\n'
+      + '  · 11일 수업부터 안 하면 → 11일\n\n'
+      + (_def ? '마지막 완료 수업의 다음 날을 넣어 두었습니다.\n' : '')
+      + '날짜를 2026-09-30 모양으로 적으세요.', _def || '') || '';
   }
   if (!d) return;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { edmsg('날짜 모양이 다릅니다.', false); return; }
+  const _last = dayAdd(d, -1);   // 끝난날(마지막 수업 날) — 다른 화면들이 이 뜻으로 쓴다
 
   // 지난 날짜면 한 번 더 묻는다 (시작일로 착각해 넣는 일이 있었다)
   const _today = new Date();
@@ -5182,11 +5191,56 @@ $('edEnd').onclick = async () => {
            + String(_today.getMonth() + 1).padStart(2, '0') + '-'
            + String(_today.getDate()).padStart(2, '0');
   if (d < _t) {
-    if (!confirm('⚠️ ' + d + ' 는 오늘(' + _t + ')보다 지난 날짜입니다.\n\n'
-      + '이 수업이 그날 이미 끝났다는 뜻입니다.\n'
+    if (!confirm('⚠️ 종결일 ' + d + ' 는 오늘(' + _t + ')보다 지난 날짜입니다.\n\n'
+      + '그날부터 이미 수업이 없었다는 뜻입니다.\n'
       + '앞으로 시작할 날짜를 적으려던 것이면 「취소」를 누르세요.\n\n'
-      + '정말 ' + d + ' 로 그만둘까요?')) return;
+      + '정말 ' + d + ' 부터 종결할까요?')) return;
   }
+
+  // ── 종결일부터의 줄을 가린다 ──
+  //   보강을 10분이라도 한 줄 → 완료로 바꾸고 남김
+  //   이미 완료 · 40분 보강을 한 결석 줄 → 그대로 남김
+  //   그 밖(예정·휴무·쉼 · 아직 안 한 보강·조각) → 지움
+  let _keep = [], _toDone = [], _del = [], _delMk = [];
+  try {
+    const { data: after } = await sb.from('nl_sessions')
+      .select('id, plan_date, start_time, status, minutes, makeup_for')
+      .eq('schedule_id', edRow.id).is('makeup_for', null).gte('plan_date', d)
+      .order('plan_date');
+    const { data: allMine } = await sb.from('nl_sessions')
+      .select('id').eq('schedule_id', edRow.id).is('makeup_for', null);
+    const ids = (allMine || []).map(x => x.id);
+    let mks = [];
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data: m } = await sb.from('nl_sessions')
+        .select('id, plan_date, start_time, status, minutes, makeup_for')
+        .in('makeup_for', ids.slice(i, i + 200));
+      mks = mks.concat(m || []);
+    }
+    // 종결일 전에 잡힌 보강은 이미 했거나 오늘 하는 것으로 본다
+    const done = m => m.status === '완료' || String(m.plan_date) < d;
+    (after || []).forEach(x => {
+      const my = mks.filter(m => Number(m.makeup_for) === Number(x.id));
+      const partDone = my.some(m => Number(m.minutes || 40) !== 40 && done(m));
+      const fullDone = my.some(m => Number(m.minutes || 40) === 40 && done(m));
+      if (x.status === '완료') _keep.push(x);
+      else if (partDone) _toDone.push(x);
+      else if (x.status === '결석' && fullDone) _keep.push(x);
+      else _del.push(x);
+    });
+    // 종결일부터 잡혀 있는데 아직 안 한 보강·조각은 지운다
+    _delMk = mks.filter(m => String(m.plan_date) >= d && m.status !== '완료');
+  } catch (e) { edmsg('❌ 회기를 불러오지 못했습니다.\n' + e.message, false); return; }
+
+  const _ln = x => '  · ' + dtWithMon(x.plan_date) + ' ' + String(x.start_time || '').slice(0,5)
+                 + ' ' + (x.status || '') + (Number(x.minutes || 40) !== 40 ? ' +' + x.minutes + '분' : '');
+  const _cut = (a, n) => a.length > n ? a.slice(0, n).map(_ln).join('\n') + '\n  · … 그 밖 ' + (a.length - n) + '줄'
+                                      : a.map(_ln).join('\n');
+  const _plan = '종결일 ' + d + ' (마지막 수업 날 ' + _last + ')\n\n'
+    + (_toDone.length ? '▶ 완료로 바꾸고 남김 (보강을 한 줄) — ' + _toDone.length + '줄\n' + _cut(_toDone, 6) + '\n\n' : '')
+    + (_keep.length   ? '▶ 그대로 남김 — ' + _keep.length + '줄\n' + _cut(_keep, 6) + '\n\n' : '')
+    + '▶ 지움 — 수업 ' + _del.length + '줄 · 보강·조각 ' + _delMk.length + '줄\n'
+    + _cut(_del.concat(_delMk), 8) + '\n';
 
   // 이 아동에게 남는 수업이 무엇인지 세어 보여준다 (끝나지 않은 치료 전부)
   const _kid = edRow._cid || edRow.child_id;
@@ -5220,24 +5274,34 @@ $('edEnd').onclick = async () => {
 
   if (!confirm('아래 수업을 정말 그만둘까요?\n\n'
     + '  ' + _what + '\n'
-    + '  마지막 수업 날짜 · ' + d + '\n'
     + '  종결 사유 · ' + _why + '\n'
     + _restTxt + '\n'
+    + _plan + '\n'
     + '이 아동의 이 수업이 맞는지 한 번 더 봐 주세요.\n'
-    + '지난 기록은 그대로 남습니다.')) return;
+    + '종결일 전의 기록은 그대로 남습니다.')) return;
 
   $('edEnd').disabled = true;
   try {
     const { error: e1 } = await sb.from('nl_therapies')
-      .update({ ended_on: d, end_reason: _why }).eq('id', edRow.therapy_id);
+      .update({ ended_on: _last, end_reason: _why }).eq('id', edRow.therapy_id);
     if (e1) throw e1;
     // ⚠️ 요일줄을 지우지 않는다. 지우면 그 달 납부 계산 화면에서
     //    수업이 사라져 납부 내역이 안 보인다. 끝난달만 넣어 다음 달부터 안 나오게 한다
+    //    끝나는 날짜(to_date)도 적어, 시간표가 그 달 남은 날을 다시 깔지 않게 한다
     const { error: e2 } = await sb.from('nl_therapy_schedules')
-      .update({ to_month: String(d).slice(0, 7) }).eq('id', edRow.id);
+      .update({ to_month: String(_last).slice(0, 7), to_date: _last }).eq('id', edRow.id);
     if (e2) throw e2;
-    await sb.from('nl_sessions').delete()
-      .eq('schedule_id', edRow.id).gt('plan_date', d);
+    if (_toDone.length) {
+      const { error: e4 } = await sb.from('nl_sessions')
+        .update({ status: '완료', no_makeup: false, no_makeup_why: null })
+        .in('id', _toDone.map(x => x.id));
+      if (e4) throw e4;
+    }
+    const _delIds = _del.concat(_delMk).map(x => x.id);
+    for (let i = 0; i < _delIds.length; i += 200) {
+      const { error: e5 } = await sb.from('nl_sessions').delete().in('id', _delIds.slice(i, i + 200));
+      if (e5) throw e5;
+    }
 
     ROWS = ROWS.filter(x => x.id !== edRow.id);
     edmsg('✅ 끝냈습니다. 지난 회기와 납부 기록은 그대로 남습니다.', true);
@@ -5245,7 +5309,8 @@ $('edEnd').onclick = async () => {
     await loadMonth();
     draw();
     // 처리가 끝났음을 확실히 알린다 (저장을 또 누르실까 봐)
-    alert('✅ 이 수업을 ' + d + ' 로 끝냈습니다.\n\n'
+    alert('✅ 이 수업을 종결일 ' + d + ' 로 끝냈습니다.\n'
+      + '(완료로 바꿈 ' + _toDone.length + '줄 · 지움 ' + _delIds.length + '줄)\n\n'
       + '바로 적용되었습니다. 따로 「저장」을 누르지 않으셔도 됩니다.\n'
       + '지난 회기와 납부 기록은 그대로 남습니다.');
 
@@ -5268,14 +5333,23 @@ $('edEnd').onclick = async () => {
   }
 };
 
-// 마지막 수업 날짜를 적으면 「저장」을 잠근다.
+// 날짜 문자열에 하루를 더하거나 뺀다 ('2026-09-11', 1 → '2026-09-12')
+function dayAdd(s, n){
+  const p = String(s || '').split('-').map(Number);
+  if (p.length < 3 || !p[0]) return '';
+  const dt = new Date(p[0], p[1] - 1, p[2] + Number(n || 0));
+  return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0')
+       + '-' + String(dt.getDate()).padStart(2, '0');
+}
+
+// 종결일을 적으면 「저장」을 잠근다.
 //   날짜를 적고 습관적으로 「저장」을 눌러 종결이 어긋나던 일을 막는다.
 function edLockSave() {
   const has = !!$('ed_end').value;
   const b = $('edSave');
   b.disabled = has;
   b.classList.toggle('locked', has);
-  b.title = has ? '마지막 날짜를 적으셨습니다. 「이 수업 종결」을 눌러 주세요.' : '';
+  b.title = has ? '종결일을 적으셨습니다. 「이 수업 종결」을 눌러 주세요.' : '';
   const nt = document.querySelector('#edBox .ednote');
   if (nt) nt.style.opacity = has ? '0.45' : '';
 }
