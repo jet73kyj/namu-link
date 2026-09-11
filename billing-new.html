@@ -258,6 +258,10 @@
               white-space:nowrap; margin-right:8px; }
   .btn-home:hover { filter:brightness(1.08); }
   .r.tmemo .de { color:#a9701c; font-size:11.5px; line-height:1.5; }
+  /* 도움말 접기 (2026-09-11) */
+  .helpfold > summary { cursor:pointer; color:#5a6156; font-weight:bold; list-style:revert; }
+  .helpfold:not([open]) { padding-top:8px; padding-bottom:8px; }
+  .helpfold[open] > summary { margin-bottom:6px; }
 </style>
 </head>
 <body>
@@ -299,7 +303,9 @@
     <span class="allsum" id="allsum"></span>
   </div>
 
-  <div class="note">
+  <!-- 도움말은 접어 둔다 (2026-09-11). 「도움말」을 누르면 펼쳐진다 -->
+  <details class="note helpfold">
+    <summary>ℹ️ 도움말 (눌러서 펼치기)</summary>
     <b>회기</b>는 시간표의 회기 표에서 가져옵니다. 공휴일·휴가·보강·쉼은 빼고 셉니다.<br>
     <b>회기 칸을 누르면</b> 주차 고르기가 펼쳐집니다. 끈 주차는 「쉼」이 되어 회기에서 빠지고,
     그 시간은 다른 아동 보강에 쓸 수 있습니다. 저장해야 반영됩니다.<br>
@@ -309,7 +315,7 @@
     <b>리뷰</b>는 1건 5,000원, 월 4건까지. 발달재활 본인부담금에서는 빠지지 않습니다.<br>
     <b>승인번호</b>는 다음 달로 넘어가지 않습니다. 매달 새로 넣으세요.<br>
     날짜를 넣으면 납부완료, 비워두면 미납으로 저장됩니다.
-  </div>
+  </details>
 
   <div id="kids"></div>
   <div class="empty" id="empty">달을 고르고 불러오기를 누르세요.</div>
