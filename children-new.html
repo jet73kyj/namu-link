@@ -300,6 +300,14 @@
           <div id="e_acc" style="font-size:13px;color:#5a6156;">불러오는 중...</div>
         </div>
       </div>
+      <div style="grid-column:1 / -1;">
+        <div style="border:1px solid #85b7eb;border-radius:10px;
+                    background:#f1f7fd;padding:12px 14px;">
+          <div style="font-size:13px;font-weight:700;color:#0c447c;
+                      margin-bottom:8px;">📎 평가보고서</div>
+          <div id="e_docs" style="font-size:13px;color:#5a6156;">불러오는 중...</div>
+        </div>
+      </div>
       <div>
         <label for="e_diagnosis">진단명</label>
         <input id="e_diagnosis" type="text">
@@ -380,6 +388,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
+<script src="nl-evaldocs.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
@@ -525,6 +534,7 @@ async function afterLogin(user) {
   if (e1)  { show('❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show('⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
+  NLDocs.init(sb, me.id);   // 평가보고서 창구 준비 (8·9번만 올리고 봄)
 
   // 2) 아동 불러오기
   const { data, error } = await sb
@@ -1020,6 +1030,59 @@ function openEdit(id) {
   $('edBox').scrollIntoView({ behavior:'smooth', block:'start' });
   loadGrade(id);
   drawAcc(id);
+  drawDocs(id);
+}
+
+// ── 평가보고서 (2026-09-11) ──────────────────
+// 우리 센터 평가마다 「평가보고서」 단추, 맨 아래 「타기관 평가보고서」 단추.
+// 올리기·보기 창은 신규 아동 관리와 같은 것(nl-evaldocs.js)을 쓴다
+const DOCBTN = 'width:auto;margin:0;padding:6px 12px;background:#e3f0fb;color:#0c447c;'
+             + 'border:1px solid #85b7eb;border-radius:7px;font-size:13px;font-weight:600;';
+async function drawDocs(cid) {
+  const box = $('e_docs');
+  if (!box) return;
+  if (!window.NLDocs || !NLDocs.canUse()) {
+    box.textContent = '평가보고서는 관리자(8·9번)만 볼 수 있습니다.'; return;
+  }
+  box.innerHTML = '불러오는 중...';
+  const [ev, ty, cnt] = await Promise.all([
+    sb.from('nl_evaluations').select('id, eval_date, eval_type_id, status')
+      .eq('child_id', cid).order('eval_date'),
+    sb.from('nl_eval_types').select('id, name'),
+    NLDocs.count(cid)
+  ]);
+  if (edId !== cid) return;   // 그 사이 다른 아동을 열었으면 그리지 않는다
+  if (ev.error) { box.textContent = '❌ 평가를 불러오지 못했습니다. ' + ev.error.message; return; }
+  const tn = {}; (ty.data || []).forEach(t => { tn[t.id] = t.name; });
+  const c  = ALL.find(x => x.id === cid);
+  const kid = cid + '번 ' + (c ? c.name : '');
+  const evs = ev.data || [];
+  let h = '';
+  evs.forEach(e => {
+    const nm = tn[e.eval_type_id] || '평가';
+    const n  = cnt.byEval[e.id] || 0;
+    h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;'
+       +   'border-bottom:1px solid #e3ecf5;' + (e.status === '취소' ? 'color:#9a9a9a;' : '') + '">'
+       + '<span style="flex:1;">' + esc(e.eval_date || '날짜 없음') + ' · ' + esc(nm)
+       +   ' · ' + esc(e.status || '예정') + '</span>'
+       + '<button type="button" data-ev="' + e.id + '" data-t="' + esc(nm + ' 결과보고서') + '"'
+       +   ' data-d="' + esc(e.eval_date || '') + '" style="' + DOCBTN + '">📎 평가보고서 '
+       +   (n || '') + '</button></div>';
+  });
+  if (!evs.length) h += '<div style="color:#888;padding:4px 0;">우리 센터 평가 기록이 없습니다.</div>';
+  h += '<div style="margin-top:10px;"><button type="button" data-other="1" style="' + DOCBTN + '">'
+     + '📎 타기관 평가보고서 ' + (cnt.other || '') + '</button></div>';
+  box.innerHTML = h;
+
+  box.querySelectorAll('[data-ev]').forEach(b => {
+    b.onclick = () => NLDocs.open({
+      cid: cid, kid: kid, source: '센터', evalId: Number(b.dataset.ev),
+      title: b.dataset.t, date: b.dataset.d, onChange: () => drawDocs(cid)
+    });
+  });
+  box.querySelector('[data-other]').onclick = () => NLDocs.open({
+    cid: cid, kid: kid, source: '타기관', onChange: () => drawDocs(cid)
+  });
 }
 
 // ── 학부모 계정 ──────────────────────────────
