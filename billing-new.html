@@ -1848,14 +1848,13 @@ function calcKid(childId) {
     let cv = co ? numOf(co.value) : 0;
     const tx = box.querySelector('.corow .cotxt');
     if (tx) tx.textContent = cv ? '−' + cv.toLocaleString() : '0';
+    // 항목 소계 칸은 빼기 전 금액 그대로 둔다 (2026-09-11)
+    //   이월·리뷰는 제 줄에 따로 보이므로, 소계까지 줄이면 두 번 뺀 것처럼 보였다
+    //   저장할 금액(p.amt)만 줄인다 — 항목마다 나눠 저장해야 합계가 맞으므로
     parts.forEach(p => {
       if (p.st === 2 || cv <= 0) return;
       const take = Math.min(p.amt, cv);
       p.amt -= take; cv -= take;
-      const g2 = box.querySelector('.gsum[data-st="' + p.st + '"]');
-      if (g2 && g2.querySelector('.gamt')) {
-        g2.querySelector('.gamt').textContent = p.amt.toLocaleString();
-      }
     });
   }
 
@@ -1871,10 +1870,6 @@ function calcKid(childId) {
     if (!p.review || cut <= 0) return;
     const take = Math.min(p.amt, cut);
     p.amt -= take; cut -= take;
-    const tr = box.querySelector('.gsum[data-st="' + p.st + '"]');
-    if (tr && tr.querySelector('.gamt') && take > 0) {
-      tr.querySelector('.gamt').textContent = p.amt.toLocaleString();
-    }
   });
 
   const card = parts.filter(p => p.st !== 2).reduce((s, p) => s + p.amt, 0);
