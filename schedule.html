@@ -7092,6 +7092,7 @@ async function loadMonth(){
       .gte('eval_date', mon + '-01').lte('eval_date', monEnd(mon));
     (ev || []).forEach(function(e){
       if (!e.eval_date || !e.eval_time) return;
+      if (e.status === '취소') return;   // 취소한 평가는 안 그린다 → 그 자리가 빈다 (2026-09-11)
       if (MY_TH && e.therapist_id !== MY_TH) return;
       EVALS.push({
         id: 'E' + e.id,               // 회기와 안 섞이게 앞에 E 를 붙인다
