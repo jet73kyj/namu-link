@@ -69,6 +69,17 @@
   .evalrow .addb { width:auto; margin:0; padding:8px 16px; font-size:13.5px;
        background:#8bc34a; }
   .delx { color:#c62828; cursor:pointer; font-weight:bold; }
+  /* 출근 요일 · 수업 시각 (2026-09-11) */
+  .wdt { border-collapse:collapse; font-size:13.5px; margin-top:8px; }
+  .wdt th, .wdt td { padding:5px 10px; border-bottom:1px solid #dcedc8; text-align:left; }
+  .wdt th { font-weight:normal; color:#555; font-size:12.5px; }
+  .wdt input[type=time] { padding:4px 6px; font-size:13.5px; border:1px solid #ddd;
+       border-radius:6px; font-family:inherit; }
+  .wdt tr.offday td { color:#9e9e9e; }
+  .wdsave { margin-top:10px; padding:7px 16px; font-size:13.5px; border-radius:7px; cursor:pointer;
+       background:#EAF3DE; color:#27500A; border:1px solid #97C459; font-family:inherit; }
+  .wdsave.busy { background:#eee; color:#777; border-color:#ccc; }
+  .wdsave.done { background:#3B6D11; color:#fff; border-color:#3B6D11; }
   .small { font-size:12px; color:#8d6e63; }
 
   @media print {
@@ -167,6 +178,21 @@
       평가는 회기수에 넣지 않고 따로 수수료를 드립니다.
       1개 27,000 / 2개 53,000 / 3개 80,000원</div>
     <div id="evMsg" class="out"></div>
+  </div>
+
+  <!-- 출근 요일 · 수업 시각 (2026-09-11) — nl_therapist_days -->
+  <div class="evalbox noprint">
+    <div class="sec-t" style="border:none;padding:0;margin-bottom:8px;" id="wdTitle">출근 요일 · 수업 시각</div>
+    <div class="note">여기 적은 대로 <b>학부모 보강 요청 · 보강 확정 · 시간표 보강 잡기</b>가 자리를 가립니다.
+      출근 안 하는 날은 휴무 관리의 <b>「나오는 날」</b>로만 열립니다.
+      시각을 비우면 그 요일은 시각으로 막지 않습니다.
+      <b>첫 수업 · 마지막 수업</b>은 그 교시가 <b>시작하는 시각</b>입니다 (보기: 마지막 수업 6:30 → 6:30 수업까지).</div>
+    <table class="wdt">
+      <thead><tr><th>요일</th><th>출근</th><th>첫 수업</th><th>마지막 수업</th></tr></thead>
+      <tbody id="wdRows"></tbody>
+    </table>
+    <button id="wdSave" class="wdsave">저장 전</button>
+    <div id="wdMsg" class="out" style="display:none;"></div>
   </div>
 
   <div class="sec">
@@ -617,12 +643,83 @@ async function afterLogin(user){
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
   calc();
+  drawWorkDays();
 }
 
 $('mon').onchange = async () => { mon = $('mon').value;
   try { localStorage.setItem('nl_payroll_mon', mon); } catch(e) {}
   await loadMonth(); calc(); };
-$('th').onchange  = () => { thId = Number($('th').value); calc(); };
+$('th').onchange  = () => { thId = Number($('th').value); calc(); drawWorkDays(); };
+
+// ── 출근 요일 · 수업 시각 (2026-09-11) ───────────────────────
+//   nl_therapist_days 에 선생님 · 요일마다 한 줄. 대표(8번)만 고친다
+const WD7 = ['월','화','수','목','금','토','일'];
+function wdMsg(t, ok){
+  const e = $('wdMsg');
+  e.style.display = t ? 'block' : 'none';
+  e.textContent = t || '';
+  e.className = 'out ' + (ok ? 'ok' : 'err');
+}
+function wdState(k){
+  const b = $('wdSave');
+  b.classList.remove('busy', 'done');
+  if (k === 'busy') { b.classList.add('busy'); b.textContent = '저장 중…'; }
+  else if (k === 'done') { b.classList.add('done'); b.textContent = '✓ 저장됨'; }
+  else b.textContent = '저장 전';
+}
+async function drawWorkDays(){
+  if (!thId) return;
+  wdMsg('');
+  $('wdTitle').textContent = thId + '번 선생님 · 출근 요일과 수업 시각';
+  const { data, error } = await sb.from('nl_therapist_days')
+    .select('weekday, works, first_hm, last_hm').eq('therapist_id', thId);
+  if (error) { wdMsg('불러오지 못했습니다.\n' + error.message, false); return; }
+  const by = {};
+  (data || []).forEach(r => { by[r.weekday] = r; });
+  const hm = v => v ? String(v).slice(0, 5) : '';
+  $('wdRows').innerHTML = WD7.map(w => {
+    const r = by[w] || { works: false };
+    return '<tr data-wd="' + w + '"' + (r.works ? '' : ' class="offday"') + '>'
+      + '<td>' + w + '</td>'
+      + '<td><label style="font-weight:normal;margin:0;"><input type="checkbox" class="wdOn"'
+      + (r.works ? ' checked' : '') + '> 출근</label></td>'
+      + '<td><input type="time" class="wdF" value="' + hm(r.first_hm) + '"' + (r.works ? '' : ' disabled') + '></td>'
+      + '<td><input type="time" class="wdL" value="' + hm(r.last_hm) + '"' + (r.works ? '' : ' disabled') + '></td>'
+      + '</tr>';
+  }).join('');
+  $('wdRows').querySelectorAll('tr').forEach(tr => {
+    const on = tr.querySelector('.wdOn');
+    on.onchange = () => {
+      tr.classList.toggle('offday', !on.checked);
+      tr.querySelector('.wdF').disabled = !on.checked;
+      tr.querySelector('.wdL').disabled = !on.checked;
+      wdState('');
+    };
+    tr.querySelectorAll('input[type=time]').forEach(x => x.oninput = () => wdState(''));
+  });
+  wdState('done');
+}
+$('wdSave').onclick = async () => {
+  if (!thId) return;
+  const rows = [];
+  let bad = '';
+  $('wdRows').querySelectorAll('tr').forEach(tr => {
+    const on = tr.querySelector('.wdOn').checked;
+    const f = tr.querySelector('.wdF').value || null;
+    const l = tr.querySelector('.wdL').value || null;
+    if (on && f && l && f > l) bad = tr.dataset.wd + '요일 첫 수업이 마지막 수업보다 늦습니다.';
+    rows.push({ therapist_id: thId, weekday: tr.dataset.wd, works: on,
+                first_hm: on ? f : null, last_hm: on ? l : null,
+                updated_at: new Date().toISOString() });
+  });
+  if (bad) { wdMsg(bad, false); return; }
+  wdState('busy');
+  const { error } = await sb.from('nl_therapist_days')
+    .upsert(rows, { onConflict: 'therapist_id,weekday' });
+  if (error) { wdState(''); wdMsg('저장하지 못했습니다.\n' + error.message, false); return; }
+  wdMsg('저장했습니다. 학부모 보강 요청 · 보강 확정에 바로 쓰입니다.', true);
+  await drawWorkDays();
+};
 
 $('btn').onclick = async () => {
   const email = $('em').value.trim().toLowerCase(), pw = $('pw').value;

@@ -1634,6 +1634,8 @@ let KIDS = [];          // 아동 목록 (치료중 · 대기중)
 let addKey = null;      // 지금 넣으려는 빈 칸
 let edRow  = null;      // 지금 고치는 수업
 let OFF    = new Set(); // 쉬는 날. 날짜 또는 날짜#치료사번호
+let WORKX  = {};        // 날짜#치료사 -> { s, e } 「나오는 날」(추가근무) 시각 (2026-09-11)
+let THDAYS = {};        // 치료사 -> 요일 -> { works, f, l } 출근 요일·첫 수업·마지막 수업 (nl_therapist_days)
 // 점선 ＋(보강 넣기)는 2026년 8월 화면에서만 쓴다.
 // 7월에는 시스템에 회기가 없어 메울 회기를 못 고르기 때문이다.
 // 9월부터는 주황색 ＋(보강 잡기)로만 넣는다.
@@ -1665,6 +1667,8 @@ function isHoli(dd){
 }
 function isOffFor(dd, thId) {
   const d = String(dd);
+  // 「나오는 날」이면 공휴일·휴가여도 쉬는 날이 아니다 (2026-09-11)
+  if (thId != null && WORKX[d + '#' + thId]) return false;
   return OFF.has(d) || (thId != null && OFF.has(d + '#' + thId));
 }
 // 그 날·그 치료사·그 시각이 「시간 막음」인지
@@ -6908,6 +6912,13 @@ $('mkSave').onclick = async () => {
                      + (slotOff.reason ? ' (' + slotOff.reason + ')' : '');
     else if (dayOff && !work) why = (dayOff.kind === '치료사휴무' ? '선생님 휴가' : (dayOff.reason || dayOff.kind))
                                   + ' 인 날';
+    else if (!work && THDAYS[Number(th)]) {
+      // 출근 요일·첫 수업~마지막 수업 (수수료 정산 화면의 표) — 나오는 날이면 통과
+      const r = THDAYS[Number(th)][wdOf(d)];
+      if (!r || !r.works) why = wdOf(d) + '요일은 출근하지 않는 날 (나오는 날로 넣으면 열립니다)';
+      else if (r.f && hmChk < r.f) why = '첫 수업(' + h12(r.f) + ')보다 이른 시각';
+      else if (r.l && hmChk > r.l) why = '마지막 수업(' + h12(r.l) + ')보다 늦은 시각';
+    }
     if (why) {
       const msg = dayNo(d) + '일 ' + h12(hmChk) + ' 은 ' + thName(th) + ' 선생님의 ' + why + '입니다.';
       if (!IS_BOSS) {
@@ -7129,11 +7140,18 @@ async function loadMonth(){
   await autoDone();
   applyMonthFilter();
   BAL = new Set();
-  OFF = new Set(); OFFTXT = {}; BLOCK = new Set(); CONS = {};
+  OFF = new Set(); OFFTXT = {}; BLOCK = new Set(); CONS = {}; WORKX = {};
   const { data: off } = await sb.from('nl_offdays')
-    .select('off_date, kind, therapist_id, reason, start_time, child_id')
+    .select('off_date, kind, therapist_id, reason, start_time, end_time, child_id')
     .gte('off_date', mon + '-01').lte('off_date', monEnd(mon));
   (off || []).forEach(o => {
+    // 「나오는 날」은 쉬는 날이 아니라 여는 날이다 (2026-09-11)
+    //   전에는 선생님 휴가처럼 담겨, 나오는 날인데 시간표에 쉬는 날로 보였다
+    if (o.kind === '추가근무') {
+      if (o.therapist_id) WORKX[o.off_date + '#' + o.therapist_id] = {
+        s: String(o.start_time || '').slice(0,5), e: String(o.end_time || '').slice(0,5) };
+      return;
+    }
     // 「시간 막음」은 그 날·그 치료사·그 시각 한 자리만 막는다
     if (o.kind === '시간막음') {
       BLOCK.add(o.off_date + '#' + o.therapist_id + '#'
@@ -7151,6 +7169,18 @@ async function loadMonth(){
       OFFTH[o.off_date + '#' + o.therapist_id] = o.reason || o.kind;
     } else { OFF.add(o.off_date); OFFTXT[o.off_date] = o.reason || o.kind; }
   });
+  // 선생님 출근 요일·수업 시각 (2026-09-11) — 수수료 정산 화면에서 적는다
+  THDAYS = {};
+  try {
+    const { data: tdy } = await sb.from('nl_therapist_days')
+      .select('therapist_id, weekday, works, first_hm, last_hm');
+    (tdy || []).forEach(r => {
+      (THDAYS[r.therapist_id] = THDAYS[r.therapist_id] || {})[r.weekday] = {
+        works: !!r.works,
+        f: r.first_hm ? String(r.first_hm).slice(0,5) : '',
+        l: r.last_hm  ? String(r.last_hm).slice(0,5)  : '' };
+    });
+  } catch (e) { THDAYS = {}; }
   const { data: pay } = await sb.from('nl_payments')
     .select('child_id').eq('support_type_id', 8).eq('month_key', mon);
   if (pay) pay.forEach(p => BAL.add(p.child_id));
@@ -7572,23 +7602,37 @@ const WORKH = {
   5: { wk:['09:50','18:30'], sat:['09:00','15:40'] },
   7: { wk:['09:50','18:30'], sat:['09:00','15:40'] }
 };
-function inWorkH(thId, wd, hm){
-  const w = WORKH[Number(thId)];
-  if (!w || !hm) return true;
-  const r = (wd === '토') ? w.sat : w.wk;
+function inWorkH(thId, wd, hm, dd){
+  if (!hm) return true;
   const v = String(hm).slice(0,5);
+  // 「나오는 날」이면 그날 적은 시각이 정한다
+  const x = dd ? WORKX[String(dd) + '#' + thId] : null;
+  if (x) return (!x.s || v >= x.s) && (!x.e || v < x.e);
+  // 출근 요일 표(nl_therapist_days)가 있으면 그것을 따른다 (2026-09-11)
+  const t = THDAYS[Number(thId)];
+  if (t) {
+    const r = t[wd];
+    if (!r || !r.works) return false;          // 출근 안 하는 요일
+    if (r.f && v < r.f) return false;
+    if (r.l && v > r.l) return false;
+    return true;
+  }
+  // 표에 없는 선생님은 옛 규칙
+  const w = WORKH[Number(thId)];
+  if (!w) return true;
+  const r = (wd === '토') ? w.sat : w.wk;
   return v >= r[0] && v <= r[1];
 }
 
 // 그 날·그 치료사·그 교시가 비어 있는지
 function pairFree(dd, thId, s){
   const w = wdOf(dd);
-  if (w === '일') return false;
+  if (w === '일' && !WORKX[String(dd) + '#' + thId]) return false;   // 일요일은 나오는 날만
   if (!slotOnWd(s, w)) return false;
   if (w !== '토' && s.no === LUNCH_NO) return false;      // 점심
   if (isOffFor(dd, thId)) return false;                    // 공휴일·휴가
   const hm = slotHm(s, thId, w);
-  if (!inWorkH(thId, w, hm)) return false;                 // 출퇴근 시간 밖
+  if (!inWorkH(thId, w, hm, dd)) return false;             // 출근 요일·시각 밖
   if (isBlocked(dd, thId, hm)) return false;               // 시간 막음
   if (consAt(dd, thId, hm) !== null) return false;         // 평가 상담
   return !SESS.some(x => x.plan_date === dd
