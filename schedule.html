@@ -529,6 +529,23 @@
              padding:2px 10px; font-weight:bold; }
   .fr-th { color:#5a6156; }
   .fr-runs { display:flex; flex-wrap:wrap; gap:5px; }
+  /* 찾기 창 날짜 단추 (2026-09-11 원칙 1) — 납부 계산 단추와 같은 색. 완료는 흰 바탕 */
+  .fbt { display:flex; flex-wrap:wrap; gap:5px; align-items:flex-start; }
+  .fbt + .fbt { margin-top:5px; }
+  .fb { display:inline-block; font-size:12px; padding:3px 7px; border-radius:6px; border:1px solid;
+        line-height:1.35; min-width:54px; min-height:22px; white-space:nowrap; box-sizing:border-box; }
+  .fb small { display:block; font-size:10.5px; opacity:.85; }
+  .fb.s1 { background:#E6F1FB; color:#0C447C; border-color:#378ADD; }
+  .fb.s2 { background:#EAF3DE; color:#27500A; border-color:#639922; }
+  .fb.s3, .fb.s4 { background:#EEEDFE; color:#3C3489; border-color:#7F77DD; }
+  .fb.s5 { background:#FAECE7; color:#712B13; border-color:#D85A30; }
+  .fb.s6, .fb.s7 { background:#FBEAF0; color:#72243E; border-color:#D4537E; }
+  .fb.s8 { background:#FAEEDA; color:#633806; border-color:#BA7517; }
+  .fb.fpv { background:#E1F5EE; color:#085041; border-color:#1D9E75; border-style:dashed; }
+  .fb.fdn { background:#fff; }
+  .fb.off { background:#F1EFE8; color:#5F5E5A; border-color:#B4B2A9; }
+  .fb.fbl { background:#F1EFE8; border-color:#D3D1C7; }
+  .fdup { font-size:11.5px; color:#b3261e; font-weight:bold; align-self:center; }
   .fr-btn { width:auto; margin:0 0 0 auto; padding:3px 12px; font-size:11.5px;
             background:#546e7a; border-radius:12px; }
   .findnone { color:#c62828; font-size:13.5px; }
@@ -2278,6 +2295,77 @@ function monEnd(k){
 }
 
 // ===== 이름으로 아동 수업 찾기 =====
+// ── 찾기 창 날짜 단추 (2026-09-11 원칙 1) ─────────────
+//   단추 수 = 그 달 그 요일 수. 회기 줄이 없는 주(쉼 포함)는 글자 없는 회색
+//   색 = 청구 · 흰 바탕 = 완료 · 회색 = 청구 안 함 · 점선 초록 = 전월 보강
+//   ② 단계 — 보기만 한다. 누르면 그 날 창이 열리는 것은 ③ 단계에서
+const FABBR = {1:'센', 2:'발', 3:'치언', 4:'치작', 5:'방', 6:'방언', 7:'방작', 8:'이'};
+const FTOP  = {1:'센터', 2:'발달', 3:'치언', 4:'치작', 5:'방과후', 6:'방언', 7:'방작'};
+// 그 달에서 그 요일인 날짜들 ('2026-09-01' …)
+function fDates(mk, wd){
+  const p = String(mk).split('-'), y = Number(p[0]), m = Number(p[1]);
+  const last = new Date(y, m, 0).getDate(), out = [];
+  for (let d = 1; d <= last; d++) {
+    if (WDS[new Date(y, m - 1, d).getDay()] !== wd) continue;
+    out.push(p[0] + '-' + p[1] + '-' + String(d).padStart(2, '0'));
+  }
+  return out;
+}
+// 청구에 들어가는 줄인가 (납부 계산 단추 · 예정 교육비와 같은 규칙)
+function fOn(x){
+  if (x.no_makeup) return false;
+  if (x.status !== '휴무') return true;
+  const sp = Number(x.support_type_id) || 0;
+  if (sp === 2 || sp === 8) return Number(x.run_no || 0) > 0;
+  return !!x.want_makeup;
+}
+// 공휴일 이름 줄이기 — 「추석 연휴」 → 「추석」, 「대체공휴일」 → 「공휴일」
+function holiShort(v){
+  const n = String(v || '').replace(/대체\s*공휴일|연휴/g, '').trim();
+  return n || '공휴일';
+}
+// 날짜 단추 하나
+function fBtn(x, mkOf, PARTS, HOSTADD){
+  const sp = Number(x.support_type_id) || 0;
+  const on = fOn(x);
+  const d  = dayNo(x.plan_date);
+  let txt;
+  if (x.status === '휴무') {
+    txt = d + '일 ' + (isHoli(x.plan_date) ? holiShort(OFFTXT[String(x.plan_date)]) : '휴가');
+  } else {
+    txt = (FABBR[sp] || STYPE[sp] || '') + ' '
+        + (Number(x.run_no) > 0 ? monNo(x.month_key || mon) + '-' + x.run_no + ' ' : '') + d + '일';
+  }
+  // 작은 글 — 꼭 필요한 것만 (결석 →보강날 · 쪼개기 · 얹힌 조각)
+  let sm = '';
+  const ps = PARTS[x.id], mk = mkOf[x.id];
+  if (on && ps && ps.length) {
+    const sum = ps.reduce(function(t, v){ return t + Number(v.minutes || 0); }, 0);
+    const m0  = Number(ps[0].minutes);
+    const same = ps.every(function(v){ return Number(v.minutes) === m0; });
+    sm = (same ? '+' + m0 + ' ' + ps.map(function(v){ return mkDay(v).replace('일', ''); }).join('·')
+               : ps.map(function(v){ return '+' + Number(v.minutes) + ' ' + mkDay(v); }).join(' '))
+       + ((sum < 40 && x.status !== '완료') ? ' · ' + (40 - sum) + '분 남음' : '');
+  } else if (on && x.status === '결석') {
+    sm = '결석' + (mk ? ' →' + mkDay(mk) : '');
+  } else if (on && x.status === '휴무' && mk) {
+    sm = '→' + mkDay(mk);
+  }
+  if (HOSTADD[x.id]) sm = (sm ? sm + ' ' : '') + '+' + HOSTADD[x.id];
+  const cls = 'fb s' + sp + (on ? (x.status === '완료' ? ' fdn' : '') : ' off');
+  return '<span class="' + cls + '" data-sid="' + x.id + '">' + esc(txt)
+    + (sm ? '<small>' + esc(sm) + '</small>' : '') + '</span>';
+}
+// 덧붙인 단추 (전월 보강 · 요일줄 밖 보강) — 점선 초록
+function fExtra(s){
+  const other = s.month_key && String(s.month_key) !== String(mon);
+  const lb = other ? monNo(s.month_key) + '월분' : '보강';
+  const pt = Number(s.minutes || 40) !== 40 ? '+' + Number(s.minutes) : '';
+  const sm = [s.status === '결석' ? '결석' : '', pt].filter(Boolean).join(' ');
+  return '<span class="fb fpv' + (s.status === '완료' ? ' fdn' : '') + '" data-sid="' + s.id + '">'
+    + esc(lb + ' ' + mkDay(s)) + (sm ? '<small>' + esc(sm) + '</small>' : '') + '</span>';
+}
+
 function drawFind(){
   const q = $('findName').value.trim();
   if (!q) { $('findBox').style.display = 'none'; return; }
@@ -2390,68 +2478,43 @@ function drawFind(){
       + '<span class="st">' + esc(stWord(s)) + '</span></span>';
   }
 
+  // 찾기 창 수업 줄 — 날짜 단추 (2026-09-11 원칙 1). ② 단계는 보기만
   $('findRows').innerHTML = hit.map(r => {
     const th = THS_ALL.find(t => t.id === r.therapist_id);
     const sl = nearest(toMin(r.start_time));
     const _rl = (byScd[r.id] || []);
-    const _rh = _rl.map(x => {
-      const cls = (x.status==='완료' ? 'r-done'
-                : x.status==='결석' ? 'r-abs'
-                : x.status==='휴무' ? 'r-off'
-                : x.status==='쉼' ? 'r-rest'
-                : x._isEval ? 'r-eval' : '')
-                + ((x.status==='결석' || x.status==='휴무') ? ' r-cut' : '');
-      const mk = mkOf[x.id];
-      // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
-      const noNeed1 = (Number(x.support_type_id) === 2 && !x.run_no);
-      // 보강이 잡혀 있으면 그 날짜와 함께 「완료·보강예정」까지 보여 준다
-      const _pt = partsTxt(x.id, x.status);
-      const _sum = (PARTS[x.id] || []).reduce(function(t,v){ return t + Number(v.minutes || 0); }, 0);
-      const tail = _pt
-        ? (_pt + ((x.status==='결석' || x.status==='휴무') && _sum < 40 && CAN_EDIT && srvNeed(x.id)
-                    ? '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>' : ''))
-        : (x.status==='결석' || x.status==='휴무')
-        ? (mk ? '→' + mkDay(mk) + ' ' + esc(stWord(mk))
-              : ((noNeed1 || !srvNeed(x.id)) ? esc(stWord(x))   // 서버가 보강 필요로 안 본 줄은 ＋ 없음 (2026-09-11)
-                 : ((CAN_EDIT
-                     ? '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>'
-                     : '')
-                    + findBtn(x, mk))))
-        : stWord(x);
-      // 회차 앞에 사업 이름표를 늘 붙인다 (발 · 센 · 치언 · 치작 · 방 · 방치언 · 방치작)
-      //   「이」는 사업 8번(발달추가비용)일 때만 붙인다 (2026-09-10)
-      //   발달재활 회차 5번은 발추가 아니다. 4주뿐인 달에는 발달이 5번까지 갈 수 있다
-      const _st  = Number(x.support_type_id || r.support_type_id);
-      const _isX = (_st === 8);
-      // 공휴일·센터휴무이고 보강할 회가 아니면 이름표·회차 없이 「25일 추석 연휴」만 (2026-09-11)
-      //   회차가 붙어 있으면 보강을 잡아야 하는 것처럼 보였다
-      //   발달재활처럼 그 달 안에 채워야 하는 공휴일(서버가 보강 필요로 본 줄)은 회차와 ＋를 그대로 둔다
-      if (x.status === '휴무' && isHoli(x.plan_date) && !mk && !srvNeed(x.id)) {
-        return '<span class="run r-off" data-sid="'+x.id+'" style="display:inline-flex;">'
-          + '<span class="dt">' + dtWithMon(x.plan_date) + '</span>'
-          + '<span class="st">' + esc(OFFTXT[String(x.plan_date)] || '공휴일') + '</span></span>';
-      }
-      const dif = _isX
-        ? '<span class="spadd">이</span>'
-        : '<span class="spdif">' + (STYPE[_st] || '') + '</span>';
-      return '<span class="run ' + cls + '" data-sid="'+x.id+'" style="display:inline-flex;">'
-        + dif
-        + '<span class="no">' + monNo(mon) + '-' + x.run_no + '</span>'
-        + '<span class="dt">' + dtWithMon(x.plan_date) + '</span>'
-        + (HOSTADD[x.id] ? '<b class="mintag">+' + HOSTADD[x.id] + '</b>' : '')
-        + '<span class="st">' + tail + '</span></span>';
+    const days = fDates(mon, r.weekday);
+    const slot = {}, other = [];
+    _rl.forEach(x => {
+      if (x.status === '쉼') return;
+      const d = String(x.plan_date);
+      if (days.indexOf(d) >= 0) (slot[d] = slot[d] || []).push(x);
+      else other.push(x);
     });
-    // 찾기 창은 확인용이라 보강 단추를 안 띄운다 (회색 「수업 없음」만)
-    const _xs = extraOf(r);
-    const _xp = _xs.map(function(s){
-      return { d: String(s.plan_date || ''), h: extraChip(s) };
-    });
-    const runs = mergeRuns(_rl, _rh,
-      wk5Pairs(r, byScd, r.weekday, true).concat(_xp));
+    // 한 날에 원래 줄이 둘 이상이면 오류 (두 벌) — 줄 끝에 빨간 글
+    let dup = 0, nOn = 0;
+    const main = days.map(d => {
+      const xs = slot[d] || [];
+      if (!xs.length) return '<span class="fb fbl"></span>';
+      nOn++;
+      dup += xs.length - 1;
+      return xs.map(x => fBtn(x, mkOf, PARTS, HOSTADD)).join('');
+    }).join('');
+    // 전월 보강 (지난달 몫 보강·조각을 이 달에 한 것) · 요일줄 밖 보강 — 점선 초록으로 앞에 덧붙임
+    const pvx = (PREV || []).filter(s => isMk(s) && s.child_id === r._cid
+        && String(s.plan_date).slice(0, 7) === String(mon)
+        && s.status !== '취소'
+        && (s.schedule_id === r.id
+            || (!s.schedule_id && (s.support_type_id === r.support_type_id
+                                   || (r.support_type_id === 2 && s.support_type_id === 8)))))
+      .sort((a, b) => String(a.plan_date).localeCompare(String(b.plan_date)));
+    const ext = pvx.map(fExtra).join('') + extraOf(r).map(fExtra).join('');
+    // 요일 밖 날짜의 원래 줄 (발추를 다른 날에 잡은 것 등)
+    const oth = other.map(x => fBtn(x, mkOf, PARTS, HOSTADD)).join('');
 
-    // 발추가 있어야 하는 달인데 자리를 못 잡았으면 회색 「일정 미정」 칸을 더한다
+    // 발추가 있어야 하는 달인데 자리를 못 잡았으면 회색 「이 미정」
     //   발4+발추1   — 매달 1회
-    //   발4+5주발추 — 그 요일이 5번 있는 달만 1회
+    //   발4+5주발추 — 그 요일이 5번 있는 달만 1회 (공휴일 빼고 셈)
     let ghost = '';
     if (Number(r.support_type_id) === 2) {
       const isX8N = function(x){
@@ -2459,35 +2522,27 @@ function drawFind(){
             && Number(x.run_no) > 0
             && (!x.month_key || String(x.month_key) === String(mon));
       };
-      const hasX8 = _rl.some(isX8N) || _xs.some(isX8N)
+      const hasX8 = _rl.some(isX8N)
         || SESS.some(function(x){
              return x.child_id === r._cid && !x.makeup_for && isX8N(x); });
       const needX8 = (r._mode === '발4+발추1')
-        || (r._mode === '발4+5주발추' && countWdOpen(mon, r.weekday) >= 5);   // 공휴일 빼고 셈
-      if (needX8 && !hasX8) {
-        ghost = '<span class="run r-ghost" style="display:inline-flex;">'
-          + '<span class="spadd">이</span>'
-          + '<span class="dt">일정 미정</span>'
-          + (CAN_EDIT
-              ? '<button class="mkbtn" data-x8="' + r.id + '" title="발추 자리 잡기">＋</button>'
-              : '')
-          + '</span>';
-      }
+        || (r._mode === '발4+5주발추' && countWdOpen(mon, r.weekday) >= 5);
+      if (needX8 && !hasX8) ghost = '<span class="fb s8 off">이 미정</span>';
     }
 
     return '<div class="findrow">'
       + '<div class="fr-top">'
         + '<span class="fr-nm">' + (r._cid ? '[' + r._cid + '] ' : '') + esc(r._name) + '</span>'
         + '<span class="fr-when">' + r.weekday + ' ' + h12(sl.hm) + '</span>'
-        + '<span class="fr-th">' + (STYPE[r.support_type_id]||'') + ' · '
-          + (TTYPE[r._tt]||'') + ' · ' + (th ? esc(th.name) : '') + ' · '
-          + (r.duration||'') + '분</span>'
+        + '<span class="fr-th">' + (FTOP[r.support_type_id] || STYPE[r.support_type_id] || '') + ' · '
+          + (TTYPE[r._tt] || '') + ' · ' + (th ? th.id + '번' : '') + ' · '
+          + (r.duration || '') + '분'
+          + ((nOn && nOn < days.length) ? ' · 월 ' + nOn + '회' : '') + '</span>'
         + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'" title="고치기">수정</button>' : '')
       + '</div>'
-      + '<div class="fr-runs">'
-        + ((runs || ghost) ? (runs + ghost)
-                           : '<span class="findnone">이 달 회기 없음</span>')
-        + '</div>'
+      + '<div class="fbt">' + ext + main
+        + (dup ? '<span class="fdup">회기 줄 ' + dup + '개 더</span>' : '') + '</div>'
+      + ((oth || ghost) ? '<div class="fbt">' + oth + ghost + '</div>' : '')
       + '</div>';
   }).join('');
 
@@ -7334,7 +7389,7 @@ async function loadMonth(){
   });
 
   const { data, error } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, minutes')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, want_makeup, minutes')
     .eq('month_key', mon);
   SESS = error ? [] : (data || []);
   // 치료사 화면은 자기 회기만 보여준다.
@@ -7392,7 +7447,7 @@ async function loadMonth(){
   // 지난 달 회기도 불러온다 (이월 보강 때문)
   const pm = prevMon(mon);
   const { data: pv } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, minutes')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, want_makeup, minutes')
     .eq('month_key', pm);
   PREV = pv || [];
   // 치료사 — 자기가 맡은 아동의 다른 수업분 결석도 함께 본다 (보강 조율용)
