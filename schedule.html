@@ -2390,7 +2390,8 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
                  : ps.map(function(v){ return '+' + Number(v.minutes) + ' ' + mkDay(v); }).join(' '))
          + ((psum < 40 && x.status !== '완료') ? ' · ' + (40 - psum) + '분 남음' : '');
   } else if (mk && (x.status === '결석' || x.status === '휴무')) {
-    info = '→' + mkDay(mk);
+    // 보강 날짜 뒤에 그 보강의 상태도 적는다 — 아직 안 했으면 예정, 했으면 완료 (2026-09-11)
+    info = '→' + mkDay(mk) + ' ' + (mk.status === '완료' ? '완료' : mk.status === '결석' ? '결석' : '예정');
   }
   if (HOSTADD[x.id]) info = (info ? info + ' ' : '') + '+' + HOSTADD[x.id];
   const sm = [word, info].filter(Boolean).join(' ');
