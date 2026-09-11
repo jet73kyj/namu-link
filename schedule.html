@@ -1625,6 +1625,16 @@ let VIEW = 'day';       // day = 요일별, week = 치료사별 주간
 let mkSess = null;      // 지금 보강 잡는 결석 회기
 let CAN_EDIT = false;   // 수업을 넣고 고칠 수 있는 사람인가 (관리자 8 · 행정 9)
 let MY_TH    = null;    // 치료사로 로그인했으면 그 번호. 자기 칸만 보인다
+// 「보강이 필요한 줄」 — 서버 한 곳(nl_need_rows)이 정한 것 (2026-09-11)
+//   직원은 nl_staff_need_all, 치료사는 nl_th_need 로 받는다. 학부모(nl_parent_need)와 같은 셈
+//   null 이면 서버를 못 부른 것 → 옛 셈으로 그린다
+let NEEDSRV  = null;    // { miss:{줄:까닭}, holi:{줄:1}, prev:{줄:까닭}, x8:{아동:1}, pay:{'아동|사업':회수} }
+// 이 줄이 서버 기준으로 보강이 필요한가 (결석 보강 · 발달재활 공휴일 · 넘어온 보강)
+function srvNeed(id){
+  if (!NEEDSRV) return true;
+  const k = String(id);
+  return (k in NEEDSRV.miss) || (k in NEEDSRV.holi) || (k in NEEDSRV.prev);
+}
 let ALLSESS  = [];      // 거르기 전 회기 전부 (연달아 자리 찾기에만 씀)
 let IS_BOSS  = false;   // 대표(8번). 확정 회기를 넘겨 넣을 수 있다
 let PAYCNT   = {};      // 아동|지원유형 -> 납부에서 확정한 회기 수
@@ -1905,6 +1915,66 @@ function drawShort(_byScd, _mkOf){
     });
   }
 
+  // 서버 한 곳(nl_need_rows)이 정한 대로 맞춘다 (2026-09-11)
+  //   화면 셈은 자리(수업·회수)를 그리는 데만 쓰고, 「올릴지 말지」는 서버가 정한다
+  if (NEEDSRV) {
+    // ① 결석 보강 — 서버에 있는 줄만
+    missRows.forEach(b => { b.miss = b.miss.filter(x => String(x.id) in NEEDSRV.miss); });
+    const shown = new Set();
+    missRows.forEach(b => b.miss.forEach(x => shown.add(String(x.id))));
+    Object.keys(NEEDSRV.miss).forEach(id => {
+      if (shown.has(id)) return;
+      const x = SESS_.find(v => String(v.id) === id);
+      if (!x) return;
+      const r = ROWS_.find(v => v.id === x.schedule_id);
+      if (!r) return;
+      let b = missRows.find(v => v.row === r);
+      if (!b) { b = { row:r, miss:[] }; missRows.push(b); }
+      b.miss.push(x);
+    });
+    for (let i = missRows.length - 1; i >= 0; i--) if (!missRows[i].miss.length) missRows.splice(i, 1);
+
+    // ② 회기가 모자란 수업 — 서버에 있는 것만
+    const holiScd = {};
+    Object.keys(NEEDSRV.holi).forEach(id => {
+      const x = SESS_.find(v => String(v.id) === id);
+      if (x && x.schedule_id) holiScd[x.schedule_id] = (holiScd[x.schedule_id] || 0) + 1;
+    });
+    for (let i = gapRows.length - 1; i >= 0; i--) {
+      const b = gapRows[i], r = b.row;
+      const keep = (b.why === '공휴일') ? !!holiScd[r.id]
+                 : (b.why === '발추')   ? !!NEEDSRV.x8[r._cid]
+                 : (b.why === '납부')   ? ((r._cid + '|' + r.support_type_id) in NEEDSRV.pay)
+                 : true;
+      if (!keep) gapRows.splice(i, 1);
+    }
+    // 서버에만 있는 것 더하기
+    const runsOf = rid => SESS_.filter(x => x.schedule_id === rid && !isMk(x)
+                          && (!x.month_key || String(x.month_key) === String(mon)) && x.status !== '쉼').length;
+    Object.keys(holiScd).forEach(rid => {
+      if (gapRows.some(b => b.why === '공휴일' && String(b.row.id) === String(rid))) return;
+      const r = ROWS_.find(v => String(v.id) === String(rid));
+      if (!r) return;
+      const n = runsOf(r.id);
+      gapRows.push({ row:r, have:n - holiScd[rid], need:n, why:'공휴일' });
+    });
+    Object.keys(NEEDSRV.x8).forEach(cid => {
+      if (gapRows.some(b => b.why === '발추' && String(b.row._cid) === String(cid))) return;
+      const r = ROWS_.find(v => String(v._cid) === String(cid) && Number(v.support_type_id) === 2);
+      if (!r) return;
+      const n = runsOf(r.id);
+      gapRows.push({ row:r, have:n, need:n + 1, why:'발추' });
+    });
+    Object.keys(NEEDSRV.pay).forEach(key => {
+      if (gapRows.some(b => b.why === '납부' && (b.row._cid + '|' + b.row.support_type_id) === key)) return;
+      const [cid, st] = key.split('|');
+      const r = ROWS_.find(v => String(v._cid) === cid && String(v.support_type_id) === st);
+      if (!r) return;
+      const cap = PAYCNT[key] != null ? PAYCNT[key] : 0;
+      gapRows.push({ row:r, have:Math.max(0, cap - NEEDSRV.pay[key]), need:cap, why:'납부' });
+    });
+  }
+
   // 발달재활(2번)을 맨 앞으로. 반드시 4회를 채워야 하므로
   const byDev = (a, b) => {
     const pa = (a.row.support_type_id === 2) ? 0 : 1;
@@ -2156,6 +2226,11 @@ function findSess(id){
 }
 // 지난 달에서 아직 보강을 못 잡은 결석·휴무
 function prevNeed(){
+  // 서버 한 곳이 정한 줄만 (2026-09-11)
+  if (NEEDSRV) {
+    return PREV.filter(s => String(s.id) in NEEDSRV.prev)
+               .sort((a,b) => String(a.plan_date).localeCompare(String(b.plan_date)));
+  }
   const done = {};
   PREV.forEach(s => { if (isMk(s)) done[s.makeup_for] = s; });
   // 지난 달에 「10분씩 나눠 발추 넣기」를 켠 수업은 그 달에 이미 채운 것이므로
@@ -2309,11 +2384,11 @@ function drawFind(){
       const _pt = partsTxt(x.id, x.status);
       const _sum = (PARTS[x.id] || []).reduce(function(t,v){ return t + Number(v.minutes || 0); }, 0);
       const tail = _pt
-        ? (_pt + ((x.status==='결석' || x.status==='휴무') && _sum < 40 && CAN_EDIT
+        ? (_pt + ((x.status==='결석' || x.status==='휴무') && _sum < 40 && CAN_EDIT && srvNeed(x.id)
                     ? '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>' : ''))
         : (x.status==='결석' || x.status==='휴무')
         ? (mk ? '→' + mkDay(mk) + ' ' + esc(stWord(mk))
-              : (noNeed1 ? esc(stWord(x))
+              : ((noNeed1 || !srvNeed(x.id)) ? esc(stWord(x))   // 서버가 보강 필요로 안 본 줄은 ＋ 없음 (2026-09-11)
                  : ((CAN_EDIT
                      ? '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>'
                      : '')
@@ -2546,6 +2621,7 @@ function buildNeedMk(){
     if (Number(s.support_type_id) === 2 && !s.run_no) return;   // 공휴일 회차 0
     if (s.schedule_id && splitScd[s.schedule_id]) return;
     if (done[s.id] && !needMore(s.id, all)) return;
+    if (!srvNeed(s.id)) return;             // 서버 한 곳이 보강 필요로 본 줄만 (2026-09-11)
     const c = Number(s.child_id);
     (NEEDMK[c] = NEEDMK[c] || []).push(s);
   });
@@ -7352,6 +7428,27 @@ async function loadMonth(){
     const n2 = {}; (kk || []).forEach(k => n2[k.id] = k.name);
     SESS.forEach(s => { if (!s._name) s._name = n2[s.child_id] || ''; });
   }
+
+  // 「보강이 필요한 줄」을 서버 한 곳에서 받는다 (2026-09-11)
+  //   세 상자 · 찾기 창 ＋ · 하루 보기 멘트가 이것만 따른다
+  NEEDSRV = null;
+  try {
+    const fn = MY_TH ? 'nl_th_need' : 'nl_staff_need_all';
+    const { data: nd, error: ne } = await sb.rpc(fn, { p_mk: mon });
+    if (!ne && nd) {
+      const o = { miss:{}, holi:{}, prev:{}, x8:{}, pay:{} };
+      nd.forEach(r => {
+        if (r.kind === 'miss' && r.session_id) o.miss[r.session_id] = r.why || '';
+        else if (r.kind === 'holi' && r.session_id) o.holi[r.session_id] = 1;
+        else if (r.kind === 'prev' && r.session_id) o.prev[r.session_id] = r.why || '';
+        else if (r.kind === 'short') {
+          if (Number(r.support_type_id) === 8) o.x8[r.child_id] = 1;
+          else o.pay[r.child_id + '|' + r.support_type_id] = Number(r.short) || 1;
+        }
+      });
+      NEEDSRV = o;
+    }
+  } catch (e) { NEEDSRV = null; }
 }
 
 // ===== 미납 교육비 (2026-09-11) =====
