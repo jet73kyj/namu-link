@@ -705,6 +705,23 @@ function ymd(b) {
 }
 
 // 그 달에 해당 요일이 몇 번 있는지 센다
+// 그 요일이 그 달에 몇 번인가 — 공휴일·센터휴무 날은 빼고 센다 (2026-09-11)
+//   5주차(발추·5주차 센터) 판단에 쓴다. 규칙 [7] 「휴무가 아닌 날 중 몇 번째」
+//   보기: 2026년 10월 금요일은 5번이지만 9일 한글날이 빠져 4번
+//   HOLDAY(센터 전체가 쉬는 날)는 불러오기 때 채워 둔다
+function countWeekdayOpen(mk, day) {
+  const NAMES = ['일','월','화','수','목','금','토'];
+  const [y, m] = mk.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  let n = 0;
+  for (let d = 1; d <= last; d++) {
+    if (NAMES[new Date(y, m - 1, d).getDay()] !== day) continue;
+    const ds = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    if (HOLDAY[ds]) continue;
+    n++;
+  }
+  return n;
+}
 function countWeekday(mk, day) {
   const NAMES = ['일','월','화','수','목','금','토'];
   const [y, m] = mk.split('-').map(Number);
@@ -997,7 +1014,7 @@ async function load() {
         need = 4;
         let five = false;
         scs.forEach(sc => {
-          if (sc.weekday && countWeekday(mk, sc.weekday) >= 5) five = true;
+          if (sc.weekday && countWeekdayOpen(mk, sc.weekday) >= 5) five = true;   // 공휴일 빼고 셈
         });
         plus1 = five ? 1 : 0;
       }
@@ -1206,7 +1223,7 @@ function buildRows(childId, mk) {
     g8.extra_weekday = (() => {
       const wds = dev.items.map(v => v.weekday).filter(v => v);
       if (!wds.length) return null;
-      const five = wds.find(w => countWeekday(mk, w) >= 5);
+      const five = wds.find(w => countWeekdayOpen(mk, w) >= 5);   // 공휴일 빼고 셈
       return five || wds[0];
     })();
   }
@@ -1576,7 +1593,7 @@ function drawKid(c) {
         ? (xmodeOf(sv[8]) || 3)
         : (X8NEED[c.id] ? 1 : (xmodeOf(lastM[8]) || 3));
       // 5주차 여부
-      const five = g.extra_weekday ? (countWeekday(mk, g.extra_weekday) >= 5) : false;
+      const five = g.extra_weekday ? (countWeekdayOpen(mk, g.extra_weekday) >= 5) : false;   // 공휴일 빼고 셈
       let cnt;
       if (sv[8] !== undefined && xmodeOf(sv[8])) {
         const cs = countsOf(sv[8]);

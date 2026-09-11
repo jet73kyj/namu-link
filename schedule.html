@@ -1703,6 +1703,22 @@ function countWd(k, w){
   while(d.getMonth()===m-1){ if(d.getDay()===i) n++; d.setDate(d.getDate()+1); }
   return n;
 }
+// 그 요일이 그 달에 몇 번인가 — 공휴일·센터휴무 날은 빼고 센다 (2026-09-11)
+//   5주차(발추 자리) 판단에 쓴다. 규칙 [7] 「휴무가 아닌 날 중 몇 번째」
+//   보기: 2026년 10월 금요일은 5번이지만 9일 한글날이 빠져 4번
+//   선생님 휴가는 빼지 않는다 (센터는 여는 날이므로)
+function countWdOpen(k, w){
+  const p=String(k).split('-'), y=Number(p[0]), m=Number(p[1]);
+  const i=WDS.indexOf(w); let n=0; const d=new Date(y,m-1,1);
+  while(d.getMonth()===m-1){
+    if(d.getDay()===i){
+      const ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      if (!isHoli(ds)) n++;
+    }
+    d.setDate(d.getDate()+1);
+  }
+  return n;
+}
 
 // 치료사 번호로 이름 찾기
 function thName(tid){
@@ -1850,7 +1866,7 @@ function drawShort(_byScd, _mkOf){
     //   발4+발추1  — 매달 발추 1회
     //   발추5/5    — 그 요일이 5번 있는 달만 발추 1회 (4번뿐인 달은 발달 4회로 끝)
     const needX8 = (r._mode === '발4+발추1')
-      || (r._mode === '발4+5주발추' && countWd(mon, r.weekday) >= 5);
+      || (r._mode === '발4+5주발추' && countWdOpen(mon, r.weekday) >= 5);   // 공휴일 빼고 셈
     const short5 = (needX8 && !hasX8 && !nmN);
     if (miss.length) missRows.push({ row:r, miss:miss });
     if (short5)      gapRows.push({ row:r, have:runs.length, need:runs.length + 1, why:'발추' });
@@ -2336,7 +2352,7 @@ function drawFind(){
         || SESS.some(function(x){
              return x.child_id === r._cid && !x.makeup_for && isX8N(x); });
       const needX8 = (r._mode === '발4+발추1')
-        || (r._mode === '발4+5주발추' && countWd(mon, r.weekday) >= 5);
+        || (r._mode === '발4+5주발추' && countWdOpen(mon, r.weekday) >= 5);   // 공휴일 빼고 셈
       if (needX8 && !hasX8) {
         ghost = '<span class="run r-ghost" style="display:inline-flex;">'
           + '<span class="spadd">이</span>'
