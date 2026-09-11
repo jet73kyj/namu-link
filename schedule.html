@@ -2188,9 +2188,49 @@ function drawFind(){
   // 요일줄에 안 딸린 회기(직접 보강 · 이월 보강 · 선보강)도 함께 보여 준다
   //   한 줄에만 붙게 이미 쓴 것은 표시해 둔다
   const usedX = {};
+
+  // 쪼개기 보강 (2026-09-11) — 조각마다 단추를 따로 만들지 않는다
+  //   조각이 얹힌 고정 수업 단추에는 「+10」,
+  //   원래 결석·휴무 단추에는 「+10 4일·11일·18일」처럼 채운 날을 적는다
+  const isPart = function(v){ return v && v.makeup_for && Number(v.minutes || 40) !== 40; };
+  const PARTS = {}, HOSTADD = {};
+  SESS.filter(isPart).forEach(function(p){
+    (PARTS[p.makeup_for] = PARTS[p.makeup_for] || []).push(p);
+    // 주인 수업 — 그날 그 아동의 40분 수업 중 이 조각보다 앞선 마지막 것 (없으면 바로 뒤 것)
+    const own = SESS.filter(function(v){
+      return String(v.plan_date) === String(p.plan_date)
+          && Number(v.child_id) === Number(p.child_id)
+          && Number(v.minutes || 40) === 40 && v.start_time
+          && v.status !== '결석' && v.status !== '휴무' && v.status !== '쉼';
+    });
+    const bef = own.filter(function(v){ return String(v.start_time) <= String(p.start_time); })
+      .sort(function(a,b){ return String(b.start_time).localeCompare(String(a.start_time)); });
+    const aft = own.filter(function(v){ return String(v.start_time) > String(p.start_time); })
+      .sort(function(a,b){ return String(a.start_time).localeCompare(String(b.start_time)); });
+    const host = bef[0] || aft[0];
+    if (host) HOSTADD[host.id] = (HOSTADD[host.id] || 0) + Number(p.minutes || 0);
+  });
+  Object.values(PARTS).forEach(function(a){
+    a.sort(function(x,y){ return String(x.plan_date + x.start_time).localeCompare(String(y.plan_date + y.start_time)); });
+  });
+  // 원래 줄에 붙는 글 — 「+10 4일·11일·11일·18일 완료」 / 「+10 4일·11일 (20분 더)」
+  function partsTxt(id){
+    const ps = PARTS[id];
+    if (!ps || !ps.length) return '';
+    const sum = ps.reduce(function(t,v){ return t + Number(v.minutes || 0); }, 0);
+    const m0 = Number(ps[0].minutes);
+    const same = ps.every(function(v){ return Number(v.minutes) === m0; });
+    const txt = same
+      ? '+' + m0 + ' ' + ps.map(mkDay).join('·')
+      : ps.map(function(v){ return '+' + Number(v.minutes) + ' ' + mkDay(v); }).join(' · ');
+    return '<b class="mintag" style="margin-left:0;">' + txt + '</b>'
+      + (sum >= 40 ? ' 완료' : ' <i style="color:#a1662f;font-style:normal;">(' + (40 - sum) + '분 더)</i>');
+  }
+
   function extraOf(r){
     return SESS.filter(function(s){
       if (s.child_id !== r._cid) return false;
+      if (isPart(s)) return false;   // 쪼갠 조각은 따로 그리지 않는다
       if (usedX[s.id]) return false;
       if (s.schedule_id === r.id && !isMk(s)) return false;   // 이미 위에 그린 정규 회기
       // 결석 줄 옆에 「→ 12일」로 이미 보이는 보강은 다시 안 그린다
@@ -2243,7 +2283,12 @@ function drawFind(){
       // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
       const noNeed1 = (Number(x.support_type_id) === 2 && !x.run_no);
       // 보강이 잡혀 있으면 그 날짜와 함께 「완료·보강예정」까지 보여 준다
-      const tail = (x.status==='결석' || x.status==='휴무')
+      const _pt = partsTxt(x.id);
+      const _sum = (PARTS[x.id] || []).reduce(function(t,v){ return t + Number(v.minutes || 0); }, 0);
+      const tail = _pt
+        ? (_pt + ((x.status==='결석' || x.status==='휴무') && _sum < 40 && CAN_EDIT
+                    ? '<button class="mkbtn" data-mk="'+x.id+'" title="보강 잡기">＋</button>' : ''))
+        : (x.status==='결석' || x.status==='휴무')
         ? (mk ? '→' + mkDay(mk) + ' ' + esc(stWord(mk))
               : (noNeed1 ? esc(stWord(x))
                  : ((CAN_EDIT
@@ -2263,6 +2308,7 @@ function drawFind(){
         + dif
         + '<span class="no">' + monNo(mon) + '-' + x.run_no + '</span>'
         + '<span class="dt">' + dtWithMon(x.plan_date) + '</span>'
+        + (HOSTADD[x.id] ? '<b class="mintag">+' + HOSTADD[x.id] + '</b>' : '')
         + '<span class="st">' + tail + '</span></span>';
     });
     // 찾기 창은 확인용이라 보강 단추를 안 띄운다 (회색 「수업 없음」만)
