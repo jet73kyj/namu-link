@@ -259,7 +259,7 @@ let EVFEE = {};   // 평가 개수 -> 수수료
 const ETYPE = {1:'심리평가', 2:'발달평가', 3:'언어평가'};
 let THS   = [];
 let SESS  = [], ROWS = [], KIDS = {};
-let HASPART = {};   // 쪼갠 조각이 딸린 원래 줄 { 줄번호: true } — 이 줄은 「완료」여도 세지 않는다
+let HASPART = {};   // 쪼갠 조각이 딸린 원래 줄 { 줄번호: 조각 분의 합 }
 let EVALS = [];   // 그 달 평가
 let mon = '', thId = 0;
 
@@ -293,12 +293,14 @@ function calc(){
   }
 
   // 완료·보강만 센다
-  //   쪼갠 조각이 딸린 원래 줄은 「완료」여도 세지 않는다 (2026-09-11)
-  //   조각이 40분 차면 원래 줄이 저절로 완료가 되는데, 조각도 분만큼 세므로 한 회가 두 번 잡혔다.
-  //   실제로 한 것은 조각이므로 조각만 센다
+  //   쪼갠 조각이 딸린 원래 줄 (2026-09-11)
+  //   · 조각이 40분을 채웠으면 → 원래 줄은 세지 않는다 (조각이 한 회를 이룬다)
+  //     조각이 40분 차면 원래 줄이 저절로 완료가 되는데, 조각도 세므로 한 회가 두 번 잡혔다
+  //   · 40분이 안 됐는데 원래 줄이 「완료」 → 종결 등으로 완료 처리한 것.
+  //     모자란 분만큼 원래 줄로 채워 조각과 합쳐 한 회가 되게 한다 (예: 조각 20분 → 원래 줄 20분)
   const done = SESS.filter(s => s.therapist_id === thId
                  && (s.status === '완료' || s.status === '보강')
-                 && !HASPART[s.id]);
+                 && !(HASPART[s.id] >= 40));
 
   if (!SESS.length) {
     $('warnBox').style.display = 'block';
@@ -327,14 +329,16 @@ function calc(){
     // 메모에 '심리'가 있는 것만 특수로 본다
     const isSp = r.special_fee && String(s.memo||'').includes('심리');
     // 쪼개서 보강한 줄은 분만큼만 센다. 10분이면 0.25회 (2026-09-08)
-    const part = Number(s.minutes || 40) / 40;
+    const rest = (HASPART[s.id] > 0 && HASPART[s.id] < 40) ? (40 - HASPART[s.id]) : 0;
+    const part = rest ? rest / 40 : Number(s.minutes || 40) / 40;
     let fee;
     if (isSp)          { k.sp  += part; fee = r.special_fee * part; }
     else if (dur >= 60){ k.m60 += part; fee = r.session_fee * 1.5 * part; }
     else               { k.m40 += part; fee = r.session_fee * part; }
     k.fee += Math.round(fee);
     k.days.push(dayNo(s.plan_date)
-      + (part !== 1 ? '(+' + Number(s.minutes) + '분)' : '')
+      + (rest ? '(완료 처리 ' + rest + '분)'
+              : (part !== 1 ? '(+' + Number(s.minutes) + '분)' : ''))
       + (s.status==='보강'
           ? ((s.month_key && s.month_key !== mon)
               ? '(' + monNo(s.month_key) + '월분 보강)' : '(보강)')
@@ -385,7 +389,7 @@ function calc(){
 
   // 주유비 — 완료 회차가 있는 날만 (보강만 있는 날은 뺀다)
   const fuelDays = new Set();
-  SESS.filter(s => s.therapist_id === thId && s.status === '완료' && !HASPART[s.id])
+  SESS.filter(s => s.therapist_id === thId && s.status === '완료' && !(HASPART[s.id] > 0))
       .forEach(s => fuelDays.add(s.plan_date));
   const fuel = (r.daily_fuel || 0) * fuelDays.size;
 
@@ -535,8 +539,11 @@ async function loadMonth(){
   const _ids = SESS.filter(x => !x.makeup_for && x.status === '완료').map(x => x.id);
   for (let i = 0; i < _ids.length; i += 200) {
     const { data: pp } = await sb.from('nl_sessions')
-      .select('makeup_for').in('makeup_for', _ids.slice(i, i + 200)).neq('minutes', 40);
-    (pp || []).forEach(x => { HASPART[x.makeup_for] = true; });
+      .select('makeup_for, minutes, status').in('makeup_for', _ids.slice(i, i + 200)).neq('minutes', 40);
+    (pp || []).forEach(x => {
+      if (x.status === '취소') return;
+      HASPART[x.makeup_for] = (HASPART[x.makeup_for] || 0) + Number(x.minutes || 0);
+    });
   }
   await loadEvals();
 }
@@ -557,7 +564,7 @@ async function afterLogin(user){
     .select('id, name').lte('id', 7).order('id');
   THS = ths || [];
   $('th').innerHTML = THS.map(t =>
-    '<option value="'+t.id+'">'+esc(t.name)+' 치료사</option>').join('');
+    '<option value="'+t.id+'">'+t.id+'번 '+esc(t.name)+' 치료사</option>').join('');
   thId = THS.length ? THS[0].id : 0;
 
   const { data: rates } = await sb.from('nl_pay_rates').select('*');
