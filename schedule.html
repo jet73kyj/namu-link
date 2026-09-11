@@ -5246,6 +5246,9 @@ $('edEnd').onclick = async () => {
       if (x.status === '완료') _keep.push(x);
       else if (partDone) _toDone.push(x);
       else if (x.status === '결석' && fullDone) _keep.push(x);
+      // 남는 보강(이미 했거나 종결일 전의 것)이 딸린 줄은 지우지 않는다 (2026-09-11)
+      //   표 장치가 어차피 지우지 않으므로 목록에서도 「남김」으로 보여 준다
+      else if (my.some(m => !(String(m.plan_date) >= d && m.status !== '완료'))) _keep.push(x);
       else _del.push(x);
     });
     // 종결일부터 잡혀 있는데 아직 안 한 보강·조각은 지운다
@@ -5317,10 +5320,17 @@ $('edEnd').onclick = async () => {
         .in('id', _toDone.map(x => x.id));
       if (e4) throw e4;
     }
+    // 보강·조각을 먼저 지우고 원래 줄은 그다음에 지운다 (2026-09-11)
+    //   표 장치(trg_d_keep_linked)가 「보강이 딸린 예정·쉼·휴무 줄」은 지우지 않으므로
+    //   한꺼번에 지우면 원래 줄이 보강보다 먼저 처리될 때 원래 줄만 남을 수 있다
     const _delIds = _del.concat(_delMk).map(x => x.id);
-    for (let i = 0; i < _delIds.length; i += 200) {
-      const { error: e5 } = await sb.from('nl_sessions').delete().in('id', _delIds.slice(i, i + 200));
-      if (e5) throw e5;
+    const _delMkIds = _delMk.map(x => x.id);
+    const _delOrgIds = _del.map(x => x.id);
+    for (const _grp of [_delMkIds, _delOrgIds]) {
+      for (let i = 0; i < _grp.length; i += 200) {
+        const { error: e5 } = await sb.from('nl_sessions').delete().in('id', _grp.slice(i, i + 200));
+        if (e5) throw e5;
+      }
     }
 
     ROWS = ROWS.filter(x => x.id !== edRow.id);
