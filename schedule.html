@@ -546,6 +546,8 @@
   .fb.off { background:#F1EFE8; color:#5F5E5A; border-color:#B4B2A9; }
   .fb.fbl { background:#F1EFE8; border-color:#D3D1C7; }
   .fdup { font-size:11.5px; color:#b3261e; font-weight:bold; align-self:center; }
+  .fb .fplus { display:inline-block; min-width:16px; text-align:center; font-weight:bold;
+               color:#fff; background:#3d84cf; border-radius:4px; font-size:11px; line-height:15px; }
   .fr-btn { width:auto; margin:0 0 0 auto; padding:3px 12px; font-size:11.5px;
             background:#546e7a; border-radius:12px; }
   .findnone { color:#c62828; font-size:13.5px; }
@@ -2334,8 +2336,8 @@ function monEnd(k){
 //   단추 수 = 그 달 그 요일 수. 회기 줄이 없는 주(쉼 포함)는 글자 없는 회색
 //   색 = 청구 · 흰 바탕 = 완료 · 회색 = 청구 안 함 · 점선 초록 = 전월 보강
 //   ② 단계 — 보기만 한다. 누르면 그 날 창이 열리는 것은 ③ 단계에서
-const FABBR = {1:'센', 2:'발', 3:'치언', 4:'치작', 5:'방', 6:'방언', 7:'방작', 8:'이'};
-const FTOP  = {1:'센터', 2:'발달', 3:'치언', 4:'치작', 5:'방과후', 6:'방언', 7:'방작'};
+const FABBR = {1:'센', 2:'발', 3:'치언', 4:'치작', 5:'방', 6:'방치언', 7:'방치작', 8:'이'};
+const FTOP  = {1:'센터', 2:'발달', 3:'치언', 4:'치작', 5:'방과후', 6:'방치언', 7:'방치작'};
 // 그 달에서 그 요일인 날짜들 ('2026-09-01' …)
 function fDates(mk, wd){
   const p = String(mk).split('-'), y = Number(p[0]), m = Number(p[1]);
@@ -2360,6 +2362,8 @@ function holiShort(v){
   return n || '공휴일';
 }
 // 날짜 단추 하나
+//   2026-09-11 고침 — 결석은 회색 · 단추 안에 예정·완료·결석을 늘 적음 ·
+//   보강을 잡을 결석·쉬는 날에는 ＋ (누르면 그 날 창)
 function fBtn(x, mkOf, PARTS, HOSTADD){
   const sp = Number(x.support_type_id) || 0;
   const on = fOn(x);
@@ -2371,24 +2375,33 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
     txt = (FABBR[sp] || STYPE[sp] || '') + ' '
         + (Number(x.run_no) > 0 ? monNo(x.month_key || mon) + '-' + x.run_no + ' ' : '') + d + '일';
   }
-  // 작은 글 — 꼭 필요한 것만 (결석 →보강날 · 쪼개기 · 얹힌 조각)
-  let sm = '';
-  const ps = PARTS[x.id], mk = mkOf[x.id];
-  if (on && ps && ps.length) {
-    const sum = ps.reduce(function(t, v){ return t + Number(v.minutes || 0); }, 0);
-    const m0  = Number(ps[0].minutes);
+  // 작은 글 — 상태 + 보강 정보
+  const ps = PARTS[x.id] || [], mk = mkOf[x.id];
+  const psum = ps.reduce(function(t, v){ return t + Number(v.minutes || 0); }, 0);
+  const word = x.no_makeup ? '보강 없음'
+             : ({ '예정':'예정', '완료':'완료', '결석':'결석' }[x.status] || '');
+  let info = '';
+  if (ps.length) {
+    const m0 = Number(ps[0].minutes);
     const same = ps.every(function(v){ return Number(v.minutes) === m0; });
-    sm = (same ? '+' + m0 + ' ' + ps.map(function(v){ return mkDay(v).replace('일', ''); }).join('·')
-               : ps.map(function(v){ return '+' + Number(v.minutes) + ' ' + mkDay(v); }).join(' '))
-       + ((sum < 40 && x.status !== '완료') ? ' · ' + (40 - sum) + '분 남음' : '');
-  } else if (on && x.status === '결석') {
-    sm = '결석' + (mk ? ' →' + mkDay(mk) : '');
-  } else if (on && x.status === '휴무' && mk) {
-    sm = '→' + mkDay(mk);
+    info = (same ? '+' + m0 + ' ' + ps.map(function(v){ return mkDay(v).replace('일', ''); }).join('·')
+                 : ps.map(function(v){ return '+' + Number(v.minutes) + ' ' + mkDay(v); }).join(' '))
+         + ((psum < 40 && x.status !== '완료') ? ' · ' + (40 - psum) + '분 남음' : '');
+  } else if (mk && (x.status === '결석' || x.status === '휴무')) {
+    info = '→' + mkDay(mk);
   }
-  if (HOSTADD[x.id]) sm = (sm ? sm + ' ' : '') + '+' + HOSTADD[x.id];
-  const cls = 'fb s' + sp + (on ? (x.status === '완료' ? ' fdn' : '') : ' off');
+  if (HOSTADD[x.id]) info = (info ? info + ' ' : '') + '+' + HOSTADD[x.id];
+  const sm = [word, info].filter(Boolean).join(' ');
+  // ＋ — 보강을 잡을 수 있는 결석·쉬는 날 (8·9·11번 화면)
+  //   40분 보강이 없고 조각도 40분이 안 됐을 때. 발달재활 회차 0 공휴일(채울 것 없음)은 뺀다
+  const done40 = (mk && Number(mk.minutes || 40) === 40) || psum >= 40;
+  const plus = CAN_EDIT && !x.no_makeup && !done40
+    && (x.status === '결석' || x.status === '휴무')
+    && !((sp === 2 || sp === 8) && x.status === '휴무' && !Number(x.run_no));
+  const grey = !on || x.status === '결석';
+  const cls = 'fb s' + sp + (grey ? ' off' : (x.status === '완료' ? ' fdn' : ''));
   return '<span class="' + cls + '" data-sid="' + x.id + '">' + esc(txt)
+    + (plus ? ' <b class="fplus">＋</b>' : '')
     + (sm ? '<small>' + esc(sm) + '</small>' : '') + '</span>';
 }
 // 덧붙인 단추 (전월 보강 · 요일줄 밖 보강) — 점선 초록
@@ -6859,10 +6872,15 @@ function canStat(s){
 }
 // 그 날 창 열기 — 찾기 창 날짜 단추에서 부른다 (원칙 9)
 function openDay(sid){
+  try { openDay2(sid); }
+  catch (e) { alert('그 날 창을 열지 못했습니다.\n' + ((e && e.message) || e)); }
+}
+function openDay2(sid){
   let s = findSess(Number(sid));
   if (!s) return;
   if (isMk(s)) { const o = findSess(Number(s.makeup_for)); if (!o) return; s = o; }
   openMk(s.id);
+  if (!$('mkStat')) throw new Error('창 칸(mkStat)을 찾지 못했습니다. 새 탭으로 다시 열어 주세요.');
   const sp = Number(s.support_type_id) || 0;
   const lbl = (s.status === '휴무')
     ? dayNo(s.plan_date) + '일 ' + (isHoli(s.plan_date) ? holiShort(OFFTXT[String(s.plan_date)]) : '휴가')
