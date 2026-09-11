@@ -2394,12 +2394,13 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   }
   if (HOSTADD[x.id]) info = (info ? info + ' ' : '') + '+' + HOSTADD[x.id];
   const sm = [word, info].filter(Boolean).join(' ');
-  // ＋ — 보강을 잡을 수 있는 결석·쉬는 날 (8·9·11번 화면)
-  //   40분 보강이 없고 조각도 40분이 안 됐을 때. 발달재활 회차 0 공휴일(채울 것 없음)은 뺀다
+  // ＋ — 보강을 잡을 결석·쉬는 날 (8·9·11번 화면)
+  //   청구하는 날(납부 계산에서 켜진 단추)만. 회색(청구 안 함)이면 ＋ 없음 (2026-09-11 납부와 잇기)
+  //   쉬는 날에 보강하려면 납부 계산에서 그 날 단추를 먼저 켠다 (월 4회 아동)
+  //   40분 보강이 없고 조각도 40분이 안 됐을 때
   const done40 = (mk && Number(mk.minutes || 40) === 40) || psum >= 40;
-  const plus = CAN_EDIT && !x.no_makeup && !done40
-    && (x.status === '결석' || x.status === '휴무')
-    && !((sp === 2 || sp === 8) && x.status === '휴무' && !Number(x.run_no));
+  const plus = CAN_EDIT && on && !done40
+    && (x.status === '결석' || x.status === '휴무');
   const grey = !on || x.status === '결석';
   const cls = 'fb s' + sp + (grey ? ' off' : (x.status === '완료' ? ' fdn' : ''));
   return '<span class="' + cls + '" data-sid="' + x.id + '">' + esc(txt)
