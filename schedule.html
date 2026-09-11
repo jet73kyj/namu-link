@@ -2407,6 +2407,18 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
     + (sm ? '<small>' + esc(sm) + '</small>' : '')
     + (plus ? ' <b class="fplus">＋</b>' : '') + '</span>';
 }
+// 「발추 1회를 나눠서 진행」 자리표 — 「이 +10×4 예정」 (2026-09-11)
+//   정규 수업 네 번에 10분씩 얹는 발추. 자리표 줄은 그 달 마지막 수업 날에 붙어 있어
+//   그 날 단추와 겹치므로, 날짜 칸에 넣지 않고 줄 끝에 따로 그린다
+function isBunsan(x){ return Number(x.support_type_id) === 8 && String(x.memo || '').indexOf('분산') >= 0; }
+function fBunsan(x){
+  const m = String(x.memo || '').match(/(\d+)\s*분씩/);
+  const per = m ? Number(m[1]) : 10;
+  const word = ({ '예정':'예정', '완료':'완료', '결석':'결석' }[x.status] || x.status || '');
+  return '<span class="fb s8' + (x.status === '완료' ? ' fdn' : '') + '" data-sid="' + x.id + '"'
+    + ' title="정규 수업 네 번에 ' + per + '분씩 나눠 진행하는 발추">'
+    + '이 +' + per + '×4<small>' + esc(word) + '</small></span>';
+}
 // 덧붙인 단추 (전월 보강 · 요일줄 밖 보강) — 점선 초록
 function fExtra(s){
   const other = s.month_key && String(s.month_key) !== String(mon);
@@ -2535,9 +2547,10 @@ function drawFind(){
     const sl = nearest(toMin(r.start_time));
     const _rl = (byScd[r.id] || []);
     const days = fDates(mon, r.weekday);
-    const slot = {}, other = [];
+    const slot = {}, other = [], bunsan = [];
     _rl.forEach(x => {
       if (x.status === '쉼') return;
+      if (isBunsan(x)) { bunsan.push(x); return; }   // 발추 나눠서 진행 자리표
       const d = String(x.plan_date);
       if (days.indexOf(d) >= 0) (slot[d] = slot[d] || []).push(x);
       else other.push(x);
@@ -2560,8 +2573,9 @@ function drawFind(){
                                    || (r.support_type_id === 2 && s.support_type_id === 8)))))
       .sort((a, b) => String(a.plan_date).localeCompare(String(b.plan_date)));
     const ext = pvx.map(fExtra).join('') + extraOf(r).map(fExtra).join('');
-    // 요일 밖 날짜의 원래 줄 (발추를 다른 날에 잡은 것 등)
-    const oth = other.map(x => fBtn(x, mkOf, PARTS, HOSTADD)).join('');
+    // 요일 밖 날짜의 원래 줄 (발추를 다른 날에 잡은 것 등) · 발추 나눠서 진행 자리표
+    const oth = other.map(x => fBtn(x, mkOf, PARTS, HOSTADD)).join('')
+              + bunsan.map(fBunsan).join('');
 
     // 발추가 있어야 하는 달인데 자리를 못 잡았으면 회색 「이 미정」
     //   발4+발추1   — 매달 1회
@@ -2578,7 +2592,9 @@ function drawFind(){
              return x.child_id === r._cid && !x.makeup_for && isX8N(x); });
       const needX8 = (r._mode === '발4+발추1')
         || (r._mode === '발4+5주발추' && countWdOpen(mon, r.weekday) >= 5);
-      if (needX8 && !hasX8) ghost = '<span class="fb s8 off">이 미정</span>';
+      if (needX8 && !hasX8) ghost = '<span class="fb s8 off' + (CAN_EDIT ? ' fx8' : '') + '"'
+        + (CAN_EDIT ? ' data-x8="' + r.id + '" title="발추 자리 잡기"' : '') + '>이 미정'
+        + (CAN_EDIT ? ' <b class="fplus">＋</b>' : '') + '</span>';
     }
 
     return '<div class="findrow">'
@@ -2597,6 +2613,15 @@ function drawFind(){
       + '</div>';
   }).join('');
 
+  // 「이 미정 ＋」 — 발추 자리 잡는 창 (2026-09-11)
+  $('findRows').querySelectorAll('.fx8[data-x8]').forEach(el => {
+    el.style.cursor = 'pointer';
+    el.onclick = (e) => {
+      e.stopPropagation();
+      lastClick = { clientX: e.clientX, clientY: e.clientY };
+      openPlan(Number(el.dataset.x8));
+    };
+  });
   // 찾기 창 날짜 단추를 누르면 그 날 창이 열린다 (2026-09-11 원칙 9)
   $('findRows').querySelectorAll('.fb[data-sid]').forEach(el => {
     el.onclick = (e) => {
