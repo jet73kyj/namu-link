@@ -533,8 +533,10 @@
   .fbt { display:flex; flex-wrap:wrap; gap:5px; align-items:flex-start; }
   .fbt + .fbt { margin-top:5px; }
   .fb { display:inline-block; font-size:12px; padding:3px 7px; border-radius:6px; border:1px solid;
-        line-height:1.35; min-width:54px; min-height:22px; white-space:nowrap; box-sizing:border-box; }
-  .fb small { display:block; font-size:10.5px; opacity:.85; }
+        line-height:1.35; min-width:54px; min-height:22px; white-space:nowrap; box-sizing:border-box;
+        vertical-align:middle; }
+  /* 단추는 무조건 한 줄 (2026-09-11) — 상태 글도 같은 줄에 작게 */
+  .fb small { display:inline; font-size:10.5px; opacity:.85; margin-left:4px; }
   .fb.s1 { background:#E6F1FB; color:#0C447C; border-color:#378ADD; }
   .fb.s2 { background:#EAF3DE; color:#27500A; border-color:#639922; }
   .fb.s3, .fb.s4 { background:#EEEDFE; color:#3C3489; border-color:#7F77DD; }
@@ -2401,8 +2403,8 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   const grey = !on || x.status === '결석';
   const cls = 'fb s' + sp + (grey ? ' off' : (x.status === '완료' ? ' fdn' : ''));
   return '<span class="' + cls + '" data-sid="' + x.id + '">' + esc(txt)
-    + (plus ? ' <b class="fplus">＋</b>' : '')
-    + (sm ? '<small>' + esc(sm) + '</small>' : '') + '</span>';
+    + (sm ? '<small>' + esc(sm) + '</small>' : '')
+    + (plus ? ' <b class="fplus">＋</b>' : '') + '</span>';
 }
 // 덧붙인 단추 (전월 보강 · 요일줄 밖 보강) — 점선 초록
 function fExtra(s){
