@@ -573,6 +573,26 @@
             background:#fff; color:#4a5b6a; border-radius:7px; font-size:14px;
             cursor:pointer; }
   .minbtn.on { background:#3d84cf; color:#fff; border-color:#3d84cf; font-weight:bold; }
+  /* 그 날 창 (2026-09-11) — 상태 단추 · 잡힌 보강 · 쪼개기 */
+  .mkstat { display:flex; gap:6px; margin:0 0 10px; }
+  .mkstat .stb { flex:1; width:auto; margin:0; padding:7px 0; font-size:13px; border-radius:6px;
+                 border:1px solid #c4cac6; background:#fff; color:#3d4a40; cursor:pointer; }
+  .mkstat .stb.on { background:#e8f3ea; border-color:#639922; color:#27500A; font-weight:bold; }
+  .mkstat .stb:disabled { background:#f4f5f3; color:#9aa19c; cursor:default; }
+  .mkstat .stb.on:disabled { background:#e8f3ea; color:#27500A; }
+  .mkhave { font-size:12.5px; line-height:1.65; background:#eef5fb; border:1px solid #c3d9ea;
+            border-radius:6px; padding:7px 10px; margin:0 0 10px; color:#2c5980; }
+  .sprow { display:flex; align-items:center; gap:5px; flex-wrap:wrap; padding:4px 0;
+           border-bottom:1px dashed #e3e6e1; font-size:12.5px; }
+  .sprow .spd { min-width:118px; color:#3d4a40; }
+  .sprow .sptg { width:auto; margin:0; padding:3px 9px; font-size:12px; border-radius:6px;
+                 border:1px solid #c4cac6; background:#fff; color:#3d4a40; cursor:pointer; }
+  .sprow .sptg.on { background:#e8f3ea; border-color:#639922; color:#27500A; font-weight:bold; }
+  .sprow .sptg:disabled { background:#fff; color:#c8ccc9; border-color:#e3e6e1; cursor:default; }
+  .spsum { font-size:12.5px; margin-top:6px; font-weight:bold; color:#a1662f; }
+  .spsum.ok { color:#2e7d32; }
+  .spnone { font-size:12.5px; color:#8a8f8b; padding:4px 0; }
+  .fb[data-sid] { cursor:pointer; }
   .minbtn:disabled { background:#eef1f4; color:#b6bfc7; cursor:default; }
   /* 쪼갠 보강 딱지 (2026-09-08) */
   /* 정규 줄 안에 붙는 쪼갠 보강 (2026-09-08) */
@@ -953,6 +973,14 @@
   <!-- 보강 잡기 창 -->
   <div id="mkBox" class="panel mkskin" style="display:none;">
     <div class="panel-t" id="mkTitle"></div>
+    <!-- 그 날 창 (2026-09-11 원칙 9·10) — 상태 단추 · 잡힌 보강 · 보강 잡기 -->
+    <div id="mkStat" class="mkstat" style="display:none;">
+      <button type="button" class="stb" data-st="예정">예정</button>
+      <button type="button" class="stb" data-st="완료">완료</button>
+      <button type="button" class="stb" data-st="결석">결석</button>
+    </div>
+    <div id="mkHave" class="mkhave" style="display:none;"></div>
+    <div id="mkSec">
     <div id="mkWhy" style="display:none;margin:0 0 10px;padding:9px 12px;
          border-radius:6px;font-size:13px;line-height:1.6;"></div>
     <div class="mkrow">
@@ -974,7 +1002,8 @@
         <select id="mk_th"></select>
       </div>
     </div>
-    <div style="margin-top:12px;">
+    <!-- 옛 분 단추 (10·20·30분 한 조각씩) — 숨김. 쪼개기는 아래 「쪼개기」에서 40분을 한 번에 (원칙 12) -->
+    <div id="mkOldMin" style="margin-top:12px;display:none;">
       <label>분</label>
       <div id="mkMinBtns">
         <button type="button" class="minbtn on" data-min="40">40분</button>
@@ -992,6 +1021,11 @@
       </div>
       <input id="mk_side" type="hidden" value="after">
     </div>
+    <div id="mkSplitWrap" style="margin-top:12px;">
+      <label>쪼개기 <span class="sub2">(같은 선생님·같은 사업 수업 날에 앞·뒤로 · 40분을 한 번에)</span></label>
+      <div id="mkSplit"></div>
+      <div id="mkSplitSum" class="spsum"></div>
+    </div>
     <div style="margin-top:12px;">
       <label for="mk_memo">메모</label>
       <input id="mk_memo" type="text" placeholder="예: 보호자 요청">
@@ -1006,6 +1040,7 @@
       <button id="mkClose" class="pbtn grey">닫기</button>
     </div>
     <div id="mkFree" class="freewrap"></div>
+    </div>
     <div id="mkMsg" class="out"></div>
   </div>
 
@@ -2545,6 +2580,15 @@ function drawFind(){
         + (dup ? '<span class="fdup">회기 줄 ' + dup + '개 더</span>' : '') + '</div>'
       + '</div>';
   }).join('');
+
+  // 찾기 창 날짜 단추를 누르면 그 날 창이 열린다 (2026-09-11 원칙 9)
+  $('findRows').querySelectorAll('.fb[data-sid]').forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      lastClick = { clientX: e.clientX, clientY: e.clientY };
+      openDay(Number(el.dataset.sid));
+    };
+  });
 
   // 찾은 결과에서도 회기 누르기·보강·고치기가 되게
   $('findRows').querySelectorAll('.w5btn').forEach(el => {
@@ -5551,7 +5595,7 @@ $('ed_end').addEventListener('change', edLockSave);
 
 // ===== 창을 띄우고 끌어 옮기기 =====
 const FLOATS = ['addBox','edBox','mkBox','mnBox','offBox','w5Box'];
-const FLOATNM = { addBox:'수업 넣기', edBox:'수정', mkBox:'보강 잡기',
+const FLOATNM = { addBox:'수업 넣기', edBox:'수정', mkBox:'그 날 · 보강 잡기',
                   mnBox:'보강 넣기', offBox:'휴무 관리', w5Box:'이 자리에 보강' };
 
 function floatOn(id, ev){
@@ -6631,6 +6675,231 @@ async function delMakeup(sid){
   draw();
 }
 
+// ── 그 날 창 · 쪼개기 (2026-09-11 원칙 2·3·4·5·6·9·10·12) ─────────
+let MKSPLIT = {};   // 쪼개기 고른 것 { 수업 줄 번호: { side:'after'|'before', min:10|20|30 } }
+function allSessU(){
+  const seen = {}, out = [];
+  SESS.concat(PREV, NEXTM).forEach(x => { if (x && !seen[x.id]) { seen[x.id] = 1; out.push(x); } });
+  return out;
+}
+function ymdOf(dt){
+  return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0')
+       + '-' + String(dt.getDate()).padStart(2, '0');
+}
+// 보강 기한 (원칙 3) — 발달재활은 몫인 달 끝 / 그 밖 사업·발추는 다음 달 끝
+function mkLimit(s){
+  const p = String(s.month_key || mon).split('-');
+  const add = (Number(s.support_type_id) === 2) ? 0 : 1;
+  return ymdOf(new Date(Number(p[0]), Number(p[1]) + add, 0));
+}
+function dLbl(d){
+  const m = String(d).slice(0, 7);
+  return (m === String(mon) ? dayNo(d) + '일' : monNo(m) + '/' + dayNo(d)) + '(' + wdOf(d) + ')';
+}
+function hmOfMin(v){ return String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0'); }
+function hostDur(h){
+  const r = (ROWS_ALL || []).find(x => x.id === h.schedule_id);
+  return Number(r && r.duration) || 40;
+}
+// 이 줄에 이미 붙은 조각의 분 합
+function partsSum(id){
+  return allSessU().filter(x => Number(x.makeup_for) === Number(id)
+      && Number(x.minutes || 40) !== 40 && x.status !== '취소')
+    .reduce((t, v) => t + Number(v.minutes || 0), 0);
+}
+// 쪼개기를 붙일 수 있는 수업 (원칙 2·4)
+//   같은 아동 · 같은 선생님 · 같은 사업의 예정·완료 수업 (발추는 그 선생님의 발달재활 수업)
+//   몫인 달 1일부터 기한까지
+function splitHosts(s){
+  const sp = Number(s.support_type_id) || 0;
+  const hostSp = (sp === 8) ? 2 : sp;
+  const from = String(s.month_key || mon) + '-01', lim = mkLimit(s);
+  return allSessU().filter(x => !isMk(x) && x.id !== s.id
+      && Number(x.child_id) === Number(s.child_id)
+      && Number(x.therapist_id) === Number(s.therapist_id)
+      && Number(x.support_type_id) === hostSp
+      && (x.status === '예정' || x.status === '완료')
+      && Number(x.minutes || 40) === 40 && x.start_time
+      && String(x.plan_date) >= from && String(x.plan_date) <= lim)
+    .sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
+}
+// 앞·뒤 교시에 그 선생님 수업이 있으면 10분만 붙일 수 있다
+function splitBusy(h, side){
+  const no = nearest(toMin(h.start_time)).no + (side === 'before' ? -1 : 1);
+  if (!SLOTS.find(x => x.no === no)) return false;
+  return allSessU().some(x => String(x.plan_date) === String(h.plan_date)
+    && Number(x.therapist_id) === Number(h.therapist_id) && x.start_time && x.id !== h.id
+    && ['예정', '완료', '보강'].indexOf(x.status) >= 0
+    && Number(x.minutes || 40) === 40
+    && nearest(toMin(x.start_time)).no === no);
+}
+function drawSplit(){
+  const box = $('mkSplit'), sum = $('mkSplitSum');
+  if (!box || !mkSess) return;
+  const s = mkSess;
+  const has40 = allSessU().some(x => Number(x.makeup_for) === Number(s.id)
+      && Number(x.minutes || 40) === 40 && x.status !== '취소');
+  if (has40) {
+    box.innerHTML = '<div class="spnone">40분 보강이 잡혀 있어 쪼개지 않습니다.</div>';
+    sum.textContent = ''; return;
+  }
+  const hosts = splitHosts(s);
+  if (!hosts.length) {
+    box.innerHTML = '<div class="spnone">붙일 수 있는 수업 날이 없습니다 (같은 선생님 · 같은 사업 · '
+      + dLbl(mkLimit(s)) + '까지). 40분 보강으로 잡아 주세요.</div>';
+    sum.textContent = ''; return;
+  }
+  box.innerHTML = hosts.map(h => {
+    const pk = MKSPLIT[h.id] || {};
+    const side = pk.side || 'after';
+    const bz = splitBusy(h, side);
+    const tg = (k, v, t, on, dis) => '<button type="button" class="sptg' + (on ? ' on' : '') + '"'
+      + ' data-k="' + k + '" data-v="' + v + '"' + (dis ? ' disabled' : '') + '>' + t + '</button>';
+    return '<div class="sprow" data-h="' + h.id + '">'
+      + '<span class="spd">' + dLbl(h.plan_date) + ' ' + h12(h.start_time) + '</span>'
+      + tg('side', 'before', '앞', side === 'before', false)
+      + tg('side', 'after', '뒤', side === 'after', false)
+      + '<span style="width:6px;"></span>'
+      + [10, 20, 30].map(m => tg('min', m, '+' + m, pk.min === m, m > 10 && bz)).join('')
+      + '</div>';
+  }).join('');
+  const had = partsSum(s.id);
+  const add = Object.keys(MKSPLIT).reduce((t, k) => t + Number((MKSPLIT[k] && MKSPLIT[k].min) || 0), 0);
+  const tot = had + add;
+  sum.className = 'spsum' + (tot === 40 && add ? ' ok' : '');
+  sum.textContent = (add || had)
+    ? '채운 분 ' + tot + ' / 40' + (had ? ' (이미 ' + had + '분)' : '')
+      + (tot === 40 ? (add ? ' — 저장할 수 있습니다' : '') : tot > 40 ? ' — 40분을 넘었습니다' : ' — ' + (40 - tot) + '분 더 골라야 저장됩니다')
+    : '';
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('#mkSplit .sptg');
+  if (!b || b.disabled) return;
+  const row = b.closest('.sprow');
+  const hid = row ? row.dataset.h : '';
+  if (!hid) return;
+  const pk = MKSPLIT[hid] || { side: 'after' };
+  if (b.dataset.k === 'side') {
+    pk.side = b.dataset.v;
+    const h = allSessU().find(x => String(x.id) === String(hid));
+    if (h && pk.min > 10 && splitBusy(h, pk.side)) delete pk.min;
+  } else {
+    const m = Number(b.dataset.v);
+    if (pk.min === m) delete pk.min; else pk.min = m;
+  }
+  MKSPLIT[hid] = pk;
+  drawSplit();
+});
+// 쪼개기 저장 — 고른 조각을 한 번에 넣는다. 이미 붙은 것까지 합해 40분이어야 한다 (원칙 12)
+async function saveSplit(picks){
+  const s = mkSess;
+  const had = partsSum(s.id);
+  const add = picks.reduce((t, k) => t + Number(MKSPLIT[k].min), 0);
+  if (had + add !== 40) {
+    const m = (had + add < 40) ? (40 - had - add) + '분 더 골라야 저장됩니다.'
+                               : (had + add - 40) + '분 넘었습니다. 40분에 맞춰 주세요.';
+    mkmsg('❌ ' + m, false); alert(m); return;
+  }
+  const hosts = splitHosts(s);
+  const rows = [];
+  for (const k of picks) {
+    const h = hosts.find(x => String(x.id) === String(k));
+    if (!h) { mkmsg('❌ 고른 수업을 찾지 못했습니다. 창을 닫고 다시 열어 주세요.', false); return; }
+    const m = Number(MKSPLIT[k].min), side = MKSPLIT[k].side || 'after';
+    const st = (side === 'before') ? toMin(h.start_time) - m : toMin(h.start_time) + hostDur(h);
+    rows.push({
+      child_id: s.child_id, therapy_id: s.therapy_id, schedule_id: s.schedule_id,
+      month_key: s.month_key || mon, run_no: s.run_no, plan_date: h.plan_date,
+      status: '보강', therapist_id: s.therapist_id, start_time: hmOfMin(st) + ':00',
+      minutes: m, makeup_for: s.id, support_type_id: s.support_type_id,
+      memo: $('mk_memo').value.trim() || null
+    });
+  }
+  $('mkSave').disabled = true; $('mkSave').textContent = '저장 중...';
+  try {
+    const { data, error } = await sb.from('nl_sessions').insert(rows).select();
+    if (error) throw error;
+    (data || []).forEach(x => {
+      x._name = s._name;
+      SESS.push(x);
+      if (x.month_key !== mon) PREV.push(x);
+    });
+    MKSPLIT = {};
+    mkmsg('✅ 쪼개기 보강 ' + rows.length + '조각(' + add + '분)을 잡았습니다.', true);
+    $('mkHave').innerHTML = haveHtml(s);
+    $('mkHave').style.display = $('mkHave').innerHTML ? '' : 'none';
+    $('mkDel').style.display = '';
+    draw();
+    drawSplit();
+  } catch (e) {
+    const em = String((e && e.message) || '');
+    if (em.indexOf('나오는 날') >= 0) { mkmsg('❌ ' + em, false); alert(em); }
+    else mkmsg('❌ 저장하지 못했습니다.\n' + em, false);
+  } finally {
+    $('mkSave').disabled = false; $('mkSave').textContent = '저장';
+  }
+}
+// 잡힌 보강 — 보기 (치료사 계정도 봄, 원칙 10)
+function haveHtml(s){
+  const ms = allSessU().filter(x => Number(x.makeup_for) === Number(s.id) && x.status !== '취소')
+    .sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
+  if (!ms.length) return '';
+  const ps = ms.filter(x => Number(x.minutes || 40) !== 40);
+  const sum = ps.reduce((t, v) => t + Number(v.minutes || 0), 0);
+  return '<b>잡힌 보강</b><br>' + ms.map(x => dLbl(x.plan_date) + ' ' + h12(x.start_time)
+      + ' · ' + Number(x.minutes || 40) + '분 · ' + esc(x.status || '')
+      + (Number(x.therapist_id) !== Number(s.therapist_id) ? ' · ' + x.therapist_id + '번' : '')).join('<br>')
+    + (ps.length ? '<br>채운 분 ' + sum + ' / 40' : '');
+}
+// 상태를 바꿀 수 있나 — 8·9·11번은 모두, 치료사는 자기 수업만 (원칙 10)
+function canStat(s){
+  if (!s || isMk(s)) return false;
+  if (s.status === '휴무' || s.status === '쉼') return false;
+  return CAN_EDIT || (MY_TH && Number(s.therapist_id) === Number(MY_TH));
+}
+// 그 날 창 열기 — 찾기 창 날짜 단추에서 부른다 (원칙 9)
+function openDay(sid){
+  let s = findSess(Number(sid));
+  if (!s) return;
+  if (isMk(s)) { const o = findSess(Number(s.makeup_for)); if (!o) return; s = o; }
+  openMk(s.id);
+  const sp = Number(s.support_type_id) || 0;
+  const lbl = (s.status === '휴무')
+    ? dayNo(s.plan_date) + '일 ' + (isHoli(s.plan_date) ? holiShort(OFFTXT[String(s.plan_date)]) : '휴가')
+    : (FABBR[sp] || STYPE[sp] || '') + ' ' + (Number(s.run_no) > 0 ? monNo(s.month_key || mon) + '-' + s.run_no : '');
+  $('mkTitle').textContent = (s.child_id ? '[' + s.child_id + '] ' : '') + (s._name || '') + ' · ' + lbl
+    + ' · ' + dLbl(s.plan_date) + ' ' + h12(s.start_time)
+    + ' · ' + (s.therapist_id ? s.therapist_id + '번' : '') + ' · ' + hostDur(s) + '분';
+  const st = $('mkStat');
+  st.style.display = 'flex';
+  st.querySelectorAll('.stb').forEach(b => {
+    b.classList.toggle('on', b.dataset.st === s.status);
+    b.disabled = !canStat(s);
+  });
+  const hv = haveHtml(s);
+  $('mkHave').innerHTML = hv;
+  $('mkHave').style.display = hv ? '' : 'none';
+  // 보강 잡기 칸 — 결석·쉬는 날에만, 8·9·11번만 (원칙 10)
+  const need = CAN_EDIT && (s.status === '결석' || s.status === '휴무');
+  $('mkSec').style.display = need ? '' : 'none';
+  if (need) mkmsg('기한 ' + dLbl(mkLimit(s)) + '까지 (' + (sp === 2 ? '발달재활 — 그 달 안' : '다음 달 끝까지') + ')', true);
+}
+// 상태 단추 — 누르면 바로 바뀐다
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest('#mkStat .stb');
+  if (!b || b.disabled || !mkSess) return;
+  const s = mkSess, nx = b.dataset.st;
+  if (s.status === nx || !canStat(s)) return;
+  if (!(await askDropMakeup(s, nx))) return;
+  const { error } = await sb.from('nl_sessions')
+    .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', s.id);
+  if (error) { mkmsg('❌ 바꾸지 못했습니다.\n' + error.message, false); return; }
+  s.status = nx;
+  draw();
+  openDay(s.id);
+  mkmsg('✅ ' + nx + '(으)로 바꿨습니다.', true);
+});
+
 function openMk(absId){
   const s = findSess(absId);
   if (!s) return;
@@ -6654,6 +6923,14 @@ function openMk(absId){
   $('mkDel').style.display = has ? '' : 'none';
   $('mkFree').innerHTML = '';
   mkMinCheck();
+  // 그 날 창 칸 되돌리기 (2026-09-11) — 선생님은 원래 선생님으로 고정 (원칙 5)
+  $('mk_th').value = String(s.therapist_id);
+  $('mk_th').disabled = true;
+  $('mkStat').style.display = 'none';
+  $('mkHave').style.display = 'none';
+  $('mkSec').style.display = '';
+  MKSPLIT = {};
+  drawSplit();
 
   // 왜 비었는지 — 상태에 따라 색을 달리해 알려준다
   const why = $('mkWhy');
@@ -6701,8 +6978,8 @@ function openMk(absId){
   $('mkBox').style.display = 'block';
   floatOn('mkBox', lastClick);
 }
-// 그 달에서 담당 치료사가 비는 자리 찾기
-$('mkFind').onclick = () => {
+// 옛 빈자리 셈 (화면 안에서 셈) — 쓰지 않음. 서버 셈으로 바꿈 (2026-09-11 원칙 6)
+const _oldMkFind = () => {
   if (!mkSess) return;
   const th = Number($('mk_th').value);
   const base = mkSess.plan_date;
@@ -6906,6 +7183,39 @@ async function pairFreeSlots(thA, thB, childId, baseDate) {
   return out;
 }
 
+// 빈자리 찾기 — 서버 한 곳(nl_mk_slots)에서 받는다 (원칙 6)
+//   원래 선생님(원칙 5) · 그 아동 · 기한(원칙 3)은 서버가 그 줄에서 정한다
+$('mkFind').onclick = async () => {
+  if (!mkSess) return;
+  const s = mkSess;
+  $('mkFree').innerHTML = '<div class="freenone">찾는 중…</div>';
+  const { data, error } = await sb.rpc('nl_mk_slots', { p_session: s.id });
+  if (error) {
+    $('mkFree').innerHTML = '<div class="freenone">빈자리를 가져오지 못했습니다. ' + esc(error.message) + '</div>';
+    return;
+  }
+  const list = data || [];
+  if (!list.length) {
+    $('mkFree').innerHTML = '<div class="freenone">' + dLbl(mkLimit(s)) + '까지 빈자리가 없습니다. '
+      + '🏖 휴무 관리 → 「나오는 날」로 자리를 열 수 있습니다.</div>';
+    return;
+  }
+  $('mkFree').innerHTML = list.slice(0, 60).map(c =>
+    '<span class="freeone" data-d="' + c.slot_date + '" data-t="' + String(c.slot_time).slice(0, 5) + '">'
+    + dLbl(c.slot_date) + ' ' + h12(c.slot_time) + '</span>').join('');
+  $('mkFree').querySelectorAll('.freeone').forEach(el => {
+    el.onclick = () => {
+      const d = el.dataset.d, t = el.dataset.t;
+      const sl = nearest(toMin(t));
+      $('mk_date').value = d;
+      $('mk_slot').value = String(sl.no);
+      $('mk_hm').value = (slotHm(sl, s.therapist_id, wdOf(d)) === t) ? '' : t;
+      $('mkFree').innerHTML = '';
+      mkmsg(dLbl(d) + ' ' + h12(t) + ' 를 골랐습니다. 「저장」을 누르세요.', true);
+    };
+  });
+};
+
 $('mkPair').onclick = async () => {
   if (!mkSess) return;
   const mate = pairMateOf(mkSess);
@@ -6949,7 +7259,7 @@ $('mkPair').onclick = async () => {
 };
 
 $('mkClose').onclick = () => { $('mkBox').style.display='none'; mkSess=null;
-  $('mkFree').innerHTML=''; };
+  $('mkFree').innerHTML=''; MKSPLIT = {}; };
 
 // 날짜·교시를 바꾸면 고를 수 있는 분을 다시 본다
 if ($('mk_date')) $('mk_date').onchange = mkMinCheck;
@@ -6957,6 +7267,9 @@ if ($('mk_slot')) $('mk_slot').onchange = mkMinCheck;
 
 $('mkSave').onclick = async () => {
   if (!mkSess) return;
+  // 쪼개기를 골랐으면 조각을 한꺼번에 넣는다 (원칙 12 — 40분을 한 번에)
+  const _picks = Object.keys(MKSPLIT).filter(k => MKSPLIT[k] && MKSPLIT[k].min);
+  if (_picks.length) { await saveSplit(_picks); return; }
   const d = $('mk_date').value;
   if (!d) { mkmsg('보강 날짜를 고르세요.', false); return; }
   const slot = SLOTS.find(x => x.no === Number($('mk_slot').value));
@@ -7472,7 +7785,7 @@ async function loadMonth(){
   // 다음 달 몫인데 이번 달에 미리 한 줄(선보강)도 이번 달 시간표에 띄운다
   const nm2 = nextMon(mon);
   const { data: nx } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, minutes')
+    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, want_makeup, minutes')
     .eq('month_key', nm2);
   NEXTM = nx || [];
   if (MY_TH) NEXTM = NEXTM.filter(s => s.therapist_id === MY_TH);
