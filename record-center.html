@@ -254,24 +254,30 @@ function _keepMk(mk) {
   return y2 + '-' + String(m2).padStart(2,'0');
 }
 
-let OTHERKIDS = {};   // 다른 기록지에도 나오는 아동
+let OTHERTH = {};   // 아동번호 -> 발달재활·치료지원·방과후 치료지원을 맡은 선생님들 { 선생님번호: true }
 
-// 아동 목록 — 「전체 보기」를 안 켜면 센터 수업만 받는 아동만 나온다
+// 명단 — 센터 수업 한 줄마다 (2026-09-11 바꿈)
+//   그 수업 선생님이 같은 아동의 발달재활·치료지원·방과후 치료지원도 맡고 있으면
+//   내용이 겹치므로 뺀다. 선생님이 다르면 넣는다.
+//   (예: 발달 1번 · 센터 1번 → 뺌 / 발달 4번 · 방치 4번 · 센터 1번 → 넣음)
+//   「전체 보기」를 켜면 뺀 줄도 나온다
 function drawKidList() {
   const all = $('pAll') && $('pAll').checked;
-  const list = PAIRS.filter(p => all || !OTHERKIDS[p.child.id]);
+  const list = PAIRS.filter(p => all || !p.dup);
   $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
     + list.map(p => {
         const i = PAIRS.indexOf(p);
         const tt = p.tts.map(v => TTYPE[v] || '').filter(v => v).join('·');
         const wd = [...new Set(p.sched.map(s => s.weekday).filter(v => v))].join('·');
+        const tn = p.ths.map(v => THERAPISTS[v] || '').filter(v => v).join('·');
         return '<option value="' + i + '">' + esc(p.child.name)
              + (tt ? ' · ' + esc(tt) : '')
              + (wd ? ' · ' + esc(wd) : '')
-             + (OTHERKIDS[p.child.id] ? ' · [다른 기록지에도 있음]' : '')
+             + ((_isAllView(ME.role) && tn) ? ' · ' + esc(tn) : '')
+             + (p.dup ? ' · [같은 선생님 다른 기록지 있음]' : '')
              + '</option>';
       }).join('');
-  if (ME) $('who').textContent = ME.name + ' (' + ME.role + ') 님 · 센터만 '
+  if (ME) $('who').textContent = ME.name + ' (' + ME.role + ') 님 · 센터 기록지 '
     + list.length + '명' + (all ? ' (전체 보기)' : '')
     + (_isAllView(ME.role) ? '' : ' (담당)');
 }
@@ -291,21 +297,28 @@ async function afterLogin(user) {
     sb.from('nl_therapies')
       .select('id, child_id, therapy_type_id, ended_on, nl_children!inner(id, name, birth, manager_no, status), nl_therapy_schedules(weekday, start_time, therapist_id, duration, to_month)')
       .eq('support_type_id', SUPPORT),
-    // 발달재활·치료지원·방과후 수업도 받는 아동 — 그쪽 기록지에 이미 나오므로 숨긴다
-    sb.from('nl_therapies').select('child_id, ended_on')
+    // 발달재활·치료지원·방과후 치료지원 수업 — 누가 맡았는지까지 본다
+    sb.from('nl_therapies').select('child_id, ended_on, nl_therapy_schedules(therapist_id, to_month)')
       .in('support_type_id', [2,3,4,6,7])
   ]);
-  OTHERKIDS = {};
+  OTHERTH = {};
   (ot.data || []).forEach(r => {
-    if (r.ended_on && String(r.ended_on).slice(0,7) < _keepMk(mkNow())) return;
-    OTHERKIDS[r.child_id] = true;
+    const kp = _keepMk(mkNow());
+    if (r.ended_on && String(r.ended_on).slice(0,7) < kp) return;
+    (r.nl_therapy_schedules || []).forEach(s => {
+      if (s.to_month && s.to_month < kp) return;
+      if (s.therapist_id == null) return;
+      (OTHERTH[r.child_id] = OTHERTH[r.child_id] || {})[s.therapist_id] = true;
+    });
   });
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
 
   const mineOnly = !_isAllView(me.role);
   const _mk0 = mkNow();
 
-  // 기록지는 한 달에 아동당 한 장이다. 요일이 여럿이어도 한 줄로 모은다.
+  // 기록지는 한 달에 수업(치료)당 한 장이다 (2026-09-11 바꿈)
+  //   요일이 여럿이어도 같은 수업이면 한 줄로 모은다.
+  //   선생님이 다른 센터 수업이 둘이면 두 줄이다
   const _keep0 = _keepMk(_mk0);
   const byKid = {};
   (tp.data || []).forEach(r => {
@@ -319,15 +332,24 @@ async function afterLogin(user) {
     // 치료사면 자기가 담당인 수업이 하나라도 있어야 한다
     if (mineOnly && !sc.some(x => String(x.therapist_id) === String(me.id))) return;
 
-    const g = byKid[c.id] = byKid[c.id] || {
+    const g = byKid[r.id] = byKid[r.id] || {
       child: c, therapy_id: r.id, therapy_type_id: r.therapy_type_id,
-      tts: [], sched: [] };
+      tts: [], sched: [], ths: [] };
     if (g.tts.indexOf(r.therapy_type_id) < 0) g.tts.push(r.therapy_type_id);
-    sc.forEach(s => g.sched.push(s));
+    sc.forEach(s => {
+      g.sched.push(s);
+      if (s.therapist_id != null && g.ths.indexOf(s.therapist_id) < 0) g.ths.push(s.therapist_id);
+    });
   });
 
   PAIRS = Object.keys(byKid).map(k => byKid[k]);
-  PAIRS.sort((a,b) => (a.child.name||'').localeCompare(b.child.name||''));
+  // 이 수업의 선생님이 모두 같은 아동의 다른 기록지도 맡고 있으면 「겹침」
+  PAIRS.forEach(p => {
+    const o = OTHERTH[p.child.id] || {};
+    p.dup = p.ths.length > 0 && p.ths.every(t => o[t]);
+  });
+  PAIRS.sort((a,b) => (a.child.name||'').localeCompare(b.child.name||'')
+                   || (a.therapy_id - b.therapy_id));
 
   drawKidList();
   $('pAll').onchange = drawKidList;
