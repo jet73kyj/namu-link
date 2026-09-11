@@ -214,7 +214,17 @@ async function doConfirm(id) {
   try {
     const { data, error } = await sb.rpc('nl_absence_confirm', { p_req_id: id });
     if (error) throw error;
-    show($('msg2'), String(data || '확정했습니다.'), true);
+    // 창구가 「확정했습니다.」가 아닌 글을 돌려주면 확정이 안 된 것이다 (2026-09-11)
+    //   보기: 「확정하지 못했습니다 — 09/21(월) 09:50 : 월요일은 선생님 출근 요일이 아닙니다 …」
+    //   전에는 무슨 글이 오든 초록 칸에 띄워, 막힌 것을 알아보기 어려웠다
+    const res = String(data || '');
+    if (res !== '확정했습니다.') {
+      show($('msg2'), '❌ ' + (res || '확정하지 못했습니다.'), false);
+      alert(res || '확정하지 못했습니다.');
+      await loadAll();
+      return;
+    }
+    show($('msg2'), '확정했습니다.', true);
     await loadAll();
   } catch (e) {
     show($('msg2'), '❌ 확정하지 못했습니다.\n' + (e.message || e), false);
