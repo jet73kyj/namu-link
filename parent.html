@@ -1301,7 +1301,7 @@ async function drawNeed() {
     box.innerHTML =
         '<div class="needlock">이 달 교육비가 아직 <b>확정 전</b>입니다.<br>'
       + '교육비 갈래에서 내용을 보시고 <b>「이대로 좋습니다」</b>를 눌러 주세요.<br>'
-      + '확정하시면 보강 잡기가 열립니다.'
+      + '확정하시면 보강 요청이 열립니다.'
       + '<button class="fixbtn" id="goFix">교육비 보러 가기</button></div>';
     box.style.display = 'block';
     const g = $('goFix');
@@ -1368,12 +1368,12 @@ async function drawNeed() {
           : '')
        + '</div>'
        + (q
-          ? '<button class="needbtn gray" data-cancel="' + q.id + '">신청 취소</button>'
+          ? '<button class="needbtn gray" data-cancel="' + q.id + '">요청 취소</button>'
           : '<button class="needbtn" data-ask="' + r.session_id + '"'
             + ' data-d="' + r.plan_date + '" data-t="' + hhmm(r.start_time) + '"'
             + ' data-thr="' + (r.therapist_id || '') + '"'
             + ' data-st="' + (r.support_type_id || '') + '"'
-            + ' data-nm="' + esc(tn) + '" data-done="1">보강 잡기</button>')
+            + ' data-nm="' + esc(tn) + '" data-done="1">보강 요청</button>')
        + '</div>';
   });
 
