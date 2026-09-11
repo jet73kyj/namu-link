@@ -218,10 +218,12 @@ async function loadAll() {
 
   // ③ 평가 — 평가 표에서
   const { data: ev } = await sb.from('nl_evaluations')
-    .select('child_id, eval_date, eval_time, therapist_id')
+    .select('child_id, eval_date, eval_time, therapist_id, status')
     .gte('eval_date', from).lte('eval_date', to);
-  (ev || []).forEach(e =>
-    push('평가', e.child_id, e.eval_date, e.eval_time, e.therapist_id));
+  (ev || []).forEach(e => {
+    if (e.status === '취소') return;   // 취소한 평가는 안내 문자를 안 띄운다 (2026-09-11)
+    push('평가', e.child_id, e.eval_date, e.eval_time, e.therapist_id);
+  });
 
   // ④ 평가 상담 — 휴무 표의 「상담」 줄
   const { data: cs } = await sb.from('nl_offdays')
