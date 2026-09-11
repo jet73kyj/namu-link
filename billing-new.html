@@ -870,8 +870,11 @@ async function load() {
       const k = x.child_id + '|' + (x.support_type_id || 0);
       const g = SHORTCNT[k] = SHORTCNT[k] || { cnt: 0, miss: [], skip: 0, all: [] };
       // 「보강 없음」에서 고를 수 있게 그 달 모든 줄을 담아둔다 (2026-09-08)
-      g.all.push({ id: x.id, d: x.plan_date,
-        s: (x.no_makeup ? (x.status + ' · 보강 없음') : x.status) });
+      //   보강(쪼개기 포함)이 이미 딸린 날과 보강 줄 자체는 후보에서 뺀다 (2026-09-11)
+      //   이미 「보강 없음」인 날은 되돌릴 수 있게 남긴다
+      if (!x.makeup_for && (!covered[x.id] || x.no_makeup))
+        g.all.push({ id: x.id, d: x.plan_date,
+          s: (x.no_makeup ? (x.status + ' · 보강 없음') : x.status) });
       // 「보강 없음」으로 정한 회기 — 세어두되 빠진 날 목록에는 남긴다
       //   (예정인 동안은 「보강 잡기」로 되돌릴 수 있어야 하므로)
       if (x.no_makeup) {
@@ -2102,11 +2105,13 @@ async function saveKid(childId, btn, only) {
     });
     const wkMsg = await saveWeeks(box);
     const evMsg = await markEvalPaid(childId, rows);
+    const nmMsg = await releaseNoMakeup(childId, box, only);
     const unpaid = rows.filter(r => !r.paid_on).length;
     show($('msg2'), '✅ ' + rows.length + '건 저장했습니다.'
       + (deadSt.length ? ' (0원이 된 ' + deadSt.length + '건은 지웠습니다)' : '')
       + (unpaid ? ' (그중 ' + unpaid + '건은 날짜가 없어 미납으로 저장)' : '')
-      + wkMsg + evMsg, true);
+      + wkMsg + evMsg + nmMsg, true);
+    if (/풀었습니다/.test(nmMsg)) setTimeout(() => load(), 900);   // 시간표 회수로 다시 그린다
     delete TYPED[String(childId)];
     btn.textContent = '\u2713 저장됨';
     btn.classList.add('done');
@@ -2119,6 +2124,45 @@ async function saveKid(childId, btn, only) {
     btn.classList.remove('done');
     SAVING = false;
   }
+}
+
+// 회기를 늘려 저장했는데 그 수업에 「보강 없음」 날이 남아 있으면 풀지 묻는다 (2026-09-11)
+//   숫자만 늘리고 「보강 없음」이 그대로 남아, 나중에 회기를 줄일 때 헷갈리던 일을 막는다
+//   발달재활(2)·발추(8)·평가(9)는 「보강 없음」을 안 쓰므로 빼고 본다
+async function releaseNoMakeup(childId, box, only) {
+  if (only === 'bank') return '';
+  const sts = Array.from(new Set(Array.from(box.querySelectorAll('.line[data-st]'))
+    .map(tr => Number(tr.dataset.st))))
+    .filter(st => st && st !== 2 && st !== 8 && st !== 9);
+  const free = [];
+  sts.forEach(st => {
+    const g = SHORTCNT[childId + '|' + st];
+    if (!g) return;
+    const nms = (g.miss || []).filter(m => m.nm)
+      .sort((a, b) => String(a.d).localeCompare(String(b.d)));
+    if (!nms.length) return;
+    let typed = 0;
+    box.querySelectorAll('.line[data-st="' + st + '"] .cnt')
+      .forEach(el => { typed += numOf(el.value); });
+    const extra = Math.floor(typed - (g.cnt || 0) + 0.001);
+    if (extra <= 0) return;
+    nms.slice(0, extra).forEach(m => free.push({ st: st, id: m.id, d: m.d, why: m.why }));
+  });
+  if (!free.length) return '';
+  if (!confirm('회기를 늘려 저장했습니다.\n\n'
+      + '「보강 없음」으로 둔 날이 남아 있습니다.\n'
+      + free.map(f => '  · ' + (TYPES[f.st] || '') + ' ' + dayOnly(f.d) + '일'
+                     + ' (사유: ' + (f.why || '없음') + ')').join('\n')
+      + '\n\n이 날의 「보강 없음」을 풀까요?\n'
+      + '풀면 시간표에 다시 나오고, 보강을 잡을 수 있습니다.\n\n'
+      + '확인 = 풂 / 취소 = 그대로 둠')) {
+    return '\n(「보강 없음」은 그대로 두었습니다)';
+  }
+  const { error } = await sb.from('nl_sessions')
+    .update({ no_makeup: false, no_makeup_why: null })
+    .in('id', free.map(f => f.id));
+  if (error) return '\n❌ 「보강 없음」을 풀지 못했습니다: ' + error.message;
+  return '\n「보강 없음」 ' + free.length + '건을 풀었습니다.';
 }
 
 // 평가비를 받았으면 평가 관리 쪽 상태도 「완료」로 바꾼다
@@ -2353,17 +2397,17 @@ async function markNoMakeup(btn) {
     return;
   }
   let ids = [pick.id];
+  // 발달재활은 여기서 막는다 — 결석으로 바꾸기 전에 (2026-09-11 순서 바로잡음)
+  if (Number(line.dataset.nmst) === 2) {
+    alert('발달재활은 반드시 그 달에 4회를 채워야 합니다.\n'
+      + '이대로 청구할 수 없습니다. 보강을 잡아 주세요.');
+    return;
+  }
   // 예정 줄을 골랐으면 결석으로도 바꾼다
   if (pick.s === '예정' || pick.s === '완료') {
     const up = await sb.from('nl_sessions')
       .update({ status: '결석' }).eq('id', pick.id);
     if (up.error) { alert('바꾸지 못했습니다.\n' + up.error.message); return; }
-  }
-
-  if (Number(line.dataset.nmst) === 2) {
-    alert('발달재활은 반드시 그 달에 4회를 채워야 합니다.\n'
-      + '이대로 청구할 수 없습니다. 보강을 잡아 주세요.');
-    return;
   }
 
   const sel = line.querySelector('.nmwhy');
