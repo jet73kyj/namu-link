@@ -1001,11 +1001,24 @@ async function load() {
       } else if (mode === '발추대체') {
         // 4주인 달 → 1주차 1회가 발추로 빠지므로 이 유형은 (요일수 - 1)회
         // 5주인 달 → 요일수 그대로
+        // 4주·5주는 「발달재활 요일」로 가린다 (2026-09-11 — 회기 까는 서버 셈과 같게)
+        //   센터비용 요일이 몇 번인지는 안 본다. 발달재활 요일은 공휴일·센터휴무 날을 빼고 센다
+        //   보기: 82번 발달 화 · 센터 목 — 10월 화요일 4번 → 목요일 5번 가운데 1주차가 발추 → 센터 4회
+        //   발달재활 수업이 없으면 옛 셈(센터비용 요일)으로 가린다
+        const devWds = [];
+        (th.data || []).forEach(t2 => {
+          if (Number(t2.child_id) !== Number(t.child_id)) return;
+          if (Number(t2.support_type_id) !== 2) return;
+          if (t2.ended_on && String(t2.ended_on) < mk + '-01') return;
+          liveScs(t2).forEach(s2 => { if (s2.weekday) devWds.push(s2.weekday); });
+        });
+        const devFive = devWds.length ? devWds.some(w => countWeekdayOpen(mk, w) >= 5) : null;
         let n = 0;
         scs.forEach(sc => {
           if (!sc.weekday) return;
           const wc = countWeekday(mk, sc.weekday);
-          n += (wc >= 5) ? wc : Math.max(0, wc - 1);
+          const five = (devFive === null) ? (wc >= 5) : devFive;
+          n += five ? wc : Math.max(0, wc - 1);
         });
         if (n) need = n;
       } else if (mode === '발4+센1') {
