@@ -580,6 +580,11 @@
   #gbody .ln .d, #gbody .ln .hm { font-size:11px; }
   #gbody .ln .s, #gbody .ln .go { font-size:10.5px; }
   #gbody .ln .splitin { font-size:10.5px; }
+  /* 미납 교육비 딱지 — 하루 보기 (2026-09-11) */
+  .ln .upd { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:5px;
+             background:#fcebeb; color:#a32d2d; border:1px solid #f09595;
+             font-size:11px; font-weight:bold; white-space:nowrap; }
+  #gbody .ln .upd { order:6; }
   .mintag  { color:#1565c0; font-size:11px; margin-left:3px;
              white-space:nowrap; }
   /* 쪼갠 보강 줄은 작게 — 정규 수업보다 커 보이지 않게 */
@@ -3198,6 +3203,8 @@ function drawOne(){
               + '<span class="s">' + stWord(x) + '</span>'
               + ((x.status === '결석' || x.status === '휴무' || isMk(x))
                    ? '' : needMkNote(x.child_id))
+              + ((x.status === '결석' || x.status === '휴무' || x.status === '쉼')
+                   ? '' : unpaidTag(x.child_id))
               + '</div>';
           }).join('') + '</td>';
         }).join('')
@@ -7107,6 +7114,8 @@ async function loadMonth(){
   } catch (e) { EVALS = []; }
   SESS = SESS.concat(EVALS);
 
+  await loadUnpaid();
+
   const nameOf = {}; ROWS.forEach(r => nameOf[r._cid] = r._name);
   SESS.forEach(s => s._name = nameOf[s.child_id] || '');
   PREV.forEach(s => s._name = nameOf[s.child_id] || '');
@@ -7119,6 +7128,40 @@ async function loadMonth(){
     const n2 = {}; (kk || []).forEach(k => n2[k.id] = k.name);
     SESS.forEach(s => { if (!s._name) s._name = n2[s.child_id] || ''; });
   }
+}
+
+// ===== 미납 교육비 (2026-09-11) =====
+// 보고 있는 달까지 「낸 날이 빈」 납부 줄을 아동별로 모은다. 금액 0원 줄은 미납이 아니다.
+// 납부 표는 8·9·11번만 읽을 수 있으므로 치료사 화면에는 아무것도 안 나온다.
+let UNPAID = {};   // { 아동번호: ['2026-08','2026-09'] }
+async function loadUnpaid(){
+  UNPAID = {};
+  if (!CAN_EDIT) return;
+  try {
+    for (let from = 0; from < 20000; from += 1000) {
+      const { data, error } = await sb.from('nl_payments')
+        .select('child_id, month_key, amount')
+        .is('paid_on', null).gt('amount', 0).lte('month_key', mon)
+        .order('id').range(from, from + 999);
+      if (error || !data) break;
+      data.forEach(r => {
+        const a = (UNPAID[r.child_id] = UNPAID[r.child_id] || []);
+        if (a.indexOf(r.month_key) < 0) a.push(r.month_key);
+      });
+      if (data.length < 1000) break;
+    }
+    Object.values(UNPAID).forEach(a => a.sort());
+  } catch (e) { UNPAID = {}; }
+}
+function unpaidTag(cid){
+  const a = UNPAID[cid];
+  if (!a || !a.length) return '';
+  const yy = String(mon).slice(0,4);
+  const same = a.every(m => String(m).slice(0,4) === yy);
+  const txt = same
+    ? a.map(m => Number(String(m).slice(5,7))).join('·') + '월'
+    : a.map(m => String(m).slice(2,4) + '년 ' + Number(String(m).slice(5,7)) + '월').join('·');
+  return '<span class="upd" title="납부 계산에서 낸 날을 넣어 저장하면 사라집니다">미납 교육비 ' + txt + '</span>';
 }
 
 async function afterLogin(user){
