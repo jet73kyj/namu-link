@@ -7714,8 +7714,7 @@ async function afterLogin(user){
   await loadMonth();
 
   // 이번 달에 회기가 없으면 다음 달로 옮겨 본다
-  // (지난번에 보던 달로 연 것이면 그대로 둔다)
-  if (!SESS.length && !_keepM) {
+  if (!SESS.length) {
     const d2 = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const nk = d2.getFullYear()+'-'+String(d2.getMonth()+1).padStart(2,'0');
     const save = mon;
