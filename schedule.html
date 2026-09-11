@@ -6880,6 +6880,44 @@ $('mkSave').onclick = async () => {
         + '건이 있습니다.\n그래도 보강을 넣을까요?')) return;
   }
 
+  // 선생님이 쉬는 자리인지 본다 (2026-09-11)
+  //   학부모 보강 신청(nl_free_slots)과 같은 원칙:
+  //   공휴일·센터휴무·선생님 휴가인 날, 시간 막음·평가 상담 자리는 보강 자리가 아니다
+  //   「나오는 날」이 그 시각을 덮으면 휴가·공휴일을 이긴다 (시간 막음·상담은 못 이김)
+  //   다른 달 날짜도 있으므로 휴무 표를 그 날짜로 바로 물어본다
+  //   행정·데스크는 막고, 대표(8번)는 한 번 물어본 뒤 넣을 수 있다
+  {
+    const hmChk = String((mkHm || slotHm(slot, th, wdOf(d))) || '').slice(0, 5);
+    let offs = [];
+    try {
+      const { data: od } = await sb.from('nl_offdays')
+        .select('kind, therapist_id, start_time, end_time, reason')
+        .eq('off_date', d);
+      offs = (od || []).filter(o => o.therapist_id == null || Number(o.therapist_id) === Number(th));
+    } catch (e) { offs = []; }
+    const hmOf = v => String(v || '').slice(0, 5);
+    const work = offs.some(o => o.kind === '추가근무' && Number(o.therapist_id) === Number(th)
+      && (!o.start_time || hmOf(o.start_time) <= hmChk)
+      && (!o.end_time || hmChk < hmOf(o.end_time)));
+    const dayOff = offs.find(o => (o.kind === '공휴일' || o.kind === '센터휴무')
+                               || (o.kind === '치료사휴무' && Number(o.therapist_id) === Number(th)));
+    const slotOff = offs.find(o => (o.kind === '시간막음' || o.kind === '상담')
+      && Number(o.therapist_id) === Number(th) && hmOf(o.start_time) === hmChk);
+    let why = '';
+    if (slotOff) why = (slotOff.kind === '상담' ? '평가 상담 자리' : '시간 막음 자리')
+                     + (slotOff.reason ? ' (' + slotOff.reason + ')' : '');
+    else if (dayOff && !work) why = (dayOff.kind === '치료사휴무' ? '선생님 휴가' : (dayOff.reason || dayOff.kind))
+                                  + ' 인 날';
+    if (why) {
+      const msg = dayNo(d) + '일 ' + h12(hmChk) + ' 은 ' + thName(th) + ' 선생님의 ' + why + '입니다.';
+      if (!IS_BOSS) {
+        mkmsg('❌ ' + msg + '\n보강 자리가 아닙니다. 다른 날이나 다른 시각을 고르세요.', false);
+        return;
+      }
+      if (!confirm(msg + '\n\n보강 자리가 아닙니다. 그래도 넣을까요?')) return;
+    }
+  }
+
   const row = {
     child_id:   mkSess.child_id,
     therapy_id: mkSess.therapy_id,
