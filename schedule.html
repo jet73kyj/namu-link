@@ -7663,9 +7663,8 @@ async function afterLogin(user){
   }
   $('mon').innerHTML = opts;
   mon = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-  // 지난번에 보던 달이 있으면 그 달로 연다
-  const _keepM = keepGet('nl_sched_mon');
-  if (_keepM && Array.from($('mon').options).some(o => o.value === _keepM)) mon = _keepM;
+  // 첫 화면은 늘 이번 달로 연다 (2026-09-11 은정님)
+  //   전에는 지난번에 보던 달로 열려, 8월을 보면서 9월로 착각하는 일이 있었다
   $('mon').value = mon;
 
   $('mk_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t+'</option>').join('');
