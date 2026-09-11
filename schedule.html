@@ -6778,6 +6778,15 @@ $('mkSave').onclick = async () => {
     const hh = String(h2).padStart(2,'0');
     const mm = String(Math.min(59, Number(m[2] || 0))).padStart(2,'0');
     mkHm = hh + ':' + mm;
+    // 고른 교시와 직접 시각이 다르면 한 번 묻는다 (2026-09-11)
+    //   교시는 6:30 으로 골랐는데 직접 시각에 4:30 이 들어가 4:30 으로 저장된 일이 있었다
+    const slotHmNow = slot ? slotHm(slot, th, wdOf(d)) : '';
+    if (mkMin === 40 && slotHmNow && mkHm !== slotHmNow) {
+      if (!confirm('고른 교시는 ' + h12(slotHmNow) + ' 인데\n'
+          + '직접 시각 칸에 ' + h12(mkHm) + ' 이 적혀 있습니다.\n\n'
+          + '직접 시각(' + h12(mkHm) + ')으로 저장할까요?\n\n'
+          + '교시 시각으로 넣으려면 「취소」를 누르고 직접 시각 칸을 비워 주세요.')) return;
+    }
   }
 
   // 쪼개서 붙이는 것(10·20·30분)은 그 아동 그 날 수업 뒤로 잡는다
