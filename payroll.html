@@ -259,6 +259,7 @@ let EVFEE = {};   // 평가 개수 -> 수수료
 const ETYPE = {1:'심리평가', 2:'발달평가', 3:'언어평가'};
 let THS   = [];
 let SESS  = [], ROWS = [], KIDS = {};
+let HASPART = {};   // 쪼갠 조각이 딸린 원래 줄 { 줄번호: true } — 이 줄은 「완료」여도 세지 않는다
 let EVALS = [];   // 그 달 평가
 let mon = '', thId = 0;
 
@@ -292,8 +293,12 @@ function calc(){
   }
 
   // 완료·보강만 센다
+  //   쪼갠 조각이 딸린 원래 줄은 「완료」여도 세지 않는다 (2026-09-11)
+  //   조각이 40분 차면 원래 줄이 저절로 완료가 되는데, 조각도 분만큼 세므로 한 회가 두 번 잡혔다.
+  //   실제로 한 것은 조각이므로 조각만 센다
   const done = SESS.filter(s => s.therapist_id === thId
-                 && (s.status === '완료' || s.status === '보강'));
+                 && (s.status === '완료' || s.status === '보강')
+                 && !HASPART[s.id]);
 
   if (!SESS.length) {
     $('warnBox').style.display = 'block';
@@ -380,7 +385,7 @@ function calc(){
 
   // 주유비 — 완료 회차가 있는 날만 (보강만 있는 날은 뺀다)
   const fuelDays = new Set();
-  SESS.filter(s => s.therapist_id === thId && s.status === '완료')
+  SESS.filter(s => s.therapist_id === thId && s.status === '완료' && !HASPART[s.id])
       .forEach(s => fuelDays.add(s.plan_date));
   const fuel = (r.daily_fuel || 0) * fuelDays.size;
 
@@ -522,9 +527,17 @@ async function loadMonth(){
   // 전월 결석분을 이번 달에 보강한 줄도 이번 달 급여에 들어온다.
   // (납부는 billing 화면에서 month_key = 원래 달 기준으로 그대로 센다)
   const { data } = await sb.from('nl_sessions')
-    .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id, month_key, minutes')
+    .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id, month_key, minutes, makeup_for')
     .gte('plan_date', mon + '-01').lte('plan_date', monEnd(mon));
   SESS = data || [];
+  // 쪼갠 조각(10·20·30분)이 딸린 원래 줄을 찾아 둔다 (2026-09-11)
+  HASPART = {};
+  const _ids = SESS.filter(x => !x.makeup_for && x.status === '완료').map(x => x.id);
+  for (let i = 0; i < _ids.length; i += 200) {
+    const { data: pp } = await sb.from('nl_sessions')
+      .select('makeup_for').in('makeup_for', _ids.slice(i, i + 200)).neq('minutes', 40);
+    (pp || []).forEach(x => { HASPART[x.makeup_for] = true; });
+  }
   await loadEvals();
 }
 

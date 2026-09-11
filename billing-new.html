@@ -828,10 +828,24 @@ async function load() {
 
     // 그 달 회기 수를 수업+지원유형별로 세어둔다 (휴무·보강은 뺀다)
     const sess = (ss && ss.data) ? ss.data : [];
+    // 보강 줄(쪼갠 조각 포함)을 셀지 정한다 (2026-09-11 — 예정 교육비 셈과 같은 규칙)
+    //   원래 줄이 결석·완료·예정이면 원래 줄이 이미 1회로 세어지므로 보강은 세지 않는다
+    //   (전에는 마친 보강·조각을 또 세어 한 회가 두 번 잡혔다)
+    //   원래 줄이 휴무면 원래 줄이 안 세어지므로 보강을 센다
+    //   40분 보강은 잡아 둔 것도 세고, 조각은 마친 만큼만 센다
+    const SBYID = {};
+    sess.forEach(x => { SBYID[x.id] = x; });
+    const mkCount = x => {
+      const o = SBYID[x.makeup_for];
+      if (!o || o.status !== '휴무') return false;
+      if (x.status === '취소' || x.status === '쉼') return false;
+      return Number(x.minutes || 40) === 40 || x.status === '완료';
+    };
     SESSCNT = {};
     WKWAS   = {};
     sess.forEach(x => {
-      if (x.status === '보강') return;
+      if (x.makeup_for) { if (!mkCount(x)) return; }
+      else if (x.status === '보강') return;
       const k = x.schedule_id;
       const sp = x.support_type_id || 0;
       (SESSCNT[k] = SESSCNT[k] || {});
@@ -866,7 +880,10 @@ async function load() {
     // 아동·유형별 실제 회기와 빠진 날짜(휴무·결석)를 모아둔다
     SHORTCNT = {};
     sess.forEach(x => {
-      if (x.status === '보강' || x.status === '쉼') return;
+      if (x.status === '쉼') return;
+      // 보강 줄은 위 회기 셈과 같은 규칙으로만 센다 (2026-09-11)
+      if (x.makeup_for) { if (!mkCount(x)) return; }
+      else if (x.status === '보강') return;
       const k = x.child_id + '|' + (x.support_type_id || 0);
       const g = SHORTCNT[k] = SHORTCNT[k] || { cnt: 0, miss: [], skip: 0, all: [] };
       // 「보강 없음」에서 고를 수 있게 그 달 모든 줄을 담아둔다 (2026-09-08)
