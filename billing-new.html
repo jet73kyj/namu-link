@@ -1456,7 +1456,12 @@ function btnRowHtml(it) {
   return '<div class="sbrow" data-sched="' + it.sched_id + '" data-bst="' + it.row_st + '">'
     + rows.map(sbHtml).join('') + '</div>';
 }
-// 날짜 단추 하나 — 글은 사업 약칭 + 회차 + 날짜만. 쉬는 날은 「8일 치료사 휴가」
+// 공휴일 이름 줄이기 — 「추석 연휴」 → 「추석」, 「대체공휴일」 → 「공휴일」 (찾기 창과 같음)
+function holiShort(v) {
+  const n = String(v || '').replace(/대체\s*공휴일|연휴/g, '').trim();
+  return n || '공휴일';
+}
+// 날짜 단추 하나 — 글은 사업 약칭 + 회차 + 날짜만. 쉬는 날은 「8일 휴가」 · 「25일 추석」 (2026-09-11 줄임)
 function sbHtml(x) {
   const sp  = Number(x.support_type_id) || 0;
   const dev = (sp === 2 || sp === 8);
@@ -1464,11 +1469,11 @@ function sbHtml(x) {
   const d   = dayOnly(x.plan_date);
   let txt;
   if (x.status === '휴무') {
-    txt = d + '일 ' + (HOLDAY[x.plan_date] ? HOLDAY[x.plan_date] : '치료사 휴가');
+    txt = d + '일 ' + (HOLDAY[x.plan_date] ? holiShort(HOLDAY[x.plan_date]) : '휴가');
   } else {
     const mn = Number(String(x.month_key || LOADED_MK || '').slice(5, 7));
     txt = (ABBR[sp] || '') + ' '
-        + (Number(x.run_no) > 0 ? mn + '-' + x.run_no + ' · ' : '') + d + '일';
+        + (Number(x.run_no) > 0 ? mn + '-' + x.run_no + ' ' : '') + d + '일';
   }
   const tip = (x.no_makeup ? '보강 없음'
               : x.status === '휴무' ? (on ? '쉬는 날 · 보강 받음' : '쉬는 날')
@@ -1486,7 +1491,7 @@ function x8BtnHtml(cid, mode, cnt) {
   const on = Number(mode) !== 3 && numOf(cnt) > 0;
   return '<div class="sbrow"><span class="sb s8 x8b' + (on ? '' : ' off') + '"'
     + ' title="발추 · 누르면 켜고 끕니다 (적용방식이 함께 바뀜)">'
-    + '이 ' + mn + '-5' + (s8 ? ' · ' + dayOnly(s8.plan_date) + '일' : '') + '</span></div>';
+    + '이 ' + mn + '-5' + (s8 ? ' ' + dayOnly(s8.plan_date) + '일' : '') + '</span></div>';
 }
 // 발추 단추를 적용방식 · 회기 칸에 맞춘다
 function syncX8(box) {
