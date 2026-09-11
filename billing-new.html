@@ -1013,15 +1013,32 @@ async function load() {
     });
 
     // 보강 못 잡은 결석 — 아동별로 모아둔다
+    //   시간표 「결석 보강」 상자와 같은 셈을 쓴다 (2026-09-11)
+    //   서버 창구 nl_staff_need(→ nl_need_rows) 가 준 줄만 올린다
+    //   (선생님 휴가도 들어가고, 쪼개기로 40분을 못 채운 결석도 남는다)
+    //   창구를 못 부르면 옛 셈으로 한다 — 상자가 비어 버리지 않게
+    let NEEDSET = null;
+    try {
+      const { data: nd, error: ne } = await sb.rpc('nl_staff_need', { p_mk: mk });
+      if (!ne && nd) {
+        NEEDSET = {};
+        nd.forEach(r => { NEEDSET[r.session_id] = r.why || ''; });
+      }
+    } catch (e) { NEEDSET = null; }
     NOMAKEUP = {};
     sess.forEach(x => {
-      if (x.status !== '결석') return;
-      if (covered[x.id]) return;                 // 보강을 이미 잡았음
-      if (x.no_makeup) return;                   // 「보강 없음」으로 정했음 (2026-09-08)
+      if (NEEDSET) {
+        if (!(x.id in NEEDSET)) return;
+      } else {
+        if (x.status !== '결석') return;
+        if (covered[x.id]) return;                 // 보강을 이미 잡았음
+        if (x.no_makeup) return;                   // 「보강 없음」으로 정했음 (2026-09-08)
+      }
       const st = x.support_type_id || 0;
       (NOMAKEUP[x.child_id] = NOMAKEUP[x.child_id] || []).push({
         st: st, date: x.plan_date, seq: x._seq || 0,
-        ok: canCarry(st, x._seq || 0)
+        ok: canCarry(st, x._seq || 0),
+        why: NEEDSET ? (NEEDSET[x.id] || '') : ''
       });
     });
 
@@ -1462,13 +1479,15 @@ function drawKid(c) {
       + (must.length
           ? '<div class="nmkline nmk-must">🔴 당월에 꼭 보강해야 함 ' + must.length + '건 — '
             + must.map(x => (TYPES[x.st] || ('유형'+x.st)) + ' '
-                + dayOnly(x.date) + '일(' + x.seq + '회기)').join(' · ')
+                + dayOnly(x.date) + '일(' + x.seq + '회기'
+                + (x.why && x.why !== '결석' ? ' · ' + esc(x.why) : '') + ')').join(' · ')
             + '<div class="nmkwhy">' + esc(carryWhy(must[0].st, must[0].seq)) + '</div></div>'
           : '')
       + (can.length
           ? '<div class="nmkline nmk-can">🟡 다음 달로 넘겨도 되는 것 ' + can.length + '건 — '
             + can.map(x => (TYPES[x.st] || ('유형'+x.st)) + ' '
-                + dayOnly(x.date) + '일(' + x.seq + '회기)').join(' · ')
+                + dayOnly(x.date) + '일(' + x.seq + '회기'
+                + (x.why && x.why !== '결석' ? ' · ' + esc(x.why) : '') + ')').join(' · ')
             + '</div>'
           : '')
       + '</div>';
