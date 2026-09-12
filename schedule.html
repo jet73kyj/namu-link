@@ -2585,6 +2585,8 @@ function drawFind(){
             || (!s.schedule_id && (s.support_type_id === r.support_type_id
                                    || (r.support_type_id === 2 && s.support_type_id === 8)))))
       .sort((a, b) => String(a.plan_date).localeCompare(String(b.plan_date)));
+    // 지난달 몫인데 이번 달 날짜인 줄은 SESS 에도 담겨 있어 아래 extraOf 에서 또 잡힌다
+    pvx.forEach(s => { usedX[s.id] = 1; });
     const ext = pvx.map(fExtra).join('') + extraOf(r).map(fExtra).join('');
     // 요일 밖 날짜의 원래 줄 (발추를 다른 날에 잡은 것 등) · 발추 나눠서 진행 자리표
     const oth = other.map(x => fBtn(x, mkOf, PARTS, HOSTADD)).join('')
