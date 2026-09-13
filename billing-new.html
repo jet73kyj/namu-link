@@ -1490,9 +1490,11 @@ function x8BtnHtml(cid, mode, cnt) {
   const s8 = X8SESS[cid];
   const mn = Number(String(LOADED_MK || '').slice(5, 7));
   const on = Number(mode) !== 3 && numOf(cnt) > 0;
-  return '<div class="sbrow"><span class="sb s8 x8b' + (on ? '' : ' off') + '"'
+  // 적용방식 칸 오른쪽에 나란히 놓는다 (2026-09-13)
+  return '<span class="sb s8 x8b' + (on ? '' : ' off') + '"'
+    + ' style="margin-left:6px;vertical-align:middle;"'
     + ' title="발추 · 누르면 켜고 끕니다 (적용방식이 함께 바뀜)">'
-    + '이 ' + mn + '-5' + (s8 ? ' ' + dayOnly(s8.plan_date) + '일' : '') + '</span></div>';
+    + '이 ' + mn + '-5' + (s8 ? ' ' + dayOnly(s8.plan_date) + '일' : '') + '</span>';
 }
 // 발추 단추를 적용방식 · 회기 칸에 맞춘다
 function syncX8(box) {
@@ -1704,13 +1706,12 @@ function drawKid(c) {
         + '<span class="nm">' + esc(tn) + sd + '</span>'
         + '<span class="de">담당 <select class="xthr">' + therapistOptions(curT) + '</select>'
         + '<select class="xmode">' + xmodeOptions(mode) + '</select>'
+        + x8BtnHtml(c.id, mode, cnt)
         + (five ? ' <span class="aptag">5주차</span>' : '') + '</span>'
         + '<span class="ap"></span>'
         + '<span class="ct"><input class="cnt xcnt" type="text" inputmode="numeric" value="' + cnt + '"></span>'
         + '<span class="up xunit">' + feeExtra(curT).toLocaleString() + '</span>'
         + '<span class="am gamt">0</span></div>';
-      // 발추 단추 (이) — 적용방식을 켜고 끈다. 금액은 카드결제에서 셈 (2026-09-11)
-      b += x8BtnHtml(c.id, mode, cnt);
       // 발달재활 수업 — 보기만 한다 (본인부담금은 계좌입금 상자). 날짜 단추는 잠김
       const devG = groups.find(x => x.support_type_id === 2);
       if (devG && devG.items && devG.items.length) {
