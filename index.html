@@ -131,6 +131,17 @@
   </div>
 </div>
 
+<!-- 매일 점검 창 (2026-09-13) -->
+<div class="albg" id="chkbg">
+  <div class="albox">
+    <div class="altitle" id="chkTitle">살펴볼 것</div>
+    <div id="chkList"></div>
+    <button class="albtn" id="chkGo">매일 점검 열기</button>
+    <button class="albtn" id="chkNo"
+      style="background:#8a938a;margin-top:8px;">나중에</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
 <script>
@@ -150,9 +161,6 @@ const $  = id => document.getElementById(id);
 // 화면 목록 — roles 에 적힌 역할만 볼 수 있다
 const MENU = [
 { grp:'일정', items:[
-    { f:'check.html', nm:'매일 점검',
-      de:'시간표에 어긋난 것이 있는지 아홉 가지를 점검합니다<br>아침에 한 번 열어 보세요',
-      roles:['관리자','행정','데스크'] },
     { f:'schedule.html', nm:'시간표',
       de:'요일별 수업표. 결석·보강·휴무 표시. 치료사는 담당 수업만 보임',
       roles:['관리자','행정','치료사','데스크'] },
@@ -161,6 +169,9 @@ const MENU = [
       roles:['관리자','행정'] },
     { f:'guide.html', nm:'사용 설명서',
       de:'화면마다 하는 일과 순서<br>보강 잡기·회기방식·지원유형 바꾸는 법',
+      roles:['관리자','행정','데스크'] },
+    { f:'check.html', nm:'매일 점검',
+      de:'시간표에 어긋난 것이 있는지 살펴봅니다<br>아침에 한 번 열어 보세요',
       roles:['관리자','행정','데스크'] }
   ]},
 { grp:'아동', items:[
@@ -326,8 +337,65 @@ async function afterLogin(user) {
   $('mainBox').style.display  = 'block';
 
   $('bell').style.display = 'inline-block';
+  await calcCheck(me.id);
   await loadAlerts(true);
+  // 알림 창이 떠 있으면 그것을 닫은 뒤에 점검 창을 띄운다
+  if ($('albg').style.display !== 'flex') showChk();
 }
+
+// ── 매일 점검 창 (2026-09-13) ──────────────────────
+//   홈에 들어오면 그 자리에서 이번 달을 점검해 어긋난 것이 있을 때만 띄운다
+//   고치면 다음 사람 화면에는 아예 안 뜨고, 못 고치면 열 때마다 계속 뜬다
+const CHK_SEE = [8, 9, 11];
+let CHKHTML = '', CHKN = 0;
+
+async function calcCheck(meId){
+  CHKHTML = ''; CHKN = 0;
+  if (CHK_SEE.indexOf(Number(meId)) < 0) return;
+  const now = new Date();
+  const mk = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  let rows = [];
+  try {
+    const { data, error } = await sb.rpc('nl_daily_check', { p_month: mk });
+    if (error) return;
+    rows = data || [];
+  } catch (e) { return; }
+  if (!rows.length) return;
+
+  // 아동 이름 가져오기
+  const ids = Array.from(new Set(rows.map(r => Number(r['아동'])).filter(v => v)));
+  const nm = {};
+  try {
+    const { data: cs } = await sb.from('nl_children').select('id, name').in('id', ids);
+    (cs || []).forEach(c => { nm[c.id] = c.name || ''; });
+  } catch (e) {}
+
+  // 항목별로 묶는다
+  const grp = {}, ord = [];
+  rows.forEach(r => {
+    const t = String(r['항목'] || '').replace(/^\d+\s*/, '');
+    if (!grp[t]) { grp[t] = []; ord.push(t); }
+    const no = Number(r['아동']);
+    const one = no ? (no + '번' + (nm[no] ? ' ' + nm[no] : '')) : '';
+    if (one && grp[t].indexOf(one) < 0) grp[t].push(one);
+  });
+
+  CHKN = rows.length;
+  CHKHTML = ord.map(t =>
+    '<div class="alrow"><span class="alkind w">' + esc(t) + '</span>'
+    + esc(grp[t].join(' · ')) + '</div>').join('');
+}
+
+function showChk(){
+  if (!CHKHTML) return;
+  $('chkTitle').textContent = '⚠️ 이번 달 — 살펴볼 것이 ' + CHKN + '건';
+  $('chkList').innerHTML = CHKHTML;
+  $('chkbg').style.display = 'flex';
+}
+
+$('chkGo').onclick = () => { location.href = 'check.html'; };
+$('chkNo').onclick = () => { $('chkbg').style.display = 'none'; };
+$('chkbg').onclick = e => { if (e.target === $('chkbg')) $('chkbg').style.display = 'none'; };
 
 // ── 알림 ───────────────────────────────────────────
 let ALERTS = [];   // 지금 창에 보이는 알림
@@ -390,10 +458,11 @@ $('alOk').onclick = async () => {
   $('albg').style.display = 'none';
   $('alOk').disabled = false;
   await loadAlerts(false);
+  showChk();
 };
 
 // 바깥을 눌러도 닫힌다 (읽음 처리는 안 함)
-$('albg').onclick = e => { if (e.target === $('albg')) $('albg').style.display = 'none'; };
+$('albg').onclick = e => { if (e.target === $('albg')) { $('albg').style.display = 'none'; showChk(); } };
 
 $('btn').onclick = async () => {
   const email = $('em').value.trim().toLowerCase();
