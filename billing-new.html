@@ -127,6 +127,10 @@
   .sb.off { background:#F1EFE8; color:#5F5E5A; border-color:#B4B2A9; }
   .sb.lock { cursor:default; }
   .sb.busy { opacity:.5; pointer-events:none; }
+  /* 발달추가비용 · 평가비 · 리뷰 차감 — 왼쪽 이름 칸을 좁힌다 (2026-09-13) */
+  .r.narrownm .nm { flex:0 0 110px; }
+  .r.narrownm select.xthr  { max-width:92px; }
+  .r.narrownm select.xmode { max-width:112px; }
   .r input.cnt.ro { border-color:transparent; background:transparent; font-weight:600; }
   .cntwarn { display:block; font-size:10.5px; color:#b3261e; white-space:nowrap;
              cursor:pointer; text-decoration:underline; }
@@ -1702,7 +1706,7 @@ function drawKid(c) {
         cnt = autoXcnt(mode, five);
       }
 
-      b += '<div class="r gsum" data-st="8" data-five="' + (five ? 1 : 0) + '">'
+      b += '<div class="r gsum narrownm" data-st="8" data-five="' + (five ? 1 : 0) + '">'
         + '<span class="nm">' + esc(tn) + sd + '</span>'
         + '<span class="de">담당 <select class="xthr">' + therapistOptions(curT) + '</select>'
         + '<select class="xmode">' + xmodeOptions(mode) + '</select>'
@@ -1734,7 +1738,7 @@ function drawKid(c) {
 
   const ev = sv[9];
   const evT = evalTypeOf(ev);
-  b += '<div class="r gsum" data-st="9" data-manual="1">'
+  b += '<div class="r gsum narrownm" data-st="9" data-manual="1">'
     + '<span class="nm">평가비</span>'
     + '<span class="de">평가 </span><select class="evsel" style="border:1px solid #888;border-radius:4px;padding:2px 4px;background:#fff;color:#000">' + evalOptions(evT) + '</select></span>'
     + '<span class="ap"></span><span class="ct"></span><span class="up"></span>'
@@ -1742,7 +1746,7 @@ function drawKid(c) {
     + (ev ? Number(ev.amount).toLocaleString() : '') + '" placeholder="0"></span></div>';
 
   if (!noClass) {
-    b += '<div class="r"><span class="nm">리뷰 차감</span>'
+    b += '<div class="r narrownm"><span class="nm">리뷰 차감</span>'
       + '<span class="de">1건 5,000원 · 4건까지</span>'
       + '<span class="ap"></span>'
       + '<span class="ct"><input class="cnt rv" type="text" inputmode="numeric" value="'
