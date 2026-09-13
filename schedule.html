@@ -2623,7 +2623,8 @@ function drawFind(){
         + '<span class="fr-nm">' + (r._cid ? '[' + r._cid + '] ' : '') + esc(r._name) + '</span>'
         + '<span class="fr-when">' + r.weekday + ' ' + h12(sl.hm) + '</span>'
         + '<span class="fr-th">' + (FTOP[r.support_type_id] || STYPE[r.support_type_id] || '') + ' · '
-          + (TTYPE[r._tt] || '') + ' · ' + (th ? th.id + '번' : '') + ' · '
+          + (TTYPE[r._tt] || '') + ' · '
+          + (th ? th.id + '번 ' + (th.name || '') : '') + ' · '
           + (r.duration || '') + '분'
           + ((nOn && nOn < days.length) ? ' · 월 ' + nOn + '회' : '') + '</span>'
         + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'" title="고치기">수정</button>' : '')
