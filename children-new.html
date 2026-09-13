@@ -410,6 +410,7 @@ let GUARD = {};      // 아동번호 -> 보호자 여럿
 let PACC  = {};      // 아동번호 -> 학부모 계정
 let stFilter = '전체';  // 지금 고른 상태
 let CAN_EDIT = false;   // 8번 관리자 · 9번 행정만 true
+let CAN_TEL  = false;   // 연락처 보기 — 위에 더해 11번 데스크도 true (2026-09-13)
 
 function show(text, ok) {
   msg.textContent = text;
@@ -470,10 +471,10 @@ function draw() {
     const flag = (c.memo || '').includes('[확인필요]')
       ? ' <span class="flag">[확인필요]</span>' : '';
 
-    // 연락처 칸 (8번 관리자 · 9번 행정만 보임)
+    // 연락처 칸 (8번 관리자 · 9번 행정 · 11번 데스크만 보임)
     //   아동 표의 연락처 + 보호자 표의 연락처를 위아래로 모두 적는다
     let tel = '';
-    if (CAN_EDIT) {
+    if (CAN_TEL) {
       const seen = new Set();
       const lines = [];
       if (c.phone) {
@@ -615,8 +616,10 @@ async function afterLogin(user) {
     });
   } catch (e) { CMODE = {}; }
 
-  // 3) 권한 정하기 — 8번 관리자, 9번 행정만 고치기·등록·연락처 보기
+  // 3) 권한 정하기 — 8번 관리자, 9번 행정만 고치기·등록
+  //    11번 데스크는 보기 전용 + 연락처까지 (전화 응대 자리)
   CAN_EDIT = [8, 9].includes(Number(me.id)) || /관리자|행정/.test(me.role || '');
+  CAN_TEL  = CAN_EDIT || Number(me.id) === 11;
 
   if (!CAN_EDIT) {
     $('addBtn').style.display = 'none';          // ＋ 신규 등록 감추기
