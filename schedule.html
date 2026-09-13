@@ -100,6 +100,8 @@
     line-height:1.45 !important; margin:0 0 6px !important;
     white-space:normal !important; word-break:keep-all;
     overflow:visible !important; text-align:left !important; }
+  /* 건수가 0이면 속을 비우므로, 빈 상자는 감춘다 (2026-09-13) */
+  .colL .shorttop:empty, .colL .prevhint:empty { display:none !important; }
   .colL .shorttop > *, .colL .prevhint > * {
     max-width:100% !important; }
   .colL .shorttop .findbox, .colL .prevhint .findbox {
@@ -2085,6 +2087,8 @@ function drawShort(_byScd, _mkOf){
   if (!nMiss) {
     $('short').style.display = 'none';
     $('shortTop').style.display = 'none';
+    $('short').innerHTML = '';
+    $('shortTop').innerHTML = '';
   } else {
     $('shortTop').style.display = 'block';
     $('shortTop').innerHTML = '<span class="topt">⚠️ ' + monNo(mon)
@@ -2132,6 +2136,8 @@ function drawShort(_byScd, _mkOf){
   if (!gapRows.length) {
     $('gapBox').style.display = 'none';
     $('gapTop').style.display = 'none';
+    $('gapBox').innerHTML = '';
+    $('gapTop').innerHTML = '';
   } else {
     $('gapTop').style.display = 'block';
     $('gapTop').innerHTML = '<span class="topt">📌 ' + monNo(mon)
@@ -3321,6 +3327,8 @@ function drawPrev(){
   if (!need.length) {
     $('prevBox').style.display = 'none';
     $('prevHint').style.display = 'none';
+    $('prevBox').innerHTML = '';
+    $('prevHint').innerHTML = '';
     syncDock();
     return;
   }
