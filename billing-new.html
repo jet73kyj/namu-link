@@ -128,7 +128,7 @@
   .sb.lock { cursor:default; }
   .sb.busy { opacity:.5; pointer-events:none; }
   /* 발달추가비용 · 평가비 · 리뷰 차감 — 왼쪽 이름 칸을 좁힌다 (2026-09-13) */
-  .r.narrownm .nm { flex:0 0 110px; }
+  .r.narrownm .nm { flex:0 0 72px; }
   .r.narrownm select.xthr  { max-width:92px; }
   .r.narrownm select.xmode { max-width:112px; }
   .r input.cnt.ro { border-color:transparent; background:transparent; font-weight:600; }
@@ -1707,7 +1707,7 @@ function drawKid(c) {
       }
 
       b += '<div class="r gsum narrownm" data-st="8" data-five="' + (five ? 1 : 0) + '">'
-        + '<span class="nm">' + esc(tn) + sd + '</span>'
+        + '<span class="nm" title="' + esc(tn) + '">발추' + sd + '</span>'
         + '<span class="de">담당 <select class="xthr">' + therapistOptions(curT) + '</select>'
         + '<select class="xmode">' + xmodeOptions(mode) + '</select>'
         + x8BtnHtml(c.id, mode, cnt)
