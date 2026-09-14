@@ -1854,7 +1854,7 @@ $('saveNew').onclick = async () => {
       phone:      $('k_phone').value.trim() || null,
       memo:       memoOf(),
       eval_summary: $('k_evalsum').value.trim() || null
-    }).select('id, name, birth, status, manager_no').single();
+    }).select('id, name, birth, status, manager_no, phone, memo, eval_summary').single();
     if (error) throw error;
     kid = data; cid = data.id;
     KIDS.push(data);
