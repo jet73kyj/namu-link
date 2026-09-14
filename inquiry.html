@@ -255,6 +255,13 @@
                   style="background:#fff8e1;border-color:#f0c36d;color:#8a6116;
                          font-weight:600;padding:5px 12px;">＋ 평가 줄 추가</button>
         </label>
+        <div style="margin:10px 0 12px;">
+          <div style="font-size:12.5px; color:#666; margin-bottom:4px;">평가 요약
+            <span style="color:#999;">— 한눈에 보이게 짧게 적으세요. 나중에 「열기」에서 고칠 수 있습니다</span></div>
+          <textarea id="k_evalsum" rows="3" style="font:inherit; font-size:14px; padding:9px 11px;
+            width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"
+            placeholder="예) 2026-08-14 언어평가 3종. 수용언어 1년 지연, 표현언어 2년 지연. 주 2회 언어 권고"></textarea>
+        </div>
         <div id="nvRows"></div>
       </div>
       <input id="a_child" type="hidden">
@@ -488,6 +495,26 @@
         <span style="font-weight:normal;color:#888;font-size:12.5px;">
           — 고치면 아래 「저장」을 누르세요</span>
       </label>
+      <div id="dsumWrap" style="margin:10px 0 12px; padding:10px 12px;
+                  background:#f7faf6; border:1px solid #cfe0d0; border-radius:8px;">
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:12.5px; color:#666; margin-bottom:4px;">평가 요약</div>
+            <div id="dsumView" style="font-size:14px; line-height:1.7; white-space:pre-line;"></div>
+            <textarea id="dsumEdit" rows="4" style="display:none; font:inherit; font-size:14px;
+              padding:9px 11px; width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"
+              placeholder="예) 2026-08-14 언어평가 3종. 수용언어 1년 지연, 표현언어 2년 지연. 주 2회 언어 권고"></textarea>
+            <div id="dsumBtns" style="display:none; margin-top:8px;">
+              <button type="button" id="dsumSave" class="tab"
+                style="background:#2e7d32; color:#fff; font-weight:bold; padding:5px 14px;">저장</button>
+              <button type="button" id="dsumCancel" class="tab" style="padding:5px 14px;">취소</button>
+            </div>
+          </div>
+          <button type="button" id="dsumBtn" class="tab"
+                  style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
+        </div>
+        <div id="dsumMsg" style="font-size:12.5px; margin-top:6px;"></div>
+      </div>
       <div id="dvRows"></div>
     </div>
 
@@ -798,6 +825,7 @@ async function openDetail(id) {
   const kk = KIDS.find(k => k.id === r.child_id);
   $('d_kmemo').value = (kk && kk.memo) ? kk.memo : '';
   $('d_kmemo').dataset.orig = $('d_kmemo').value;
+  dsumShow(kk && kk.eval_summary ? kk.eval_summary : '');
   showBox('msgD', '', true); $('msgD').className = 'out';
 
   // 이 아동의 평가를 채운다
@@ -852,6 +880,56 @@ $('goNew').onclick = () => {
   resetAddBox();
   draw();
   $('addBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+// 평가 요약 메모 — 평소에는 글자, 「수정」을 눌렀을 때만 메모창
+function dsumShow(text) {
+  const t = (text || '').trim();
+  $('dsumView').innerHTML = t ? esc(t)
+    : '<span style="color:#999;">아직 적은 요약이 없습니다. 「✏️ 수정」을 눌러 적으세요.</span>';
+  $('dsumView').style.display = 'block';
+  $('dsumEdit').style.display = 'none';
+  $('dsumBtns').style.display = 'none';
+  $('dsumBtn').style.display  = 'inline-block';
+  $('dsumEdit').value = t;
+  $('dsumEdit').dataset.orig = t;
+  $('dsumMsg').textContent = '';
+}
+
+$('dsumBtn').onclick = () => {
+  $('dsumView').style.display = 'none';
+  $('dsumBtn').style.display  = 'none';
+  $('dsumEdit').style.display = 'block';
+  $('dsumBtns').style.display = 'block';
+  $('dsumMsg').textContent = '';
+  $('dsumEdit').focus();
+};
+
+$('dsumCancel').onclick = () => { dsumShow($('dsumEdit').dataset.orig || ''); };
+
+$('dsumSave').onclick = async () => {
+  const r = ALL.find(x => x.id === openId);
+  if (!r) return;
+  const v = $('dsumEdit').value.trim();
+  $('dsumSave').disabled = true;
+  $('dsumSave').textContent = '저장 중...';
+  try {
+    const { error } = await sb.from('nl_children')
+      .update({ eval_summary: v || null, updated_at: new Date().toISOString() })
+      .eq('id', r.child_id);
+    if (error) throw error;
+    const kk = KIDS.find(k => k.id === r.child_id);
+    if (kk) kk.eval_summary = v || null;
+    dsumShow(v);
+    $('dsumMsg').style.color = '#2e7d32';
+    $('dsumMsg').textContent = '✅ 저장했습니다.';
+  } catch (e) {
+    $('dsumMsg').style.color = '#c62828';
+    $('dsumMsg').textContent = '❌ 저장하지 못했습니다: ' + e.message;
+  } finally {
+    $('dsumSave').disabled = false;
+    $('dsumSave').textContent = '저장';
+  }
 };
 
 $('saveDet').onclick = async () => {
@@ -1666,6 +1744,7 @@ function resetAddBox() {
    'k_name','k_birth','k_guardian','k_phone']
     .forEach(k => $(k).value = '');
   $('k_memo').value = MEMO_TMPL;
+  $('k_evalsum').value = '';
   $('k_gender').value = '';
   $('k_status').value = '대기중';
   $('dupWarn').style.display = 'none';
@@ -1773,7 +1852,8 @@ $('saveNew').onclick = async () => {
       status:     $('k_status').value,
       guardian:   $('k_guardian').value.trim() || null,
       phone:      $('k_phone').value.trim() || null,
-      memo:       memoOf()
+      memo:       memoOf(),
+      eval_summary: $('k_evalsum').value.trim() || null
     }).select('id, name, birth, status, manager_no').single();
     if (error) throw error;
     kid = data; cid = data.id;
@@ -1848,6 +1928,7 @@ $('saveNew').onclick = async () => {
      'k_name','k_birth','k_guardian','k_phone']
       .forEach(k => $(k).value = '');
     $('k_memo').value = MEMO_TMPL;
+    $('k_evalsum').value = '';
     $('k_gender').value = '';
     $('k_status').value = '대기중';
     $('dupWarn').style.display = 'none';
@@ -1881,7 +1962,7 @@ async function afterLogin(user) {
   // 아동 이름표
   const { data: kids, error: e2 } = await sb
     .from('nl_children')
-    .select('id, name, birth, status, manager_no, phone, memo')
+    .select('id, name, birth, status, manager_no, phone, memo, eval_summary')
     .order('name');
   if (e2) { show('❌ 아동 목록 조회 실패\n' + e2.message, false); return; }
   KIDS = kids || [];
