@@ -1534,6 +1534,28 @@ function mnLabel(x){
   return no2 + '원래 줄 없음';
 }
 function isMk(x){ return !!(x && x.makeup_for); }
+// 오늘보다 뒤의 날인가 (2026-09-14)
+function isFutureDay(d){
+  const t = new Date();
+  const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0')
+              + '-' + String(t.getDate()).padStart(2, '0');
+  return String(d || '') > today;
+}
+// 단추를 눌렀을 때 다음 상태 — 셈은 여기 한 곳에서만 (2026-09-14 은정님)
+//   앞으로 올 날은 「완료」를 건너뛴다
+//   까닭 — 표 장치 trg_m_no_future_done 이 앞날 완료를 막으므로
+//          완료에서 걸려 결석까지 갈 수가 없었다
+//   앞날    예정 → 결석 → 예정   (보강 줄은 보강 → 결석 → 보강)
+//   오늘·지난 날  예정 → 완료 → 결석 → 예정  (지금까지와 같음)
+function cycNext(s){
+  const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
+  const MNNEXT = { '완료':'예정', '예정':'결석', '결석':'완료' };
+  const isMn = !s.schedule_id && !s.makeup_for;
+  const map = isMn ? MNNEXT : isMk(s) ? MKNEXT : NEXT;
+  let nx = map[s.status] || '완료';
+  if (nx === '완료' && isFutureDay(s.plan_date)) nx = map['완료'] || '결석';
+  return nx;
+}
 // 보강 날짜 — 이 달이 아니면 달을 함께 적는다 (8월 시간표에서 9월 보강이 「5일」로만 보이던 것)
 function mkDay(x){
   if (!x || !x.plan_date) return '';
@@ -2682,13 +2704,7 @@ function drawFind(){
       const id = Number(_sid);
       if (s.status === '쉼') return;
       if (s.status === '휴무') { openMk(s.id); return; }
-      const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
-      // 직접 넣은 보강(요일줄 없음)은 완료 → 예정 → 결석 으로 돈다
-      const isMn = !s.schedule_id && !s.makeup_for;
-      const MNNEXT = { '완료':'예정', '예정':'결석', '결석':'완료' };
-      const nx = isMn ? (MNNEXT[s.status] || '완료')
-               : isMk(s) ? (MKNEXT[s.status] || '완료')
-               : (NEXT[s.status] || '완료');
+      const nx = cycNext(s);
       if (!(await askDropMakeup(s, nx))) return;
       const { error } = await sb.from('nl_sessions')
         .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
@@ -6946,12 +6962,7 @@ async function findTap(sid, isPlus){
   }
   const own = CAN_EDIT || (MY_TH && Number(s.therapist_id) === Number(MY_TH));
   if (!own) return;
-  const MKNEXT = { '보강':'완료', '완료':'결석', '결석':'보강' };
-  const isMn = !s.schedule_id && !s.makeup_for;
-  const MNNEXT = { '완료':'예정', '예정':'결석', '결석':'완료' };
-  const nx = isMn ? (MNNEXT[s.status] || '완료')
-           : isMk(s) ? (MKNEXT[s.status] || '완료')
-           : (NEXT[s.status] || '완료');
+  const nx = cycNext(s);
   if (!(await askDropMakeup(s, nx))) return;
   const { error } = await sb.from('nl_sessions')
     .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', sid);
