@@ -492,6 +492,8 @@
         <button type="button" id="dvOther" class="tab"
                 style="background:#e3f0fb;border:1px solid #85b7eb;color:#0c447c;
                        font-weight:600;padding:5px 12px;">📎 타기관 평가보고서 <span id="dvOtherN"></span></button>
+        <span id="dnextEv" style="display:none; font-weight:600; font-size:12.5px;
+              padding:4px 10px; border-radius:12px;"></span>
         <span style="font-weight:normal;color:#888;font-size:12.5px;">
           — 고치면 아래 「저장」을 누르세요</span>
       </label>
@@ -833,6 +835,7 @@ async function openDetail(id) {
   EVALS.filter(e => e.child_id === r.child_id)
     .sort((a, b) => String(a.eval_date).localeCompare(String(b.eval_date)))
     .forEach(e => dvAddRow(e));
+  drawNextEv(r.child_id);
   refreshDocs(r.child_id);
 
   $('l_date').value = today();
@@ -881,6 +884,28 @@ $('goNew').onclick = () => {
   draw();
   $('addBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
+
+// 다음 재평가 — 취소가 아닌 평가 중 가장 늦은 날짜 + 12개월
+function drawNextEv(cid) {
+  const el = $('dnextEv');
+  const ds = EVALS.filter(e => e.child_id === cid && e.eval_date && e.status !== '취소')
+                  .map(e => String(e.eval_date)).sort();
+  if (!ds.length) { el.style.display = 'none'; return; }
+  const last = ds[ds.length - 1];
+  const ny = Number(last.slice(0, 4)) + 1;
+  const nm = Number(last.slice(5, 7));
+  const now = new Date();
+  const diff = (ny - now.getFullYear()) * 12 + (nm - (now.getMonth() + 1));
+  let bg = '#eef1ee', bd = '#cfd4cf', fg = '#555', tail = '';
+  if (diff < 0)       { bg = '#fdecea'; bd = '#e6a6a0'; fg = '#a32d2d'; tail = ' · 지났습니다'; }
+  else if (diff === 0){ bg = '#fff4e0'; bd = '#e8b96a'; fg = '#8a5a0b'; tail = ' · 이번 달'; }
+  else if (diff === 1){ bg = '#fff9e6'; bd = '#e8cf8a'; fg = '#8a6116'; tail = ' · 다음 달'; }
+  el.style.display    = 'inline-block';
+  el.style.background = bg;
+  el.style.border     = '1px solid ' + bd;
+  el.style.color      = fg;
+  el.textContent      = '다음 재평가 ' + ny + '년 ' + nm + '월' + tail;
+}
 
 // 평가 요약 메모 — 평소에는 글자, 「수정」을 눌렀을 때만 메모창
 function dsumShow(text) {
@@ -1008,6 +1033,7 @@ $('saveDet').onclick = async () => {
       }
     }
 
+    drawNextEv(cid);
     draw();
     if (up.status === '치료시작') {
       await kidToActive(data.child_id);
