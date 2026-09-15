@@ -29,6 +29,11 @@
     return m ? m[1] : 'bin';
   }
   function isPdf(r) { return /\.pdf$/i.test(r.file_path || '') || /\.pdf$/i.test(r.file_name || ''); }
+  // 화면에서 펼쳐 볼 수 없는 갈래 — 내려받아 여는 것
+  function isDoc(r) {
+    return /\.(hwp|hwpx|doc|docx)$/i.test(r.file_path || '')
+        || /\.(hwp|hwpx|doc|docx)$/i.test(r.file_name || '');
+  }
   function md(d) {
     if (!d) return '날짜 없음';
     const p = String(d).split('-');
@@ -131,9 +136,9 @@
           +   '<input type="text" class="t" style="width:230px;" placeholder="'
           +   (isCenter ? '언어평가 결과보고서' : '○○대학병원 발달평가') + '" value="' + esc(o.title || '') + '"></div>'
           + '<div><label>평가 받은 날</label><input type="date" class="d" value="' + esc(o.date || '') + '"></div>'
-          + '<div class="dz">⬆ 여기에 사진·PDF를 끌어다 놓으면 바로 올라갑니다'
+          + '<div class="dz">⬆ 여기에 사진·PDF·한글 파일을 끌어다 놓으면 바로 올라갑니다'
           +   '<small>여러 개를 한꺼번에 놓아도 됩니다 · 눌러서 고를 수도 있습니다</small></div>'
-          + '<input type="file" class="f" multiple accept="image/*,.pdf,application/pdf">'
+          + '<input type="file" class="f" multiple accept="image/*,.pdf,application/pdf,.hwp,.hwpx,.doc,.docx">'
           + '<button type="button" class="go" data-a="up" style="display:none;">준비된 파일 올리기</button>'
           + '</div>'
         : '')
@@ -186,7 +191,8 @@
               '<div class="it"' + (i >= SHOWN ? ' data-hide="1" style="display:none;"' : '') + '>'
               + '<span>' + (r.page_no ? r.page_no + '. ' : '') + esc(r.file_name) + '<small>' + kb(r.file_size) + '</small></span>'
               + '<span style="display:flex;gap:6px;">'
-              +   '<button type="button" data-a="one" data-id="' + r.id + '">보기</button>'
+              +   '<button type="button" data-a="one" data-id="' + r.id + '">'
+              +     (isDoc(r) ? '내려받기' : '보기') + '</button>'
               +   (canUse() ? '<button type="button" class="del" data-a="del" data-id="' + r.id + '">지우기</button>' : '')
               + '</span></div>').join('')
           + (L.length > SHOWN ? '<div class="more" data-a="more">나머지 ' + (L.length - SHOWN) + '개 펼치기</div>' : '')
@@ -207,6 +213,14 @@
       if (a === 'one') {
         const r = ROWS.find(x => x.id === Number(b.dataset.id));
         if (!r) return;
+        if (isDoc(r)) {                                 // 한글·워드는 내려받는다
+          const sg = await SB.storage.from(BUCKET).createSignedUrl(r.file_path, 600, { download: r.file_name });
+          if (sg.error || !sg.data) { say('❌ 파일을 내려받지 못했습니다.\\n' + (sg.error ? sg.error.message : ''), false); return; }
+          const aTag = document.createElement('a');
+          aTag.href = sg.data.signedUrl; aTag.download = r.file_name;
+          document.body.appendChild(aTag); aTag.click(); aTag.remove();
+          return;
+        }
         const w = window.open('', '_blank');           // 먼저 창을 열어야 막히지 않는다
         const { data, error } = await SB.storage.from(BUCKET).createSignedUrl(r.file_path, 600);
         if (error || !data) { if (w) w.close(); say('❌ 파일을 열지 못했습니다.\n' + (error ? error.message : ''), false); return; }
@@ -222,6 +236,9 @@
         const url = {}; data.forEach(d => { url[d.path] = d.signedUrl; });
         const body = L.map(r => {
           const u = url[r.file_path] || '';
+          if (isDoc(r))
+            return '<p style="margin:18px 0;"><a href="' + esc(u) + '" download style="font-size:16px;">📎 '
+                 + esc(r.file_name) + ' 내려받기</a></p>';
           return isPdf(r)
             ? '<p style="margin:18px 0;"><a href="' + esc(u) + '" target="_blank" style="font-size:16px;">📄 ' + esc(r.file_name) + ' 열기 (PDF)</a></p>'
             : '<div style="margin:0 0 18px;"><div style="color:#888;font-size:12px;margin-bottom:4px;">'
@@ -270,15 +287,16 @@
     function take(list) {
       if (BUSY) return;
       const files = Array.from(list || []).filter(f =>
-        /^image\//.test(f.type || '') || /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+        /^image\//.test(f.type || '') || /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
+        || /\.(hwp|hwpx|doc|docx)$/i.test(f.name));
       const skip = (list ? list.length : 0) - files.length;
-      if (!files.length) { say('⚠️ 사진이나 PDF 파일만 올릴 수 있습니다.', false); return; }
+      if (!files.length) { say('⚠️ 사진 · PDF · 한글(hwp) · 워드 파일만 올릴 수 있습니다.', false); return; }
       PENDING = PENDING.concat(files);
       if (!tIn.value.trim()) {
         upBtn.style.display = '';
         upBtn.textContent = '준비된 ' + PENDING.length + '개 올리기';
         say('⚠️ 파일 ' + PENDING.length + '개가 준비되었습니다.\n위 「' + nameLbl + '」을 먼저 적어 주세요. 적고 Enter 를 누르면 올라갑니다.'
-          + (skip ? '\n(사진·PDF가 아닌 ' + skip + '개는 뺐습니다)' : ''), false);
+          + (skip ? '\n(올릴 수 없는 ' + skip + '개는 뺐습니다)' : ''), false);
         tIn.focus();
         return;
       }
