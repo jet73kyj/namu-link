@@ -832,7 +832,8 @@ async function afterLogin(user) {
 }
 
 async function load() {
-  CHANGED = {};
+  // 같은 달을 다시 불러오면 적어 둔 칸이 다시 들어가므로 바뀜 표시도 남긴다 (2026-09-15)
+  if ($('mk').value !== LOADED_MK) CHANGED = {};
   CALC = {};
   const mk = $('mk').value;
   if (!mk) { show($('msg2'), '달을 골라주세요.', false); return; }
@@ -2169,9 +2170,11 @@ async function toggleFix(childId, btn) {
   // 바꾸고 저장하지 않은 칸이 있으면 먼저 저장한다 (2026-09-15)
   //   다시 그릴 때 저장된 값으로 돌아가, 「적용 없음」을 고르고 확정하면 되돌아가던 일
   const ch = CHANGED[childId];
-  if (now && ch && (ch.card || ch.bank)) {
+  //   확정 → 예정으로 돌릴 때도 같다 (28번 9월 승인번호가 저장 안 된 채 사라진 일)
+  if (ch && (ch.card || ch.bank)) {
     const what = [ch.card ? '카드' : '', ch.bank ? '계좌' : ''].filter(Boolean).join(' · ');
-    if (!confirm('바꾼 내용(' + what + ')이 아직 저장되지 않았습니다.\n저장하고 확정할까요?')) return;
+    if (!confirm('바꾼 내용(' + what + ')이 아직 저장되지 않았습니다.\n저장하고 '
+        + (now ? '확정할까요?' : '예정으로 돌릴까요?'))) return;
     const box0 = document.querySelector('.kid[data-child="' + childId + '"]');
     for (const side of ['card', 'bank']) {
       if (!ch[side]) continue;
@@ -2179,7 +2182,7 @@ async function toggleFix(childId, btn) {
       if (!sb2) continue;
       await saveKid(childId, sb2, side);
       if (!sb2.classList.contains('done')) {
-        alert('저장하지 못해 확정하지 않았습니다. 위 알림 글을 확인해 주세요.');
+        alert('저장하지 못해 ' + (now ? '확정' : '예정으로 돌리기') + '를 하지 않았습니다. 위 알림 글을 확인해 주세요.');
         return;
       }
     }
@@ -2932,6 +2935,9 @@ document.querySelectorAll('.ptab').forEach(b => {
   };
 });
 $('mk').addEventListener('change', () => {
+  // 저장 안 한 칸이 있으면 먼저 묻는다 (2026-09-15) — 취소하면 달을 되돌린다
+  if (LOADED_MK && !askLeaveChanged('달을 바꾸면')) { $('mk').value = LOADED_MK; return; }
+  CHANGED = {}; TYPED = {};
   $('kids').innerHTML = ''; $('allsum').textContent = '';
   LOADED_MK = null; $('empty').style.display = 'block';
   show($('msg2'), '달이 바뀌었습니다. [불러오기] 를 눌러주세요.', true);
@@ -2943,7 +2949,27 @@ document.addEventListener('wheel', () => {
   if (a && a.tagName === 'INPUT') a.blur();
 }, true);
 
-$('load').onclick = load;
+// 저장 안 한 칸이 있는 아동 (2026-09-15)
+function changedKids() {
+  return Object.keys(CHANGED).filter(k => CHANGED[k] && (CHANGED[k].card || CHANGED[k].bank));
+}
+function askLeaveChanged(doing) {
+  const ks = changedKids();
+  if (!ks.length) return true;
+  return confirm('저장하지 않은 칸이 있습니다 — ' + ks.map(k => k + '번').join(', ') + '\n\n'
+    + doing + ' 적어 두신 내용이 사라질 수 있습니다.\n그래도 할까요?\n\n'
+    + '저장하시려면 「취소」를 누르고 그 아동의 저장 단추를 누르세요.');
+}
+$('load').onclick = () => {
+  if ($('mk').value !== LOADED_MK && !askLeaveChanged('다른 달을 불러오면')) return;
+  load();
+};
+// 탭을 닫거나 새로고침할 때 — 브라우저가 「사이트에서 나가시겠습니까?」를 띄운다
+window.addEventListener('beforeunload', e => {
+  if (!changedKids().length) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 // 지난번에 보던 달이 있으면 그 달로 맞춰 둔다
 try {
   const _km = localStorage.getItem('nl_bill_mon');
@@ -2960,6 +2986,7 @@ document.addEventListener('keydown', (e) => {
   if (a && a.tagName === 'INPUT' && a.id !== 'mk' && a.id !== 'q') return;
   if ($('load').disabled) return;
   e.preventDefault();
+  if ($('mk').value !== LOADED_MK && !askLeaveChanged('다른 달을 불러오면')) return;
   load();
 });
 
