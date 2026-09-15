@@ -259,11 +259,6 @@
          padding:12px 14px; margin-bottom:12px;">
       <div id="e_view" style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
         <div id="e_basic" style="flex:1; min-width:260px; font-size:13.5px; line-height:1.9;"></div>
-        <div style="width:270px; border:1px solid #cfd8cc; border-radius:10px;
-             background:#f4f7f2; padding:10px 12px;">
-          <div style="font-size:12.5px; font-weight:700; color:#2c5c37; margin-bottom:6px;">👪 학부모 계정</div>
-          <div id="e_acc" style="font-size:12.5px; color:#5a6156;">불러오는 중...</div>
-        </div>
         <button type="button" id="e_editBtn" class="tab"
                 style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
       </div>
@@ -327,6 +322,11 @@
               style="width:auto;margin:8px 0 0;padding:7px 14px;background:#eef3ec;
                      color:#2c5c37;font-size:13px;font-weight:600;">＋ 연락처 한 줄 더</button>
           </div>
+        </div>
+        <div style="border:1px solid #cfd8cc; border-radius:10px; background:#f4f7f2;
+             padding:10px 12px; margin-top:10px;">
+          <div style="font-size:12.5px; font-weight:700; color:#2c5c37; margin-bottom:6px;">👪 학부모 계정</div>
+          <div id="e_acc" style="font-size:12.5px; color:#5a6156;">불러오는 중...</div>
         </div>
         <div class="addbtns">
           <button id="saveEdit" class="tab" style="background:#1565c0;color:#fff;font-weight:bold;">저장</button>
@@ -1097,6 +1097,7 @@ function openEdit(id) {
   drawDocs(id);
   loadNotes(id);
   drawBasic(c);
+  drawMobile(id);
   openBasicForm(false);
   esShow(c.eval_summary || '');
   drawNextEval(id);
@@ -1120,7 +1121,28 @@ function drawBasic(c) {
     + ' · ' + esc(c.gender || '성별 없음') + ' · ' + esc(c.status || '')
     + (c.diagnosis ? ' · ' + esc(c.diagnosis) : '')
     + (c.school ? ' · ' + esc(c.school) + (c.grade_year ? ' ' + esc(c.grade_year) : '') : '')
-    + '<br><span style="color:#5a6156;">' + tel + '</span>';
+    + '<br><span style="color:#5a6156;">' + tel + '</span>'
+    + '<div id="e_mob" style="color:#5a6156; margin-top:4px;">📱 학부모 계정 — 보는 중...</div>'
+    + (cmodeTxt(c.id) ? '<div style="margin-top:2px;">회기방식 ' + cmodeTxt(c.id) + '</div>' : '');
+}
+
+// 모바일 연결 현황 — 계정이 있는지·마지막으로 들어온 날
+async function drawMobile(cid) {
+  const box = $('e_mob');
+  if (!box) return;
+  try {
+    const { data: pc } = await sb.from('nl_parent_children')
+      .select('account_id').eq('child_id', cid);
+    if (!pc || !pc.length) { box.innerHTML = '📱 학부모 계정 없음'; return; }
+    const { data: acc } = await sb.from('nl_parent_accounts')
+      .select('login_id, last_login, active').in('id', pc.map(x => x.account_id));
+    if (!acc || !acc.length) { box.innerHTML = '📱 학부모 계정 없음'; return; }
+    box.innerHTML = acc.map(a => '📱 ' + esc(a.login_id)
+      + (a.active === false ? ' · 꺼짐'
+         : (a.last_login
+            ? ' · 마지막 접속 ' + String(a.last_login).slice(5, 10).replace('-', '월 ') + '일'
+            : ' · 아직 들어온 적 없음'))).join('<br>');
+  } catch (e) { box.innerHTML = '📱 학부모 계정 — 알 수 없음'; }
 }
 
 function openBasicForm(on) {
@@ -1255,9 +1277,8 @@ function drawTherapies(SC, TH) {
       + ' ~ ' + (t.ended_on ? esc(t.ended_on) : '') + '</span>'
       + (t.end_reason ? '<span style="color:#888;"> · 사유: ' + esc(t.end_reason) + '</span>' : '')
       + '</span>'
-      + (CAN_EDIT ? '<button type="button" class="tab thRs" data-id="' + t.id
-         + '" style="padding:2px 8px; font-size:12px;">'
-         + (over ? '사유 적기' : '종결 사유') + '</button>' : '')
+      + ((CAN_EDIT && over) ? '<button type="button" class="tab thRs" data-id="' + t.id
+         + '" style="padding:2px 8px; font-size:12px;">사유 적기</button>' : '')
       + '</div>';
   };
   $('e_ths').innerHTML = live.map(t => one(t, false)).join('') + done.map(t => one(t, true)).join('');
