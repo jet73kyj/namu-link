@@ -1552,6 +1552,8 @@ function syncX8(box) {
   const md = row.querySelector('.xmode'), xc = row.querySelector('.xcnt');
   const on = !!md && Number(md.value) !== 3 && numOf(xc ? xc.value : 0) > 0;
   bt.classList.toggle('off', !on);
+  // 「적용 없음」이면 단추를 감춘다 (2026-09-15). 다시 켤 때는 적용방식 칸에서 고른다
+  bt.style.display = (md && Number(md.value) === 3) ? 'none' : '';
 }
 // 날짜 단추를 눌렀을 때
 //   켜짐 → 회색 : 쉬는 날이면 「보강 받음」을 끔 / 그 밖은 「보강 없음」 (예정·완료는 결석으로)
