@@ -325,8 +325,46 @@
         <input id="e_grade" type="text">
       </div>
       <div style="grid-column:1 / -1;">
-        <label for="e_memo">메모</label>
-        <textarea id="e_memo" rows="6" style="font:inherit;font-size:14px;padding:9px 11px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.6;"></textarea>
+        <div style="padding:10px 12px; background:#fff; border:1px solid #e0e0e0; border-radius:8px;">
+          <div style="display:flex; align-items:flex-start; gap:10px;">
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:12.5px; color:#666; margin-bottom:4px;">메모
+                <span id="emDate" style="color:#999;"></span></div>
+              <div id="emView" style="font-size:14px; line-height:1.7; white-space:pre-line;"></div>
+              <textarea id="e_memo" rows="6" style="display:none; font:inherit; font-size:14px;
+                padding:9px 11px; width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"></textarea>
+              <div id="emBtns" style="display:none; margin-top:8px;">
+                <button type="button" id="emSave" class="tab"
+                  style="background:#2e7d32;color:#fff;font-weight:bold;padding:5px 14px;">저장</button>
+                <button type="button" id="emCancel" class="tab" style="padding:5px 14px;">취소</button>
+              </div>
+            </div>
+            <button type="button" id="emBtn" class="tab"
+                    style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
+          </div>
+          <div id="emMsg" style="font-size:12.5px; margin-top:6px;"></div>
+        </div>
+      </div>
+
+      <div style="grid-column:1 / -1;">
+        <div style="border:1px solid #cfe0d0; border-radius:10px; background:#f7faf6; padding:12px 14px;">
+          <div style="font-size:13px; font-weight:700; color:#2e5b33; margin-bottom:8px;">
+            💬 상담 메모 <span style="font-weight:normal;color:#888;">— 치료 중 어머님 말씀·바라시는 것</span></div>
+          <div id="cnRows" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
+          <div style="display:flex; gap:8px; align-items:flex-end; margin-top:10px; flex-wrap:wrap;">
+            <div style="width:170px;">
+              <label for="cn_date" style="font-size:12px;">날짜</label>
+              <input id="cn_date" type="date">
+            </div>
+            <div style="flex:1; min-width:240px;">
+              <label for="cn_text" style="font-size:12px;">내용</label>
+              <input id="cn_text" type="text" placeholder="예: 어머님 — 주 2회로 늘리고 싶어 하심">
+            </div>
+            <button type="button" id="cnAdd" class="tab"
+              style="background:#8bc34a;color:#fff;font-weight:bold;padding:7px 14px;">메모 추가</button>
+          </div>
+          <div id="cnMsg" style="font-size:12.5px; margin-top:6px;"></div>
+        </div>
       </div>
 
       <div style="grid-column:1 / -1; border-top:1px solid #e8ebe4; margin-top:6px; padding-top:12px;">
@@ -409,6 +447,7 @@ let ALL = [];        // 불러온 아동 전체
 let GUARD = {};      // 아동번호 -> 보호자 여럿
 let PACC  = {};      // 아동번호 -> 학부모 계정
 let stFilter = '전체';  // 지금 고른 상태
+let MEID = null;        // 로그인한 직원 번호
 let CAN_EDIT = false;   // 8번 관리자 · 9번 행정만 true
 let CAN_TEL  = false;   // 연락처 보기 — 위에 더해 11번 데스크도 true (2026-09-13)
 
@@ -534,13 +573,14 @@ async function afterLogin(user) {
 
   if (e1)  { show('❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show('⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
+  MEID = Number(me.id);
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
   NLDocs.init(sb, me.id);   // 평가보고서 창구 준비 (8·9번만 올리고 봄)
 
   // 2) 아동 불러오기
   const { data, error } = await sb
     .from('nl_children')
-    .select('id, manager_no, name, birth, gender, status, memo, phone, guardian, diagnosis, disability, school, grade_year')
+    .select('id, manager_no, name, birth, gender, status, memo, memo_at, phone, guardian, diagnosis, disability, school, grade_year')
     .order('id');
 
   if (error) { show('❌ 아동 목록 조회 실패\n' + error.message, false); return; }
@@ -879,7 +919,7 @@ $('saveNew').onclick = async () => {
   try {
     const { data, error } = await sb.from('nl_children')
       .insert(row)
-      .select('id, manager_no, name, birth, gender, status, memo, phone, guardian, diagnosis, disability, school, grade_year')
+      .select('id, manager_no, name, birth, gender, status, memo, memo_at, phone, guardian, diagnosis, disability, school, grade_year')
       .single();
     if (error) throw error;
     made = data;
@@ -1017,7 +1057,7 @@ function openEdit(id) {
   $('e_disability').value = c.disability || '';
   $('e_school').value     = c.school || '';
   $('e_grade').value      = c.grade_year || '';
-  $('e_memo').value       = c.memo || '';
+  emShow(c.memo || '', c.memo_at || null);
 
   // 보호자 연락처 — 보호자 표 것을 그대로. 없으면 아동 표 것을 첫 줄로
   GROWS = (GUARD[c.id] || []).map(g => ({
@@ -1034,7 +1074,160 @@ function openEdit(id) {
   loadGrade(id);
   drawAcc(id);
   drawDocs(id);
+  loadNotes(id);
 }
+
+// ── 메모 — 평소에는 글자, 「수정」을 눌렀을 때만 메모창 (2026-09-15) ──
+function tdy() {
+  const n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0')
+       + '-' + String(n.getDate()).padStart(2, '0');
+}
+
+function emShow(text, at) {
+  const t = (text || '').trim();
+  $('emView').innerHTML = t ? esc(t)
+    : '<span style="color:#999;">아직 적은 메모가 없습니다. 「✏️ 수정」을 눌러 적으세요.</span>';
+  $('emDate').textContent = at ? '· ' + String(at).slice(0, 10) + ' 적음' : '';
+  $('emView').style.display = 'block';
+  $('e_memo').style.display = 'none';
+  $('emBtns').style.display = 'none';
+  $('emBtn').style.display  = 'inline-block';
+  $('e_memo').value = t;
+  $('e_memo').dataset.orig = t;
+  $('emMsg').textContent = '';
+}
+
+$('emBtn').onclick = () => {
+  $('emView').style.display = 'none';
+  $('emBtn').style.display  = 'none';
+  $('e_memo').style.display = 'block';
+  $('emBtns').style.display = 'block';
+  $('emMsg').textContent = '';
+  $('e_memo').focus();
+};
+
+$('emCancel').onclick = () => {
+  const c = ALL.find(x => x.id === edId);
+  emShow($('e_memo').dataset.orig || '', c ? c.memo_at : null);
+};
+
+$('emSave').onclick = async () => {
+  if (!edId) return;
+  const v = $('e_memo').value.trim();
+  $('emSave').disabled = true;
+  $('emSave').textContent = '저장 중...';
+  try {
+    const { error } = await sb.from('nl_children')
+      .update({ memo: v || null, memo_at: tdy(), updated_at: new Date().toISOString() })
+      .eq('id', edId);
+    if (error) throw error;
+    const c = ALL.find(x => x.id === edId);
+    if (c) { c.memo = v || null; c.memo_at = tdy(); }
+    emShow(v, tdy());
+    draw();
+    $('emMsg').style.color = '#2e7d32';
+    $('emMsg').textContent = '✅ 저장했습니다.';
+  } catch (e) {
+    $('emMsg').style.color = '#c62828';
+    $('emMsg').textContent = '❌ 저장하지 못했습니다: ' + e.message;
+  } finally {
+    $('emSave').disabled = false;
+    $('emSave').textContent = '저장';
+  }
+};
+
+// ── 상담 메모 (2026-09-15) — 날짜별로 쌓인다 ──
+let NOTES = [];
+
+async function loadNotes(cid) {
+  $('cnRows').innerHTML = '불러오는 중...';
+  $('cn_date').value = tdy();
+  $('cn_text').value = '';
+  delete $('cnAdd').dataset.editId;
+  $('cnAdd').textContent = '메모 추가';
+  $('cnMsg').textContent = '';
+  const { data, error } = await sb.from('nl_child_notes')
+    .select('id, note_date, content, staff_id')
+    .eq('child_id', cid)
+    .order('note_date', { ascending: false })
+    .order('id', { ascending: false });
+  if (error) { $('cnRows').innerHTML = '메모를 불러오지 못했습니다. ' + esc(error.message); return; }
+  NOTES = data || [];
+  drawNotes();
+}
+
+function drawNotes() {
+  if (!NOTES.length) {
+    $('cnRows').innerHTML = '<span style="color:#999;">아직 상담 메모가 없습니다.</span>';
+    return;
+  }
+  $('cnRows').innerHTML = NOTES.map(n =>
+    '<div style="display:flex; align-items:flex-start; gap:8px; padding:7px 0;'
+    + ' border-bottom:1px solid #e3ebe1;">'
+    + '<span style="color:#666; min-width:82px; white-space:nowrap;">' + esc(n.note_date) + '</span>'
+    + '<span style="flex:1; min-width:0; color:#1c1f1a; line-height:1.6;'
+    + ' white-space:pre-line;">' + esc(n.content) + '</span>'
+    + (n.staff_id ? '<span style="color:#aaa; white-space:nowrap;">' + n.staff_id + '번</span>' : '')
+    + '<button type="button" class="tab cnEd" data-id="' + n.id
+    + '" style="padding:2px 8px; font-size:12px;">수정</button>'
+    + '<button type="button" class="tab cnDel" data-id="' + n.id
+    + '" style="padding:2px 8px; font-size:12px; color:#c62828;">지우기</button>'
+    + '</div>').join('');
+
+  $('cnRows').querySelectorAll('.cnEd').forEach(b => b.onclick = () => {
+    const n = NOTES.find(x => x.id === Number(b.dataset.id));
+    if (!n) return;
+    $('cn_date').value = n.note_date;
+    $('cn_text').value = n.content;
+    $('cnAdd').dataset.editId = String(n.id);
+    $('cnAdd').textContent = '고쳐 저장';
+    $('cn_text').focus();
+  });
+
+  $('cnRows').querySelectorAll('.cnDel').forEach(b => b.onclick = async () => {
+    if (!confirm('이 상담 메모를 지울까요?')) return;
+    const { error } = await sb.from('nl_child_notes').delete().eq('id', Number(b.dataset.id));
+    if (error) { $('cnMsg').style.color = '#c62828';
+                 $('cnMsg').textContent = '❌ 지우지 못했습니다: ' + error.message; return; }
+    await loadNotes(edId);
+    $('cnMsg').style.color = '#2e7d32';
+    $('cnMsg').textContent = '✅ 지웠습니다.';
+  });
+}
+
+$('cnAdd').onclick = async () => {
+  if (!edId) return;
+  const txt = $('cn_text').value.trim();
+  if (!txt) { $('cnMsg').style.color = '#c62828';
+              $('cnMsg').textContent = '내용을 적으세요.'; return; }
+  const eid = $('cnAdd').dataset.editId ? Number($('cnAdd').dataset.editId) : null;
+  $('cnAdd').disabled = true;
+  const wasEdit = !!eid;
+  $('cnAdd').textContent = '저장 중...';
+  try {
+    let error;
+    if (eid) {
+      ({ error } = await sb.from('nl_child_notes')
+        .update({ note_date: $('cn_date').value || tdy(), content: txt,
+                  updated_at: new Date().toISOString() }).eq('id', eid));
+    } else {
+      ({ error } = await sb.from('nl_child_notes')
+        .insert({ child_id: edId, note_date: $('cn_date').value || tdy(),
+                  content: txt, staff_id: MEID }));
+    }
+    if (error) throw error;
+    await loadNotes(edId);
+    $('cnMsg').style.color = '#2e7d32';
+    $('cnMsg').textContent = wasEdit ? '✅ 고쳤습니다.' : '✅ 메모를 넣었습니다.';
+  } catch (e) {
+    $('cnMsg').style.color = '#c62828';
+    $('cnMsg').textContent = '❌ 저장하지 못했습니다: ' + e.message;
+  } finally {
+    $('cnAdd').disabled = false;
+    if ($('cnAdd').textContent === '저장 중...') $('cnAdd').textContent = '메모 추가';
+  }
+};
 
 // ── 평가보고서 (2026-09-11) ──────────────────
 // 우리 센터 평가마다 「평가보고서」 단추, 맨 아래 「타기관 평가보고서」 단추.
@@ -1283,7 +1476,7 @@ $('saveEdit').onclick = async () => {
   try {
     const { data, error } = await sb.from('nl_children')
       .update(up).eq('id', edId)
-      .select('id, manager_no, name, birth, gender, status, memo, phone, guardian, diagnosis, disability, school, grade_year')
+      .select('id, manager_no, name, birth, gender, status, memo, memo_at, phone, guardian, diagnosis, disability, school, grade_year')
       .single();
     if (error) throw error;
 
