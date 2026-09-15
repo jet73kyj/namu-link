@@ -1739,6 +1739,7 @@ function keepSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
 let VIEW = 'day';       // day = 요일별, week = 치료사별 주간
 let mkSess = null;      // 지금 보강 잡는 결석 회기
 let CAN_EDIT = false;   // 수업을 넣고 고칠 수 있는 사람인가 (관리자 8 · 행정 9)
+let ME_ID    = null;    // 로그인한 직원 번호 (2026-09-15 보강 선생님 바꾸기)
 let MY_TH    = null;    // 치료사로 로그인했으면 그 번호. 자기 칸만 보인다
 // 「보강이 필요한 줄」 — 서버 한 곳(nl_need_rows)이 정한 것 (2026-09-11)
 //   직원은 nl_staff_need_all, 치료사는 nl_th_need 로 받는다. 학부모(nl_parent_need)와 같은 셈
@@ -6862,6 +6863,57 @@ function splitBusy(h, side){
     && Number(x.minutes || 40) === 40
     && nearest(toMin(x.start_time)).no === no);
 }
+// ── 보강 선생님 바꾸기 (2026-09-15) ────────────────
+function mkThCanChange() { return ME_ID === 8 || ME_ID === 9; }
+function mkTtOf(s) {
+  const r = ROWS_ALL.find(x => Number(x.id) === Number(s.schedule_id))
+         || ROWS_ALL.find(x => Number(x.therapy_id) === Number(s.therapy_id));
+  return r ? r._tt : null;
+}
+function mkThSetup(s, has) {
+  const sel = $('mk_th');
+  const orig = Number(s.therapist_id);
+  const cur = has ? Number(has.therapist_id) : orig;
+  const tt = mkTtOf(s);
+  const list = (THS_ALL.length ? THS_ALL : THS)
+    .filter(t => Number(t.id) === orig || Number(t.id) === cur
+              || tt == null || thOkForTt(tt, t.id));
+  sel.innerHTML = list.map(t => '<option value="' + t.id + '">'
+    + esc(t.name) + (Number(t.id) === orig ? ' (원래 선생님)' : '') + '</option>').join('');
+  sel.value = String(cur);
+  sel.disabled = !mkThCanChange();
+  mkThChanged(true);
+}
+// 선생님을 바꾸면 — 쪼개기는 원래 선생님만 되므로 막고, 찾아 둔 빈 자리는 지운다
+function mkThChanged(first) {
+  if (!mkSess) return;
+  const other = Number($('mk_th').value) !== Number(mkSess.therapist_id);
+  const wrap = $('mkSplitWrap');
+  let note = $('mkThNote');
+  if (!note) {
+    note = document.createElement('div');
+    note.id = 'mkThNote';
+    note.style.cssText = 'margin-top:8px;padding:7px 10px;border-radius:7px;'
+      + 'background:#fff8e1;border:1px solid #ffcc80;color:#8a5a00;font-size:12.5px;';
+    wrap.parentNode.insertBefore(note, wrap);
+  }
+  if (other) {
+    MKSPLIT = {};
+    wrap.style.display = 'none';
+    note.style.display = '';
+    note.textContent = '다른 선생님이 40분 보강을 맡습니다. 쪼개기는 원래 선생님만 할 수 있어 막았습니다. '
+      + '급여는 보강하신 선생님께 잡힙니다.';
+  } else {
+    wrap.style.display = '';
+    note.style.display = 'none';
+  }
+  if (!first) {
+    $('mkFree').innerHTML = '';
+    drawSplit();
+  }
+}
+$('mk_th').addEventListener('change', () => mkThChanged(false));
+
 function drawSplit(){
   const box = $('mkSplit'), sum = $('mkSplitSum');
   if (!box || !mkSess) return;
@@ -7085,8 +7137,10 @@ function openMk(absId){
   $('mkFree').innerHTML = '';
   mkMinCheck();
   // 그 날 창 칸 되돌리기 (2026-09-11) — 선생님은 원래 선생님으로 고정 (원칙 5)
-  $('mk_th').value = String(s.therapist_id);
-  $('mk_th').disabled = true;
+  // 2026-09-15 바뀜 — 원래 선생님이 도저히 안 될 때 대표·행정(8·9번)은 40분 보강 선생님을 바꿀 수 있다
+  //   고를 수 있는 선생님은 그 치료 종류를 맡을 수 있는 분만 (RULE · thOkForTt)
+  //   데스크(11번)·치료사는 원래 선생님 고정
+  mkThSetup(s, has);
   $('mkStat').style.display = 'none';
   $('mkHave').style.display = 'none';
   $('mkSec').style.display = '';
@@ -7350,7 +7404,10 @@ $('mkFind').onclick = async () => {
   if (!mkSess) return;
   const s = mkSess;
   $('mkFree').innerHTML = '<div class="freenone">찾는 중…</div>';
-  const { data, error } = await sb.rpc('nl_mk_slots', { p_session: s.id });
+  const thPick = Number($('mk_th').value) || Number(s.therapist_id);
+  const { data, error } = (thPick !== Number(s.therapist_id))
+    ? await sb.rpc('nl_mk_slots', { p_session: s.id, p_therapist: thPick })
+    : await sb.rpc('nl_mk_slots', { p_session: s.id });
   if (error) {
     $('mkFree').innerHTML = '<div class="freenone">빈자리를 가져오지 못했습니다. ' + esc(error.message) + '</div>';
     return;
@@ -7370,7 +7427,7 @@ $('mkFind').onclick = async () => {
       const sl = nearest(toMin(t));
       $('mk_date').value = d;
       $('mk_slot').value = String(sl.no);
-      $('mk_hm').value = (slotHm(sl, s.therapist_id, wdOf(d)) === t) ? '' : t;
+      $('mk_hm').value = (slotHm(sl, thPick, wdOf(d)) === t) ? '' : t;
       $('mkFree').innerHTML = '';
       mkmsg(dLbl(d) + ' ' + h12(t) + ' 를 골랐습니다. 「저장」을 누르세요.', true);
     };
@@ -8069,6 +8126,7 @@ async function afterLogin(user){
   CAN_EDIT = (me.id === 8 || me.id === 9 || me.id === 11);   // 관리자·행정·데스크
   MY_TH = (me.id >= 1 && me.id <= 7) ? me.id : null;  // 치료사는 자기 것만
   IS_BOSS = (me.id === 8);
+  ME_ID = Number(me.id);
 
   // 하루 한 번 시간표 자료를 통째로 백업한다 (2026-09-08)
   //   같은 날 여러 번 열어도 한 번만 담긴다. 14일 지난 것은 저절로 지워진다
