@@ -101,6 +101,7 @@
             border-radius:7px; background:#fff; color:#4a7c59;
             font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
   .absbtn.wait { border-color:#ffcc80; background:#fff8ec; color:#e65100; }
+  .absbtn.undo { border-color:#bcd7ef; background:#f1f7fd; color:#0c447c; }
   .askinfo { font-size:13.5px; color:#5a6156; background:#f4f7f2;
              border-radius:8px; padding:10px 12px; margin-bottom:14px; }
   .asklb { display:block; font-size:12.5px; font-weight:700; color:#4a5a48;
@@ -1142,7 +1143,10 @@ async function loadMonth() {
     const { data: rq } = await sb.from('nl_absence_requests')
       .select('id, session_id, state, makeup_date, makeup_time')
       .eq('child_id', CURKID);
-    (rq || []).forEach(r => { REQS[r.session_id] = r; });
+    (rq || []).forEach(r => {
+      if (r.state === '취소' || r.state === '반려') return;   // 되돌린 것은 다시 신청할 수 있게
+      REQS[r.session_id] = r;
+    });
   } catch (e) {}
 
   // 보강 회기의 「원래 어느 날 것인지」를 가져온다 (전월 보강을 알려주려고)
@@ -1203,7 +1207,8 @@ async function loadMonth() {
       if (rq) {
         btn = rq.state === '신청'
           ? '<button class="absbtn wait" data-cancel="' + rq.id + '">확인 중 · 요청 취소</button>'
-          : '';
+          : (rq.state === '반려' ? ''
+             : '<button class="absbtn undo" data-undo="' + rq.id + '">결석 취소</button>');
       } else if (st === '예정' && canAsk(d, r.start_time)) {
         btn = '<button class="absbtn" data-ask="' + r.id + '"'
             + ' data-thr="' + (r.therapist_id || '') + '"'
@@ -1329,7 +1334,7 @@ async function drawNeed() {
     reqs = rq || [];
   } catch (e) {}
   const RQ = {};
-  reqs.forEach(r => { if (r.state !== '반려') RQ[r.session_id] = r; });
+  reqs.forEach(r => { if (r.state !== '반려' && r.state !== '취소') RQ[r.session_id] = r; });
 
   if (!miss.length && !shorts.length) return;
 
@@ -1368,7 +1373,9 @@ async function drawNeed() {
           : '')
        + '</div>'
        + (q
-          ? '<button class="needbtn gray" data-cancel="' + q.id + '">요청 취소</button>'
+          ? (q.state === '신청'
+             ? '<button class="needbtn gray" data-cancel="' + q.id + '">요청 취소</button>'
+             : '<button class="needbtn gray" data-undo="' + q.id + '">결석 취소</button>')
           : '<button class="needbtn" data-ask="' + r.session_id + '"'
             + ' data-d="' + r.plan_date + '" data-t="' + hhmm(r.start_time) + '"'
             + ' data-thr="' + (r.therapist_id || '') + '"'
@@ -1428,6 +1435,24 @@ function bindAsk() {
   document.querySelectorAll('button[data-cancel]').forEach(b => {
     b.onclick = () => cancelAsk(Number(b.dataset.cancel));
   });
+  document.querySelectorAll('button[data-undo]').forEach(b => {
+    b.onclick = () => undoAbsence(Number(b.dataset.undo), b);
+  });
+}
+
+// 확정된 결석 되돌리기 — 보강까지 함께 지운다
+async function undoAbsence(id, btn) {
+  if (!confirm('결석을 취소할까요?\n\n수업은 원래대로 진행되고,\n잡혀 있던 보강 일정은 지워집니다.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '취소 중...'; }
+  try {
+    const { data, error } = await sb.rpc('nl_parent_cancel', { p_req_id: id });
+    if (error) throw error;
+    alert(data || '취소했습니다.');
+    await loadMonth();
+  } catch (e) {
+    alert('취소하지 못했습니다.\n자라는나무 042-488-6011 로 연락해 주세요.');
+    if (btn) { btn.disabled = false; btn.textContent = '결석 취소'; }
+  }
 }
 
 // 낸 신청 취소하기
