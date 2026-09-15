@@ -931,6 +931,7 @@ function drawTimeline() {
     let body = g.items.map(e =>
       esc(String(e.eval_date).slice(5, 7) + '월 ' + String(e.eval_date).slice(8, 10) + '일')
       + ' · ' + esc(evTypeName(e.eval_type_id)) + ' ' + (e.item_cnt || 1) + '개'
+      + (e.therapist_id ? ' · ' + esc(evThrName(e.therapist_id)) : '')
       + (e.fee ? ' · ' + Number(e.fee).toLocaleString() + '원' : '')
       + (e.status === '예정' ? ' <span style="color:#e65100;">예정</span>' : '')
     ).join('<br>');
@@ -1081,6 +1082,11 @@ function evGroups(cid) {
     gs.push({ first: String(e.eval_date), last: String(e.eval_date), items: [e] });
   });
   return gs;
+}
+
+function evThrName(id) {
+  const t = THRS.find(x => x.id === Number(id));
+  return t ? t.name : '';
 }
 
 function evTypeName(id) {
