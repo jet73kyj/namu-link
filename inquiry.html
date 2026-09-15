@@ -175,6 +175,7 @@
     <button id="wlBtn" class="tab" style="background:#00695c;color:#fff;font-weight:bold;">⏳ 자리 대기 명단</button>
     <button class="tab" data-st="그룹대기">그룹대기</button>
     <button id="wlGBtn" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">👥 그룹 대기 명단</button>
+    <button id="reBtn" class="tab" style="background:#ad6800;color:#fff;font-weight:bold;">🔔 재평가 대상 <span id="reN"></span></button>
     <span class="count" id="count"></span>
   </div>
 
@@ -276,6 +277,20 @@
       <button id="cancelNew" class="tab" style="display:none;">취소</button>
     </div>
     <div id="msgA" class="out"></div>
+  </div>
+
+  <!-- 재평가 대상 창 -->
+  <div id="reBox" class="panel" style="display:none;">
+    <div class="panel-t">🔔 재평가 대상 — 마지막 평가일에서 1년 뒤</div>
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <button type="button" id="rePrev" class="tab">‹ 지난달</button>
+      <span id="reMon" style="font-weight:bold; font-size:15px; min-width:120px; text-align:center;"></span>
+      <button type="button" id="reNext" class="tab">다음달 ›</button>
+      <button type="button" id="reThis" class="tab">이번 달</button>
+      <span id="reSum" style="color:#666; font-size:13px; margin-left:6px;"></span>
+      <button type="button" id="reClose" class="tab" style="margin-left:auto;">닫기</button>
+    </div>
+    <div id="reRows"></div>
   </div>
 
   <!-- 자리 대기 명단 창 -->
@@ -883,6 +898,88 @@ $('goNew').onclick = () => {
   resetAddBox();
   draw();
   $('addBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+// ── 재평가 대상 창 ──────────────────────────────
+let reYM = null;   // 보고 있는 달 {y, m}
+
+function reList(y, m) {
+  const out = [];
+  KIDS.forEach(k => {
+    if (k.status === '종결') return;
+    const ds = EVALS.filter(e => e.child_id === k.id && e.eval_date && e.status !== '취소')
+                    .map(e => String(e.eval_date)).sort();
+    if (!ds.length) return;
+    const last = ds[ds.length - 1];
+    if (Number(last.slice(0, 4)) + 1 !== y) return;
+    if (Number(last.slice(5, 7)) !== m) return;
+    out.push({ id: k.id, name: k.name, phone: k.phone || '', last: last, cnt: ds.length });
+  });
+  out.sort((a, b) => String(a.last).localeCompare(String(b.last)));
+  return out;
+}
+
+function reDraw() {
+  if (!reYM) { const n = new Date(); reYM = { y: n.getFullYear(), m: n.getMonth() + 1 }; }
+  const rows = reList(reYM.y, reYM.m);
+  $('reMon').textContent = reYM.y + '년 ' + reYM.m + '월';
+  $('reSum').textContent = rows.length ? rows.length + '명' : '';
+  if (!rows.length) {
+    $('reRows').innerHTML = '<div class="kidnone">이 달에 재평가할 아동이 없습니다.</div>';
+    return;
+  }
+  $('reRows').innerHTML =
+    '<table class="tb"><thead><tr>'
+    + '<th style="width:70px;">번호</th><th style="width:110px;">아동</th>'
+    + '<th style="width:120px;">마지막 평가일</th><th style="width:70px;">평가 건수</th>'
+    + '<th>연락처</th><th style="width:80px;"></th>'
+    + '</tr></thead><tbody>'
+    + rows.map(r =>
+        '<tr><td>' + r.id + '번</td><td>' + esc(r.name) + '</td>'
+        + '<td>' + esc(r.last) + '</td><td>' + r.cnt + '건</td>'
+        + '<td>' + esc(r.phone) + '</td>'
+        + '<td><button type="button" class="tab reopen" data-cid="' + r.id + '"'
+        + ' style="padding:3px 10px;font-size:12px;">열기</button></td></tr>'
+      ).join('')
+    + '</tbody></table>';
+
+  $('reRows').querySelectorAll('.reopen').forEach(b => {
+    b.onclick = () => {
+      const cid = Number(b.dataset.cid);
+      const q = ALL.filter(x => x.child_id === cid)
+                   .sort((a, c) => c.id - a.id)[0];
+      if (!q) { alert(cid + '번 아동은 문의 줄이 없어 열 수 없습니다.\n아동 목록에서 보세요.'); return; }
+      $('reBox').style.display = 'none';
+      openDetail(q.id);
+    };
+  });
+}
+
+function reCount() {
+  const n = new Date();
+  const c = reList(n.getFullYear(), n.getMonth() + 1).length;
+  $('reN').textContent = c ? c + '명' : '';
+}
+
+$('reBtn').onclick = () => {
+  const open = $('reBox').style.display === 'block';
+  if (open) { $('reBox').style.display = 'none'; return; }
+  $('detBox').style.display = 'none';
+  $('reBox').style.display = 'block';
+  const n = new Date();
+  reYM = { y: n.getFullYear(), m: n.getMonth() + 1 };
+  reDraw();
+  $('reBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+$('reClose').onclick = () => { $('reBox').style.display = 'none'; };
+$('rePrev').onclick = () => {
+  reYM.m--; if (reYM.m < 1) { reYM.m = 12; reYM.y--; } reDraw();
+};
+$('reNext').onclick = () => {
+  reYM.m++; if (reYM.m > 12) { reYM.m = 1; reYM.y++; } reDraw();
+};
+$('reThis').onclick = () => {
+  const n = new Date(); reYM = { y: n.getFullYear(), m: n.getMonth() + 1 }; reDraw();
 };
 
 // 다음 재평가 — 취소가 아닌 평가 중 가장 늦은 날짜 + 12개월
@@ -2013,6 +2110,7 @@ async function afterLogin(user) {
   EVFEES  = (ef.data || []).filter(x => x.active !== false);
   THRS    = (th.data || []).filter(x => x.active !== false);
   EVALS   = ev.data || [];
+  reCount();
 
   $('e_type').innerHTML = EVTYPES.map(t =>
     '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
