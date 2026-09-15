@@ -1738,6 +1738,10 @@ $('saveEdit').onclick = async () => {
     try { gmsg += await saveGrade(edId); await loadGrade(edId); }
     catch (ge) { gmsg += '\n⚠️ 등급은 저장하지 못했습니다. ' + ge.message; }
 
+    const cNow = ALL.find(x => x.id === edId);
+    if (cNow) drawBasic(cNow);
+    drawMobile(edId);
+    openBasicForm(false);   // 저장하면 글자 화면으로 돌아간다
     show4('✅ 저장했습니다.'
       + (before && before.status !== newSt
          ? '\n상태를 ' + newSt + ' 로 바꿨습니다. 시간표와 납부 내역에도 반영됩니다.' : '')
