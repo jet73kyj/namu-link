@@ -264,6 +264,11 @@
       </div>
 
       <div id="e_form" style="display:none; margin-top:10px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+          <b style="font-size:13px; color:#1565c0;">수정 중</b>
+          <button type="button" id="e_backTop" class="tab"
+                  style="margin-left:auto; padding:5px 12px;">← 돌아가기</button>
+        </div>
         <div class="addgrid">
           <div>
             <label for="e_no">관리번호</label>
@@ -1152,6 +1157,7 @@ function openBasicForm(on) {
 }
 $('e_editBtn').onclick = () => openBasicForm(true);
 $('e_formX').onclick   = () => openBasicForm(false);
+$('e_backTop').onclick = () => openBasicForm(false);
 
 // ── 평가 요약 (2026-09-15) ──
 function esShow(text) {
