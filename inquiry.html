@@ -183,19 +183,24 @@
   <div id="addBox" class="panel" style="display:block;">
     <div class="panel-t">새 문의 등록</div>
     <div class="grid">
+      <div style="grid-column:1 / -1; display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div style="width:200px;">
+          <label for="k_name">아동 이름 <span style="color:#c62828;">*</span></label>
+          <input id="k_name" type="text" autocomplete="off" placeholder="이름을 넣으세요">
+        </div>
+        <div style="width:190px;">
+          <label for="k_birth">생년월일</label>
+          <input id="k_birth" type="date">
+        </div>
+        <div id="k_age" style="font-size:14px; font-weight:600; color:#2e7d32;
+             padding-bottom:10px; min-width:110px;"></div>
+        <div style="margin-left:auto; padding-bottom:10px; color:#1c1f1a; font-weight:600;">
+          문의일 : <span id="dateTxt"></span></div>
+      </div>
       <div style="grid-column:1 / -1;">
-        <label for="k_name" style="display:flex;justify-content:space-between;align-items:baseline;">
-          <span>아동 이름 <span style="color:#c62828;">*</span></span>
-          <span style="color:#1c1f1a;font-weight:600;">문의일 : <span id="dateTxt"></span></span>
-        </label>
-        <input id="k_name" type="text" autocomplete="off" placeholder="이름을 넣으세요">
-        <div id="dupWarn" style="display:none;margin-top:6px;padding:9px 11px;
+        <div id="dupWarn" style="display:none;padding:9px 11px;
              border-radius:6px;background:#fff8e1;border:1px solid #f0c36d;
              color:#8a6116;font-size:13px;line-height:1.6;"></div>
-      </div>
-      <div>
-        <label for="k_birth">생년월일</label>
-        <input id="k_birth" type="date">
       </div>
       <div>
         <label for="k_gender">성별</label>
@@ -2058,6 +2063,7 @@ function resetAddBox() {
     .forEach(k => $(k).value = '');
   $('k_memo').value = MEMO_TMPL;
   $('k_evalsum').value = '';
+  $('k_age').textContent = '';
   $('k_gender').value = '';
   $('k_status').value = '대기중';
   $('dupWarn').style.display = 'none';
@@ -2111,6 +2117,24 @@ function sameNamed(nm) {
   if (!t) return [];
   return KIDS.filter(k => (k.name || '').trim() === t);
 }
+
+// 생년월일 → 몇 년 몇 개월 (등록 창)
+function ageText(b) {
+  if (!b) return '';
+  const d = new Date(String(b) + 'T00:00:00');
+  if (isNaN(d)) return '';
+  const n = new Date();
+  let m = (n.getFullYear() - d.getFullYear()) * 12 + (n.getMonth() - d.getMonth());
+  if (n.getDate() < d.getDate()) m--;
+  if (m < 0) return '';
+  return Math.floor(m / 12) + '년 ' + (m % 12) + '개월';
+}
+function drawAge() {
+  const t = ageText($('k_birth').value);
+  $('k_age').textContent = t ? '만 ' + t : '';
+}
+$('k_birth').addEventListener('input',  drawAge);
+$('k_birth').addEventListener('change', drawAge);
 
 $('k_name').addEventListener('input', () => {
   const hit = sameNamed($('k_name').value);
