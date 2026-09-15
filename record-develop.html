@@ -137,6 +137,7 @@
   <select id="pChild" style="min-width:220px;"></select>
   <input id="pMonth" type="month" onchange="buildChildList();drawChildSelect();">
   <button id="pLoad">불러오기</button>
+  <button type="button" id="pIntake" style="background:#e3f0fb;color:#0c447c;border:1px solid #85b7eb;border-radius:7px;font-weight:600;">📋 상담 · 보고서</button>
   <span id="pInfo"></span>
 </div>
 
@@ -314,6 +315,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
+<script src="nl-evaldocs.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
@@ -425,6 +427,7 @@ async function afterLogin(user) {
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
+  if (window.NLDocs) NLDocs.init(sb, me.id);   // 상담·보고서 보기 창 (보기 전용)
   ME = me;
   if (_isBlocked(me.role)) { _blockScreen(me.role); return; }
 
@@ -1159,6 +1162,14 @@ function _toggleOpt(el) {
 
 
 $('pLoad').onclick = loadOne;
+// 초기 상담·평가보고서 보기 전용 창 (2026-09-15)
+$('pIntake').onclick = () => {
+  if ($('pChild').value === '') { alert('아동을 고르세요.'); return; }
+  const cid = $('pChild').value;
+  if (!cid) { alert('아동을 고르세요.'); return; }
+  if (!window.NLDocs) { alert('보기 창을 불러오지 못했습니다. 화면을 새로 열어 주세요.'); return; }
+  NLDocs.openIntake(cid);
+};
 $('btn').onclick = async () => {
   const email = $('em').value.trim().toLowerCase();
   const pw    = $('pw').value;

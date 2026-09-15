@@ -1,6 +1,7 @@
 // =====================================================================
 // nl-evaldocs.js — 평가보고서 올리기·보기 (2026-09-11 만듦)
 //   쓰는 곳: inquiry.html(신규 아동 관리) · children-new.html(아동 목록)
+//            record-develop · record-support · record-center (보기 전용, 2026-09-15)
 //   파일    : Supabase 저장소 nl-evaldocs / 아동번호 / 영어이름.jpg
 //   목록 표 : nl_eval_docs (파일 한 개 = 한 줄)
 //   보는 사람: 8·9번 + 그 아동 담당 치료사 / 올리기·지우기: 8·9번만 (표·저장소 잠금)
@@ -119,6 +120,8 @@
   async function open(o) {
     ensureStyle();
     close();
+    // o.view 가 참이면 누구든 보기만 (기록지 화면에서 부를 때)
+    const ED = canUse() && !o.view;
     const isCenter = o.source === '센터';
     const wrap = document.createElement('div');
     wrap.id = 'nlDocWrap';
@@ -130,7 +133,7 @@
       +     (isCenter && o.title ? ' · ' + esc(o.title) : '') + '</div></div>'
       +   '<button type="button" data-a="close">닫기</button>'
       + '</div>'
-      + (canUse()
+      + (ED
         ? '<div class="up">'
           + '<div><label>' + (isCenter ? '문서 이름' : '기관·문서 이름') + '</label>'
           +   '<input type="text" class="t" style="width:230px;" placeholder="'
@@ -185,7 +188,7 @@
         return '<div class="grp" data-g="' + gi + '">'
           + '<div class="gh"><b>' + esc(L[0].title || '(이름 없음)') + ' · ' + md(L[0].doc_date) + ' · ' + kind + '</b>'
           +   '<button type="button" data-a="all" data-g="' + gi + '">한꺼번에 보기</button>'
-          +   (canUse() ? '<button type="button" class="del" data-a="gdel" data-g="' + gi + '">묶음 지우기</button>' : '')
+          +   (ED ? '<button type="button" class="del" data-a="gdel" data-g="' + gi + '">묶음 지우기</button>' : '')
           + '</div>'
           + L.map((r, i) =>
               '<div class="it"' + (i >= SHOWN ? ' data-hide="1" style="display:none;"' : '') + '>'
@@ -193,7 +196,7 @@
               + '<span style="display:flex;gap:6px;">'
               +   '<button type="button" data-a="one" data-id="' + r.id + '">'
               +     (isDoc(r) ? '내려받기' : '보기') + '</button>'
-              +   (canUse() ? '<button type="button" class="del" data-a="del" data-id="' + r.id + '">지우기</button>' : '')
+              +   (ED ? '<button type="button" class="del" data-a="del" data-id="' + r.id + '">지우기</button>' : '')
               + '</span></div>').join('')
           + (L.length > SHOWN ? '<div class="more" data-a="more">나머지 ' + (L.length - SHOWN) + '개 펼치기</div>' : '')
           + '</div>';
@@ -385,6 +388,104 @@
     if (w) w.remove();
   }
 
+
+  // ---------- 초기 상담 + 평가보고서 보기 전용 창 (2026-09-15) ----------
+  // 기록지 세 화면이 부른다. 표 잠금이 담당 아동 것만 내려준다
+  function closeIntake() {
+    const w = document.getElementById('nlIntakeWrap');
+    if (w) w.remove();
+  }
+  function ageOf(b) {
+    if (!b) return '';
+    const d = new Date(String(b) + 'T00:00:00');
+    if (isNaN(d)) return '';
+    const n = new Date();
+    let m = (n.getFullYear() - d.getFullYear()) * 12 + (n.getMonth() - d.getMonth());
+    if (n.getDate() < d.getDate()) m--;
+    if (m < 0) return '';
+    return '만 ' + Math.floor(m / 12) + '년 ' + (m % 12) + '개월';
+  }
+  async function openIntake(cid) {
+    ensureStyle();
+    closeIntake();
+    cid = Number(cid);
+    if (!SB || !cid) { alert('아동을 먼저 고르세요.'); return; }
+    const wrap = document.createElement('div');
+    wrap.id = 'nlIntakeWrap';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;'
+      + 'display:flex;align-items:flex-start;justify-content:center;overflow:auto;'
+      + 'padding:30px 12px;box-sizing:border-box;';
+    wrap.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:720px;width:100%;'
+      + 'padding:18px 20px;box-sizing:border-box;font-size:14px;color:#333;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
+      +   '<div class="ik-h" style="font-size:16px;font-weight:bold;color:#1a468f;">' + cid + '번</div>'
+      +   '<button type="button" data-x="1" style="width:auto;margin:0;padding:6px 12px;border-radius:7px;'
+      +     'border:1px solid #cfd6cc;background:#fff;color:#444;font-size:13px;cursor:pointer;">닫기</button>'
+      + '</div>'
+      + '<div class="ik-m" style="margin-top:14px;">불러오는 중...</div>'
+      + '<div style="margin-top:16px;font-weight:bold;">평가보고서</div>'
+      + '<div class="ik-d" style="margin-top:4px;">불러오는 중...</div>'
+      + '<div style="margin-top:12px;color:#999;font-size:12px;">보기 전용입니다. 고칠 내용은 행정실에 말씀해 주세요.</div>'
+      + '</div>';
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', ev => {
+      if (ev.target === wrap || ev.target.closest('[data-x]')) closeIntake();
+    });
+
+    const [ch, dc] = await Promise.all([
+      SB.from('nl_children').select('id, name, birth, memo, memo_at').eq('id', cid).maybeSingle(),
+      SB.from('nl_eval_docs').select('eval_id, source, title, doc_date').eq('child_id', cid)
+    ]);
+    if (!document.getElementById('nlIntakeWrap')) return;
+
+    const c = ch.data;
+    const kid = cid + '번 ' + (c && c.name ? c.name : '');
+    const ag = c ? ageOf(c.birth) : '';
+    wrap.querySelector('.ik-h').innerHTML = esc(kid)
+      + (ag ? ' <span style="font-weight:normal;color:#777;font-size:13px;">· ' + esc(ag) + '</span>' : '');
+    const mBox = wrap.querySelector('.ik-m');
+    if (ch.error) mBox.textContent = '❌ 초기 상담을 불러오지 못했습니다. ' + ch.error.message;
+    else if (!c) mBox.textContent = '이 아동의 정보를 볼 수 없습니다.';
+    else {
+      const memo = String(c.memo == null ? '' : c.memo).trim();
+      mBox.innerHTML = '<div style="font-weight:bold;">초기 상담'
+        + (c.memo_at ? ' <span style="font-weight:normal;color:#777;font-size:12.5px;">· ' + esc(c.memo_at) + ' 적음</span>' : '')
+        + '</div>'
+        + '<div style="background:#f5f7f4;border-radius:8px;padding:10px 12px;margin-top:5px;'
+        +   'white-space:pre-wrap;word-break:break-all;line-height:1.6;">'
+        +   (memo ? esc(memo) : '<span style="color:#999;">적힌 내용이 없습니다.</span>')
+        + '</div>';
+    }
+
+    const box = wrap.querySelector('.ik-d');
+    if (dc.error) { box.textContent = '❌ 보고서를 불러오지 못했습니다. ' + dc.error.message; return; }
+    // 우리 센터 것은 평가마다, 타기관 것은 한 묶음
+    const G = {};
+    (dc.data || []).forEach(r => {
+      const k = r.source === '타기관' ? 'other' : 'ev' + r.eval_id;
+      if (!G[k]) G[k] = { src: r.source === '타기관' ? '타기관' : '센터', ev: r.eval_id,
+                         title: r.title || '', date: r.doc_date || '', n: 0 };
+      G[k].n++;
+      if ((r.doc_date || '') > G[k].date) { G[k].date = r.doc_date || ''; G[k].title = r.title || G[k].title; }
+    });
+    const keys = Object.keys(G).sort((a, b) => (G[b].date || '').localeCompare(G[a].date || ''));
+    if (!keys.length) { box.innerHTML = '<div style="color:#999;padding:4px 0;">올린 보고서가 없습니다.</div>'; return; }
+    box.innerHTML = keys.map(k => {
+      const g = G[k];
+      const nm = g.src === '타기관' ? '타기관 평가보고서' : (g.title || '우리 센터 평가보고서');
+      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #eee;">'
+        + '<span style="flex:1;">' + esc(g.date || '날짜 없음') + ' · ' + esc(nm) + ' · 파일 ' + g.n + '개</span>'
+        + '<button type="button" data-k="' + k + '" style="width:auto;margin:0;padding:6px 12px;border-radius:7px;'
+        +   'border:1px solid #85b7eb;background:#e3f0fb;color:#0c447c;font-size:13px;font-weight:600;cursor:pointer;">보기</button></div>';
+    }).join('');
+    box.querySelectorAll('[data-k]').forEach(b => {
+      const g = G[b.dataset.k];
+      b.onclick = () => open(g.src === '타기관'
+        ? { cid: cid, kid: kid, source: '타기관', view: true }
+        : { cid: cid, kid: kid, source: '센터', evalId: Number(g.ev), title: g.title, date: g.date, view: true });
+    });
+  }
+
   function canUse() { return MEID === 8 || MEID === 9; }
 
   window.NLDocs = {
@@ -392,6 +493,8 @@
     canUse: canUse,
     count: count,
     open: open,
+    openIntake: openIntake,
+    closeIntake: closeIntake,
     close: close
   };
 })();
