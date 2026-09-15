@@ -945,6 +945,13 @@
           <label for="cs_kid">아동</label>
           <select id="cs_kid"></select>
         </div>
+        <div>
+          <label for="cs_meet">상담 방법</label>
+          <select id="cs_meet">
+            <option value="대면">대면</option>
+            <option value="비대면">비대면</option>
+          </select>
+        </div>
       </div>
       <div class="blkhint">상담할 교시를 하나 고르세요.</div>
       <div id="cs_slots" class="blkslots"></div>
@@ -1795,9 +1802,12 @@ let BLOCK  = new Set(); // 날짜#치료사#시각 -> 그 한 자리만 막음
 let CONS   = {};        // 날짜#치료사#시각 -> 평가 상담 (아동 이름)
 // 그 날·그 치료사·그 시각에 평가 상담이 있는지
 let KIDNM = {};         // 아동번호 -> 이름
-function kidLabel(cid) {
-  if (!cid) return '평가 상담';
-  return cid + '번 ' + (KIDNM[cid] || '') + ' 상담';
+function kidLabel(v) {
+  const cid  = (v && typeof v === 'object') ? v.cid  : v;
+  const meet = (v && typeof v === 'object') ? v.meet : '';
+  const tail = meet ? ' · ' + meet : '';
+  if (!cid) return '평가 상담' + tail;
+  return cid + '번 ' + (KIDNM[cid] || '') + ' 상담' + tail;
 }
 function consAt(dd, thId, hm) {
   if (thId == null || !hm) return null;
@@ -6373,6 +6383,7 @@ $('cnsSave').onclick = async () => {
     const { error } = await sb.from('nl_offdays').insert({
       off_date: d, kind: '상담', therapist_id: th,
       start_time: one.dataset.hm + ':00', child_id: cid,
+      meet_type: $('cs_meet').value,
       reason: '평가 상담'
     });
     if (error) throw error;
@@ -6483,7 +6494,7 @@ $('wkSave').onclick = async () => {
 
 async function drawOffList(){
   const { data } = await sb.from('nl_offdays')
-    .select('id, off_date, kind, therapist_id, reason, start_time, end_time, child_id')
+    .select('id, off_date, kind, therapist_id, reason, start_time, end_time, child_id, meet_type')
     .gte('off_date', mon + '-01').lte('off_date', monEnd(mon))
     .order('off_date');
   const KINDOF = { off:['공휴일','센터휴무','치료사휴무'], blk:['시간막음'],
@@ -6506,6 +6517,7 @@ async function drawOffList(){
       + (o.start_time ? ' · ' + h12(String(o.start_time).slice(0,5))
           + (o.kind === '추가근무'
               ? ' ~ ' + (o.end_time ? h12(String(o.end_time).slice(0,5)) : '끝까지') : '') : '')
+      + (o.meet_type ? ' · ' + esc(o.meet_type) : '')
       + (o.reason ? ' · ' + esc(o.reason) : '')
       + '<span class="del" data-off="' + o.id + '">✕</span></span>';
   }).join('');
@@ -7775,7 +7787,7 @@ async function loadMonth(){
   BAL = new Set();
   OFF = new Set(); OFFTXT = {}; BLOCK = new Set(); CONS = {}; WORKX = {};
   const { data: off } = await sb.from('nl_offdays')
-    .select('off_date, kind, therapist_id, reason, start_time, end_time, child_id')
+    .select('off_date, kind, therapist_id, reason, start_time, end_time, child_id, meet_type')
     .gte('off_date', mon + '-01').lte('off_date', monEnd(mon));
   (off || []).forEach(o => {
     // 「나오는 날」은 쉬는 날이 아니라 여는 날이다 (2026-09-11)
@@ -7794,7 +7806,8 @@ async function loadMonth(){
     // 「평가 상담」도 그 한 자리만 쓴다. 회기는 안 만든다
     if (o.kind === '상담') {
       CONS[o.off_date + '#' + o.therapist_id + '#'
-           + String(o.start_time || '').slice(0,5)] = o.child_id || 0;
+           + String(o.start_time || '').slice(0,5)] =
+             { cid: o.child_id || 0, meet: o.meet_type || '' };
       return;
     }
     if (o.therapist_id) {
