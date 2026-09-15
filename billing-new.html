@@ -1780,6 +1780,9 @@ function drawKid(c) {
       + '<div class="r gsum" data-st="2" data-fixed="' + (pv == null ? '' : pv) + '">'
       + '<span class="nm">발달재활서비스'
       + (gr ? ' <b>' + gr.grade + '형</b>' : '')
+      + ' <button class="grchg" type="button" style="padding:1px 7px;font-size:11px;'
+      + 'border:1px solid #bcd7ef;background:#f1f7fd;color:#0c447c;border-radius:6px;'
+      + 'cursor:pointer;">등급 바꾸기</button>'
       + '</span>'
       + '<span class="de">' + (gr ? '본인부담금'
           : '<span class="warn">등급이 없습니다. 아동 목록에서 먼저 넣으세요.</span>')
@@ -2628,6 +2631,37 @@ async function markNoMakeup(btn) {
   await load();
 }
 
+// ── 등급 바꾸기 (2026-09-15) — 아동 목록에서 옮겨 온 것 ──
+//   고른 달부터 적용된다. 지난 달 기록은 그대로 남는다
+const GRPAY = { '가': 20000, '나': 40000, '다': 0, '라': 60000, '마': 80000 };
+
+async function openGrade(cid) {
+  const mk  = LOADED_MK || $('mk').value;
+  const now = GRADES[cid];
+  const g = prompt(cid + '번 아동 — 발달재활 등급을 적으세요.\n'
+    + '가 20,000 / 나 40,000 / 다 0 / 라 60,000 / 마 80,000\n\n'
+    + '지금 등급: ' + (now ? now.grade + '형 · ' + Number(now.self_pay).toLocaleString() + '원' : '없음')
+    + '\n적용 시작: ' + mk + ' 부터 (지난 달은 그대로 남습니다)',
+    now ? now.grade : '');
+  if (g === null) return;
+  const gg = String(g).trim();
+  if (!gg) return;
+  if (!(gg in GRPAY)) { alert('가 · 나 · 다 · 라 · 마 가운데 하나를 적어 주세요.'); return; }
+
+  const pay = GRPAY[gg];
+  if (!confirm(cid + '번 아동 · ' + gg + '형 · 본인부담금 '
+      + pay.toLocaleString() + '원\n' + mk + ' 부터 적용합니다. 저장할까요?')) return;
+
+  const { error } = await sb.from('nl_child_grades')
+    .upsert({ child_id: cid, grade: gg, self_pay: pay, from_month: mk },
+            { onConflict: 'child_id,from_month' });
+  if (error) { alert('저장하지 못했습니다.\n' + error.message); return; }
+
+  GRADES[cid] = { child_id: cid, grade: gg, self_pay: pay, from_month: mk };
+  alert('✅ ' + gg + '형 · ' + pay.toLocaleString() + '원 (' + mk + ' 부터) 저장했습니다.\n'
+      + '금액은 「불러오기」를 다시 누르면 새로 셈합니다.');
+}
+
 $('kids').addEventListener('click', e => {
   // 날짜 단추 (2026-09-11)
   const sbEl = e.target.closest ? e.target.closest('.sb') : null;
@@ -2670,6 +2704,11 @@ $('kids').addEventListener('click', e => {
   // 「소득공제」 단추 — 교육비 납입증명서
   if (e.target.classList.contains('kdeduct')) {
     openDeduct(Number(e.target.closest('.kid').dataset.child));
+    return;
+  }
+
+  if (e.target.classList.contains('grchg')) {
+    openGrade(Number(e.target.closest('.kid').dataset.child));
     return;
   }
 
