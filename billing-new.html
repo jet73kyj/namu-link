@@ -2631,35 +2631,105 @@ async function markNoMakeup(btn) {
   await load();
 }
 
-// ── 등급 바꾸기 (2026-09-15) — 아동 목록에서 옮겨 온 것 ──
-//   고른 달부터 적용된다. 지난 달 기록은 그대로 남는다
-const GRPAY = { '가': 20000, '나': 40000, '다': 0, '라': 60000, '마': 80000 };
+// ── 등급 바꾸기 (2026-09-15) — 단추로 고른다. 적용 달도 고른다 ──
+const GRLIST = [['1', '가', 20000], ['2', '나', 40000], ['3', '다', 0],
+                ['4', '라', 60000], ['5', '마', 80000]];
 
-async function openGrade(cid) {
+function nextMonthOf(mk) {
+  const p = String(mk).split('-');
+  const d = new Date(Number(p[0]), Number(p[1]), 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function openGrade(cid) {
   const mk  = LOADED_MK || $('mk').value;
+  const nx  = nextMonthOf(mk);
   const now = GRADES[cid];
-  const g = prompt(cid + '번 아동 — 발달재활 등급을 적으세요.\n'
-    + '가 20,000 / 나 40,000 / 다 0 / 라 60,000 / 마 80,000\n\n'
-    + '지금 등급: ' + (now ? now.grade + '형 · ' + Number(now.self_pay).toLocaleString() + '원' : '없음')
-    + '\n적용 시작: ' + mk + ' 부터 (지난 달은 그대로 남습니다)',
-    now ? now.grade : '');
-  if (g === null) return;
-  const gg = String(g).trim();
-  if (!gg) return;
-  if (!(gg in GRPAY)) { alert('가 · 나 · 다 · 라 · 마 가운데 하나를 적어 주세요.'); return; }
 
-  const pay = GRPAY[gg];
-  if (!confirm(cid + '번 아동 · ' + gg + '형 · 본인부담금 '
-      + pay.toLocaleString() + '원\n' + mk + ' 부터 적용합니다. 저장할까요?')) return;
+  const w = document.createElement('div');
+  w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.42);display:flex;'
+    + 'align-items:center;justify-content:center;z-index:200;padding:20px;';
+  w.innerHTML =
+      '<div style="background:#fff;border-radius:14px;padding:20px;max-width:420px;width:100%;">'
+    + '<div style="font-size:16px;font-weight:700;margin-bottom:6px;">'
+    + cid + '번 아동 · 발달재활 등급</div>'
+    + '<div style="font-size:13px;color:#666;margin-bottom:14px;">지금 등급 — '
+    + (now ? now.grade + '형 · ' + Number(now.self_pay).toLocaleString() + '원 ('
+             + now.from_month + ' 부터)' : '없음') + '</div>'
+    + '<div style="font-size:12.5px;font-weight:700;color:#2c5c37;margin-bottom:6px;">등급</div>'
+    + '<div id="grPick" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">'
+    + GRLIST.map(g =>
+        '<button type="button" class="grOne" data-g="' + g[1] + '" data-p="' + g[2] + '"'
+        + ' style="flex:1;min-width:70px;padding:10px 4px;border:1px solid #d5dad2;'
+        + 'background:#fff;border-radius:8px;cursor:pointer;font-size:13px;">'
+        + g[0] + '. ' + g[1] + '<br><b style="font-size:12px;color:#666;">'
+        + (g[2] ? (g[2] / 10000) + '만' : '0') + '</b></button>').join('')
+    + '</div>'
+    + '<div style="font-size:12.5px;font-weight:700;color:#2c5c37;margin-bottom:6px;">언제부터</div>'
+    + '<div id="grWhen" style="display:flex;gap:6px;margin-bottom:16px;">'
+    + '<button type="button" class="grMk on" data-mk="' + mk + '"'
+    + ' style="flex:1;padding:10px;border:1px solid #2e7d32;background:#2e7d32;color:#fff;'
+    + 'border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">'
+    + Number(mk.slice(5)) + '월 (이번 달)</button>'
+    + '<button type="button" class="grMk" data-mk="' + nx + '"'
+    + ' style="flex:1;padding:10px;border:1px solid #d5dad2;background:#fff;'
+    + 'border-radius:8px;cursor:pointer;font-size:13px;">'
+    + Number(nx.slice(5)) + '월 (다음 달)</button>'
+    + '</div>'
+    + '<div id="grMsg" style="font-size:12.5px;color:#c62828;margin-bottom:8px;"></div>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<button type="button" id="grSave" style="flex:1;padding:11px;border:none;'
+    + 'background:#2e7d32;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;">저장</button>'
+    + '<button type="button" id="grX" style="flex:1;padding:11px;border:1px solid #d5dad2;'
+    + 'background:#fff;border-radius:8px;cursor:pointer;">닫기</button></div></div>';
+  document.body.appendChild(w);
 
-  const { error } = await sb.from('nl_child_grades')
-    .upsert({ child_id: cid, grade: gg, self_pay: pay, from_month: mk },
-            { onConflict: 'child_id,from_month' });
-  if (error) { alert('저장하지 못했습니다.\n' + error.message); return; }
+  let pickG = null, pickP = null, pickMk = mk;
+  if (now) {
+    const b = w.querySelector('.grOne[data-g="' + now.grade + '"]');
+    if (b) { b.style.background = '#2e7d32'; b.style.color = '#fff'; b.style.borderColor = '#2e7d32';
+             pickG = now.grade; pickP = Number(b.dataset.p); }
+  }
+  w.querySelectorAll('.grOne').forEach(b => b.onclick = () => {
+    w.querySelectorAll('.grOne').forEach(x => {
+      x.style.background = '#fff'; x.style.color = '#3b403d'; x.style.borderColor = '#d5dad2';
+    });
+    b.style.background = '#2e7d32'; b.style.color = '#fff'; b.style.borderColor = '#2e7d32';
+    pickG = b.dataset.g; pickP = Number(b.dataset.p);
+  });
+  w.querySelectorAll('.grMk').forEach(b => b.onclick = () => {
+    w.querySelectorAll('.grMk').forEach(x => {
+      x.style.background = '#fff'; x.style.color = '#3b403d'; x.style.borderColor = '#d5dad2';
+      x.style.fontWeight = 'normal';
+    });
+    b.style.background = '#2e7d32'; b.style.color = '#fff'; b.style.borderColor = '#2e7d32';
+    b.style.fontWeight = '700';
+    pickMk = b.dataset.mk;
+  });
 
-  GRADES[cid] = { child_id: cid, grade: gg, self_pay: pay, from_month: mk };
-  alert('✅ ' + gg + '형 · ' + pay.toLocaleString() + '원 (' + mk + ' 부터) 저장했습니다.\n'
-      + '금액은 「불러오기」를 다시 누르면 새로 셈합니다.');
+  const close = () => w.remove();
+  w.querySelector('#grX').onclick = close;
+  w.onclick = ev => { if (ev.target === w) close(); };
+
+  w.querySelector('#grSave').onclick = async () => {
+    if (!pickG) { w.querySelector('#grMsg').textContent = '등급을 고르세요.'; return; }
+    const btn = w.querySelector('#grSave');
+    btn.disabled = true; btn.textContent = '저장 중...';
+    const { error } = await sb.from('nl_child_grades')
+      .upsert({ child_id: cid, grade: pickG, self_pay: pickP, from_month: pickMk },
+              { onConflict: 'child_id,from_month' });
+    if (error) {
+      w.querySelector('#grMsg').textContent = '저장하지 못했습니다. ' + error.message;
+      btn.disabled = false; btn.textContent = '저장';
+      return;
+    }
+    if (pickMk === mk) GRADES[cid] = { child_id: cid, grade: pickG, self_pay: pickP, from_month: mk };
+    close();
+    alert('✅ ' + pickG + '형 · ' + pickP.toLocaleString() + '원 · '
+        + Number(pickMk.slice(5)) + '월부터 저장했습니다.'
+        + (pickMk === mk ? '\n금액을 다시 셈하려면 위 「불러오기」를 누르세요.'
+                         : '\n다음 달 화면에서 보입니다.'));
+  };
 }
 
 $('kids').addEventListener('click', e => {
