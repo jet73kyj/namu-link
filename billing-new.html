@@ -100,6 +100,14 @@
   .r.line.hasap input.apu { border-style:solid; border-color:#d8a349;
                             background:#fff; font-weight:600; }
   .oldup { text-decoration:line-through; color:#c0c5bc; }
+  /* 본인부담금 이번 달 금액 (2026-09-15) — 적으면 등급 금액보다 우선 */
+  .r input.spov { width:94px; padding:5px 4px; text-align:right; font-size:12.5px;
+                  border-style:dashed; color:#8a5a1a; }
+  .r input.spov::placeholder { color:#c9c9c0; font-size:11px; }
+  .r.gsum.hasov { background:#fdf6ea; border-radius:6px; }
+  .r.gsum.hasov input.spov { border-style:solid; border-color:#d8a349; background:#fff; font-weight:600; }
+  .r.gsum .spold { display:none; margin-left:6px; }
+  .r.gsum.hasov .spold { display:inline; }
   .aptag { font-size:11px; color:#a9701c; font-weight:600; margin-left:5px; }
   /* 줄 앞 딱지 — 어느 사업으로 청구되는지, 회기방식이 무엇인지 */
   .sttag { display:inline-block; font-size:11px; font-weight:600;
@@ -1809,9 +1817,11 @@ function drawKid(c) {
     const gr = GRADES[c.id];
     const pv = gr ? gr.self_pay : null;
     const ds = sv[2];
+    // 이번 달 금액 — 이번 달 저장분에서만 가져온다. 다음 달로 안 넘어간다 (2026-09-15)
+    const sov = selfOvOf(ds);
     b += '<div class="sect bank">계좌입금 · 발달재활서비스 본인부담금</div>'
       + '<div class="bankbody">'
-      + '<div class="r gsum" data-st="2" data-fixed="' + (pv == null ? '' : pv) + '">'
+      + '<div class="r gsum' + (sov ? ' hasov' : '') + '" data-st="2" data-fixed="' + (pv == null ? '' : pv) + '">'
       + '<span class="nm">발달재활서비스'
       + (gr ? ' <b>' + gr.grade + '형</b>' : '')
       + ' <button class="grchg" type="button" style="padding:1px 7px;font-size:11px;'
@@ -1821,8 +1831,13 @@ function drawKid(c) {
       + '<span class="de">' + (gr ? '본인부담금'
           : '<span class="warn">등급이 없습니다. 아동 목록에서 먼저 넣으세요.</span>')
       + (dev.items.length ? ' · <b class="thr">' + esc(thrName(dev.items[0].therapist_id)) + '</b>' : '')
+      + (pv ? '<span class="oldup spold">' + Number(pv).toLocaleString() + '</span>' : '')
       + '</span>'
-      + '<span class="ct"></span><span class="up"></span>'
+      + '<span class="ct"></span>'
+      + '<span class="up" style="flex:0 0 100px;">' + (gr && Number(pv) !== 0
+          ? '<input class="spov" type="text" inputmode="numeric" title="이번 달만 다른 금액을 받을 때 적습니다. 비우면 등급 금액"'
+            + ' placeholder="이번 달 금액" value="' + (sov ? sov.toLocaleString() : '') + '">'
+          : '') + '</span>'
       + '<span class="am gamt">0</span></div>'
       // 본인부담금이 0원이면(다형 등) 낼 것이 없으므로
       // 낸날·입금자명 칸을 내놓지 않는다. 줄 자체는 그대로 보인다.
@@ -1864,6 +1879,7 @@ function memoOf(p, isBank) {
        .replace(/\s*\[적용단가[0-9,]+\]/g, '')
        .replace(/\s*\[발추치료사\d+\]/g, '')
        .replace(/\s*\[발추방식[123]\]/g, '')
+       .replace(/\s*\[본인부담\d+\]/g, '')
        .replace(/\s*\[평가유형\d+\]/g, '').trim();
   if (m === '카드결제' || m === '자동계산' || m === '화면입력' || m === '계좌입금') return '';
   return m;
@@ -1931,6 +1947,11 @@ function extraTherapistOf(p) {
   return m ? Number(m[1]) : null;
 }
 
+// 저장된 메모에서 본인부담금 이번 달 금액을 꺼낸다  [본인부담45000]  (2026-09-15)
+function selfOvOf(p) {
+  const m = String((p && p.memo) || '').match(/\[본인부담(\d+)\]/);
+  return m ? Number(m[1]) : 0;
+}
 // 저장된 메모에서 적용단가 목록을 꺼낸다  [적용단가54000,0,0]
 function unitsOf(p) {
   const m = String((p && p.memo) || '').match(/\[적용단가([0-9,]+)\]/);
@@ -2017,6 +2038,11 @@ function calcKid(childId) {
 
     if (tr.dataset.fixed !== undefined) {
       amt = tr.dataset.fixed === '' ? 0 : Number(tr.dataset.fixed);
+      // 이번 달 금액을 적었으면 그 금액이 우선 (2026-09-15)
+      const ov = tr.querySelector('.spov');
+      const ovn = ov ? numOf(ov.value) : 0;
+      if (ovn > 0) amt = ovn;
+      tr.classList.toggle('hasov', ovn > 0);
     } else if (tr.querySelector('.xthr')) {
       const tid = Number(tr.querySelector('.xthr').value);
       const unit = feeExtra(tid);
@@ -2252,12 +2278,17 @@ async function saveKid(childId, btn, only) {
     // 승인번호 칸에 이미 붙어 있는 표시는 지우고 새로 붙인다
     // (안 그러면 저장할 때마다 [리뷰4]가 계속 쌓인다)
     let memo2 = String(memo)
-      .replace(/\s*\[(리뷰|회기|적용단가|발추치료사|발추방식|평가유형)[^\]]*\]/g, '')
+      .replace(/\s*\[(리뷰|회기|적용단가|발추치료사|발추방식|평가유형|본인부담)[^\]]*\]/g, '')
       .trim();
     {
       const rv0 = box.querySelector('.rv');
       const rvn = rv0 ? numOf(rv0.value) : 0;
       if (rvn > 0) memo2 += ' [리뷰' + rvn + ']';
+    }
+    if (p.st === 2) {
+      const ov = box.querySelector('.gsum[data-st="2"] .spov');
+      const ovn = ov ? numOf(ov.value) : 0;
+      if (ovn > 0) memo2 += ' [본인부담' + ovn + ']';
     }
     if (p.st === 8) {
       const el = box.querySelector('.gsum[data-st="8"] .xthr');
@@ -2442,9 +2473,9 @@ function monEndDay(mk){
 $('kids').addEventListener('input', e => {
   const t = e.target;
   if (t.classList.contains('cnt') || t.classList.contains('evamt')
-      || t.classList.contains('apu')) {
+      || t.classList.contains('apu') || t.classList.contains('spov')) {
     const box = t.closest('.kid');
-    if (t.classList.contains('evamt') || t.classList.contains('apu')
+    if (t.classList.contains('evamt') || t.classList.contains('apu') || t.classList.contains('spov')
         || t.classList.contains('co')) {
       const v = numOf(t.value);
       t.value = v === 0 ? '' : v.toLocaleString();
