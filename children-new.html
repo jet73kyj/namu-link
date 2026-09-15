@@ -69,6 +69,9 @@
   tbody tr { cursor:pointer; }
   table.readonly tbody tr { cursor:default; }
   .edmark { color:#1565c0; font-size:11.5px; font-weight:bold; }
+  .thview { width:auto; margin:0; padding:5px 10px; background:#e3f0fb; color:#0c447c;
+           border:1px solid #85b7eb; border-radius:7px; font-size:12.5px; font-weight:600;
+           cursor:pointer; white-space:nowrap; }
   .tel { font-size:12.5px; color:#00695c; margin-top:3px; white-space:nowrap; }
   /* 관리번호는 글자를 줄여서라도 한 줄로 */
   .mncell { white-space:nowrap; font-size:12.5px; color:#555; }
@@ -479,6 +482,8 @@ let PACC  = {};      // 아동번호 -> 학부모 계정
 let stFilter = '전체';  // 지금 고른 상태
 let MEID = null;        // 로그인한 직원 번호
 let CAN_EDIT = false;   // 8번 관리자 · 9번 행정만 true
+let CAN_TH   = false;   // 치료사(1~7번) — 담당 아동의 초기 상담·평가보고서 보기 (2026-09-15)
+let DOCN     = {};      // 아동 번호 -> 평가보고서 파일 수 (치료사 계정만 셈)
 let CAN_TEL  = false;   // 연락처 보기 — 위에 더해 11번 데스크도 true (2026-09-13)
 
 function show(text, ok) {
@@ -575,7 +580,7 @@ function draw() {
       + '<td class="telcell"><span class="telwrap">' + tel + '</span>'
         + accTag(c.id) + '</td>'
       + '<td class="memocell">' + esc(String(c.memo == null ? '' : c.memo)) + flag + '</td>'
-      + '<td class="edmark">' + (CAN_EDIT ? '고치기' : '') + '</td>'
+      + '<td class="edmark">' + (CAN_EDIT ? '고치기' : thBtn(c)) + '</td>'
       + '</tr>';
   }).join('');
 
@@ -690,6 +695,15 @@ async function afterLogin(user) {
   //    11번 데스크는 보기 전용 + 연락처까지 (전화 응대 자리)
   CAN_EDIT = [8, 9].includes(Number(me.id)) || /관리자|행정/.test(me.role || '');
   CAN_TEL  = CAN_EDIT || Number(me.id) === 11;
+  CAN_TH   = !CAN_EDIT && Number(me.id) >= 1 && Number(me.id) <= 7;
+  DOCN = {};
+  if (CAN_TH) {
+    // 표 잠금이 담당 아동 것만 내려준다
+    try {
+      const dc = await sb.from('nl_eval_docs').select('child_id').range(0, 999);
+      (dc.data || []).forEach(r => { DOCN[r.child_id] = (DOCN[r.child_id] || 0) + 1; });
+    } catch (e) { DOCN = {}; }
+  }
 
   if (!CAN_EDIT) {
     $('addBtn').style.display = 'none';          // ＋ 신규 등록 감추기
@@ -1482,6 +1496,98 @@ $('cnAdd').onclick = async () => {
     if ($('cnAdd').textContent === '저장 중...') $('cnAdd').textContent = '메모 추가';
   }
 };
+
+// ── 치료사 계정 — 초기 상담·평가보고서 보기 전용 창 (2026-09-15) ──
+// 선생님 목록의 맨 오른쪽 칸에 단추. 초기 상담이나 보고서가 있는 아동에만 붙는다
+function thBtn(c) {
+  if (!CAN_TH) return '';
+  const n = DOCN[c.id] || 0;
+  const memo = String(c.memo == null ? '' : c.memo).trim();
+  if (!memo && !n) return '';
+  return '<button type="button" class="thview" data-thv="' + c.id + '">📋 상담 · 보고서'
+       + (n ? ' ' + n : '') + '</button>';
+}
+
+function thClose() {
+  const w = document.getElementById('thvWrap');
+  if (w) w.remove();
+}
+
+async function thOpen(cid) {
+  thClose();
+  const c = ALL.find(x => x.id === cid);
+  if (!c) return;
+  const kid = cid + '번 ' + (c.name || '');
+  const memo = String(c.memo == null ? '' : c.memo).trim();
+  const wrap = document.createElement('div');
+  wrap.id = 'thvWrap';
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;'
+    + 'display:flex;align-items:flex-start;justify-content:center;overflow:auto;'
+    + 'padding:30px 12px;box-sizing:border-box;';
+  const ag = c.birth ? ageOf(c.birth) : '';
+  wrap.innerHTML =
+    '<div style="background:#fff;border-radius:12px;max-width:720px;width:100%;'
+    + 'padding:18px 20px;box-sizing:border-box;font-size:14px;color:#333;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
+    +   '<div style="font-size:16px;font-weight:bold;color:#1a468f;">' + esc(kid)
+    +     (ag ? ' <span style="font-weight:normal;color:#777;font-size:13px;">· ' + esc(ag) + '</span>' : '')
+    +   '</div>'
+    +   '<button type="button" data-x="1" class="thview" style="background:#fff;color:#444;border-color:#cfd6cc;">닫기</button>'
+    + '</div>'
+    + '<div style="margin-top:14px;font-weight:bold;">초기 상담'
+    +   (c.memo_at ? ' <span style="font-weight:normal;color:#777;font-size:12.5px;">· ' + esc(c.memo_at) + ' 적음</span>' : '')
+    + '</div>'
+    + '<div style="background:#f5f7f4;border-radius:8px;padding:10px 12px;margin-top:5px;'
+    +   'white-space:pre-wrap;word-break:break-all;line-height:1.6;">'
+    +   (memo ? esc(memo) : '<span style="color:#999;">적힌 내용이 없습니다.</span>')
+    + '</div>'
+    + '<div style="margin-top:16px;font-weight:bold;">평가보고서</div>'
+    + '<div id="thvDocs" style="margin-top:4px;">불러오는 중...</div>'
+    + '<div style="margin-top:12px;color:#999;font-size:12px;">보기 전용입니다. 고칠 내용은 행정실에 말씀해 주세요.</div>'
+    + '</div>';
+  document.body.appendChild(wrap);
+  wrap.addEventListener('click', ev => {
+    if (ev.target === wrap || ev.target.closest('[data-x]')) thClose();
+  });
+
+  const box = wrap.querySelector('#thvDocs');
+  const { data, error } = await sb.from('nl_eval_docs')
+    .select('eval_id, source, title, doc_date').eq('child_id', cid);
+  if (!document.getElementById('thvWrap')) return;
+  if (error) { box.textContent = '❌ 보고서를 불러오지 못했습니다. ' + error.message; return; }
+  // 우리 센터 것은 평가마다, 타기관 것은 한 묶음
+  const G = {};
+  (data || []).forEach(r => {
+    const k = r.source === '타기관' ? 'other' : 'ev' + r.eval_id;
+    if (!G[k]) G[k] = { src: r.source === '타기관' ? '타기관' : '센터', ev: r.eval_id,
+                       title: r.title || '', date: r.doc_date || '', n: 0 };
+    G[k].n++;
+    if ((r.doc_date || '') > G[k].date) { G[k].date = r.doc_date || ''; G[k].title = r.title || G[k].title; }
+  });
+  const keys = Object.keys(G).sort((a, b) => (G[b].date || '').localeCompare(G[a].date || ''));
+  if (!keys.length) { box.innerHTML = '<div style="color:#999;padding:4px 0;">올린 보고서가 없습니다.</div>'; return; }
+  box.innerHTML = keys.map(k => {
+    const g = G[k];
+    const nm = g.src === '타기관' ? '타기관 평가보고서' : (g.title || '우리 센터 평가보고서');
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #eee;">'
+      + '<span style="flex:1;">' + esc(g.date || '날짜 없음') + ' · ' + esc(nm) + ' · 파일 ' + g.n + '개</span>'
+      + '<button type="button" class="thview" data-k="' + k + '">보기</button></div>';
+  }).join('');
+  box.querySelectorAll('[data-k]').forEach(b => {
+    const g = G[b.dataset.k];
+    b.onclick = () => NLDocs.open(g.src === '타기관'
+      ? { cid: cid, kid: kid, source: '타기관' }
+      : { cid: cid, kid: kid, source: '센터', evalId: Number(g.ev), title: g.title, date: g.date });
+  });
+}
+
+// 목록의 단추 — 줄 전체에 묶지 않고 단추만 받는다
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-thv]');
+  if (!b) return;
+  ev.stopPropagation();
+  thOpen(Number(b.dataset.thv));
+});
 
 // ── 평가보고서 (2026-09-11) ──────────────────
 // 우리 센터 평가마다 「평가보고서」 단추, 맨 아래 「타기관 평가보고서」 단추.
