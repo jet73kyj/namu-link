@@ -6874,10 +6874,11 @@ function mkThSetup(s, has) {
   const sel = $('mk_th');
   const orig = Number(s.therapist_id);
   const cur = has ? Number(has.therapist_id) : orig;
-  const tt = mkTtOf(s);
+  // 2026-09-15 은정님 정함 — 보강 선생님은 치료 종류와 상관없이 1~7번 누구나 고를 수 있다
+  //   (고를 수 없는 사람에게는 원래 선생님만 보이게 칸을 잠근다)
   const list = (THS_ALL.length ? THS_ALL : THS)
-    .filter(t => Number(t.id) === orig || Number(t.id) === cur
-              || tt == null || thOkForTt(tt, t.id));
+    .filter(t => Number(t.id) >= 1 && Number(t.id) <= 7
+              || Number(t.id) === orig || Number(t.id) === cur);
   sel.innerHTML = list.map(t => '<option value="' + t.id + '">'
     + esc(t.name) + (Number(t.id) === orig ? ' (원래 선생님)' : '') + '</option>').join('');
   sel.value = String(cur);
@@ -7138,7 +7139,7 @@ function openMk(absId){
   mkMinCheck();
   // 그 날 창 칸 되돌리기 (2026-09-11) — 선생님은 원래 선생님으로 고정 (원칙 5)
   // 2026-09-15 바뀜 — 원래 선생님이 도저히 안 될 때 대표·행정(8·9번)은 40분 보강 선생님을 바꿀 수 있다
-  //   고를 수 있는 선생님은 그 치료 종류를 맡을 수 있는 분만 (RULE · thOkForTt)
+  //   고를 수 있는 선생님은 1~7번 누구나 (치료 종류와 상관없이)
   //   데스크(11번)·치료사는 원래 선생님 고정
   mkThSetup(s, has);
   $('mkStat').style.display = 'none';
