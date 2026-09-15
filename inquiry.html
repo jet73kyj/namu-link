@@ -176,6 +176,7 @@
     <button class="tab" data-st="그룹대기">그룹대기</button>
     <button id="wlGBtn" class="tab" style="background:#5c6bc0;color:#fff;font-weight:bold;">👥 그룹 대기 명단</button>
     <button id="reBtn" class="tab" style="background:#ad6800;color:#fff;font-weight:bold;">🔔 재평가 대상 <span id="reN"></span></button>
+    <button id="reOn" class="tab" style="padding:5px 10px;font-size:12px;">재평가 알림 켬</button>
     <span class="count" id="count"></span>
   </div>
 
@@ -950,7 +951,7 @@ function drawTimeline() {
       if (kk && kk.eval_summary) {
         body += '<div style="margin-top:6px; padding-top:6px; border-top:1px solid #eee;">'
               + esc(kk.eval_summary) + '</div>';
-      } else if (done && over) {
+      } else if (done && over && REON) {
         body += '<div style="margin-top:6px; color:#a35b00; font-size:13px;">'
               + '⚠️ 평가 요약을 적어 주세요</div>';
       }
@@ -1099,7 +1100,25 @@ function evTypeName(id) {
   return t ? t.name : '평가';
 }
 
-// ── 재평가 대상 창 ──────────────────────────────
+// 재평가 알림 켜고 끄기 (2026-09-15) — 이 컴퓨터에만 기억된다
+let REON = (localStorage.getItem('nl_reeval_off') !== '1');
+
+function reOnDraw() {
+  $('reOn').textContent = REON ? '재평가 알림 켬' : '재평가 알림 끔';
+  $('reOn').style.background = REON ? '#eaf3de' : '#eee';
+  $('reOn').style.color      = REON ? '#27500a' : '#888';
+  $('reN').style.display     = REON ? '' : 'none';
+  if (!REON) { $('dnextEv').style.display = 'none'; $('reBox').style.display = 'none'; }
+}
+
+$('reOn').onclick = () => {
+  REON = !REON;
+  localStorage.setItem('nl_reeval_off', REON ? '0' : '1');
+  reOnDraw();
+  const r = openId ? ALL.find(x => x.id === openId) : null;
+  if (r) { drawNextEv(r.child_id); loadLogs(openId); }
+};
+
 // ── 재평가 대상 창 ──────────────────────────────
 let DOCN = null;   // 이 아동의 평가보고서 개수
 let reYM = null;   // 보고 있는 달 {y, m}
@@ -1186,6 +1205,7 @@ $('reThis').onclick = () => {
 // 다음 재평가 — 취소가 아닌 평가 중 가장 늦은 날짜 + 12개월
 function drawNextEv(cid) {
   const el = $('dnextEv');
+  if (!REON) { el.style.display = 'none'; return; }
   const ds = EVALS.filter(e => e.child_id === cid && e.eval_date && e.status !== '취소')
                   .map(e => String(e.eval_date)).sort();
   if (!ds.length) { el.style.display = 'none'; return; }
@@ -2326,6 +2346,7 @@ async function afterLogin(user) {
   THRS    = (th.data || []).filter(x => x.active !== false);
   EVALS   = ev.data || [];
   reCount();
+  reOnDraw();
 
   $('e_type').innerHTML = EVTYPES.map(t =>
     '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('');
