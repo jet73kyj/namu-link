@@ -252,7 +252,11 @@
 
   <!-- 고치기 창 -->
   <div id="edBox" class="editbox" style="display:none;">
-    <div class="edittitle" id="edTitle"></div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="edittitle" id="edTitle" style="flex:1;"></div>
+      <button type="button" id="e_backList" class="tab"
+              style="padding:5px 12px; white-space:nowrap;">← 아동 목록으로</button>
+    </div>
 
     <!-- ① 기본 -->
     <div style="background:#fff; border:1px solid #d5dad2; border-radius:10px;
@@ -1693,6 +1697,10 @@ async function saveGuards(id){
 }
 
 $('cancelEdit').onclick = () => { $('edBox').style.display = 'none'; edId = null; };
+$('e_backList').onclick = () => {
+  $('edBox').style.display = 'none'; edId = null;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
 $('saveEdit').onclick = async () => {
   if (!edId) return;
