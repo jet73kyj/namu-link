@@ -263,7 +263,7 @@
         <input id="e_name" type="text">
       </div>
       <div>
-        <label for="e_birth">생년월일</label>
+        <label for="e_birth">생년월일 <span id="e_age" style="color:#2e7d32;font-weight:700;"></span></label>
         <input id="e_birth" type="date">
       </div>
       <div>
@@ -364,6 +364,23 @@
               style="background:#8bc34a;color:#fff;font-weight:bold;padding:7px 14px;">메모 추가</button>
           </div>
           <div id="cnMsg" style="font-size:12.5px; margin-top:6px;"></div>
+        </div>
+      </div>
+
+      <div style="grid-column:1 / -1;">
+        <div style="border:1px solid #cfd8cc; border-radius:10px; background:#fff; padding:12px 14px;">
+          <div style="font-size:13px; font-weight:700; color:#2c5c37; margin-bottom:8px;">
+            📚 수업 진행 상황</div>
+          <div id="e_ths" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
+          <div id="e_thMsg" style="font-size:12.5px; margin-top:6px;"></div>
+        </div>
+      </div>
+
+      <div style="grid-column:1 / -1;">
+        <div style="border:1px solid #d9d4c6; border-radius:10px; background:#fdfcf7; padding:12px 14px;">
+          <div style="font-size:13px; font-weight:700; color:#6b5b2e; margin-bottom:8px;">
+            🕓 히스토리 <span style="font-weight:normal;color:#999;">— 시작·종결·담당·요일·시각이 바뀐 자취</span></div>
+          <div id="e_hist" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
         </div>
       </div>
 
@@ -1075,6 +1092,120 @@ function openEdit(id) {
   drawAcc(id);
   drawDocs(id);
   loadNotes(id);
+  drawAgeEd();
+  loadTherapies(id);
+  loadHistory(id);
+}
+
+// ── 생년월일 → 만 ○년 ○개월 (고치기 창) ──
+function ageOf(b) {
+  if (!b) return '';
+  const d = new Date(String(b) + 'T00:00:00');
+  if (isNaN(d)) return '';
+  const n = new Date();
+  let m = (n.getFullYear() - d.getFullYear()) * 12 + (n.getMonth() - d.getMonth());
+  if (n.getDate() < d.getDate()) m--;
+  if (m < 0) return '';
+  return '만 ' + Math.floor(m / 12) + '년 ' + (m % 12) + '개월';
+}
+function drawAgeEd() { $('e_age').textContent = ageOf($('e_birth').value); }
+$('e_birth').addEventListener('change', drawAgeEd);
+$('e_birth').addEventListener('input',  drawAgeEd);
+
+// ── 수업 진행 상황 (2026-09-15) ──
+const STNM = { 1:'센터비용', 2:'발달재활', 3:'치료지원(언어)', 4:'치료지원(작업)',
+               5:'방과후활동비', 6:'방과후치료지원(언어)', 7:'방과후치료지원(작업)',
+               8:'발달추가비용', 9:'평가비' };
+const TTNM = { 1:'언어', 2:'작업', 3:'전산화인지', 4:'감각통합', 5:'음악', 6:'일상자립', 7:'심리' };
+const STCL = { 1:'#e6f1fb;#0c447c', 2:'#eaf3de;#27500a', 3:'#fbeaf0;#993556', 4:'#fbeaf0;#993556',
+               5:'#faeeda;#854f0b', 6:'#faeeda;#854f0b', 7:'#faeeda;#854f0b',
+               8:'#eeedfe;#3c3489', 9:'#f1efe8;#444441' };
+let THLIST = [];
+
+async function loadTherapies(cid) {
+  $('e_ths').innerHTML = '불러오는 중...';
+  $('e_thMsg').textContent = '';
+  const [t, sc, th] = await Promise.all([
+    sb.from('nl_therapies')
+      .select('id, support_type_id, therapy_type_id, duration_min, monthly_count, started_on, ended_on, end_reason')
+      .eq('child_id', cid).order('id'),
+    sb.from('nl_therapy_schedules')
+      .select('id, therapy_id, weekday, start_time, therapist_id, to_date, to_month'),
+    sb.from('nl_therapists').select('id, name')
+  ]);
+  if (t.error) { $('e_ths').innerHTML = '불러오지 못했습니다. ' + esc(t.error.message); return; }
+  THLIST = t.data || [];
+  const SC = {}; (sc.data || []).forEach(x => { (SC[x.therapy_id] = SC[x.therapy_id] || []).push(x); });
+  const TH = {}; (th.data || []).forEach(x => { TH[x.id] = x.name; });
+  drawTherapies(SC, TH);
+}
+
+function drawTherapies(SC, TH) {
+  if (!THLIST.length) { $('e_ths').innerHTML = '<span style="color:#999;">수업이 없습니다.</span>'; return; }
+  const live = THLIST.filter(t => !t.ended_on);
+  const done = THLIST.filter(t => t.ended_on);
+  const one = (t, over) => {
+    const c = (STCL[t.support_type_id] || '#f1efe8;#444441').split(';');
+    const rows = (SC[t.id] || []).filter(x => !over ? !x.to_date : true)
+      .map(x => (x.weekday || '') + ' ' + String(x.start_time || '').slice(0, 5)
+              + ' · ' + (TH[x.therapist_id] || (x.therapist_id ? x.therapist_id + '번' : '담당 없음')))
+      .join(' / ');
+    return '<div style="display:flex; align-items:flex-start; gap:8px; padding:7px 0;'
+      + ' border-top:1px solid #eceee9;' + (over ? ' color:#999;' : '') + '">'
+      + '<span style="font-size:12px; background:' + c[0] + '; color:' + c[1]
+      + '; padding:2px 8px; border-radius:10px; white-space:nowrap;">'
+      + esc(STNM[t.support_type_id] || '?') + (over ? ' · 종결' : '') + '</span>'
+      + '<span style="flex:1; min-width:0; line-height:1.7;">'
+      + esc(TTNM[t.therapy_type_id] || '') + (t.duration_min ? ' ' + t.duration_min + '분' : '')
+      + (rows ? ' · ' + esc(rows) : '')
+      + (t.monthly_count ? ' · 월 ' + t.monthly_count + '회' : '')
+      + '<br><span style="color:#888;">' + esc(t.started_on || '시작일 없음')
+      + ' ~ ' + (t.ended_on ? esc(t.ended_on) : '') + '</span>'
+      + (t.end_reason ? '<span style="color:#888;"> · 사유: ' + esc(t.end_reason) + '</span>' : '')
+      + '</span>'
+      + (CAN_EDIT ? '<button type="button" class="tab thRs" data-id="' + t.id
+         + '" style="padding:2px 8px; font-size:12px;">'
+         + (over ? '사유 적기' : '종결 사유') + '</button>' : '')
+      + '</div>';
+  };
+  $('e_ths').innerHTML = live.map(t => one(t, false)).join('') + done.map(t => one(t, true)).join('');
+
+  $('e_ths').querySelectorAll('.thRs').forEach(b => b.onclick = async () => {
+    const t = THLIST.find(x => x.id === Number(b.dataset.id));
+    if (!t) return;
+    const v = prompt('종결 사유를 적으세요.\n(수업을 끝내는 것이 아니라 사유만 적습니다)', t.end_reason || '');
+    if (v === null) return;
+    const { error } = await sb.from('nl_therapies')
+      .update({ end_reason: v.trim() || null, updated_at: new Date().toISOString() })
+      .eq('id', t.id);
+    if (error) { $('e_thMsg').style.color = '#c62828';
+                 $('e_thMsg').textContent = '❌ 저장하지 못했습니다: ' + error.message; return; }
+    $('e_thMsg').style.color = '#2e7d32';
+    $('e_thMsg').textContent = '✅ 사유를 적었습니다.';
+    await loadTherapies(edId);
+    loadHistory(edId);
+  });
+}
+
+// ── 히스토리 (2026-09-15) ──
+async function loadHistory(cid) {
+  $('e_hist').innerHTML = '불러오는 중...';
+  const { data, error } = await sb.from('nl_therapy_events')
+    .select('on_date, kind, detail, reason')
+    .eq('child_id', cid)
+    .order('on_date', { ascending: false })
+    .order('id', { ascending: false });
+  if (error) { $('e_hist').innerHTML = '불러오지 못했습니다. ' + esc(error.message); return; }
+  if (!data || !data.length) {
+    $('e_hist').innerHTML = '<span style="color:#999;">아직 남은 자취가 없습니다.</span>'; return;
+  }
+  $('e_hist').innerHTML = data.map(e =>
+    '<div style="display:flex; gap:8px; padding:5px 0; border-top:1px solid #efece0;">'
+    + '<span style="color:#888; min-width:82px; white-space:nowrap;">' + esc(e.on_date) + '</span>'
+    + '<span style="min-width:74px; white-space:nowrap; color:#6b5b2e;">' + esc(e.kind) + '</span>'
+    + '<span style="flex:1; min-width:0;">' + esc(e.detail || '')
+    + (e.reason ? ' <span style="color:#999;">· ' + esc(e.reason) + '</span>' : '')
+    + '</span></div>').join('');
 }
 
 // ── 메모 — 평소에는 글자, 「수정」을 눌렀을 때만 메모창 (2026-09-15) ──
