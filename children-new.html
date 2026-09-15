@@ -253,168 +253,172 @@
   <!-- 고치기 창 -->
   <div id="edBox" class="editbox" style="display:none;">
     <div class="edittitle" id="edTitle"></div>
-    <div class="addgrid">
-      <div>
-        <label for="e_no">관리번호</label>
-        <input id="e_no" type="text">
-      </div>
-      <div>
-        <label for="e_name">이름 <span style="color:#c62828;">*</span></label>
-        <input id="e_name" type="text">
-      </div>
-      <div>
-        <label for="e_birth">생년월일 <span id="e_age" style="color:#2e7d32;font-weight:700;"></span></label>
-        <input id="e_birth" type="date">
-      </div>
-      <div>
-        <label for="e_status">상태 <span style="color:#c62828;">*</span></label>
-        <select id="e_status">
-          <option value="치료중">치료중</option>
-          <option value="대기중">대기중</option>
-          <option value="종결">종결</option>
-        </select>
-      </div>
-      <div>
-        <label for="e_gender">성별</label>
-        <select id="e_gender">
-          <option value="">-- 선택 --</option>
-          <option value="남">남</option>
-          <option value="여">여</option>
-        </select>
-      </div>
-      <input id="e_phone" type="hidden">
-      <input id="e_guardian" type="hidden">
-      <div style="grid-column:1 / -1;">
-        <label>연락처 <span style="font-weight:normal;color:#888;font-size:12px;">
-          — 관계를 고르고 번호를 적습니다. 여러 개 넣을 수 있습니다</span></label>
-        <div id="e_gwrap"></div>
-        <button type="button" id="e_gadd"
-          style="width:auto;margin:8px 0 0;padding:7px 14px;background:#eef3ec;
-                 color:#2c5c37;font-size:13px;font-weight:600;">＋ 연락처 한 줄 더</button>
-      </div>
-      <div style="grid-column:1 / -1;">
-        <div style="border:1px solid #cfd8cc;border-radius:10px;
-                    background:#f4f7f2;padding:12px 14px;">
-          <div style="font-size:13px;font-weight:700;color:#2c5c37;
-                      margin-bottom:8px;">👪 학부모 계정</div>
-          <div id="e_acc" style="font-size:13px;color:#5a6156;">불러오는 중...</div>
+
+    <!-- ① 기본 -->
+    <div style="background:#fff; border:1px solid #d5dad2; border-radius:10px;
+         padding:12px 14px; margin-bottom:12px;">
+      <div id="e_view" style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+        <div id="e_basic" style="flex:1; min-width:260px; font-size:13.5px; line-height:1.9;"></div>
+        <div style="width:270px; border:1px solid #cfd8cc; border-radius:10px;
+             background:#f4f7f2; padding:10px 12px;">
+          <div style="font-size:12.5px; font-weight:700; color:#2c5c37; margin-bottom:6px;">👪 학부모 계정</div>
+          <div id="e_acc" style="font-size:12.5px; color:#5a6156;">불러오는 중...</div>
         </div>
-      </div>
-      <div style="grid-column:1 / -1;">
-        <div style="border:1px solid #85b7eb;border-radius:10px;
-                    background:#f1f7fd;padding:12px 14px;">
-          <div style="font-size:13px;font-weight:700;color:#0c447c;
-                      margin-bottom:8px;">📎 평가보고서</div>
-          <div id="e_docs" style="font-size:13px;color:#5a6156;">불러오는 중...</div>
-        </div>
-      </div>
-      <div>
-        <label for="e_diagnosis">진단명</label>
-        <input id="e_diagnosis" type="text">
-      </div>
-      <div>
-        <label for="e_disability">장애구분</label>
-        <input id="e_disability" type="text">
-      </div>
-      <div>
-        <label for="e_school">학교</label>
-        <input id="e_school" type="text">
-      </div>
-      <div>
-        <label for="e_grade">학년</label>
-        <input id="e_grade" type="text">
-      </div>
-      <div style="grid-column:1 / -1;">
-        <div style="padding:10px 12px; background:#fff; border:1px solid #e0e0e0; border-radius:8px;">
-          <div style="display:flex; align-items:flex-start; gap:10px;">
-            <div style="flex:1; min-width:0;">
-              <div style="font-size:12.5px; color:#666; margin-bottom:4px;">메모
-                <span id="emDate" style="color:#999;"></span></div>
-              <div id="emView" style="font-size:14px; line-height:1.7; white-space:pre-line;"></div>
-              <textarea id="e_memo" rows="6" style="display:none; font:inherit; font-size:14px;
-                padding:9px 11px; width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"></textarea>
-              <div id="emBtns" style="display:none; margin-top:8px;">
-                <button type="button" id="emSave" class="tab"
-                  style="background:#2e7d32;color:#fff;font-weight:bold;padding:5px 14px;">저장</button>
-                <button type="button" id="emCancel" class="tab" style="padding:5px 14px;">취소</button>
-              </div>
-            </div>
-            <button type="button" id="emBtn" class="tab"
-                    style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
-          </div>
-          <div id="emMsg" style="font-size:12.5px; margin-top:6px;"></div>
-        </div>
+        <button type="button" id="e_editBtn" class="tab"
+                style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
       </div>
 
-      <div style="grid-column:1 / -1;">
-        <div style="border:1px solid #cfe0d0; border-radius:10px; background:#f7faf6; padding:12px 14px;">
-          <div style="font-size:13px; font-weight:700; color:#2e5b33; margin-bottom:8px;">
-            💬 상담 메모 <span style="font-weight:normal;color:#888;">— 치료 중 어머님 말씀·바라시는 것</span></div>
-          <div id="cnRows" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
-          <div style="display:flex; gap:8px; align-items:flex-end; margin-top:10px; flex-wrap:wrap;">
-            <div style="width:170px;">
-              <label for="cn_date" style="font-size:12px;">날짜</label>
-              <input id="cn_date" type="date">
-            </div>
-            <div style="flex:1; min-width:240px;">
-              <label for="cn_text" style="font-size:12px;">내용</label>
-              <input id="cn_text" type="text" placeholder="예: 어머님 — 주 2회로 늘리고 싶어 하심">
-            </div>
-            <button type="button" id="cnAdd" class="tab"
-              style="background:#8bc34a;color:#fff;font-weight:bold;padding:7px 14px;">메모 추가</button>
+      <div id="e_form" style="display:none; margin-top:10px;">
+        <div class="addgrid">
+          <div>
+            <label for="e_no">관리번호</label>
+            <input id="e_no" type="text">
           </div>
-          <div id="cnMsg" style="font-size:12.5px; margin-top:6px;"></div>
-        </div>
-      </div>
-
-      <div style="grid-column:1 / -1;">
-        <div style="border:1px solid #cfd8cc; border-radius:10px; background:#fff; padding:12px 14px;">
-          <div style="font-size:13px; font-weight:700; color:#2c5c37; margin-bottom:8px;">
-            📚 수업 진행 상황</div>
-          <div id="e_ths" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
-          <div id="e_thMsg" style="font-size:12.5px; margin-top:6px;"></div>
-        </div>
-      </div>
-
-      <div style="grid-column:1 / -1;">
-        <div style="border:1px solid #d9d4c6; border-radius:10px; background:#fdfcf7; padding:12px 14px;">
-          <div style="font-size:13px; font-weight:700; color:#6b5b2e; margin-bottom:8px;">
-            🕓 히스토리 <span style="font-weight:normal;color:#999;">— 시작·종결·담당·요일·시각이 바뀐 자취</span></div>
-          <div id="e_hist" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
-        </div>
-      </div>
-
-      <div style="grid-column:1 / -1; border-top:1px solid #e8ebe4; margin-top:6px; padding-top:12px;">
-        <label style="font-weight:600;">발달재활서비스 등급</label>
-        <div style="font-size:12px;color:#888;margin:2px 0 8px;">
-          단추를 누르면 본인부담금이 자동으로 채워집니다. 금액은 직접 고쳐도 됩니다.
-          등급이 바뀌었으면 「언제부터」를 바뀐 달로 두고 저장하세요.
-          지난 달 기록은 그대로 남고, 그 달부터 새 금액이 적용됩니다.
-        </div>
-        <div id="grbtns" style="display:flex; gap:4px; margin-bottom:10px;">
-          <button type="button" class="grb" data-g="가">가 2만</button>
-          <button type="button" class="grb" data-g="나">나 4만</button>
-          <button type="button" class="grb" data-g="다">다 0</button>
-          <button type="button" class="grb" data-g="라">라 6만</button>
-          <button type="button" class="grb" data-g="마">마 8만</button>
-          <button type="button" class="grb grb-non" data-g="">없음</button>
-        </div>
-        <input id="e_gr" type="hidden">
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
-          <div style="min-width:120px;">
-            <label for="e_gr_pay" style="font-size:12px;">본인부담금</label>
-            <input id="e_gr_pay" type="text" inputmode="numeric" placeholder="0">
+          <div>
+            <label for="e_name">이름 <span style="color:#c62828;">*</span></label>
+            <input id="e_name" type="text">
           </div>
-          <div style="min-width:130px;">
-            <label for="e_gr_from" style="font-size:12px;">언제부터</label>
-            <input id="e_gr_from" type="month">
+          <div>
+            <label for="e_birth">생년월일 <span id="e_age" style="color:#2e7d32;font-weight:700;"></span></label>
+            <input id="e_birth" type="date">
+          </div>
+          <div>
+            <label for="e_status">상태 <span style="color:#c62828;">*</span></label>
+            <select id="e_status">
+              <option value="치료중">치료중</option>
+              <option value="대기중">대기중</option>
+              <option value="종결">종결</option>
+            </select>
+          </div>
+          <div>
+            <label for="e_gender">성별</label>
+            <select id="e_gender">
+              <option value="">-- 선택 --</option>
+              <option value="남">남</option>
+              <option value="여">여</option>
+            </select>
+          </div>
+          <div>
+            <label for="e_diagnosis">진단명</label>
+            <input id="e_diagnosis" type="text">
+          </div>
+          <div>
+            <label for="e_disability">장애구분</label>
+            <input id="e_disability" type="text">
+          </div>
+          <div>
+            <label for="e_school">학교</label>
+            <input id="e_school" type="text">
+          </div>
+          <div>
+            <label for="e_grade">학년</label>
+            <input id="e_grade" type="text">
+          </div>
+          <input id="e_phone" type="hidden">
+          <input id="e_guardian" type="hidden">
+          <input id="e_gr" type="hidden">
+          <input id="e_gr_pay" type="hidden">
+          <input id="e_gr_from" type="hidden">
+          <div style="grid-column:1 / -1;">
+            <label>연락처 <span style="font-weight:normal;color:#888;font-size:12px;">
+              — 관계를 고르고 번호를 적습니다. 여러 개 넣을 수 있습니다</span></label>
+            <div id="e_gwrap"></div>
+            <button type="button" id="e_gadd"
+              style="width:auto;margin:8px 0 0;padding:7px 14px;background:#eef3ec;
+                     color:#2c5c37;font-size:13px;font-weight:600;">＋ 연락처 한 줄 더</button>
           </div>
         </div>
-        <div id="e_gr_hist" style="font-size:12px;color:#5a6156;margin-top:8px;line-height:1.7;"></div>
+        <div class="addbtns">
+          <button id="saveEdit" class="tab" style="background:#1565c0;color:#fff;font-weight:bold;">저장</button>
+          <button type="button" id="e_formX" class="tab">취소</button>
+        </div>
+        <div id="e_gr_hist" style="display:none;"></div>
+        <div id="grbtns" style="display:none;"></div>
       </div>
     </div>
+
+    <!-- ② 초기 상담 -->
+    <div style="background:#fff; border:1px solid #d5dad2; border-radius:10px;
+         padding:12px 14px; margin-bottom:12px;">
+      <div style="display:flex; align-items:flex-start; gap:10px;">
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:12.5px; font-weight:700; color:#2c5c37; margin-bottom:6px;">
+            📝 초기 상담 <span id="emDate" style="font-weight:normal;color:#999;"></span></div>
+          <div id="emView" style="font-size:14px; line-height:1.7; white-space:pre-line;"></div>
+          <textarea id="e_memo" rows="7" style="display:none; font:inherit; font-size:14px;
+            padding:9px 11px; width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"></textarea>
+          <div id="emBtns" style="display:none; margin-top:8px;">
+            <button type="button" id="emSave" class="tab"
+              style="background:#2e7d32;color:#fff;font-weight:bold;padding:5px 14px;">저장</button>
+            <button type="button" id="emCancel" class="tab" style="padding:5px 14px;">취소</button>
+          </div>
+        </div>
+        <button type="button" id="emBtn" class="tab"
+                style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
+      </div>
+      <div id="emMsg" style="font-size:12.5px; margin-top:6px;"></div>
+    </div>
+
+    <!-- ③ 평가 · 상담 메모 -->
+    <div style="background:#fff; border:1px solid #d5dad2; border-radius:10px;
+         padding:12px 14px; margin-bottom:12px;">
+      <div style="font-size:12.5px; font-weight:700; color:#0c447c; margin-bottom:6px;">📎 평가보고서</div>
+      <div id="e_docs" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
+
+      <div style="border-top:1px solid #eceee9; margin-top:10px; padding-top:10px;">
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:12.5px; font-weight:700; color:#0c447c; margin-bottom:6px;">
+              🧾 평가 요약 <span id="esNext" style="font-weight:normal;color:#888;"></span></div>
+            <div id="esView" style="font-size:14px; line-height:1.7; white-space:pre-line;"></div>
+            <textarea id="esEdit" rows="4" style="display:none; font:inherit; font-size:14px;
+              padding:9px 11px; width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"></textarea>
+            <div id="esBtns" style="display:none; margin-top:8px;">
+              <button type="button" id="esSave" class="tab"
+                style="background:#2e7d32;color:#fff;font-weight:bold;padding:5px 14px;">저장</button>
+              <button type="button" id="esCancel" class="tab" style="padding:5px 14px;">취소</button>
+            </div>
+          </div>
+          <button type="button" id="esBtn" class="tab"
+                  style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
+        </div>
+        <div id="esMsg" style="font-size:12.5px; margin-top:6px;"></div>
+      </div>
+
+      <div style="border-top:1px solid #eceee9; margin-top:10px; padding-top:10px;">
+        <div style="font-size:12.5px; font-weight:700; color:#2c5c37; margin-bottom:6px;">
+          💬 상담 메모 <span style="font-weight:normal;color:#888;">— 치료 중 어머님 말씀·바라시는 것</span></div>
+        <div id="cnRows" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
+        <div style="display:flex; gap:8px; align-items:flex-end; margin-top:10px; flex-wrap:wrap;">
+          <div style="width:170px;">
+            <label for="cn_date" style="font-size:12px;">날짜</label>
+            <input id="cn_date" type="date">
+          </div>
+          <div style="flex:1; min-width:240px;">
+            <label for="cn_text" style="font-size:12px;">내용</label>
+            <input id="cn_text" type="text" placeholder="예: 어머님 — 주 2회로 늘리고 싶어 하심">
+          </div>
+          <button type="button" id="cnAdd" class="tab"
+            style="background:#8bc34a;color:#fff;font-weight:bold;padding:7px 14px;">메모 추가</button>
+        </div>
+        <div id="cnMsg" style="font-size:12.5px; margin-top:6px;"></div>
+      </div>
+    </div>
+
+    <!-- ④ 수업 진행 상황 (히스토리 포함) -->
+    <div style="background:#fff; border:1px solid #d5dad2; border-radius:10px;
+         padding:12px 14px; margin-bottom:12px;">
+      <div style="font-size:12.5px; font-weight:700; color:#2c5c37; margin-bottom:6px;">📚 수업 진행 상황</div>
+      <div id="e_ths" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
+      <div id="e_thMsg" style="font-size:12.5px; margin-top:6px;"></div>
+      <div style="border-top:1px solid #eceee9; margin-top:10px; padding-top:10px;">
+        <div style="font-size:12.5px; font-weight:700; color:#6b5b2e; margin-bottom:6px;">
+          🕓 히스토리 <span style="font-weight:normal;color:#999;">— 시작·종결·담당·요일·시각이 바뀐 자취</span></div>
+        <div id="e_hist" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
+      </div>
+    </div>
+
     <div class="addbtns">
-      <button id="saveEdit" class="tab" style="background:#1565c0;color:#fff;font-weight:bold;">저장</button>
       <button id="cancelEdit" class="tab">닫기</button>
     </div>
     <div id="msg4" class="out"></div>
@@ -597,7 +601,7 @@ async function afterLogin(user) {
   // 2) 아동 불러오기
   const { data, error } = await sb
     .from('nl_children')
-    .select('id, manager_no, name, birth, gender, status, memo, memo_at, phone, guardian, diagnosis, disability, school, grade_year')
+    .select('id, manager_no, name, birth, gender, status, memo, memo_at, eval_summary, phone, guardian, diagnosis, disability, school, grade_year')
     .order('id');
 
   if (error) { show('❌ 아동 목록 조회 실패\n' + error.message, false); return; }
@@ -936,7 +940,7 @@ $('saveNew').onclick = async () => {
   try {
     const { data, error } = await sb.from('nl_children')
       .insert(row)
-      .select('id, manager_no, name, birth, gender, status, memo, memo_at, phone, guardian, diagnosis, disability, school, grade_year')
+      .select('id, manager_no, name, birth, gender, status, memo, memo_at, eval_summary, phone, guardian, diagnosis, disability, school, grade_year')
       .single();
     if (error) throw error;
     made = data;
@@ -1092,9 +1096,97 @@ function openEdit(id) {
   drawAcc(id);
   drawDocs(id);
   loadNotes(id);
-  drawAgeEd();
+  drawBasic(c);
+  openBasicForm(false);
+  esShow(c.eval_summary || '');
+  drawNextEval(id);
   loadTherapies(id);
   loadHistory(id);
+}
+
+// ── 기본 묶음 — 평소에는 글자, 「수정」을 눌러야 칸이 열린다 (2026-09-15) ──
+function drawBasic(c) {
+  const g = (GUARD[c.id] || []);
+  const tel = g.length
+    ? g.map(x => (x.relation && x.relation !== '미상' ? x.relation + ' ' : '')
+                 + (x.name ? x.name + ' ' : '') + (x.phone || '')).join('<br>')
+    : (c.phone ? esc(c.phone) : '<span style="color:#999;">연락처 없음</span>');
+  $('e_basic').innerHTML =
+      '<b style="font-size:15px;">' + esc(c.name || '') + '</b>'
+    + ' <span style="color:#8d6e63;">' + c.id + '번</span>'
+    + ' <span style="color:#888;">' + esc(c.manager_no || '') + '</span><br>'
+    + esc(c.birth || '생년월일 없음')
+    + (ageOf(c.birth) ? ' <span style="color:#2e7d32;font-weight:700;">' + ageOf(c.birth) + '</span>' : '')
+    + ' · ' + esc(c.gender || '성별 없음') + ' · ' + esc(c.status || '')
+    + (c.diagnosis ? ' · ' + esc(c.diagnosis) : '')
+    + (c.school ? ' · ' + esc(c.school) + (c.grade_year ? ' ' + esc(c.grade_year) : '') : '')
+    + '<br><span style="color:#5a6156;">' + tel + '</span>';
+}
+
+function openBasicForm(on) {
+  $('e_form').style.display = on ? 'block' : 'none';
+  $('e_view').style.display = on ? 'none'  : 'flex';
+  if (on) drawAgeEd();
+}
+$('e_editBtn').onclick = () => openBasicForm(true);
+$('e_formX').onclick   = () => openBasicForm(false);
+
+// ── 평가 요약 (2026-09-15) ──
+function esShow(text) {
+  const t = (text || '').trim();
+  $('esView').innerHTML = t ? esc(t)
+    : '<span style="color:#999;">아직 적은 요약이 없습니다. 「✏️ 수정」을 눌러 적으세요.</span>';
+  $('esView').style.display = 'block';
+  $('esEdit').style.display = 'none';
+  $('esBtns').style.display = 'none';
+  $('esBtn').style.display  = 'inline-block';
+  $('esEdit').value = t;
+  $('esEdit').dataset.orig = t;
+  $('esMsg').textContent = '';
+}
+$('esBtn').onclick = () => {
+  $('esView').style.display = 'none';
+  $('esBtn').style.display  = 'none';
+  $('esEdit').style.display = 'block';
+  $('esBtns').style.display = 'block';
+  $('esEdit').focus();
+};
+$('esCancel').onclick = () => esShow($('esEdit').dataset.orig || '');
+$('esSave').onclick = async () => {
+  if (!edId) return;
+  const v = $('esEdit').value.trim();
+  $('esSave').disabled = true; $('esSave').textContent = '저장 중...';
+  try {
+    const { error } = await sb.from('nl_children')
+      .update({ eval_summary: v || null, updated_at: new Date().toISOString() })
+      .eq('id', edId);
+    if (error) throw error;
+    const c = ALL.find(x => x.id === edId);
+    if (c) c.eval_summary = v || null;
+    esShow(v);
+    $('esMsg').style.color = '#2e7d32';
+    $('esMsg').textContent = '✅ 저장했습니다.';
+  } catch (e) {
+    $('esMsg').style.color = '#c62828';
+    $('esMsg').textContent = '❌ 저장하지 못했습니다: ' + e.message;
+  } finally {
+    $('esSave').disabled = false; $('esSave').textContent = '저장';
+  }
+};
+
+// 다음 재평가 — 취소가 아닌 평가 중 가장 늦은 날짜 + 12개월
+async function drawNextEval(cid) {
+  $('esNext').textContent = '';
+  try {
+    const { data } = await sb.from('nl_evaluations')
+      .select('eval_date, status').eq('child_id', cid);
+    const ds = (data || []).filter(e => e.eval_date && e.status !== '취소')
+                 .map(e => String(e.eval_date)).sort();
+    if (!ds.length) return;
+    const last = ds[ds.length - 1];
+    $('esNext').textContent = '· 다음 재평가 ' + (Number(last.slice(0, 4)) + 1)
+      + '년 ' + Number(last.slice(5, 7)) + '월';
+  } catch (e) {}
 }
 
 // ── 생년월일 → 만 ○년 ○개월 (고치기 창) ──
@@ -1534,8 +1626,8 @@ async function loadGrade(id) {
 
 // 등급을 저장한다. 같은 달 것이 있으면 고치고, 없으면 새로 넣는다
 async function saveGrade(id) {
-  const g = $('e_gr').value;
-  if (!g) return '';                       // 비워 두면 손대지 않는다
+  return '';   // 등급은 납부 계산 화면에서 고친다 (2026-09-15)
+  // eslint-disable-next-line
   const fm = $('e_gr_from').value;
   if (!fm) throw new Error('등급의 「언제부터」를 정하세요.');
   const pay = Number(String($('e_gr_pay').value).replace(/[^0-9]/g, ''));
@@ -1607,7 +1699,7 @@ $('saveEdit').onclick = async () => {
   try {
     const { data, error } = await sb.from('nl_children')
       .update(up).eq('id', edId)
-      .select('id, manager_no, name, birth, gender, status, memo, memo_at, phone, guardian, diagnosis, disability, school, grade_year')
+      .select('id, manager_no, name, birth, gender, status, memo, memo_at, eval_summary, phone, guardian, diagnosis, disability, school, grade_year')
       .single();
     if (error) throw error;
 
