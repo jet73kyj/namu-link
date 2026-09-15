@@ -106,8 +106,6 @@
   .r input.spov::placeholder { color:#c9c9c0; font-size:11px; }
   .r.gsum.hasov { background:#fdf6ea; border-radius:6px; }
   .r.gsum.hasov input.spov { border-style:solid; border-color:#d8a349; background:#fff; font-weight:600; }
-  .r.gsum .spold { display:none; margin-left:6px; }
-  .r.gsum.hasov .spold { display:inline; }
   .aptag { font-size:11px; color:#a9701c; font-weight:600; margin-left:5px; }
   /* 줄 앞 딱지 — 어느 사업으로 청구되는지, 회기방식이 무엇인지 */
   .sttag { display:inline-block; font-size:11px; font-weight:600;
@@ -550,7 +548,12 @@ function noticeText(childId) {
 
   // ── 계좌입금 묶음 (발달재활서비스 본인부담금) ──
   const dev = box.querySelector('.gsum[data-st="2"]');
-  const devAmt = dev ? nNum(dev.querySelector('.gamt')) : 0;
+  // 이번 달 금액 칸이 있으면 오른쪽 글자(등급 금액)와 다르므로 셈한 금액을 쓴다 (2026-09-15)
+  let devAmt = dev ? nNum(dev.querySelector('.gamt')) : 0;
+  try {
+    const pp = JSON.parse(box.dataset.parts || '[]').find(x => Number(x.st) === 2);
+    if (pp) devAmt = Number(pp.amt) || 0;
+  } catch (e) { /* 옛 셈 */ }
   if (devAmt > 0) {
     L.push(NBAR);
     L.push('\uD83C\uDFE6 계좌입금');
@@ -1831,7 +1834,6 @@ function drawKid(c) {
       + '<span class="de">' + (gr ? '본인부담금'
           : '<span class="warn">등급이 없습니다. 아동 목록에서 먼저 넣으세요.</span>')
       + (dev.items.length ? ' · <b class="thr">' + esc(thrName(dev.items[0].therapist_id)) + '</b>' : '')
-      + (pv ? '<span class="oldup spold">' + Number(pv).toLocaleString() + '</span>' : '')
       + '</span>'
       + '<span class="ct"></span>'
       + '<span class="up" style="flex:0 0 100px;">' + (gr && Number(pv) !== 0
@@ -2035,12 +2037,15 @@ function calcKid(childId) {
   box.querySelectorAll('.gsum').forEach(tr => {
     const st = Number(tr.dataset.st);
     let amt = 0;
+    let shown = null;   // 오른쪽 금액 칸에 보일 값 (없으면 amt)
 
     if (tr.dataset.fixed !== undefined) {
       amt = tr.dataset.fixed === '' ? 0 : Number(tr.dataset.fixed);
       // 이번 달 금액을 적었으면 그 금액이 우선 (2026-09-15)
       const ov = tr.querySelector('.spov');
       const ovn = ov ? numOf(ov.value) : 0;
+      // 오른쪽 칸은 늘 등급 금액(고정으로 받는 금액)을 보인다 — 은정님 정함
+      if (ov) shown = amt;
       if (ovn > 0) amt = ovn;
       tr.classList.toggle('hasov', ovn > 0);
     } else if (tr.querySelector('.xthr')) {
@@ -2057,7 +2062,7 @@ function calcKid(childId) {
       amt = Math.max(0, base - Number(tr.dataset.ded || 0));
     }
 
-    if (tr.querySelector('.gamt')) tr.querySelector('.gamt').textContent = amt.toLocaleString();
+    if (tr.querySelector('.gamt')) tr.querySelector('.gamt').textContent = (shown == null ? amt : shown).toLocaleString();
     parts.push({ st: st, amt: amt, review: st !== 2 });
   });
 
