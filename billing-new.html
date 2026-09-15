@@ -370,6 +370,7 @@ let FEES = {}, RULES = {}, GRADES = {};
 let NOMAKEUP = {};          // 아동번호 -> 보강 못 잡은 결석 목록
 let HOLDAY = {};            // 날짜 -> true (센터 전체가 쉬는 공휴일)
 let SHORTCNT = {};          // 아동|유형 -> { 실제 회기, 빠진 날 }
+let X8FIVE = {};            // 발4+5주발추 아동 — 저장 전 달은 「5주차만 1회」로 놓는다 (2026-09-15)
 let X8NEED = {};            // 발추 1회를 잡아야 하는 아동 (발4+발추1)
 let NEEDCNT  = {};          // 아동|유형 -> 기준 회기
 
@@ -830,6 +831,7 @@ async function afterLogin(user) {
 }
 
 async function load() {
+  CHANGED = {};
   const mk = $('mk').value;
   if (!mk) { show($('msg2'), '달을 골라주세요.', false); return; }
   // 보던 달을 기억해 둔다. 새로고침해도 그 달로 열린다
@@ -1002,7 +1004,7 @@ async function load() {
     const liveScs = (t) => (t.nl_therapy_schedules || []).filter(s =>
       (!s.from_month || s.from_month <= mk) && (!s.to_month || s.to_month >= mk));
 
-    NEEDCNT = {}; X8NEED = {};
+    NEEDCNT = {}; X8NEED = {}; X8FIVE = {};
     (th.data || []).forEach(t => {
       // 그 달 전에 끝난 치료는 기준에서 뺀다
       //   (안 빼면 끝난 수업까지 더해져 기준이 부풀어 오른다)
@@ -1092,6 +1094,7 @@ async function load() {
       NEEDCNT[k] = (NEEDCNT[k] || 0) + need;
       // 발4+발추1 아동은 발추 1회를 따로 잡아야 한다
       if (mode === '발4+발추1') X8NEED[t.child_id] = true;
+      if (mode === '발4+5주발추') X8FIVE[t.child_id] = true;
       if (plus1) {
         const k1 = t.child_id + '|1';
         NEEDCNT[k1] = (NEEDCNT[k1] || 0) + plus1;
@@ -1693,7 +1696,8 @@ function drawKid(c) {
       //   지난달이 「적용 없음」이었어도 이어받지 않는다.
       const mode = (sv[8] !== undefined)
         ? (xmodeOf(sv[8]) || 3)
-        : (X8NEED[c.id] ? 1 : (xmodeOf(lastM[8]) || 3));
+        : (X8NEED[c.id] ? 1 : (X8FIVE[c.id] ? 2 : (xmodeOf(lastM[8]) || 3)));
+      // ↑ 발4+5주발추 아동은 지난달을 「적용 없음」으로 저장했어도 다음 달은 「5주차만 1회」로 돌아온다
       // 5주차 여부
       const five = g.extra_weekday ? (countWeekdayOpen(mk, g.extra_weekday) >= 5) : false;   // 공휴일 빼고 셈
       let cnt;
@@ -2129,6 +2133,24 @@ async function saveWeeks(box) {
 async function toggleFix(childId, btn) {
   if (!LOADED_MK) { show($('msg2'), '먼저 [불러오기] 를 눌러주세요.', false); return; }
   const now = !isFixed(childId);
+  // 바꾸고 저장하지 않은 칸이 있으면 먼저 저장한다 (2026-09-15)
+  //   다시 그릴 때 저장된 값으로 돌아가, 「적용 없음」을 고르고 확정하면 되돌아가던 일
+  const ch = CHANGED[childId];
+  if (now && ch && (ch.card || ch.bank)) {
+    const what = [ch.card ? '카드' : '', ch.bank ? '계좌' : ''].filter(Boolean).join(' · ');
+    if (!confirm('바꾼 내용(' + what + ')이 아직 저장되지 않았습니다.\n저장하고 확정할까요?')) return;
+    const box0 = document.querySelector('.kid[data-child="' + childId + '"]');
+    for (const side of ['card', 'bank']) {
+      if (!ch[side]) continue;
+      const sb2 = box0 ? box0.querySelector('.ksave2[data-only="' + side + '"]') : null;
+      if (!sb2) continue;
+      await saveKid(childId, sb2, side);
+      if (!sb2.classList.contains('done')) {
+        alert('저장하지 못해 확정하지 않았습니다. 위 알림 글을 확인해 주세요.');
+        return;
+      }
+    }
+  }
   btn.disabled = true;
   try {
     const { error } = await sb.from('nl_pay_fix')
@@ -2287,6 +2309,10 @@ async function saveKid(childId, btn, only) {
       + wkMsg + evMsg + nmMsg, true);
     if (/풀었습니다/.test(nmMsg)) setTimeout(() => load(), 900);   // 시간표 회수로 다시 그린다
     delete TYPED[String(childId)];
+    if (CHANGED[childId]) {
+      if (!only) delete CHANGED[childId];
+      else { delete CHANGED[childId][only]; if (!Object.keys(CHANGED[childId]).length) delete CHANGED[childId]; }
+    }
     btn.textContent = '\u2713 저장됨';
     btn.classList.add('done');
     btn.disabled = false;
@@ -2841,10 +2867,16 @@ $('kids').addEventListener('click', e => {
 });
 // 칸을 고치면 그 아동의 저장 단추가 다시 「저장 전」으로 돌아간다
 let SAVING = false;   // 저장하는 동안에는 되돌리지 않는다
+let CHANGED = {};    // 아동 번호 -> { card:true, bank:true } 저장 안 한 바꾼 칸 (2026-09-15)
 function unDone(el){
   if (SAVING) return;
   const kid = el.closest ? el.closest('.kid') : null;
   if (!kid) return;
+  const stEl = el.closest('[data-st]');
+  const bank = (el.classList && (el.classList.contains('bday') || el.classList.contains('bmemo')))
+            || (stEl && stEl.dataset.st === '2');
+  const ch = CHANGED[kid.dataset.child] = CHANGED[kid.dataset.child] || {};
+  ch[bank ? 'bank' : 'card'] = true;
   kid.querySelectorAll('.ksave, .ksave2').forEach(b => {
     if (!b.classList.contains('done')) return;
     b.classList.remove('done');
