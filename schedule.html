@@ -379,6 +379,9 @@
   .blkslot b { display:block; font-weight:600; font-size:11px; color:#7a827d; }
   .blkslot.on { background:#5a5f5c; color:#fff; border-color:#5a5f5c; }
   .blkslot.on b { color:#e6e9e5; }
+  .meetb { padding:8px 16px; border:1px solid #d5dad2; background:#fff;
+           border-radius:7px; font-size:13px; cursor:pointer; color:#3b403d; }
+  .meetb.on { background:#2e7d32; color:#fff; border-color:#2e7d32; font-weight:700; }
   .ln-block .d, .ln-block .n { color:#fff !important; }
   .ln-nosess { border:1px dotted #d6d9d7; color:#9aa09c; }
   .ln-nosess .nosl { font-size:10.5px; }
@@ -946,11 +949,11 @@
           <select id="cs_kid"></select>
         </div>
         <div>
-          <label for="cs_meet">상담 방법</label>
-          <select id="cs_meet">
-            <option value="대면">대면</option>
-            <option value="비대면">비대면</option>
-          </select>
+          <label>상담 방법</label>
+          <div id="cs_meet" data-v="대면" style="display:flex; gap:6px;">
+            <button type="button" class="meetb on" data-m="대면">대면</button>
+            <button type="button" class="meetb" data-m="비대면">비대면</button>
+          </div>
         </div>
       </div>
       <div class="blkhint">상담할 교시를 하나 고르세요.</div>
@@ -6369,6 +6372,15 @@ function drawCnsSlots(){
   });
 }
 
+// 상담 방법 단추 — 눌러서 하나만 켠다
+document.querySelectorAll('#cs_meet .meetb').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('#cs_meet .meetb').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    $('cs_meet').dataset.v = b.dataset.m;
+  };
+});
+
 $('cnsSave').onclick = async () => {
   const d = $('cs_date').value;
   if (!d) { offmsg('날짜를 고르세요.', false); return; }
@@ -6383,7 +6395,7 @@ $('cnsSave').onclick = async () => {
     const { error } = await sb.from('nl_offdays').insert({
       off_date: d, kind: '상담', therapist_id: th,
       start_time: one.dataset.hm + ':00', child_id: cid,
-      meet_type: $('cs_meet').value,
+      meet_type: $('cs_meet').dataset.v || '대면',
       reason: '평가 상담'
     });
     if (error) throw error;
