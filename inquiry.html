@@ -473,93 +473,91 @@
       <input id="d_evaldate" type="hidden">
       <input id="d_memo" type="hidden">
       <input id="d_endreason" type="hidden">
-      <div style="grid-column:1 / -1;">
-        <div id="dkmWrap" style="padding:10px 12px; background:#fff;
-             border:1px solid #e0e0e0; border-radius:8px;">
-          <div style="display:flex; align-items:flex-start; gap:10px;">
-            <div style="flex:1; min-width:0;">
-              <div style="font-size:12.5px; color:#666; margin-bottom:4px;">아동 메모
-                <span id="dkmDate" style="color:#999;"></span></div>
-              <div id="dkmView" style="font-size:14px; line-height:1.7; white-space:pre-line;"></div>
-              <textarea id="d_kmemo" rows="7" style="display:none; font:inherit; font-size:14px;
-                padding:9px 11px; width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"></textarea>
-              <div id="dkmBtns" style="display:none; margin-top:8px;">
-                <button type="button" id="dkmSave" class="tab"
-                  style="background:#2e7d32; color:#fff; font-weight:bold; padding:5px 14px;">저장</button>
-                <button type="button" id="dkmCancel" class="tab" style="padding:5px 14px;">취소</button>
-              </div>
-            </div>
-            <button type="button" id="dkmBtn" class="tab"
-                    style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
-          </div>
-          <div id="dkmMsg" style="font-size:12.5px; margin-top:6px;"></div>
-        </div>
-      </div>
     </div>
-    <!-- 상담 기록 -->
+
     <div class="logbox">
-      <div class="logbox-t">상담 기록</div>
-      <div id="logRows"></div>
-      <div class="grid" style="margin-top:12px;">
-        <div>
-          <label for="l_date">날짜</label>
-          <input id="l_date" type="date">
-        </div>
-        <div>
-          <label for="l_way">방법</label>
-          <select id="l_way">
-            <option value="전화">전화</option>
-            <option value="문자">문자</option>
-            <option value="카카오톡">카카오톡</option>
-            <option value="방문">방문</option>
-            <option value="기타">기타</option>
-          </select>
-        </div>
-        <div style="grid-column:1 / -1;">
-          <label for="l_content">내용</label>
-          <input id="l_content" type="text" placeholder="예: 보호자와 통화. 9월부터 가능하다고 함">
-        </div>
+      <div class="logbox-t">기록
+        <span style="font-weight:normal;color:#888;font-size:12.5px;">— 날짜 차례</span>
+        <span id="dnextEv" style="display:none; font-weight:600; font-size:12.5px;
+              padding:4px 10px; border-radius:12px; margin-left:8px;"></span>
       </div>
-      <div class="btns">
-        <button id="addLog" class="tab" style="background:#8bc34a;color:#fff;font-weight:bold;">기록 추가</button>
-      </div>
-      <div id="msgL" class="out"></div>
+      <div id="tl"></div>
     </div>
-    <div style="border-top:2px solid #cfe0d0; margin-top:14px; padding-top:14px;">
-      <label style="display:flex; align-items:center; gap:10px;">
-        <span>평가</span>
-        <button type="button" id="dvAdd" class="tab"
-                style="background:#fff8e1;border-color:#f0c36d;color:#8a6116;
-                       font-weight:600;padding:5px 12px;">＋ 평가 줄 추가</button>
+
+    <div id="addBar" style="margin-top:14px; padding:12px; background:#f5f7f4;
+         border:1px solid #dde5da; border-radius:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        <button type="button" id="tabLog" class="tab on">＋ 상담 기록</button>
+        <button type="button" id="tabEv"  class="tab">＋ 평가 줄</button>
+        <button type="button" id="tabKm"  class="tab">✏️ 아동 메모</button>
         <button type="button" id="dvOther" class="tab"
                 style="background:#e3f0fb;border:1px solid #85b7eb;color:#0c447c;
-                       font-weight:600;padding:5px 12px;">📎 타기관 평가보고서 <span id="dvOtherN"></span></button>
-        <span id="dnextEv" style="display:none; font-weight:600; font-size:12.5px;
-              padding:4px 10px; border-radius:12px;"></span>
-        <span style="font-weight:normal;color:#888;font-size:12.5px;">
-          — 고치면 아래 「저장」을 누르세요</span>
-      </label>
-      <div id="dsumWrap" style="margin:10px 0 12px; padding:10px 12px;
-                  background:#fff; border:1px solid #e0e0e0; border-radius:8px;">
-        <div style="display:flex; align-items:flex-start; gap:10px;">
-          <div style="flex:1; min-width:0;">
-            <div style="font-size:12.5px; color:#666; margin-bottom:4px;">평가 요약</div>
-            <div id="dsumView" style="font-size:14px; line-height:1.7; white-space:pre-line;"></div>
-            <textarea id="dsumEdit" rows="4" style="display:none; font:inherit; font-size:14px;
-              padding:9px 11px; width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"
-              placeholder="예) 2026-08-14 언어평가 3종. 수용언어 1년 지연, 표현언어 2년 지연. 주 2회 언어 권고"></textarea>
-            <div id="dsumBtns" style="display:none; margin-top:8px;">
-              <button type="button" id="dsumSave" class="tab"
-                style="background:#2e7d32; color:#fff; font-weight:bold; padding:5px 14px;">저장</button>
-              <button type="button" id="dsumCancel" class="tab" style="padding:5px 14px;">취소</button>
-            </div>
-          </div>
-          <button type="button" id="dsumBtn" class="tab"
-                  style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
-        </div>
-        <div id="dsumMsg" style="font-size:12.5px; margin-top:6px;"></div>
+                       font-weight:600;">📎 평가보고서 <span id="dvOtherN"></span></button>
       </div>
-      <div id="dvRows"></div>
+
+      <div id="logForm">
+        <div class="grid">
+          <div>
+            <label for="l_date">날짜</label>
+            <input id="l_date" type="date">
+          </div>
+          <div>
+            <label for="l_way">방법</label>
+            <select id="l_way">
+              <option value="전화">전화</option>
+              <option value="문자">문자</option>
+              <option value="카카오톡">카카오톡</option>
+              <option value="방문">방문</option>
+              <option value="기타">기타</option>
+            </select>
+          </div>
+          <div style="grid-column:1 / -1;">
+            <label for="l_content">내용</label>
+            <input id="l_content" type="text" placeholder="예: 보호자와 통화. 9월부터 가능하다고 함">
+          </div>
+        </div>
+        <div class="btns">
+          <button id="addLog" class="tab" style="background:#8bc34a;color:#fff;font-weight:bold;">기록 추가</button>
+        </div>
+        <div id="msgL" class="out"></div>
+      </div>
+
+      <div id="kmForm" style="display:none;">
+        <div style="font-size:12.5px; color:#666; margin-bottom:4px;">아동 메모
+          <span id="dkmDate" style="color:#999;"></span></div>
+        <textarea id="d_kmemo" rows="7" style="font:inherit; font-size:14px; padding:9px 11px;
+          width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"></textarea>
+        <div class="btns">
+          <button type="button" id="dkmSave" class="tab"
+            style="background:#2e7d32;color:#fff;font-weight:bold;">저장</button>
+          <button type="button" id="dkmCancel" class="tab">취소</button>
+        </div>
+        <div id="dkmMsg" style="font-size:12.5px;"></div>
+      </div>
+
+      <div id="evForm" style="display:none;">
+        <div style="margin-bottom:8px;">
+          <button type="button" id="dvAdd" class="tab"
+                  style="background:#fff8e1;border-color:#f0c36d;color:#8a6116;
+                         font-weight:600;padding:5px 12px;">＋ 평가 줄 추가</button>
+          <span style="color:#888;font-size:12.5px;">
+            — 평가 줄을 고쳤으면 아래 초록 「저장」을 누르세요</span>
+        </div>
+        <div id="dvRows"></div>
+        <div style="margin-top:10px; padding:10px 12px; background:#fff;
+             border:1px solid #e0e0e0; border-radius:8px;">
+          <div style="font-size:12.5px; color:#666; margin-bottom:4px;">평가 요약</div>
+          <textarea id="dsumEdit" rows="4" style="font:inherit; font-size:14px;
+            padding:9px 11px; width:100%; box-sizing:border-box; resize:vertical; line-height:1.7;"
+            placeholder="예) 수용언어 1년 지연, 표현언어 2년 지연. 주 2회 언어 권고"></textarea>
+          <div class="btns">
+            <button type="button" id="dsumSave" class="tab"
+              style="background:#2e7d32;color:#fff;font-weight:bold;">요약 저장</button>
+            <button type="button" id="dsumCancel" class="tab">취소</button>
+          </div>
+          <div id="dsumMsg" style="font-size:12.5px;"></div>
+        </div>
+      </div>
     </div>
 
     <div class="btns">
@@ -850,6 +848,8 @@ async function openDetail(id) {
   drawNextEv(r.child_id);
   refreshDocs(r.child_id);
 
+  logEditClear();
+  tlTab('log', true);
   $('l_date').value = today();
   $('l_content').value = '';
   showBox('msgL', '', true); $('msgL').className = 'out';
@@ -874,45 +874,140 @@ async function openDetail(id) {
   $('detBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+let LOGS = [];   // 이 문의의 상담 기록
+
 async function loadLogs(id) {
-  $('logRows').innerHTML = '<div class="lognone">불러오는 중...</div>';
+  $('tl').innerHTML = '<div class="lognone">불러오는 중...</div>';
   const { data, error } = await sb
     .from('nl_inquiry_logs')
     .select('id, log_date, way, content, staff_id')
     .eq('inquiry_id', id)
     .order('log_date', { ascending: true })
     .order('id', { ascending: true });
-
   if (error) {
-    $('logRows').innerHTML = '<div class="lognone">기록을 불러오지 못했습니다.</div>';
+    $('tl').innerHTML = '<div class="lognone">기록을 불러오지 못했습니다.</div>';
     return;
   }
+  LOGS = data || [];
+  drawTimeline();
+}
 
-  const r  = ALL.find(x => x.id === id);
-  const kk = r ? KIDS.find(k => k.id === r.child_id) : null;
-  const gs = r ? evGroups(r.child_id) : [];
+// ── 한 줄기 기록 — 아동 메모 · 평가 · 상담 기록을 날짜 차례로 ──
+function tlTag(txt, bg, fg) {
+  return '<span style="font-size:12px; background:' + bg + '; color:' + fg
+       + '; padding:2px 8px; border-radius:10px; white-space:nowrap;">' + txt + '</span>';
+}
 
+function tlRow(date, tag, body, btn) {
+  return '<div style="display:flex; align-items:flex-start; gap:10px;'
+       + ' padding:10px 0; border-bottom:1px solid #eee;">'
+       + '<span style="font-size:13px; color:#666; min-width:84px; white-space:nowrap;">'
+       + esc(date) + '</span>' + tag
+       + '<div style="flex:1; min-width:0; font-size:14px; line-height:1.7;'
+       + ' white-space:pre-line;">' + body + '</div>' + btn + '</div>';
+}
+
+function drawTimeline() {
+  const r = ALL.find(x => x.id === openId);
+  if (!r) { $('tl').innerHTML = ''; return; }
+  const kk = KIDS.find(k => k.id === r.child_id);
   const parts = [];
-  (data || []).forEach(l => parts.push({
+
+  // 상담 기록
+  LOGS.forEach(l => parts.push({
     d: String(l.log_date),
-    html: '<div class="logrow">'
-      + '<span class="logdate">' + esc(l.log_date) + '</span>'
-      + '<span class="logway">' + esc(l.way) + '</span>'
-      + esc(l.content)
-      + '<span class="logwho">· ' + (l.staff_id ? l.staff_id + '번' : '') + '</span>'
-      + '</div>'
+    html: tlRow(l.log_date,
+      tlTag('상담', '#eaf3de', '#27500a'),
+      '<span style="color:#666;">' + esc(l.way) + '</span> · ' + esc(l.content)
+      + (l.staff_id ? ' <span style="color:#999; font-size:12.5px;">· ' + l.staff_id + '번</span>' : ''),
+      '<button type="button" class="tab tlLogEdit" data-id="' + l.id
+      + '" style="padding:3px 9px; font-size:12px;">수정</button>')
   }));
-  gs.forEach((g, i) => parts.push({
-    d: g.first,
-    html: evGroupBox(g, i === gs.length - 1, kk ? kk.eval_summary : '', DOCN)
-  }));
+
+  // 평가 묶음 (한 달 안이면 한 묶음). 요약은 가장 최근 묶음에 붙는다
+  const gs = evGroups(r.child_id);
+  gs.forEach((g, i) => {
+    const last = (i === gs.length - 1);
+    let body = g.items.map(e =>
+      esc(String(e.eval_date).slice(5, 7) + '월 ' + String(e.eval_date).slice(8, 10) + '일')
+      + ' · ' + esc(evTypeName(e.eval_type_id)) + ' ' + (e.item_cnt || 1) + '개'
+      + (e.fee ? ' · ' + Number(e.fee).toLocaleString() + '원' : '')
+      + (e.status === '예정' ? ' <span style="color:#e65100;">예정</span>' : '')
+    ).join('<br>');
+    if (last) {
+      const ny = Number(g.last.slice(0, 4)) + 1, nm = Number(g.last.slice(5, 7));
+      body += '<div style="font-size:12.5px; color:#666; margin-top:4px;">다음 재평가 '
+            + ny + '년 ' + nm + '월'
+            + (DOCN === null ? '' : ' · 📎 평가보고서 ' + DOCN + '개') + '</div>';
+      const done = g.items.every(e => e.status === '완료');
+      const over = (new Date() - new Date(g.last + 'T00:00:00')) / 86400000 > 31;
+      if (kk && kk.eval_summary) {
+        body += '<div style="margin-top:6px; padding-top:6px; border-top:1px solid #eee;">'
+              + esc(kk.eval_summary) + '</div>';
+      } else if (done && over) {
+        body += '<div style="margin-top:6px; color:#a35b00; font-size:13px;">'
+              + '⚠️ 평가 요약을 적어 주세요</div>';
+      }
+    }
+    parts.push({
+      d: g.first,
+      html: tlRow(g.first, tlTag('평가', '#e6f1fb', '#0c447c'), body,
+        '<button type="button" class="tab tlEvEdit" style="padding:3px 9px; font-size:12px;">수정</button>')
+    });
+  });
+
+  // 아동 메모
+  if (kk && kk.memo) {
+    parts.push({
+      d: kk.memo_at ? String(kk.memo_at) : String(r.inquiry_date || ''),
+      html: tlRow(kk.memo_at ? String(kk.memo_at) : '날짜 없음',
+        tlTag('아동 메모', '#fff8e1', '#8a6116'), esc(kk.memo),
+        '<button type="button" class="tab tlKmEdit" style="padding:3px 9px; font-size:12px;">수정</button>')
+    });
+  }
 
   if (!parts.length) {
-    $('logRows').innerHTML = '<div class="lognone">아직 상담 기록이 없습니다.</div>';
+    $('tl').innerHTML = '<div class="lognone">아직 기록이 없습니다. 아래에서 적어 주세요.</div>';
     return;
   }
-  parts.sort((a, b) => a.d.localeCompare(b.d));
-  $('logRows').innerHTML = parts.map(x => x.html).join('');
+  parts.sort((a, b) => String(a.d).localeCompare(String(b.d)));
+  $('tl').innerHTML = parts.map(x => x.html).join('');
+
+  $('tl').querySelectorAll('.tlKmEdit').forEach(b => b.onclick = () => tlTab('km'));
+  $('tl').querySelectorAll('.tlEvEdit').forEach(b => b.onclick = () => tlTab('ev'));
+  $('tl').querySelectorAll('.tlLogEdit').forEach(b => b.onclick = () => logEdit(Number(b.dataset.id)));
+}
+
+// ── 아래 고정 칸 — 갈래 바꾸기 ──
+function tlTab(which, noScroll) {
+  $('logForm').style.display = (which === 'log') ? 'block' : 'none';
+  $('kmForm').style.display  = (which === 'km')  ? 'block' : 'none';
+  $('evForm').style.display  = (which === 'ev')  ? 'block' : 'none';
+  $('tabLog').className = 'tab' + (which === 'log' ? ' on' : '');
+  $('tabKm').className  = 'tab' + (which === 'km'  ? ' on' : '');
+  $('tabEv').className  = 'tab' + (which === 'ev'  ? ' on' : '');
+  if (!noScroll) $('addBar').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+$('tabLog').onclick = () => tlTab('log');
+$('tabKm').onclick  = () => tlTab('km');
+$('tabEv').onclick  = () => tlTab('ev');
+
+// ── 상담 기록 한 줄 고치기 ──
+function logEdit(lid) {
+  const l = LOGS.find(x => x.id === lid);
+  if (!l) return;
+  tlTab('log');
+  $('l_date').value    = l.log_date || today();
+  $('l_way').value     = l.way || '전화';
+  $('l_content').value = l.content || '';
+  $('addLog').dataset.editId = String(lid);
+  $('addLog').textContent = '고쳐 저장';
+  showBox('msgL', '고치는 중입니다. 저장하면 그 줄이 바뀝니다.', true);
+}
+function logEditClear() {
+  delete $('addLog').dataset.editId;
+  $('addLog').textContent = '기록 추가';
+  $('l_content').value = '';
 }
 
 $('closeDet').onclick = () => { $('detBox').style.display = 'none'; openId = null;
@@ -930,31 +1025,17 @@ $('goNew').onclick = () => {
 // ── 아동 메모 — 평소에는 글자, 「수정」을 눌렀을 때만 메모창 ──
 function dkmShow(text, at) {
   const t = (text || '').trim();
-  $('dkmView').innerHTML = t ? esc(t)
-    : '<span style="color:#999;">아직 적은 메모가 없습니다. 「✏️ 수정」을 눌러 적으세요.</span>';
   $('dkmDate').textContent = at ? '· ' + String(at).slice(0, 10) + ' 적음' : '';
-  $('dkmView').style.display  = 'block';
-  $('d_kmemo').style.display  = 'none';
-  $('dkmBtns').style.display  = 'none';
-  $('dkmBtn').style.display   = 'inline-block';
   $('d_kmemo').value = t;
   $('d_kmemo').dataset.orig = t;
   $('dkmMsg').textContent = '';
 }
 
-$('dkmBtn').onclick = () => {
-  $('dkmView').style.display = 'none';
-  $('dkmBtn').style.display  = 'none';
-  $('d_kmemo').style.display = 'block';
-  $('dkmBtns').style.display = 'block';
-  $('dkmMsg').textContent = '';
-  $('d_kmemo').focus();
-};
-
 $('dkmCancel').onclick = () => {
   const r = ALL.find(x => x.id === openId);
   const kk = r ? KIDS.find(k => k.id === r.child_id) : null;
   dkmShow($('d_kmemo').dataset.orig || '', kk ? kk.memo_at : null);
+  tlTab('log');
 };
 
 $('dkmSave').onclick = async () => {
@@ -971,6 +1052,7 @@ $('dkmSave').onclick = async () => {
     const kk = KIDS.find(k => k.id === r.child_id);
     if (kk) { kk.memo = v || null; kk.memo_at = today(); }
     dkmShow(v, today());
+    drawTimeline();
     $('dkmMsg').style.color = '#2e7d32';
     $('dkmMsg').textContent = '✅ 저장했습니다.';
   } catch (e) {
@@ -1004,34 +1086,6 @@ function evGroups(cid) {
 function evTypeName(id) {
   const t = EVTYPES.find(x => x.id === Number(id));
   return t ? t.name : '평가';
-}
-
-function evGroupBox(g, isLast, summary, docN) {
-  const lines = g.items.map(e =>
-    '<div style="font-size:13.5px; line-height:1.8;">'
-    + esc(String(e.eval_date).slice(5).replace('-', '월 ') + '일')
-    + ' · ' + esc(evTypeName(e.eval_type_id))
-    + ' ' + (e.item_cnt || 1) + '개'
-    + (e.fee ? ' · ' + Number(e.fee).toLocaleString() + '원' : '')
-    + (e.status === '예정' ? ' <span style="color:#e65100;">예정</span>' : '')
-    + '</div>').join('');
-
-  let sum = '';
-  if (isLast) {
-    const done = g.items.every(e => e.status === '완료');
-    const over = (new Date() - new Date(g.last + 'T00:00:00')) / 86400000 > 31;
-    if (summary) {
-      sum = '<div style="margin-top:8px; padding-top:8px; border-top:1px solid #cfe0f0;'
-          + ' font-size:14px; line-height:1.7; white-space:pre-line;">' + esc(summary) + '</div>';
-    } else if (done && over) {
-      sum = '<div style="margin-top:8px; color:#a35b00; font-size:13px;">⚠️ 평가 요약을 적어 주세요'
-          + (docN === 0 ? ' · 평가보고서도 아직 없습니다' : '') + '</div>';
-    }
-  }
-  return '<div style="margin:10px 0; padding:10px 12px; background:#eef5fc;'
-       + ' border:1px solid #bcd7ef; border-radius:8px;">'
-       + '<div style="font-size:12.5px; color:#0c447c; font-weight:600; margin-bottom:4px;">평가</div>'
-       + lines + sum + '</div>';
 }
 
 // ── 재평가 대상 창 ──────────────────────────────
@@ -1143,27 +1197,12 @@ function drawNextEv(cid) {
 // 평가 요약 메모 — 평소에는 글자, 「수정」을 눌렀을 때만 메모창
 function dsumShow(text) {
   const t = (text || '').trim();
-  $('dsumView').innerHTML = t ? esc(t)
-    : '<span style="color:#999;">아직 적은 요약이 없습니다. 「✏️ 수정」을 눌러 적으세요.</span>';
-  $('dsumView').style.display = 'block';
-  $('dsumEdit').style.display = 'none';
-  $('dsumBtns').style.display = 'none';
-  $('dsumBtn').style.display  = 'inline-block';
   $('dsumEdit').value = t;
   $('dsumEdit').dataset.orig = t;
   $('dsumMsg').textContent = '';
 }
 
-$('dsumBtn').onclick = () => {
-  $('dsumView').style.display = 'none';
-  $('dsumBtn').style.display  = 'none';
-  $('dsumEdit').style.display = 'block';
-  $('dsumBtns').style.display = 'block';
-  $('dsumMsg').textContent = '';
-  $('dsumEdit').focus();
-};
-
-$('dsumCancel').onclick = () => { dsumShow($('dsumEdit').dataset.orig || ''); };
+$('dsumCancel').onclick = () => { dsumShow($('dsumEdit').dataset.orig || ''); tlTab('log'); };
 
 $('dsumSave').onclick = async () => {
   const r = ALL.find(x => x.id === openId);
@@ -1179,7 +1218,7 @@ $('dsumSave').onclick = async () => {
     const kk = KIDS.find(k => k.id === r.child_id);
     if (kk) kk.eval_summary = v || null;
     dsumShow(v);
-    if (openId) loadLogs(openId);
+    drawTimeline();
     $('dsumMsg').style.color = '#2e7d32';
     $('dsumMsg').textContent = '✅ 저장했습니다.';
   } catch (e) {
@@ -1292,26 +1331,33 @@ $('addLog').onclick = async () => {
   if (!openId) return;
   const content = $('l_content').value.trim();
   if (!content) { showBox('msgL', '내용을 적으세요.', false); return; }
+  const editId = $('addLog').dataset.editId ? Number($('addLog').dataset.editId) : null;
 
   $('addLog').disabled = true;
-  $('addLog').textContent = '추가 중...';
+  $('addLog').textContent = '저장 중...';
   try {
-    const { error } = await sb.from('nl_inquiry_logs').insert({
-      inquiry_id: openId,
-      log_date:   $('l_date').value || today(),
-      way:        $('l_way').value,
-      content:    content,
-      staff_id:   ME ? ME.id : null
-    });
+    const row = {
+      log_date: $('l_date').value || today(),
+      way:      $('l_way').value,
+      content:  content
+    };
+    let error;
+    if (editId) {
+      ({ error } = await sb.from('nl_inquiry_logs').update(row).eq('id', editId));
+    } else {
+      row.inquiry_id = openId;
+      row.staff_id   = ME ? ME.id : null;
+      ({ error } = await sb.from('nl_inquiry_logs').insert(row));
+    }
     if (error) throw error;
-    $('l_content').value = '';
+    logEditClear();
     await loadLogs(openId);
-    showBox('msgL', '✅ 기록을 추가했습니다.', true);
+    showBox('msgL', editId ? '✅ 고쳤습니다.' : '✅ 기록을 추가했습니다.', true);
   } catch (e) {
-    showBox('msgL', '❌ 추가하지 못했습니다.\n' + e.message, false);
+    showBox('msgL', '❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally {
     $('addLog').disabled = false;
-    $('addLog').textContent = '기록 추가';
+    $('addLog').textContent = $('addLog').dataset.editId ? '고쳐 저장' : '기록 추가';
   }
 };
 
@@ -1986,7 +2032,7 @@ watchFee('nvRows', 'nv');
 watchFee('dvRows', 'dv');
 
 $('nvAdd').onclick = () => nvAddRow();
-$('dvAdd').onclick = () => dvAddRow(null);
+$('dvAdd').onclick = () => { tlTab('ev'); dvAddRow(null); };
 
 // 등록 창에 평가 줄이 하나도 없으면 하나 만들어 둔다
 function nvEnsureOne() {
