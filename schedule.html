@@ -477,6 +477,11 @@
   .r-rest { background:#f0f2f1 !important; color:#8a908c !important;
             border-color:#d6dad8 !important; }
   .r-eval { background:#ffc2d8; color:#6d1338; border-color:#e0679b; }
+  /* 첫 수업 딱지 (2026-09-16) */
+  .fsttag { display:inline-block; margin-left:4px; padding:0 6px; border-radius:9px;
+            background:#fff3e0; color:#8a4b00; border:1px solid #ef9f27;
+            font-size:11px; font-weight:600; line-height:1.6; cursor:pointer; white-space:nowrap; }
+  .fsttag:hover { background:#ef9f27; color:#fff; }
   /* 체험 수업 — 평가 칸 모양 · 하늘색 (2026-09-16) */
   .r-eval[data-sid^="T"] { background:#cfe6f7; color:#0c447c; border-color:#5b9bd0; }
   .ln-eval[data-sid^="T"] { background:#cfe6f7; border-color:#5b9bd0; }
@@ -2504,6 +2509,10 @@ function fExtra(s){
 }
 
 function drawFind(){
+  drawFind0();
+  tagFirst($('findRows'));
+}
+function drawFind0(){
   const q = $('findName').value.trim();
   if (!q) { $('findBox').style.display = 'none'; return; }
 
@@ -4032,7 +4041,50 @@ function draw(){
   afterDraw();
 }
 
-function afterDraw(){ if ($('findName').value.trim()) markFind(); }
+function afterDraw(){ if ($('findName').value.trim()) markFind(); tagFirst(document.body); }
+
+// ── 첫 수업 딱지 (2026-09-16) ──
+//   수업(치료)마다 시작일 뒤 가장 이른 정규 회기 한 칸에 「📋 첫 수업」을 붙인다
+//   시작일이 이 달일 때만. 시작일이 비면 요일줄 시작일(from_date)로 본다
+//   딱지를 누르면 초기 상담 · 평가보고서 창 (칸을 누르면 지금처럼 찾기 창)
+let FIRSTSID = {};
+function calcFirst(){
+  FIRSTSID = {};
+  const seen = {};
+  ROWS.forEach(r => {
+    if (seen[r.therapy_id]) return;
+    const st = String(r._start || r.from_date || '');
+    if (st.slice(0, 7) !== mon) return;
+    seen[r.therapy_id] = 1;
+    const cand = SESS.filter(x => x.therapy_id === r.therapy_id && x.schedule_id
+      && !x.makeup_for && !x._isEval
+      && ['휴무', '쉼', '취소'].indexOf(x.status) < 0
+      && String(x.plan_date) >= st)
+      .sort((a, b) => String(a.plan_date).localeCompare(String(b.plan_date))
+                   || String(a.start_time).localeCompare(String(b.start_time)));
+    if (cand.length) FIRSTSID[cand[0].id] = r._cid;
+  });
+}
+function tagFirst(root){
+  if (!root) return;
+  root.querySelectorAll('[data-sid]').forEach(el => {
+    const cid = FIRSTSID[el.dataset.sid];
+    if (!cid || el.querySelector('.fsttag')) return;
+    const t = document.createElement('span');
+    t.className = 'fsttag';
+    t.dataset.cid = cid;
+    t.title = '초기 상담 · 평가보고서 보기';
+    t.textContent = '📋 첫 수업';
+    el.appendChild(t);
+  });
+}
+// 딱지를 누르면 칸의 원래 동작(찾기 창·상태 바꾸기)보다 먼저 받아 창만 연다
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('.fsttag');
+  if (!t) return;
+  e.stopPropagation(); e.preventDefault();
+  evalTap({ child_id: Number(t.dataset.cid) });
+}, true);
 
 function drawDay(){
   buildSplit();
@@ -8120,6 +8172,7 @@ async function loadMonth(){
     const n2 = {}; (kk || []).forEach(k => n2[k.id] = k.name);
     SESS.forEach(s => { if (!s._name) s._name = n2[s.child_id] || ''; });
   }
+  calcFirst();
 
   // 「보강이 필요한 줄」을 서버 한 곳에서 받는다 (2026-09-11)
   //   세 상자 · 찾기 창 ＋ · 하루 보기 멘트가 이것만 따른다
@@ -8205,7 +8258,7 @@ async function afterLogin(user){
     .select('id, therapy_id, weekday, start_time, therapist_id, duration, from_month, to_month, from_date, to_date, week1, week2, week3, week4');
   if (e3) { show('❌ 시간표 조회 실패\n'+e3.message, false); return; }
   const { data: tp } = await sb.from('nl_therapies')
-    .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode');
+    .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode, started_on');
   // 종결한 아동도 함께 가져온다.
   //   종결하면 지난 달 시간표까지 사라지던 문제가 있었다.
   //   그 달에 수업요일이 살아 있는지(끝난달)로 갈리므로 상태로 거르지 않는다
@@ -8221,6 +8274,7 @@ async function afterLogin(user){
     r._cid=t.child_id; r._tt=t.therapy_type_id;
     r.support_type_id=t.support_type_id; r._name=k.name; r._birth=k.birth;
     r.therapy_id = t.id; r._cnt = t.monthly_count || 4;
+    r._start = t.started_on || null;   // 첫 수업 딱지에 씀 (2026-09-16)
     r._mode = t.count_mode || '4회만';
     // 주차는 수업요일 줄에 있다 (납부 화면에서 정한다)
     r._w1 = r.week1 !== false; r._w2 = r.week2 !== false;
