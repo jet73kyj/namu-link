@@ -137,6 +137,10 @@
               font-size:13px; border-radius:8px; text-decoration:none;
               white-space:nowrap; margin-right:8px; }
   .btn-home:hover { filter:brightness(1.08); }
+  /* 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) (2026-09-16) */
+  button#save { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
+  button#save.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  button#save:disabled { background:#bbb; color:#fff; border-color:#bbb; }
 </style>
 </head>
 <body>
@@ -216,7 +220,7 @@
       <h2 id="prevTitle">4. 아동별 내역</h2>
       <div class="scroll"><table id="prev"></table></div>
       <div class="foot">
-        <button id="save">저장</button>
+        <button id="save">💾 저장 전</button>
         <span class="grow" id="savehint"></span>
       </div>
       <div id="msg3" class="out"></div>
@@ -972,7 +976,55 @@ function drawResult() {
   $('empty').style.display = 'none';
   show($('msg2'), '읽었습니다. 내용을 확인하고 아래 [저장]을 누르세요.', true);
   $('savehint').textContent = ROWS.length + '줄이 저장됩니다.';
+  UP_DIRTY = true;
+  setUpBtn('before');
 }
+
+// ── 저장 단추 상태 · 나갈 때 묻기 (2026-09-16) ──
+//   엑셀을 읽거나 짝을 고르면 「저장 전」, 저장하면 「✓ 저장됨」(계속 남김)
+//   처리 결과 메모 칸은 단추를 그대로 두고, 적고 안 누른 칸만 나갈 때 함께 묻는다
+let UP_DIRTY = false;
+let UP_LEAVING = false;
+function setUpBtn(st) {
+  const b = $('save');
+  if (!b) return;
+  b.classList.toggle('done', st === 'done');
+  b.disabled = (st === 'saving');
+  b.textContent = st === 'saving' ? '저장 중…'
+                : st === 'done'   ? '\u2713 저장됨'
+                : '💾 저장 전';
+}
+// 적고 「저장」을 안 누른 메모 칸 수 (같은 아동 칸은 하나로 센다)
+function memoPendingN() {
+  const seen = {};
+  document.querySelectorAll('.amemoin').forEach(el => {
+    const cid = el.dataset.cid;
+    if (el.value.trim() !== String(MEMOS[cid] || '').trim()) seen[cid] = 1;
+  });
+  return Object.keys(seen).length;
+}
+function upPending(withRows) {
+  const out = [];
+  if (withRows && UP_DIRTY) out.push('엑셀 내역 (아래 「저장」)');
+  const n = memoPendingN();
+  if (n) out.push('처리 결과 메모 ' + n + '칸 (칸 옆 「저장」)');
+  return out;
+}
+function upLeaveOk(withRows) {
+  const p = upPending(withRows);
+  if (!p.length) return true;
+  return confirm('저장하지 않은 것이 있습니다.\n\n· ' + p.join('\n· ')
+    + '\n\n그래도 계속할까요? (저장하지 않은 것은 사라집니다)');
+}
+document.querySelector('.btn-home').addEventListener('click', e => {
+  if (!upLeaveOk(true)) { e.preventDefault(); return; }
+  UP_LEAVING = true;
+});
+window.addEventListener('beforeunload', e => {
+  if (UP_LEAVING || !upPending(true).length) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 // 짝 고르면 바로 반영
 $('unmatch') && $('unmatch').addEventListener('change', e => {
@@ -982,6 +1034,8 @@ $('unmatch') && $('unmatch').addEventListener('change', e => {
   if (!g) return;
   g.child_id = e.target.value ? Number(e.target.value) : null;
   g.how = g.child_id ? '손으로 이음' : '못 찾음';
+  UP_DIRTY = true;
+  setUpBtn('before');
   const okN = GROUPS.filter(x => x.child_id).length;
   $('stat').querySelectorAll('.st')[2].querySelector('.v').textContent = okN;
   $('stat').querySelectorAll('.st')[3].querySelector('.v').textContent = GROUPS.length - okN;
@@ -989,7 +1043,7 @@ $('unmatch') && $('unmatch').addEventListener('change', e => {
 
 $('save').onclick = async () => {
   const btn = $('save');
-  btn.disabled = true; btn.textContent = '저장 중...';
+  setUpBtn('saving');
   try {
     const idOf = {};
     GROUPS.forEach(g => { idOf[g.target_id] = g.child_id || null; });
@@ -1030,11 +1084,12 @@ $('save').onclick = async () => {
       + '\n같은 내용을 다시 올려도 중복으로 쌓이지 않습니다.', true);
 
     GROUPS.forEach(g => { if (g.child_id) MAPPED[g.target_id] = g.child_id; });
-    btn.textContent = '저장됨';
-    setTimeout(() => { btn.textContent = '저장'; btn.disabled = false; }, 1500);
+    // 「저장됨」을 계속 남긴다 (전에는 1.5초 뒤 「저장」으로 돌아가 저장했는지 알 수 없었음)
+    UP_DIRTY = false;
+    setUpBtn('done');
   } catch (e) {
     show($('msg3'), '❌ 저장하지 못했습니다.\n' + e.message, false);
-    btn.disabled = false; btn.textContent = '저장';
+    setUpBtn('before');
   }
 };
 
@@ -1043,12 +1098,16 @@ $('drop0').onclick = () => $('file0').click();
 
 function takeCur(f) {
   if (!f) return;
+  if (!upLeaveOk(true)) { $('file').value = ''; return; }
+  UP_DIRTY = false;
   $('drop').innerHTML = '고른 파일<br><b>' + esc(f.name) + '</b><br>'
     + '<span style="font-size:12px;">다시 고르려면 여기를 누르거나 새 파일을 끌어다 놓으세요</span>';
   readExcel(f, 'cur');
 }
 function takePrev(f) {
   if (!f) return;
+  // 전월은 올리는 즉시 보관된다. 다시 그리면 적어 둔 메모 칸이 지워지므로 메모만 묻는다
+  if (!upLeaveOk(false)) { $('file0').value = ''; return; }
   $('drop0').innerHTML = '고른 전월 파일<br><b>' + esc(f.name) + '</b>';
   readExcel(f, 'prev');
 }
@@ -1100,6 +1159,8 @@ $('btn').onclick = async () => {
   }
 };
 $('out').onclick = async () => {
+  if (!upLeaveOk(true)) return;
+  UP_LEAVING = true;
   nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
