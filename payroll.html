@@ -262,7 +262,7 @@ const INS = {
   accident: { emp:0,       own:0.0153 }
 };
 const TAX = 0.033;
-const STYPE = {1:'센',2:'발',3:'치',4:'치',5:'방',6:'방치',7:'방치',8:'발추',9:'평가'};
+const STYPE = {1:'센',2:'발',3:'치',4:'치',5:'방',6:'방치',7:'방치',8:'발추',9:'평가',10:'체험'};
 
 let RATES_ALL = [];   // 단가 기록 전부 (여러 시점)
 let RATES = {};   // 치료사 번호 -> 단가
@@ -287,6 +287,7 @@ let THS   = [];
 let SESS  = [], ROWS = [], KIDS = {};
 let HASPART = {};   // 쪼갠 조각이 딸린 원래 줄 { 줄번호: 조각 분의 합 }
 let EVALS = [];   // 그 달 평가
+let TRIALS = [];  // 그 달 체험 수업 — 완료만. 정규 1회처럼 센다 (2026-09-16)
 let mon = '', thId = 0;
 
 function show(t, ok){ $('msg').textContent=t; $('msg').className='out '+(ok?'ok':'err'); }
@@ -327,6 +328,12 @@ function calc(){
   const done = SESS.filter(s => s.therapist_id === thId
                  && (s.status === '완료' || s.status === '보강')
                  && !(HASPART[s.id] > 0));
+  // 완료된 체험 수업도 정규 1회처럼 센다 (2026-09-16) — 수업 시간은 _trialDur 로
+  TRIALS.filter(t => t.therapist_id === thId).forEach(t => {
+    done.push({ id: 'T' + t.id, child_id: t.child_id, plan_date: t.lesson_date,
+                status: '완료', therapist_id: t.therapist_id, support_type_id: 10,
+                schedule_id: null, memo: '', _trialDur: Number(t.duration_min) || 40 });
+  });
 
   if (!SESS.length) {
     $('warnBox').style.display = 'block';
@@ -344,7 +351,7 @@ function calc(){
   const byKid = {};
   done.forEach(s => {
     const sc = ROWS.find(x => x.id === s.schedule_id);
-    const dur = sc ? Number(sc.duration || 40) : 40;
+    const dur = s._trialDur || (sc ? Number(sc.duration || 40) : 40);
     const tt  = sc ? sc._tt : null;
     const stid = s.support_type_id || (sc ? sc.support_type_id : null);
     const nm  = (KIDS[s.child_id] || ('아동 ' + s.child_id + '번'))
@@ -363,6 +370,7 @@ function calc(){
     else               { k.m40 += part; fee = r.session_fee * part; }
     k.fee += Math.round(fee);
     k.days.push(dayNo(s.plan_date)
+      + (s._trialDur ? '(체험)' : '')
       + (rest ? '(완료 처리 ' + rest + '분)'
               : (part !== 1 ? '(+' + Number(s.minutes) + '분)' : ''))
       + (s.status==='보강'
@@ -417,6 +425,8 @@ function calc(){
   const fuelDays = new Set();
   SESS.filter(s => s.therapist_id === thId && s.status === '완료' && !(HASPART[s.id] > 0))
       .forEach(s => fuelDays.add(s.plan_date));
+  // 체험한 날도 나오신 날이다 (2026-09-16)
+  TRIALS.filter(t => t.therapist_id === thId).forEach(t => fuelDays.add(t.lesson_date));
   const fuel = (r.daily_fuel || 0) * fuelDays.size;
 
   // 4대보험
@@ -550,6 +560,16 @@ async function loadEvals(){
     .gte('eval_date', mon + '-01').lte('eval_date', monEnd(mon))
     .order('eval_date');
   EVALS = (data || []).filter(e => e.status === '완료');
+
+  // 체험 수업 — 그 달에 체험한 날 · 「완료」만 (2026-09-16)
+  TRIALS = [];
+  try {
+    const { data: tl } = await sb.from('nl_trial_lessons')
+      .select('id, child_id, lesson_date, therapist_id, duration_min, status')
+      .gte('lesson_date', mon + '-01').lte('lesson_date', monEnd(mon))
+      .order('lesson_date');
+    TRIALS = (tl || []).filter(t => t.status === '완료');
+  } catch (e) { TRIALS = []; }
 }
 
 async function loadMonth(){
