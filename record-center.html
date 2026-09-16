@@ -12,7 +12,10 @@
   .form-actions { display:flex; gap:8px; margin:12px 0; }
   .form-actions button { padding:8px 18px; border:none; border-radius:6px;
                          font-size:13px; font-weight:bold; cursor:pointer; }
-  .btn-save { background:#2e7d32; color:white; }
+  /* 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) (2026-09-16) */
+  .btn-save { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3 !important; }
+  .btn-save.done { background:#2e7d32; color:white; border-color:#2e7d32 !important; }
+  .btn-save:disabled { background:#bbb; color:white; border-color:#bbb !important; cursor:default; }
   .btn-print { background:#1565c0; color:white; }
   .sheet { background:white; padding:26px 32px; border:1px solid #ddd;
            box-shadow:0 1px 4px rgba(0,0,0,0.05); margin-bottom:22px; }
@@ -114,7 +117,7 @@
   <div class="page-title" id="pageTitle">치료 기록지</div>
 
   <div class="form-actions no-print">
-    <button class="btn-save" onclick="saveRecord()">💾 저장</button>
+    <button class="btn-save" id="btnSave" onclick="saveRecord()">💾 저장 전</button>
     <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
   </div>
 
@@ -365,6 +368,7 @@ async function afterLogin(user) {
 async function loadOne() {
   const idx = $('pChild').value;
   const mv  = $('pMonth').value;
+  if (DIRTY && !confirm('저장하지 않은 내용이 있습니다.\n\n그래도 다른 기록지를 불러올까요?\n(적어 둔 내용은 사라집니다)')) return;
   if (idx === '') { alert('아동을 고르세요.'); return; }
   if (!mv) { alert('달을 고르세요.'); return; }
 
@@ -397,6 +401,8 @@ async function loadOne() {
     LOADED = true;
     $('pInfo').textContent = mk + (LOGID ? ' · 저장된 기록 있음' : ' · 새로 작성');
     drawAll(lg.data);
+    DIRTY = false;
+    setSaveBtn(LOGID ? 'done' : 'before');
   } catch (e) {
     alert('불러오지 못했습니다.\n' + e.message);
   } finally {
@@ -499,6 +505,8 @@ function buildSeq() {
 async function saveRecord() {
   if (!LOADED || !cur) { alert('먼저 아동과 달을 고르고 [불러오기]를 누르세요.'); return; }
   const mk = mkNow();
+  SAVING = true;
+  setSaveBtn('saving');
   try {
     const logRow = {
       child_id: cur.child.id, support_type_id: SUPPORT,
@@ -551,12 +559,44 @@ async function saveRecord() {
     if (ins.error) throw ins.error;
 
     ITEMS = items;
-    alert('✅ 저장되었습니다.');
+    // 저장 알림 창은 뺐다 — 단추 모양이 알려 준다 (2026-09-16)
     $('pInfo').textContent = mk + ' · 저장됨';
+    DIRTY = false;
+    setSaveBtn('done');
   } catch (e) {
     alert('❌ 저장하지 못했습니다.\n' + e.message);
+    setSaveBtn('before');
+  } finally {
+    setTimeout(() => { SAVING = false; }, 300);
   }
 }
+
+// ── 저장 단추 상태 (2026-09-16) ──
+//   before 저장 전 / saving 저장 중 / done 저장됨
+//   칸을 고치면 다시 「저장 전」. 저장 전인 채 나가면 묻는다
+let DIRTY  = false;
+let SAVING = false;
+function setSaveBtn(st) {
+  const b = $('btnSave');
+  if (!b) return;
+  b.classList.toggle('done', st === 'done');
+  b.disabled = (st === 'saving');
+  b.textContent = st === 'saving' ? '저장 중…'
+                : st === 'done'   ? '\u2713 저장됨'
+                : '💾 저장 전';
+}
+function markDirty() {
+  if (!LOADED || SAVING) return;
+  DIRTY = true;
+  setSaveBtn('before');
+}
+document.querySelector('.container').addEventListener('input',  markDirty);
+document.querySelector('.container').addEventListener('change', markDirty);
+window.addEventListener('beforeunload', e => {
+  if (!DIRTY) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 $('pLoad').onclick = loadOne;
 // 초기 상담·평가보고서 보기 전용 창 (2026-09-15)
