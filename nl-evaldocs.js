@@ -140,7 +140,9 @@
           +   (isCenter ? '언어평가 결과보고서' : '○○대학병원 발달평가') + '" value="' + esc(o.title || '') + '"></div>'
           + '<div><label>평가 받은 날</label><input type="date" class="d" value="' + esc(o.date || '') + '"></div>'
           + '<div class="dz">⬆ 여기에 사진·PDF·한글 파일을 끌어다 놓으면 바로 올라갑니다'
-          +   '<small>여러 개를 한꺼번에 놓아도 됩니다 · 눌러서 고를 수도 있습니다</small></div>'
+          +   '<small>여러 개를 한꺼번에 놓아도 됩니다 · 눌러서 고를 수도 있습니다</small>'
+          +   '<small style="color:#b45309;">한글·워드 파일은 화면에서 열리지 않습니다. '
+          +   '한글에서 「파일 → PDF로 저장하기」로 바꿔 올려 주세요</small></div>'
           + '<input type="file" class="f" multiple accept="image/*,.pdf,application/pdf,.hwp,.hwpx,.doc,.docx">'
           + '<button type="button" class="go" data-a="up" style="display:none;">준비된 파일 올리기</button>'
           + '</div>'
@@ -183,8 +185,12 @@
       });
       box.innerHTML = keys.map((k, gi) => {
         const L = G[k].sort((a, b) => (a.page_no || 0) - (b.page_no || 0) || a.id - b.id);
-        const nImg = L.filter(r => !isPdf(r)).length, nPdf = L.length - nImg;
-        const kind = [nImg ? '사진 ' + nImg + '장' : '', nPdf ? 'PDF ' + nPdf + '개' : ''].filter(Boolean).join(' · ');
+        // 사진 · PDF · 한글·워드 파일을 나눠 센다 (2026-09-16 — 한글 파일이 「사진」으로 세지던 것)
+        const nDoc = L.filter(r => isDoc(r)).length;
+        const nPdf = L.filter(r => isPdf(r)).length;
+        const nImg = L.length - nDoc - nPdf;
+        const kind = [nImg ? '사진 ' + nImg + '장' : '', nPdf ? 'PDF ' + nPdf + '개' : '',
+                      nDoc ? '파일 ' + nDoc + '개' : ''].filter(Boolean).join(' · ');
         return '<div class="grp" data-g="' + gi + '">'
           + '<div class="gh"><b>' + esc(L[0].title || '(이름 없음)') + ' · ' + md(L[0].doc_date) + ' · ' + kind + '</b>'
           +   '<button type="button" data-a="all" data-g="' + gi + '">한꺼번에 보기</button>'
