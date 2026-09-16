@@ -84,8 +84,15 @@
   .acctag.wait { color:#9aa19c; }
   .acctag.none { color:#c25e00; }
   .telcell div { padding:1px 0; }
+  /* 메모 — 폭 220 · 두 줄까지 (마우스를 올리면 전체) (2026-09-16) */
   .memocell { font-size:13px; color:#444; line-height:1.5; white-space:pre-wrap;
-              max-width:520px; word-break:break-all; }
+              max-width:220px; word-break:break-all; }
+  .memoclip { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+              overflow:hidden; }
+  /* 발달재활 본인부담 (2026-09-16) */
+  .paycell { white-space:nowrap; font-size:12.5px; background:#fffaf2; }
+  .paycell b { color:#8a4b00; }
+  .paycell .nogr { color:#c62828; font-weight:600; }
   .notel { color:#bbb; }
 
   .btn-home { display:inline-block; padding:8px 16px; background:#2e7d32; color:#fff;
@@ -459,6 +466,7 @@
         <th>나이</th>
         <th>성별</th>
         <th>회기방식</th>
+        <th id="thPay" style="display:none;">본인부담</th>
         <th>상태</th>
         <th>연락처</th>
         <th>메모</th>
@@ -554,6 +562,10 @@ function draw() {
   $('count').textContent = list.length + '명 / 전체 ' + ALL.length + '명';
   $('empty').style.display = list.length ? 'none' : 'block';
 
+  // 본인부담 칸 — 8·9·11번 화면에서만 (2026-09-16)
+  const SHOWPAY = CAN_TEL;
+  if ($('thPay')) $('thPay').style.display = SHOWPAY ? '' : 'none';
+
   $('rows').innerHTML = list.map(c => {
     const flag = (c.memo || '').includes('[확인필요]')
       ? ' <span class="flag">[확인필요]</span>' : '';
@@ -589,10 +601,12 @@ function draw() {
       + '<td>' + age(c.birth) + '</td>'
       + '<td>' + esc(c.gender) + '</td>'
       + '<td class="cmcell">' + cmodeTxt(c.id) + '</td>'
+      + (SHOWPAY ? '<td class="paycell">' + payTxt(c.id) + '</td>' : '')
       + '<td>' + badge(c.status) + '</td>'
       + '<td class="telcell"><span class="telwrap">' + tel + '</span>'
         + accTag(c.id) + '</td>'
-      + '<td class="memocell">' + esc(String(c.memo == null ? '' : c.memo)) + flag + '</td>'
+      + '<td class="memocell" title="' + esc(String(c.memo == null ? '' : c.memo)).replace(/"/g, '&quot;') + '">'
+        + '<div class="memoclip">' + esc(String(c.memo == null ? '' : c.memo)) + '</div>' + flag + '</td>'
       + '<td class="edmark">' + (CAN_EDIT ? '고치기' : thBtn(c)) + '</td>'
       + '</tr>';
   }).join('');
@@ -602,6 +616,15 @@ function draw() {
   });
 }
 
+let DEVKID = {};   // 아동 번호 -> 진행 중인 발달재활 수업이 있음 (2026-09-16)
+let LGRADE = {};   // 아동 번호 -> 이번 달 발달재활 등급 줄
+// 본인부담 칸 글 — 가형 20,000
+function payTxt(cid) {
+  if (!DEVKID[cid]) return '';
+  const g = LGRADE[cid];
+  if (!g || !g.grade) return '<span class="nogr">등급 없음</span>';
+  return '<b>' + esc(g.grade) + '형</b> ' + Number(g.self_pay || 0).toLocaleString();
+}
 let CMODE = {};   // 아동 번호 -> 회기방식 목록 (매주 뺀 것)
 function cmodeTxt(cid){
   const a = CMODE[cid];
@@ -691,10 +714,12 @@ async function afterLogin(user) {
   // 아동별 회기방식 — 「매주」가 아닌 것만 모은다
   try {
     const { data: tp } = await sb.from('nl_therapies')
-      .select('child_id, count_mode, ended_on');
+      .select('child_id, count_mode, ended_on, support_type_id');
     CMODE = {};
+    DEVKID = {};
     (tp || []).forEach(function (r) {
       if (r.ended_on) return;                       // 끝난 수업은 뺀다
+      if (Number(r.support_type_id) === 2) DEVKID[r.child_id] = true;
       const m = String(r.count_mode || '').trim();
       // 「매주」와 「발추대체」는 안 적는다 (발추대체는 세부 표기라 목록에서는 뺌)
       if (!m || m === '매주' || m === '발추대체') return;
@@ -703,6 +728,18 @@ async function afterLogin(user) {
       if (CMODE[k].indexOf(m) < 0) CMODE[k].push(m);
     });
   } catch (e) { CMODE = {}; }
+
+  // 발달재활 등급 — 이번 달에 적용되는 것 (2026-09-16)
+  LGRADE = {};
+  try {
+    const nowMk = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
+    const { data: gr } = await sb.from('nl_child_grades')
+      .select('child_id, from_month, grade, self_pay').order('from_month');
+    (gr || []).forEach(function (r) {
+      if (String(r.from_month || '') > nowMk) return;   // 다음 달부터 바뀌는 것은 뺀다
+      LGRADE[r.child_id] = r;                          // 차례대로 덮어써 가장 늦은 것이 남는다
+    });
+  } catch (e) { LGRADE = {}; }
 
   // 3) 권한 정하기 — 8번 관리자, 9번 행정만 고치기·등록
   //    11번 데스크는 보기 전용 + 연락처까지 (전화 응대 자리)
