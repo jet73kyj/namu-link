@@ -272,6 +272,10 @@
          padding:12px 14px; margin-bottom:12px;">
       <div id="e_view" style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
         <div id="e_basic" style="flex:1; min-width:260px; font-size:13.5px; line-height:1.9;"></div>
+        <!-- 지원 카드번호 보기 — 8·9번만 (2026-09-16) -->
+        <div id="e_cardView" style="display:none; width:280px; max-width:100%; box-sizing:border-box;
+             background:#fff8ec; border:1px solid #f0d5a8; border-radius:8px;
+             padding:8px 12px; font-size:13px; line-height:1.8;"></div>
         <button type="button" id="e_editBtn" class="tab"
                 style="padding:5px 12px; white-space:nowrap;">✏️ 수정</button>
       </div>
@@ -1662,9 +1666,14 @@ async function drawCards(cid) {
   const box = $('e_cards');
   if (!box) return;
   CARD_ORIG = {};
-  if (!cardCan()) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  if (!cardCan()) {
+    box.style.display = 'none'; box.innerHTML = '';
+    if ($('e_cardView')) { $('e_cardView').style.display = 'none'; $('e_cardView').innerHTML = ''; }
+    return;
+  }
   box.style.display = 'block';
   box.innerHTML = '불러오는 중...';
+  if ($('e_cardView')) { $('e_cardView').style.display = 'block'; $('e_cardView').textContent = '💳 불러오는 중...'; }
   let rows = [];
   try {
     const { data, error } = await sb.from('nl_child_cards')
@@ -1706,6 +1715,20 @@ async function drawCards(cid) {
   box.querySelectorAll('.cardsave').forEach(b => {
     b.onclick = () => saveCard(cid, b.dataset.kind, b);
   });
+  drawCardView();
+}
+// 수정 전 글자 화면 오른쪽 — 저장된 카드번호 그대로
+function drawCardView() {
+  const v = $('e_cardView');
+  if (!v) return;
+  if (!cardCan()) { v.style.display = 'none'; v.innerHTML = ''; return; }
+  v.style.display = 'block';
+  v.innerHTML = '<div style="font-weight:700; color:#8a4b00;">💳 지원 카드번호</div>'
+    + CARD_KINDS.map(k => {
+        const m = String(CARD_ORIG[k] || '').trim();
+        return '<div><span style="display:inline-block; width:60px; color:#a07a4a;">' + k + '</span>'
+          + (m ? esc(m) : '<span style="color:#bbb;">없음</span>') + '</div>';
+      }).join('');
 }
 async function saveCard(cid, kind, btn) {
   const box = $('e_cards');
@@ -1722,6 +1745,7 @@ async function saveCard(cid, kind, btn) {
     if (error) throw error;
     CARD_ORIG[kind] = v;
     el.value = v;
+    drawCardView();
     btn.classList.add('done'); btn.textContent = '\u2713 저장됨';
     const w = box.querySelector('[data-who="' + kind + '"]');
     if (w) w.textContent = '고친 날 ' + now.slice(0, 10) + ' · ' + MEID + '번';
