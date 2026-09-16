@@ -1827,7 +1827,8 @@ function drawKid(c) {
     + (evAmt ? evAmt.toLocaleString() : '') + '" placeholder="0"></span></div>'
     + evalInfoHtml(evRows);
 
-  if (!noClass) {
+  // 리뷰 차감 — 수업 없이 평가만 받는 아동에게도 보인다 (2026-09-16)
+  {
     b += '<div class="r narrownm"><span class="nm">리뷰 차감</span>'
       + '<span class="de">1건 5,000원 · 4건까지</span>'
       + '<span class="ap"></span>'
