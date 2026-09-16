@@ -146,6 +146,10 @@
       white-space:nowrap; width:1%; }
     .onehide { display:none !important; }
   }
+  /* 결의서 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) (2026-09-16) */
+  button.slipsave { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
+  button.slipsave.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  button.slipsave:disabled { background:#bbb; color:#fff; border-color:#bbb; }
 </style>
 </head>
 <body>
@@ -421,7 +425,7 @@ function drawSlip(kind){
     + '<div><label>비고</label><input id="f_note"></div>'
     + '</div>'
     + '<div style="display:flex;gap:8px;margin-top:16px;">'
-    + '<button id="saveSlip">저장</button>'
+    + '<button id="saveSlip" class="slipsave">💾 저장 전</button>'
     + '<button id="delSlip" class="ghost" style="color:#b71c1c;">지우기</button>'
     + '<button id="closeSlip" class="ghost">닫기</button>'
     + '</div></div></div>';
@@ -501,13 +505,14 @@ function drawRows(list){
       + '<button class="del" data-i="' + i + '">✕</button>'
       + '</div>').join('');
   $('f_rows').querySelectorAll('.del').forEach(el => {
-    el.onclick = () => { el.parentNode.remove(); };
+    el.onclick = () => { el.parentNode.remove(); slipMarkDirty(); };
   });
   bindAllAmt();
 }
 
 // 쓰기 창을 열고 값을 채운다
 function openForm(kind, v){
+  if (!slipLeaveOk()) return;
   EDIT = null;
   $('favBox').style.display = 'none';
   $('prevBox').style.display = 'none';
@@ -521,7 +526,53 @@ function openForm(kind, v){
   drawRows((v && v.rows) || []);
   $('delSlip').style.display = 'none';
   $('form').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  // 골라 채운 것은 아직 저장 전이다
+  SLIP_DIRTY = true;
+  setSlipBtn('before');
 }
+
+// ── 결의서 저장 단추 상태 (2026-09-16) ──
+//   before 저장 전 / saving 저장 중 / done 저장됨
+//   칸을 고치면 「저장 전」. 쓰던 것이 있으면 나갈 때 묻는다
+let SLIP_DIRTY  = false;
+let SLIP_SAVING = false;
+function setSlipBtn(st) {
+  const b = $('saveSlip');
+  if (!b) return;
+  b.classList.toggle('done', st === 'done');
+  b.disabled = (st === 'saving');
+  b.textContent = st === 'saving' ? '저장 중…'
+                : st === 'done'   ? '\u2713 저장됨'
+                : '💾 저장 전';
+}
+function slipMarkDirty() {
+  if (SLIP_SAVING) return;
+  const f = $('form');
+  if (!f || f.style.display === 'none') return;
+  SLIP_DIRTY = true;
+  setSlipBtn('before');
+}
+function slipOpen() {
+  const f = $('form');
+  return !!(f && f.style.display !== 'none');
+}
+function slipLeaveOk() {
+  if (!slipOpen() || !SLIP_DIRTY) return true;
+  if (!confirm('쓰던 결의서를 아직 저장하지 않았습니다.\n\n그래도 나갈까요? (적어 둔 내용은 사라집니다)')) return false;
+  SLIP_DIRTY = false;
+  return true;
+}
+$('pane').addEventListener('input', e => {
+  if (e.target.closest('#form')) slipMarkDirty();
+});
+$('pane').addEventListener('change', e => {
+  if (e.target.closest('#form')) slipMarkDirty();
+});
+window.addEventListener('beforeunload', e => {
+  if (!slipOpen() || !SLIP_DIRTY) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 function bindSlip(kind){
   // 자주 쓰는 것
@@ -608,6 +659,7 @@ function bindSlip(kind){
   });
 
   $('newSlip').onclick = () => {
+    if (!slipLeaveOk()) return;
     EDIT = null;
     $('form').style.display = 'block';
     $('f_no').value = nextNo();
@@ -617,11 +669,15 @@ function bindSlip(kind){
     $('f_note').value = '';
     drawRows([]);
     $('delSlip').style.display = 'none';
+    // 빈 창은 아직 적은 것이 없어 묻지 않는다
+    SLIP_DIRTY = false;
+    setSlipBtn('before');
   };
   document.querySelectorAll('.pick').forEach(el => {
     el.onclick = () => {
       const s = SLIPS.find(x => x.id === Number(el.dataset.id));
       if (!s) return;
+      if (!slipLeaveOk()) return;
       EDIT = s;
       $('form').style.display = 'block';
       $('f_no').value = s.slip_no || '';
@@ -632,6 +688,8 @@ function bindSlip(kind){
       $('f_note').value = s.note || '';
       drawRows(ROWS[s.id] || []);
       $('delSlip').style.display = '';
+      SLIP_DIRTY = false;
+      setSlipBtn('done');
     };
   });
   $('addRow').onclick = () => {
@@ -640,11 +698,16 @@ function bindSlip(kind){
     div.innerHTML = '<input class="r_item" placeholder="예: 수당">'
       + '<input class="r_amt" type="text" inputmode="numeric" placeholder="금액">'
       + '<button class="del">✕</button>';
-    div.querySelector('.del').onclick = () => div.remove();
+    div.querySelector('.del').onclick = () => { div.remove(); slipMarkDirty(); };
     bindAmt(div.querySelector('.r_amt'));
     $('f_rows').appendChild(div);
+    slipMarkDirty();
   };
-  $('closeSlip').onclick = () => { $('form').style.display = 'none'; EDIT = null; };
+  $('closeSlip').onclick = () => {
+    if (!slipLeaveOk()) return;
+    SLIP_DIRTY = false;
+    $('form').style.display = 'none'; EDIT = null;
+  };
 
   $('saveSlip').onclick = async () => {
     const items = Array.from($('f_rows').querySelectorAll('.rowline')).map((el, i) => ({
@@ -669,7 +732,8 @@ function bindSlip(kind){
     };
     if (!row.slip_date) { tmsg('결의일을 고르세요.', false); return; }
 
-    $('saveSlip').disabled = true; $('saveSlip').textContent = '저장 중...';
+    SLIP_SAVING = true;
+    setSlipBtn('saving');
     try {
       let sid;
       if (EDIT) {
@@ -687,12 +751,15 @@ function bindSlip(kind){
         .insert(items.map(r => Object.assign({ slip_id: sid }, r)));
       if (e2) throw e2;
       tmsg('✅ 저장했습니다. 합계 ' + won(total) + '원', true);
+      SLIP_DIRTY = false;
+      setSlipBtn('done');
       $('form').style.display = 'none'; EDIT = null;
       await loadAll(); draw();
     } catch (e) {
       tmsg('❌ 저장하지 못했습니다.\n' + (e.message || e), false);
+      setSlipBtn('before');
     } finally {
-      $('saveSlip').disabled = false; $('saveSlip').textContent = '저장';
+      SLIP_SAVING = false;
     }
   };
 
@@ -702,6 +769,7 @@ function bindSlip(kind){
     const { error } = await sb.from('nl_tax_slips').delete().eq('id', EDIT.id);
     if (error) { tmsg('❌ 지우지 못했습니다.\n' + error.message, false); return; }
     tmsg('✅ 지웠습니다.', true);
+    SLIP_DIRTY = false;
     $('form').style.display = 'none'; EDIT = null;
     await loadAll(); draw();
   };
@@ -865,7 +933,10 @@ function drawStat(){
 $('prt').onclick = () => window.print();
 
 document.querySelectorAll('.tab').forEach(el => {
-  el.onclick = () => { TAB = el.dataset.tab; memSet('tab', TAB); draw(); };
+  el.onclick = () => {
+    if (!slipLeaveOk()) return;
+    TAB = el.dataset.tab; memSet('tab', TAB); draw();
+  };
 });
 
 async function afterLogin(user){
@@ -892,10 +963,12 @@ async function afterLogin(user){
   $('mm').innerHTML = ms; $('mm').value = MM;
 
   $('yy').onchange = async () => {
+    if (!slipLeaveOk()) { $('yy').value = YY; return; }
     YY = $('yy').value; memSet('yy', YY);
     await loadAll(); draw();
   };
   $('mm').onchange = () => {
+    if (!slipLeaveOk()) { $('mm').value = MM; return; }
     MM = $('mm').value; memSet('mm', MM);
     // 「한 해 전체」는 결산표에서만 볼 수 있다
     if (MM === 'ALL' && TAB !== 'stat') { TAB = 'stat'; memSet('tab', TAB); }
@@ -920,6 +993,7 @@ $('btn').onclick = async () => {
   finally { $('btn').disabled = false; $('btn').textContent = '로그인'; }
 };
 $('out').onclick = async () => {
+  if (!slipLeaveOk()) return;
   nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
