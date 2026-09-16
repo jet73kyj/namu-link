@@ -218,6 +218,7 @@
             border-radius:6px; font-size:12.5px; display:flex; flex-wrap:wrap; gap:4px 14px; }
   .evinfo .evst { background:#fff3e0; color:#8a4b00; border-radius:4px; padding:0 6px; }
   .evinfo .evst.ok { background:#e8f3ea; color:#2e7d32; }
+  .evinfo.trinfo { background:#eef6fb; color:#0c447c; }
   /* 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) */
   .pay .ksave2 { margin-left:8px; padding:7px 14px;
                  background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3;
@@ -450,6 +451,7 @@ let EVALFEES = EVAL_FALLBACK.slice();
 //   EVMON  아동 번호 -> 그 달 평가 줄 (취소 뺌)
 //   ETYPES 평가 종류 번호 -> 이름 / THNAME 치료사 번호 -> 이름 (그만둔 분 포함)
 let EVMON  = {};
+let TRMON  = {};   // 아동 번호 -> 그 달 체험 수업 (취소 뺌) (2026-09-16)
 let ETYPES = {};
 let THNAME = {};
 
@@ -533,6 +535,12 @@ function noticeText(childId) {
   if (x9) {
     const a9 = nNum(x9.querySelector('.evamt'));
     if (a9 > 0) rows.push({ nm: '평가비', day: '', thr: '', cnt: 0, amt: a9 });
+  }
+  // 체험수업 (2026-09-16)
+  const x10 = box.querySelector('.gsum[data-st="10"]');
+  if (x10) {
+    const a10 = nNum(x10.querySelector('.tramt'));
+    if (a10 > 0) rows.push({ nm: '체험수업', day: '', thr: '', cnt: 0, amt: a10 });
   }
 
   const cardTot = nNum(box.querySelector('.cardtotal'));
@@ -921,6 +929,18 @@ async function load() {
         (EVMON[v.child_id] = EVMON[v.child_id] || []).push(v);
       });
     } catch (e) { console.warn('평가 못 가져옴', e); }
+    // 그 달 체험 수업 (신규 상담·아동 목록에서 적은 것). 취소는 뺀다 (2026-09-16)
+    TRMON = {};
+    try {
+      const { data: _tl, error: _te } = await sb.from('nl_trial_lessons')
+        .select('id, child_id, lesson_date, lesson_time, therapy_type_id, duration_min, therapist_id, fee, status, paid_on')
+        .gte('lesson_date', mk + '-01').lte('lesson_date', monEndDay(mk))
+        .order('lesson_date');
+      if (_te) console.warn('체험 못 가져옴', _te);
+      (_tl || []).filter(v => v.status !== '취소').forEach(v => {
+        (TRMON[v.child_id] = TRMON[v.child_id] || []).push(v);
+      });
+    } catch (e) { console.warn('체험 못 가져옴', e); }
     if (th.error)  throw th.error;
     if (fe.error)  throw fe.error;
     if (ru.error)  throw ru.error;
@@ -1363,6 +1383,7 @@ function hasBill(childId) {
   if (Object.keys(sv).some(k => Number(sv[k].amount) > 0)) return true;
   // 평가비를 아직 저장하지 않았는데 그 달 평가 금액이 있으면 낼 것이 있다 (2026-09-16)
   if (!sv[9] && evalSumOf(childId) > 0) return true;
+  if (!sv[10] && trialSumOf(childId) > 0) return true;
 
   const gs = buildRows(childId, LOADED_MK) || [];
   const withItems = gs.filter(g => g.items && g.items.length);
@@ -1827,6 +1848,21 @@ function drawKid(c) {
     + (evAmt ? evAmt.toLocaleString() : '') + '" placeholder="0"></span></div>'
     + evalInfoHtml(evRows);
 
+  // 체험 수업 — 저장한 줄이 없으면 그 달 체험 금액(합계)을 채운다 (2026-09-16)
+  //   체험이 없고 저장한 것도 없으면 줄을 그리지 않는다
+  const trRows = TRMON[c.id] || [];
+  const tv = sv[10];
+  if (tv || trRows.length) {
+    const trAmt = tv ? Number(tv.amount) : trialSumOf(c.id);
+    b += '<div class="r gsum narrownm" data-st="10" data-manual="1">'
+      + '<span class="nm">체험수업</span>'
+      + '<span class="de">정규 전 1회</span>'
+      + '<span class="ap"></span><span class="ct"></span><span class="up"></span>'
+      + '<span class="am"><input class="mn evamt tramt" type="text" inputmode="numeric" value="'
+      + (trAmt ? trAmt.toLocaleString() : '') + '" placeholder="0"></span></div>'
+      + trialInfoHtml(trRows);
+  }
+
   // 리뷰 차감 — 수업 없이 평가만 받는 아동에게도 보인다 (2026-09-16)
   {
     b += '<div class="r narrownm"><span class="nm">리뷰 차감</span>'
@@ -2062,6 +2098,36 @@ function evalInfoHtml(rows) {
       + '<span>📋 신규 상담 평가</span>'
       + '<span>' + esc(ds) + (ts ? ' ' + ts : '') + '</span>'
       + '<span>' + esc(tn) + ' ' + (Number(v.item_cnt) || 1) + '개</span>'
+      + '<span>담당 ' + esc(th) + '</span>'
+      + '<span>' + (Number(v.fee) || 0).toLocaleString() + '원</span>'
+      + '<span class="evst ' + (done ? 'ok' : '') + '">' + esc(v.status || '예정') + '</span>'
+      + '</div>';
+  }).join('');
+}
+// 체험 수업 — 그 달 금액 합계 (취소 뺌) (2026-09-16)
+function trialSumOf(childId) {
+  return (TRMON[childId] || []).reduce((a, v) => a + (Number(v.fee) || 0), 0);
+}
+// 체험 수업 — 체험수업 줄 아래 하늘색 줄 (보기만)
+function trialInfoHtml(rows) {
+  if (!rows || !rows.length) return '';
+  const WD = ['일','월','화','수','목','금','토'];
+  return rows.map(v => {
+    const d = v.lesson_date ? new Date(v.lesson_date + 'T00:00:00') : null;
+    const ds = d ? (d.getMonth() + 1) + '/' + d.getDate() + '(' + WD[d.getDay()] + ')' : '날짜 없음';
+    let ts = '';
+    const m = String(v.lesson_time || '').match(/^(\d{1,2}):(\d{2})/);
+    if (m) {
+      const h = Number(m[1]);
+      ts = (h < 12 ? '오전 ' : '오후 ') + ((h % 12) || 12) + ':' + m[2];
+    }
+    const tn = TTYPES[v.therapy_type_id] || '';
+    const th = v.therapist_id ? (THNAME[v.therapist_id] || (v.therapist_id + '번')) + ' 선생님' : '담당 미정';
+    const done = v.status === '완료';
+    return '<div class="evinfo trinfo">'
+      + '<span>🧸 체험 수업</span>'
+      + '<span>' + esc(ds) + (ts ? ' ' + ts : '') + '</span>'
+      + '<span>' + esc(tn) + ' ' + (Number(v.duration_min) || 40) + '분</span>'
       + '<span>담당 ' + esc(th) + '</span>'
       + '<span>' + (Number(v.fee) || 0).toLocaleString() + '원</span>'
       + '<span class="evst ' + (done ? 'ok' : '') + '">' + esc(v.status || '예정') + '</span>'
@@ -2453,7 +2519,7 @@ async function saveKid(childId, btn, only) {
       (SAVED[childId] = SAVED[childId] || {})[r.support_type_id] = r;
     });
     const wkMsg = await saveWeeks(box);
-    const evMsg = await markEvalPaid(childId, rows);
+    const evMsg = await markEvalPaid(childId, rows) + await markTrialPaid(childId, rows);
     // 회기를 늘려 저장할 때 「보강 없음」을 풀지 묻던 것은 뺐다 (2026-09-11 회기 단추)
     //   이제 날짜 단추를 켜면 바로 풀린다
     const nmMsg = '';
@@ -2548,6 +2614,36 @@ async function markEvalPaid(childId, rows){
     return '\n평가 ' + todo.length + '건을 「완료」로 바꿨습니다.'
       + (ev.paid_on ? ' (납부일 ' + ev.paid_on + ')' : '');
   } catch (e) { return '\n⚠️ 평가 처리 중 문제. ' + (e.message || e); }
+}
+
+// 체험수업을 받았으면 그 달 체험 줄에 납부일을 채운다 (2026-09-16)
+//   체험 날이 오늘이거나 지난 날이면 「완료」로도 바꾼다 (앞날은 수업 뒤에 완료)
+async function markTrialPaid(childId, rows){
+  const tr = rows.find(r => Number(r.support_type_id) === 10);
+  if (!tr || !tr.amount || Number(tr.amount) <= 0) return '';
+  try {
+    const { data, error } = await sb.from('nl_trial_lessons')
+      .select('id, status, lesson_date, paid_on')
+      .eq('child_id', childId)
+      .gte('lesson_date', LOADED_MK + '-01')
+      .lte('lesson_date', monEndDay(LOADED_MK));
+    if (error) return '\n⚠️ 체험 수업을 읽지 못했습니다. ' + error.message;
+    const todo = (data || []).filter(v => v.status !== '취소');
+    if (!todo.length) return '';
+    const d = new Date();
+    const td = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+             + '-' + String(d.getDate()).padStart(2, '0');
+    let nDone = 0;
+    for (const v of todo) {
+      const upd = {};
+      if (tr.paid_on && !v.paid_on) upd.paid_on = tr.paid_on;
+      if (v.status !== '완료' && String(v.lesson_date) <= td) { upd.status = '완료'; nDone++; }
+      if (!Object.keys(upd).length) continue;
+      const { error: e2 } = await sb.from('nl_trial_lessons').update(upd).eq('id', v.id);
+      if (e2) return '\n⚠️ 체험 수업 상태는 바꾸지 못했습니다. ' + e2.message;
+    }
+    return nDone ? '\n체험 수업 ' + nDone + '건을 「완료」로 바꿨습니다.' : '';
+  } catch (e) { return '\n⚠️ 체험 수업 처리 중 문제. ' + (e.message || e); }
 }
 
 // 그 달 마지막 날 (YYYY-MM-DD)
