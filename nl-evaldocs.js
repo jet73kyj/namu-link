@@ -403,7 +403,12 @@
     let m = (n.getFullYear() - d.getFullYear()) * 12 + (n.getMonth() - d.getMonth());
     if (n.getDate() < d.getDate()) m--;
     if (m < 0) return '';
-    return '만 ' + Math.floor(m / 12) + '년 ' + (m % 12) + '개월';
+    return '만 ' + Math.floor(m / 12) + '년 ' + (m % 12) + '개월 (' + m + '개월)';
+  }
+  // 생년월일 2021.03.05 (2026-09-16)
+  function birthDot(b) {
+    const m = String(b || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? m[1] + '.' + m[2] + '.' + m[3] : '';
   }
   async function openIntake(cid) {
     ensureStyle();
@@ -440,9 +445,10 @@
 
     const c = ch.data;
     const kid = cid + '번 ' + (c && c.name ? c.name : '');
-    const ag = c ? ageOf(c.birth) : '';
+    // 제목 — 143번 이름 2021.03.05 만 5년 6개월 (66개월) (2026-09-16)
+    const ag = c ? [birthDot(c.birth), ageOf(c.birth)].filter(Boolean).join(' ') : '';
     wrap.querySelector('.ik-h').innerHTML = esc(kid)
-      + (ag ? ' <span style="font-weight:normal;color:#777;font-size:13px;">· ' + esc(ag) + '</span>' : '');
+      + (ag ? ' <span style="font-weight:normal;color:#777;font-size:13px;">' + esc(ag) + '</span>' : '');
     const mBox = wrap.querySelector('.ik-m');
     if (ch.error) mBox.textContent = '❌ 초기 상담을 불러오지 못했습니다. ' + ch.error.message;
     else if (!c) mBox.textContent = '이 아동의 정보를 볼 수 없습니다.';
