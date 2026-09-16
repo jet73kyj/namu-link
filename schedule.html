@@ -477,6 +477,11 @@
   .r-rest { background:#f0f2f1 !important; color:#8a908c !important;
             border-color:#d6dad8 !important; }
   .r-eval { background:#ffc2d8; color:#6d1338; border-color:#e0679b; }
+  /* 체험 수업 — 평가 칸 모양 · 하늘색 (2026-09-16) */
+  .r-eval[data-sid^="T"] { background:#cfe6f7; color:#0c447c; border-color:#5b9bd0; }
+  .ln-eval[data-sid^="T"] { background:#cfe6f7; border-color:#5b9bd0; }
+  .ln-eval[data-sid^="T"] .d, .ln-eval[data-sid^="T"] .n, .ln-eval[data-sid^="T"] .s { color:#0c447c; }
+  .oneli.o-eval[data-sid^="T"] { background:#cfe6f7; color:#0c447c; border-color:#5b9bd0; }
   /* 하루 보기 — 보강을 잡아야 하는 아동 알림 (2026-09-10) */
   .needmk { flex-basis:100%; margin-top:3px; font-size:10.5px; font-weight:700;
             color:#b3261e; background:#fdecea; border:1px solid #f0b3ac;
@@ -1525,7 +1530,7 @@ const TTYPE = {1:'언어',2:'작업',3:'전산',4:'감통',5:'음악',6:'일상'
 //   표에 종류를 더하면 화면을 안 고쳐도 목록에 나온다
 //   (TTYPE 은 시간표 칸이 좁아 짧게 쓰는 것이라 따로 둔다)
 let TTNAME = {};
-const STYPE = {1:'센',2:'발',3:'치언',4:'치작',5:'방',6:'방치언',7:'방치작',8:'이',9:'평가'};
+const STYPE = {1:'센',2:'발',3:'치언',4:'치작',5:'방',6:'방치언',7:'방치작',8:'이',9:'평가',10:'체험'};
 // 수정 창의 「지금 모습」에 쓰는 긴 이름 (2026-09-10)
 const SFULL = {1:'센터비용', 2:'발달재활서비스', 3:'치료지원(언어)', 4:'치료지원(작업)',
                5:'방과후활동비', 6:'방과후치료지원(언어)', 7:'방과후치료지원(작업)',
@@ -3456,11 +3461,11 @@ function mnChip(x){
             + (x.status==='결석' ? ' r-cut' : '');
   const rs = String(x.memo || '').replace(/^직접 보강 · ?/, '');
   return '<span class="chip r-mk">'
-    + '<span class="nm"><span class="mntag">' + (x._isEval ? '평가' : '보강') + '</span>'
+    + '<span class="nm"><span class="mntag">' + (x._isTrial ? '체험' : x._isEval ? '평가' : '보강') + '</span>'
     + (STYPE[x.support_type_id] || '') + ' ' + esc(x._name || '') + '</span>'
     + '<div class="run ' + cls + '" data-sid="' + x.id + '">'
     + '<span class="dt">' + dayNo(x.plan_date) + '일'
-    + (x._isEval ? '<b class="no">평가</b>'
+    + (x._isEval ? '<b class="no">' + (x._isTrial ? '체험' : '평가') + '</b>'
         : (isPrevMn(x) ? '<b class="no">' + mnLabel(x) + '</b>' : ''))
     + ((CAN_EDIT && !x._isEval)
         ? '<b class="no mnedit" data-mned="' + x.id + '" title="고치기">수정</b>'
@@ -3468,7 +3473,8 @@ function mnChip(x){
     + '<span class="brk"></span>'
     + '<span class="st">' + esc(stWord(x)) + '</span></div>'
     + '<div class="mnown">'
-    + (x._isEval ? '평가 관리에서 넣은 일정' : (rs ? esc(rs) : '직접 넣은 보강'))
+    + (x._isTrial ? '체험 수업 — 신규 상담·아동 목록에서 넣은 일정'
+       : x._isEval ? '평가 관리에서 넣은 일정' : (rs ? esc(rs) : '직접 넣은 보강'))
     + ((CAN_EDIT && !x._isEval) ? ' <span class="del" data-mndel="' + x.id + '">✕</span>' : '')
     + '</div></span>';
 }
@@ -8066,6 +8072,38 @@ async function loadMonth(){
       });
     });
   } catch (e) { EVALS = []; }
+
+  // 체험 수업도 평가처럼 얹는다 (2026-09-16) — 번호 앞에 T · 지원유형 10
+  //   평가 칸 모양을 그대로 빌려 쓰고(_isEval), 색·글만 체험으로 바꾼다
+  try {
+    const { data: tl } = await sb.from('nl_trial_lessons')
+      .select('id, child_id, lesson_date, lesson_time, therapist_id, status, duration_min')
+      .gte('lesson_date', mon + '-01').lte('lesson_date', monEnd(mon));
+    (tl || []).forEach(function(t){
+      if (!t.lesson_date || !t.lesson_time) return;
+      if (t.status === '취소') return;
+      if (MY_TH && t.therapist_id !== MY_TH) return;
+      EVALS.push({
+        id: 'T' + t.id,
+        _trialId: t.id,
+        child_id: t.child_id,
+        therapy_id: null,
+        schedule_id: null,
+        month_key: mon,
+        run_no: 0,
+        plan_date: t.lesson_date,
+        start_time: t.lesson_time,
+        status: t.status || '예정',
+        therapist_id: t.therapist_id,
+        makeup_for: null,
+        support_type_id: 10,          // 10 = 체험수업
+        // minutes 는 넣지 않는다 — 40분이 아니면 쪼개기 조각으로 그려지므로
+        memo: '체험',
+        _isEval: true,
+        _isTrial: true
+      });
+    });
+  } catch (e) { /* 체험을 못 읽어도 시간표는 그린다 */ }
   SESS = SESS.concat(EVALS);
 
   await loadUnpaid();
