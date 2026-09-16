@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>아동 자료 모음 - 나무링크</title>
+<!--
+  아동 자료 모음 (2026-09-16 만듦)
+  · 아동별로 초기 상담 · 평가보고서(센터·타기관)를 모아 본다 — 보기만
+  · 선생님: 맡은 아동만 (서버 잠금 — 시간표 담당 + 평가·체험을 맡은 아동)
+  · 대표·행정·데스크(8·9·11): 치료중·대기중 전체
+  · 「📋 보기」는 공용 창 nl-evaldocs.js 의 NLDocs.openIntake
+-->
+<style>
+  body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:#f5f9f0;
+         margin:0; padding:16px; color:#333; }
+  .box { max-width:460px; margin:40px auto; background:#fff; border-radius:12px;
+         padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  .wide { max-width:1100px; margin:0 auto; background:#fff; border-radius:12px;
+          padding:18px 20px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  h1 { font-size:20px; color:#2e7d32; margin:0 0 4px; }
+  .sub { font-size:13px; color:#888; margin-bottom:22px; }
+  label { display:block; font-size:13px; font-weight:bold; margin:14px 0 5px; }
+  input { width:100%; padding:11px; border:1px solid #ddd; border-radius:7px;
+          font-size:15px; box-sizing:border-box; }
+  button { width:100%; padding:13px; margin-top:20px; background:#2e7d32; color:#fff;
+           border:none; border-radius:7px; font-size:15px; font-weight:bold; cursor:pointer; }
+  button:disabled { background:#bbb; cursor:default; }
+  .out { margin-top:16px; padding:12px; border-radius:8px; font-size:14px;
+         line-height:1.7; display:none; white-space:pre-wrap; }
+  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
+  .err { background:#ffebee; color:#b71c1c; display:block; }
+
+  .top { display:flex; justify-content:space-between; align-items:center;
+         flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+  .who { font-size:13px; color:#666; }
+  .topbtn { display:flex; gap:8px; }
+  .btn-out { width:auto; margin:0; padding:8px 14px; background:#757575; font-size:13px; }
+  .btn-home { display:inline-block; padding:8px 14px; background:#2e7d32; color:#fff;
+              font-size:13px; border-radius:7px; text-decoration:none; }
+
+  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .bar .tab { width:auto; margin:0; padding:7px 14px; background:#eee; color:#555;
+              font-size:13px; font-weight:normal; border-radius:7px; }
+  .bar .tab.on { background:#2e7d32; color:#fff; font-weight:bold; }
+  .bar input { width:200px; padding:8px 10px; font-size:14px; margin-left:auto; }
+  .cnt { font-size:12.5px; color:#777; margin-bottom:8px; }
+
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th { background:#eef3ec; color:#2c5c37; font-weight:600; text-align:left;
+       padding:8px; white-space:nowrap; }
+  td { padding:8px; border-top:1px solid #eceee9; vertical-align:top; }
+  tr.new td { background:#fffaf2; }
+  .no { color:#8d6e63; white-space:nowrap; }
+  .nm { font-weight:600; white-space:nowrap; }
+  .age { color:#777; font-size:12px; white-space:nowrap; }
+  .cls { font-size:12.5px; line-height:1.7; }
+  .tag { display:inline-block; font-size:11.5px; padding:0 7px; border-radius:9px;
+         margin:1px 2px 1px 0; white-space:nowrap; }
+  .t-new { background:#fff3e0; color:#8a4b00; border:1px solid #ef9f27; }
+  .t-tr  { background:#cfe6f7; color:#0c447c; }
+  .t-ev  { background:#ffc2d8; color:#6d1338; }
+  .t-st  { background:#eceff1; color:#546e7a; }
+  .dim { color:#aaa; }
+  .view { width:auto; margin:0; padding:6px 12px; font-size:13px; white-space:nowrap;
+          background:#e3f0fb; color:#0c447c; border:1px solid #85b7eb; }
+  .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
+
+  /* 핸드폰 — 표를 카드처럼 */
+  @media (max-width:720px) {
+    body { padding:8px; }
+    .wide { padding:12px; }
+    .bar input { width:100%; margin-left:0; }
+    thead { display:none; }
+    table, tbody, tr, td { display:block; width:100%; box-sizing:border-box; }
+    tr { border:1px solid #e3e8e0; border-radius:10px; margin-bottom:10px; padding:6px 8px; }
+    td { border:none; padding:3px 2px; }
+    td[data-l]::before { content:attr(data-l) ' · '; color:#999; font-size:12px; }
+    .view { width:100%; margin-top:4px; padding:9px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="box" id="loginBox">
+  <h1>📋 아동 자료 모음</h1>
+  <div class="sub">나무링크 · 초기 상담과 평가보고서를 아동별로 봅니다</div>
+  <label for="em">이메일</label>
+  <input id="em" type="email" autocomplete="username">
+  <label for="pw">비밀번호</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="btn">로그인</button>
+  <div class="out" id="msg"></div>
+</div>
+
+<div class="wide" id="mainBox" style="display:none">
+  <div class="top">
+    <div>
+      <h1>📋 아동 자료 모음</h1>
+      <div class="who" id="who"></div>
+    </div>
+    <div class="topbtn">
+      <a class="btn-home" href="index.html">처음으로</a>
+      <button class="btn-out" id="out">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="bar">
+    <button class="tab on" data-f="all">전체</button>
+    <button class="tab" data-f="new">새로 시작</button>
+    <button class="tab" data-f="doc">보고서 있음</button>
+    <input id="q" type="text" autocomplete="off" placeholder="🔍 이름 · 번호 찾기">
+  </div>
+  <div class="cnt" id="cnt"></div>
+  <div class="out" id="msg2"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>번호</th><th>이름 · 나이</th><th>맡은 수업</th><th>첫 수업</th>
+        <th>초기 상담</th><th>평가보고서</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
+<script src="nl-evaldocs.js"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: nlStore, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+});
+const $ = id => document.getElementById(id);
+
+const STYPE = {1:'센',2:'발',3:'치언',4:'치작',5:'방',6:'방치언',7:'방치작',8:'이',9:'평가',10:'체험'};
+let ME = null, MEID = null, ADMIN = false;
+let LIST = [];          // 화면에 그릴 아동 줄
+let FILTER = 'all';
+
+function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+       + '-' + String(d.getDate()).padStart(2, '0');
+}
+function md(d) {
+  if (!d) return '';
+  const p = String(d).slice(0, 10).split('-');
+  return Number(p[1]) + '/' + Number(p[2]);
+}
+function ageOf(b) {
+  if (!b) return '';
+  const d = new Date(String(b) + 'T00:00:00');
+  if (isNaN(d)) return '';
+  const n = new Date();
+  let m = (n.getFullYear() - d.getFullYear()) * 12 + (n.getMonth() - d.getMonth());
+  if (n.getDate() < d.getDate()) m--;
+  if (m < 0) return '';
+  return '만 ' + Math.floor(m / 12) + '년 ' + (m % 12) + '개월';
+}
+// 1,000줄씩 나눠 모두 가져온다
+async function fetchAll(q) {
+  let out = [], from = 0;
+  for (;;) {
+    const { data, error } = await q().range(from, from + 999);
+    if (error) throw error;
+    out = out.concat(data || []);
+    if (!data || data.length < 1000) break;
+    from += 1000;
+  }
+  return out;
+}
+
+// ── 불러오기 ──
+async function loadAll() {
+  $('rows').innerHTML = '<tr><td colspan="7" class="empty">불러오는 중...</td></tr>';
+  try {
+    const [kids, ths, scs, tts, trs, evs, docs] = await Promise.all([
+      fetchAll(() => sb.from('nl_children').select('id, name, birth, status, memo, memo_at').order('id')),
+      fetchAll(() => sb.from('nl_therapies').select('id, child_id, therapy_type_id, support_type_id, started_on, ended_on')),
+      fetchAll(() => sb.from('nl_therapy_schedules').select('id, therapy_id, weekday, start_time, therapist_id, from_date, to_month, to_date')),
+      fetchAll(() => sb.from('nl_therapy_types').select('id, name')),
+      fetchAll(() => sb.from('nl_trial_lessons').select('child_id, lesson_date, therapist_id, status')),
+      fetchAll(() => sb.from('nl_evaluations').select('child_id, eval_date, therapist_id, status')),
+      fetchAll(() => sb.from('nl_eval_docs').select('child_id, source'))
+    ]);
+    const TT = {}; tts.forEach(t => TT[t.id] = t.name);
+    const today = todayStr(), thisMon = today.slice(0, 7);
+
+    // 아동마다 맡은 수업 · 첫 수업
+    const cls = {}, first = {};
+    const thById = {}; ths.forEach(t => thById[t.id] = t);
+    scs.forEach(sc => {
+      const t = thById[sc.therapy_id];
+      if (!t) return;
+      if (t.ended_on || sc.to_date || (sc.to_month && sc.to_month < thisMon)) return;   // 끝난 수업은 뺀다
+      if (!ADMIN && Number(sc.therapist_id) !== MEID) return;                            // 선생님은 자기 수업만
+      (cls[t.child_id] = cls[t.child_id] || []).push(
+        (STYPE[t.support_type_id] || '') + ' · ' + (TT[t.therapy_type_id] || '') + ' '
+        + (sc.weekday || '') + ' ' + String(sc.start_time || '').slice(0, 5));
+      const st = String(t.started_on || sc.from_date || '');
+      if (st && (!first[t.child_id] || st < first[t.child_id])) first[t.child_id] = st;
+    });
+    const trial = {}, evl = {};
+    trs.forEach(r => {
+      if (r.status === '취소' || !r.lesson_date) return;
+      if (!ADMIN && Number(r.therapist_id) !== MEID) return;
+      if (String(r.lesson_date) >= today || !trial[r.child_id]) trial[r.child_id] = r.lesson_date;
+    });
+    evs.forEach(r => {
+      if (r.status === '취소' || !r.eval_date) return;
+      if (!ADMIN && Number(r.therapist_id) !== MEID) return;
+      if (String(r.eval_date) >= today || !evl[r.child_id]) evl[r.child_id] = r.eval_date;
+    });
+    const dc = {};
+    docs.forEach(d => {
+      const o = dc[d.child_id] = dc[d.child_id] || { c: 0, o: 0 };
+      if (d.source === '타기관') o.o++; else o.c++;
+    });
+
+    LIST = kids.filter(k => {
+      if (ADMIN) return k.status === '치료중' || k.status === '대기중';
+      // 선생님 — 서버가 준 아동 중 맡은 수업·체험·평가가 있는 아동
+      return cls[k.id] || trial[k.id] || evl[k.id];
+    }).map(k => {
+      const f = first[k.id] || '';
+      return {
+        id: k.id, name: k.name, birth: k.birth, status: k.status,
+        memoAt: k.memo_at || '', hasMemo: !!String(k.memo || '').trim(),
+        cls: cls[k.id] || [], first: f,
+        isNew: !!f && f >= thisMon + '-01',
+        trial: trial[k.id] || '', ev: evl[k.id] || '',
+        dc: dc[k.id] || { c: 0, o: 0 }
+      };
+    });
+    // 새로 시작이 위로, 그다음 번호 큰 순서
+    LIST.sort((a, b) => (b.isNew - a.isNew) || (b.id - a.id));
+    draw();
+  } catch (e) {
+    $('rows').innerHTML = '';
+    show($('msg2'), '❌ 불러오지 못했습니다.\n' + (e.message || e), false);
+  }
+}
+
+// ── 그리기 ──
+function draw() {
+  const q = $('q').value.trim();
+  const list = LIST.filter(r => {
+    if (FILTER === 'new' && !r.isNew) return false;
+    if (FILTER === 'doc' && !(r.dc.c + r.dc.o)) return false;
+    if (!q) return true;
+    return /^[0-9]+$/.test(q) ? String(r.id) === q : String(r.name || '').includes(q);
+  });
+  $('cnt').textContent = list.length + '명' + (list.length !== LIST.length ? ' / 전체 ' + LIST.length + '명' : '');
+  if (!list.length) {
+    $('rows').innerHTML = '<tr><td colspan="7" class="empty">'
+      + (LIST.length ? '고른 조건에 맞는 아동이 없습니다.' : '볼 수 있는 아동이 없습니다.') + '</td></tr>';
+    return;
+  }
+  const today = todayStr();
+  $('rows').innerHTML = list.map(r => {
+    const tags = []
+      .concat(r.trial ? ['<span class="tag t-tr">체험 ' + md(r.trial) + '</span>'] : [])
+      .concat(r.ev ? ['<span class="tag t-ev">평가 ' + md(r.ev) + '</span>'] : []);
+    const firstTxt = r.first
+      ? (r.isNew
+          ? '<span class="tag t-new">' + md(r.first) + (r.first >= today ? ' 예정' : '') + '</span>'
+          : md(r.first))
+      : '<span class="dim">–</span>';
+    const docTxt = (r.dc.c + r.dc.o)
+      ? [r.dc.c ? '센터 ' + r.dc.c : '', r.dc.o ? '타기관 ' + r.dc.o : ''].filter(Boolean).join(' · ')
+      : '<span class="dim">없음</span>';
+    const memoTxt = r.hasMemo
+      ? (r.memoAt ? md(r.memoAt) + ' 적음' : '있음')
+      : '<span class="dim">없음</span>';
+    return '<tr class="' + (r.isNew ? 'new' : '') + '">'
+      + '<td class="no" data-l="번호">' + r.id + '</td>'
+      + '<td><span class="nm">' + esc(r.name) + '</span> '
+      +   '<span class="age">' + esc(ageOf(r.birth)) + '</span>'
+      +   (r.status !== '치료중' ? ' <span class="tag t-st">' + esc(r.status) + '</span>' : '') + '</td>'
+      + '<td class="cls" data-l="맡은 수업">' + r.cls.map(esc).join('<br>')
+      +   (tags.length ? (r.cls.length ? '<br>' : '') + tags.join('') : '')
+      +   (!r.cls.length && !tags.length ? '<span class="dim">–</span>' : '') + '</td>'
+      + '<td data-l="첫 수업">' + firstTxt + '</td>'
+      + '<td data-l="초기 상담">' + memoTxt + '</td>'
+      + '<td data-l="평가보고서">' + docTxt + '</td>'
+      + '<td><button class="view" data-cid="' + r.id + '">📋 보기</button></td>'
+      + '</tr>';
+  }).join('');
+  $('rows').querySelectorAll('.view').forEach(b => {
+    b.onclick = () => {
+      if (!window.NLDocs) { alert('보기 창을 불러오지 못했습니다. 화면을 새로 열어 주세요.'); return; }
+      NLDocs.init(sb, MEID);
+      NLDocs.openIntake(Number(b.dataset.cid));
+    };
+  });
+}
+
+document.querySelectorAll('.bar .tab').forEach(b => {
+  b.onclick = () => {
+    FILTER = b.dataset.f;
+    document.querySelectorAll('.bar .tab').forEach(x => x.classList.toggle('on', x === b));
+    draw();
+  };
+});
+$('q').addEventListener('input', draw);
+
+// ── 로그인 뒤 ──
+async function afterLogin(user) {
+  const { data: me, error: e1 } = await sb
+    .from('nl_therapists')
+    .select('id, name, role, active')
+    .eq('login_email', user.email.toLowerCase())
+    .maybeSingle();
+  if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
+  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
+  nlKeep(me.id);
+  ME = me; MEID = Number(me.id);
+  ADMIN = [8, 9, 11].includes(MEID);
+  if (window.NLDocs) NLDocs.init(sb, MEID);
+
+  $('who').textContent = me.name + ' (' + me.role + ') 님'
+    + (ADMIN ? ' · 치료중·대기중 아동 전체' : ' · 맡은 아동');
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+  await loadAll();
+}
+
+$('btn').onclick = async () => {
+  const email = $('em').value.trim().toLowerCase();
+  const pw    = $('pw').value;
+  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  $('btn').disabled = true; $('btn').textContent = '로그인 중...';
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    await afterLogin(data.user);
+  } catch (e) {
+    show($('msg'), '❌ 로그인 실패\n' + e.message, false);
+  } finally {
+    $('btn').disabled = false; $('btn').textContent = '로그인';
+  }
+};
+$('out').onclick = async () => {
+  nlKeepOff();
+  try { await sb.auth.signOut(); } catch (e) {}
+  try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+  location.replace('index.html');
+};
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+$('em').addEventListener('keydown', e => { if (e.key === 'Enter') $('pw').focus(); });
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session && data.session.user) await afterLogin(data.session.user);
+})();
+</script>
+</body>
+</html>
