@@ -213,6 +213,11 @@
   .pay input.tx { flex:1; min-width:150px; }
   .kidfoot { display:flex; gap:8px; margin-top:20px; }
   .kidfoot .ksave { margin-left:auto; }
+  /* 신규 상담 평가 줄 (2026-09-16) */
+  .evinfo { margin:2px 0 6px 70px; padding:5px 10px; background:#f3f0fb; color:#3c3489;
+            border-radius:6px; font-size:12.5px; display:flex; flex-wrap:wrap; gap:4px 14px; }
+  .evinfo .evst { background:#fff3e0; color:#8a4b00; border-radius:4px; padding:0 6px; }
+  .evinfo .evst.ok { background:#e8f3ea; color:#2e7d32; }
   /* 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) */
   .pay .ksave2 { margin-left:8px; padding:7px 14px;
                  background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3;
@@ -441,6 +446,12 @@ const EVAL_FALLBACK = [
   { id:9, name:'베일리평가',             amount:250000 }
 ];
 let EVALFEES = EVAL_FALLBACK.slice();
+// 신규 상담의 평가 표 (2026-09-16)
+//   EVMON  아동 번호 -> 그 달 평가 줄 (취소 뺌)
+//   ETYPES 평가 종류 번호 -> 이름 / THNAME 치료사 번호 -> 이름 (그만둔 분 포함)
+let EVMON  = {};
+let ETYPES = {};
+let THNAME = {};
 
 // 발추 적용 방식
 const XMODES = {
@@ -828,6 +839,11 @@ async function afterLogin(user) {
   (st.data || []).forEach(x => TYPES[x.id] = x.name);
   (tt.data || []).forEach(x => TTYPES[x.id] = x.name);
   THERAPISTS = (th.data || []).filter(x => x.active !== false);
+  (th.data || []).forEach(x => { THNAME[x.id] = x.name; });
+  try {
+    const { data: et } = await sb.from('nl_eval_types').select('*').order('id');
+    (et || []).forEach(x => { ETYPES[x.id] = x.name || x.label || ''; });
+  } catch (e) { console.warn('평가 종류 못 가져옴', e); }
 
   // 평가비 표를 못 읽으면 기본값을 그대로 쓴다 (화면이 멈추지 않도록)
   if (!ef.error && ef.data && ef.data.length) {
@@ -893,6 +909,18 @@ async function load() {
       // 공휴일 이름도 담아 둔다 (날짜 단추 글 「25일 추석 연휴」에 씀)
       (_off || []).forEach(o => { if (!o.therapist_id) HOLDAY[o.off_date] = o.reason || o.kind || '공휴일'; });
     } catch (e) { console.warn('공휴일 못 가져옴', e); }
+    // 그 달 평가 (신규 상담에서 적은 것). 취소는 뺀다 (2026-09-16)
+    EVMON = {};
+    try {
+      const { data: _ev, error: _ee } = await sb.from('nl_evaluations')
+        .select('id, child_id, eval_type_id, eval_date, eval_time, therapist_id, fee, item_cnt, status')
+        .gte('eval_date', mk + '-01').lte('eval_date', monEndDay(mk))
+        .order('eval_date');
+      if (_ee) console.warn('평가 못 가져옴', _ee);
+      (_ev || []).filter(v => v.status !== '취소').forEach(v => {
+        (EVMON[v.child_id] = EVMON[v.child_id] || []).push(v);
+      });
+    } catch (e) { console.warn('평가 못 가져옴', e); }
     if (th.error)  throw th.error;
     if (fe.error)  throw fe.error;
     if (ru.error)  throw ru.error;
@@ -1333,6 +1361,8 @@ function payerOf(childId) {
 function hasBill(childId) {
   const sv = SAVED[childId] || {};
   if (Object.keys(sv).some(k => Number(sv[k].amount) > 0)) return true;
+  // 평가비를 아직 저장하지 않았는데 그 달 평가 금액이 있으면 낼 것이 있다 (2026-09-16)
+  if (!sv[9] && evalSumOf(childId) > 0) return true;
 
   const gs = buildRows(childId, LOADED_MK) || [];
   const withItems = gs.filter(g => g.items && g.items.length);
@@ -1784,13 +1814,18 @@ function drawKid(c) {
   });
 
   const ev = sv[9];
-  const evT = evalTypeOf(ev);
+  // 저장한 평가비가 없으면 신규 상담의 평가 금액·종류를 미리 채운다 (2026-09-16)
+  const evRows = EVMON[c.id] || [];
+  const evPre  = ev ? null : evalPreset(c.id);
+  const evT    = ev ? evalTypeOf(ev) : (evPre ? evPre.type : null);
+  const evAmt  = ev ? Number(ev.amount) : (evPre ? evPre.amt : 0);
   b += '<div class="r gsum narrownm" data-st="9" data-manual="1">'
     + '<span class="nm">평가비</span>'
     + '<span class="de">평가 </span><select class="evsel" style="border:1px solid #888;border-radius:4px;padding:2px 4px;background:#fff;color:#000">' + evalOptions(evT) + '</select></span>'
     + '<span class="ap"></span><span class="ct"></span><span class="up"></span>'
     + '<span class="am"><input class="mn evamt" type="text" inputmode="numeric" value="'
-    + (ev ? Number(ev.amount).toLocaleString() : '') + '" placeholder="0"></span></div>';
+    + (evAmt ? evAmt.toLocaleString() : '') + '" placeholder="0"></span></div>'
+    + evalInfoHtml(evRows);
 
   if (!noClass) {
     b += '<div class="r narrownm"><span class="nm">리뷰 차감</span>'
@@ -1986,6 +2021,51 @@ function xmodeOptions(sel) {
        + '>' + XMODES[k] + '</option>';
   });
   return o;
+}
+// 신규 상담 평가 — 그 달 금액 합계 (취소 뺌)
+function evalSumOf(childId) {
+  return (EVMON[childId] || []).reduce((a, v) => a + (Number(v.fee) || 0), 0);
+}
+// 신규 상담 평가 — 미리 채울 금액과 평가 종류
+//   평가가 하나이고 「종류 이름 + 금액」이 맞는 평가비 항목이 있으면 그 항목을 고른다
+function evalPreset(childId) {
+  const rows = EVMON[childId] || [];
+  const amt = evalSumOf(childId);
+  if (!rows.length || amt <= 0) return null;
+  let type = null;
+  if (rows.length === 1) {
+    const w = String(ETYPES[rows[0].eval_type_id] || '').replace(/평가|재활|\s/g, '').slice(0, 2);
+    const hit = EVALFEES.filter(f => Number(f.amount) === amt
+                  && (!w || String(f.name).indexOf(w) >= 0));
+    if (hit.length === 1) type = hit[0].id;
+  }
+  return { amt: amt, type: type };
+}
+// 신규 상담 평가 — 평가비 줄 아래 연보라 줄 (보기만)
+function evalInfoHtml(rows) {
+  if (!rows || !rows.length) return '';
+  const WD = ['일','월','화','수','목','금','토'];
+  return rows.map(v => {
+    const d = v.eval_date ? new Date(v.eval_date + 'T00:00:00') : null;
+    const ds = d ? (d.getMonth() + 1) + '/' + d.getDate() + '(' + WD[d.getDay()] + ')' : '날짜 없음';
+    let ts = '';
+    const m = String(v.eval_time || '').match(/^(\d{1,2}):(\d{2})/);
+    if (m) {
+      const h = Number(m[1]);
+      ts = (h < 12 ? '오전 ' : '오후 ') + ((h % 12) || 12) + ':' + m[2];
+    }
+    const tn = ETYPES[v.eval_type_id] || '평가';
+    const th = v.therapist_id ? (THNAME[v.therapist_id] || (v.therapist_id + '번')) + ' 선생님' : '담당 미정';
+    const done = v.status === '완료';
+    return '<div class="evinfo">'
+      + '<span>📋 신규 상담 평가</span>'
+      + '<span>' + esc(ds) + (ts ? ' ' + ts : '') + '</span>'
+      + '<span>' + esc(tn) + ' ' + (Number(v.item_cnt) || 1) + '개</span>'
+      + '<span>담당 ' + esc(th) + '</span>'
+      + '<span>' + (Number(v.fee) || 0).toLocaleString() + '원</span>'
+      + '<span class="evst ' + (done ? 'ok' : '') + '">' + esc(v.status || '예정') + '</span>'
+      + '</div>';
+  }).join('');
 }
 // 평가 종류 고르는 칸
 function evalOptions(sel) {
