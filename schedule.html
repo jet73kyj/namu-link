@@ -1439,6 +1439,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
+<script src="nl-evaldocs.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
@@ -2729,7 +2730,7 @@ function drawFind(){
       const _sid = el.dataset.sid;
       const s = SESS.find(x => String(x.id) === String(_sid));
       if (!s) return;
-      if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
+      if (s._isEval) { evalTap(s); return; }
       const id = Number(_sid);
       if (s.status === '쉼') return;
       if (s.status === '휴무') { openMk(s.id); return; }
@@ -4471,7 +4472,7 @@ if ($('oneBox')) $('oneBox').addEventListener('click', e => {
   if (!el) return;
   const s = SESS.find(x => String(x.id) === String(el.dataset.sid)) || findSess(Number(el.dataset.sid));
   if (!s) return;
-  if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
+  if (s._isEval) { evalTap(s); return; }
   if (s.status === '쉼') return;
   openFindFor(s);
 });
@@ -4547,7 +4548,7 @@ $('gbody').addEventListener('click', async e => {
   const _sid = el.dataset.sid;
   const s  = SESS.find(x => String(x.id) === String(_sid)) || findSess(Number(_sid));
   if (!s) return;
-  if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
+  if (s._isEval) { evalTap(s); return; }
   if (s.status === '쉼') return;
   e.stopPropagation();
   openFindFor(s);
@@ -7039,11 +7040,21 @@ function canStat(s){
   if (s.status === '휴무' || s.status === '쉼') return false;
   return CAN_EDIT || (MY_TH && Number(s.therapist_id) === Number(MY_TH));
 }
+// 평가 칸을 누르면 초기 상담 · 평가보고서 창 (보기만) (2026-09-16)
+//   평가 일정 고치기는 「문의·상담 관리」에서만 한다
+function evalTap(s){
+  if (!s || !s.child_id) return;
+  if (!window.NLDocs || !NLDocs.openIntake) {
+    alert('보기 창을 불러오지 못했습니다. 화면을 새로 열어 주세요.\n\n평가 일정은 「문의·상담 관리」에서 고칩니다.');
+    return;
+  }
+  NLDocs.openIntake(s.child_id);
+}
 // 찾기 창 단추 누르기 — 상태 돌리기 · ＋ 는 보강 잡기 창
 async function findTap(sid, isPlus){
   const s = findSess(sid);
   if (!s) return;
-  if (s._isEval) { alert('평가 일정은 「문의·상담 관리」의 평가 관리에서 고칩니다.'); return; }
+  if (s._isEval) { evalTap(s); return; }
   if (isPlus) { openDay(sid); return; }
   if (s.status === '쉼') return;
   if (s.status === '휴무') {
