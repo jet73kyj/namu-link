@@ -448,6 +448,8 @@
           🕓 히스토리 <span style="font-weight:normal;color:#999;">— 시작·종결·담당·요일·시각이 바뀐 자취</span></div>
         <div id="e_hist" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
       </div>
+      <!-- 체험 수업 — 공용 칸 nl-trials.js · 8·9·11번만 (2026-09-16) -->
+      <div id="e_trials" style="display:none; margin-top:10px;"></div>
     </div>
 
     <div class="addbtns">
@@ -481,6 +483,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
 <script src="nl-evaldocs.js"></script>
+<script src="nl-trials.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
@@ -647,6 +650,7 @@ async function afterLogin(user) {
   MEID = Number(me.id);
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
   NLDocs.init(sb, me.id);   // 평가보고서 창구 준비 (8·9번만 올리고 봄)
+  if (window.NLTrials) NLTrials.init(sb, me.id);   // 체험 수업 칸 준비
 
   // 2) 아동 불러오기
   const { data, error } = await sb
@@ -1169,6 +1173,7 @@ function openEdit(id) {
   loadGrade(id);
   drawAcc(id);
   drawCards(id);
+  drawTrials(id);
   drawDocs(id);
   loadNotes(id);
   drawBasic(c);
@@ -1693,6 +1698,17 @@ async function drawDocs(cid) {
   });
 }
 
+// ── 체험 수업 칸 (2026-09-16) — 8·9·11번만. 치료중 아동도 잡을 수 있다 ──
+function drawTrials(cid) {
+  const box = $('e_trials');
+  if (!box) return;
+  if (!window.NLTrials || ![8, 9, 11].includes(MEID)) {
+    box.style.display = 'none'; box.innerHTML = ''; return;
+  }
+  box.style.display = 'block';
+  NLTrials.mount(box, cid);
+}
+
 // ── 지원 카드번호 (2026-09-16) ──────────────────
 //   표 nl_child_cards (아동·갈래마다 한 줄) · 8·9번만 보고 적음 (표 잠금도 8·9번)
 //   칸마다 따로 저장. 수정 전 글자 화면·목록에는 보이지 않는다
@@ -1801,13 +1817,20 @@ function cardPendingN() {
   return Array.from(box.querySelectorAll('.cardin'))
     .filter(el => el.value.trim() !== String(CARD_ORIG[el.dataset.kind] || '').trim()).length;
 }
+function trialPendingN() {
+  if ($('edBox').style.display === 'none') return 0;
+  return window.NLTrials ? NLTrials.pendingN() : 0;
+}
 function cardLeaveOk() {
-  const n = cardPendingN();
-  if (!n) return true;
-  return confirm('카드번호 칸 ' + n + '개를 아직 저장하지 않았습니다.\n\n그래도 나갈까요? (적어 둔 번호는 사라집니다)');
+  const n = cardPendingN(), t = trialPendingN();
+  if (!n && !t) return true;
+  const what = [];
+  if (n) what.push('카드번호 칸 ' + n + '개');
+  if (t) what.push('체험 수업 ' + t + '줄');
+  return confirm(what.join(' · ') + '을(를) 아직 저장하지 않았습니다.\n\n그래도 나갈까요? (적어 둔 것은 사라집니다)');
 }
 window.addEventListener('beforeunload', e => {
-  if (!cardPendingN()) return;
+  if (!cardPendingN() && !trialPendingN()) return;
   e.preventDefault();
   e.returnValue = '';
 });

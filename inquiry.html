@@ -547,18 +547,8 @@
         <div id="dkmMsg" style="font-size:12.5px;"></div>
       </div>
 
-      <!-- 체험 수업 — 정규를 정하기 전 1회 수업 (2026-09-16) -->
-      <div id="trForm" style="display:none;">
-        <div style="margin-bottom:8px;">
-          <button type="button" id="trAdd" class="tab"
-                  style="background:#eef6fb;border-color:#9cc8e6;color:#0c447c;
-                         font-weight:600;padding:5px 12px;">＋ 체험 수업 줄 추가</button>
-          <span style="color:#888;font-size:12.5px;">
-            — 담당·수업 시간을 고르면 그 선생님 정규 1회 단가가 채워집니다.
-            고친 뒤 아래 초록 「저장」을 누르세요</span>
-        </div>
-        <div id="trRows"></div>
-      </div>
+      <!-- 체험 수업 — 공용 칸 nl-trials.js (2026-09-16) -->
+      <div id="trForm" style="display:none;"><div id="trPanel"></div></div>
 
       <div id="evForm" style="display:none;">
         <div style="margin-bottom:8px;">
@@ -619,6 +609,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
 <script src="nl-evaldocs.js"></script>
+<script src="nl-trials.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
@@ -666,9 +657,8 @@ let openId = null;   // 지금 열어본 문의 번호
 // ===== 평가 관리 =====
 let EVTYPES = [];    // 평가 종류 (심리·발달·언어)
 let EVFEES  = [];    // 평가비 기준 (nl_eval_fees)
-let TRIALS  = [];    // 체험 수업 (nl_trial_lessons) (2026-09-16)
-let TTYPES  = [];    // 치료 종류 (nl_therapy_types)
-let TFEES   = [];    // 선생님 정규 1회 단가 (nl_therapist_fees)
+let TRIALS  = [];    // 체험 수업 (nl_trial_lessons) — 한 줄기 기록에 씀 (2026-09-16)
+let TTYPES  = [];    // 치료 종류 이름
 let THRS    = [];    // 치료사 목록
 let EVALS   = [];    // 평가 기록
 let evKid   = null;  // 지금 고른 아동
@@ -874,11 +864,14 @@ async function openDetail(id) {
   EVALS.filter(e => e.child_id === r.child_id)
     .sort((a, b) => String(a.eval_date).localeCompare(String(b.eval_date)))
     .forEach(e => dvAddRow(e));
-  // 이 아동의 체험 수업을 채운다 (2026-09-16)
-  $('trRows').innerHTML = '';
-  TRIALS.filter(t => t.child_id === r.child_id)
-    .sort((a, b) => String(a.lesson_date).localeCompare(String(b.lesson_date)))
-    .forEach(t => trAddRow(t));
+  // 체험 수업 칸 (2026-09-16) — 줄마다 따로 저장, 저장하면 한 줄기 기록을 다시 그림
+  if (window.NLTrials) {
+    const _cid = r.child_id;
+    NLTrials.mount($('trPanel'), _cid, { onChange: list => {
+      TRIALS = TRIALS.filter(t => t.child_id !== _cid).concat(list);
+      drawTimeline();
+    }});
+  }
   drawNextEv(r.child_id);
   refreshDocs(r.child_id);
 
@@ -941,6 +934,8 @@ function detPending() {
   if (lc.value.trim() && lc.value.trim() !== (lc.dataset.orig || '')) out.push('상담 기록 (「기록 추가」)');
   const ds = $('dsumEdit');
   if (ds.value.trim() !== (ds.dataset.orig || '')) out.push('평가 요약 (「요약 저장」)');
+  const tn = window.NLTrials ? NLTrials.pendingN() : 0;
+  if (tn) out.push('체험 수업 ' + tn + '줄 (줄 옆 「저장 전」)');
   return out;
 }
 function detLeaveOk() {
@@ -950,11 +945,11 @@ function detLeaveOk() {
     + '\n\n그래도 나갈까요? (적어 둔 내용은 사라집니다)');
 }
 $('detBox').addEventListener('input', e => {
-  if (e.target.closest('#logForm, #dsumEdit')) return;
+  if (e.target.closest('#logForm, #dsumEdit, #trForm')) return;
   detMarkDirty();
 });
 $('detBox').addEventListener('change', e => {
-  if (e.target.closest('#logForm, #dsumEdit')) return;
+  if (e.target.closest('#logForm, #dsumEdit, #trForm')) return;
   if (e.target.matches('.dv_st')) return;
   detMarkDirty();
 });
@@ -1068,12 +1063,11 @@ function drawTimeline() {
       + (tn ? ' · ' + esc(tn) : '') + ' · ' + (t.duration_min || 40) + '분'
       + (t.therapist_id ? ' · ' + esc(evThrName(t.therapist_id)) : '')
       + (t.fee ? ' · ' + Number(t.fee).toLocaleString() + '원' : '')
-      + (t.status === '예정' ? ' <span style="color:#e65100;">예정</span>'
-         : t.status === '취소' ? ' <span style="color:#999;">취소</span>' : '');
+      + (t.status === '예정' ? ' <span style="color:#e65100;">예정</span>' : '');
     parts.push({
       d: String(t.lesson_date),
       html: tlRow(t.lesson_date, tlTag('체험', '#eef6fb', '#0c447c'),
-        t.status === '취소' ? '<s style="color:#999;">' + body + '</s>' : body,
+        t.status === '취소' ? '<s style="color:#999;">' + body + '</s> 취소' : body,
         '<button type="button" class="tab tlTrEdit" style="padding:3px 9px; font-size:12px;">수정</button>')
     });
   });
@@ -1116,8 +1110,7 @@ function tlTab(which, noScroll) {
 $('tabLog').onclick = () => tlTab('log');
 $('tabKm').onclick  = () => tlTab('km');
 $('tabEv').onclick  = () => tlTab('ev');
-$('tabTr').onclick = () => tlTab('tr');
-$('trAdd').onclick = () => { tlTab('tr'); trAddRow(null); detMarkDirty(); };
+$('tabTr').onclick  = () => tlTab('tr');
 
 // ── 상담 기록 한 줄 고치기 ──
 function logEdit(lid) {
@@ -1471,35 +1464,6 @@ $('saveDet').onclick = async () => {
       }
     }
 
-    // 체험 수업 줄도 함께 저장한다 (2026-09-16) — 날짜가 있는 줄만
-    let trN = 0;
-    if (!evErr) {
-      const tboxes = Array.from(document.querySelectorAll('#trRows .trrow'))
-        .filter(b => b.querySelector('.tr_date').value);
-      for (const b of tboxes) {
-        const fee = parseInt(String(b.querySelector('.tr_fee').value).replace(/[^0-9]/g, ''), 10);
-        const row = {
-          child_id:        cid,
-          lesson_date:     b.querySelector('.tr_date').value,
-          lesson_time:     b.querySelector('.tr_time').value || null,
-          therapy_type_id: Number(b.querySelector('.tr_type').value) || null,
-          duration_min:    Number(b.querySelector('.tr_dur').value) || 40,
-          therapist_id:    Number(b.querySelector('.tr_thr').value) || null,
-          fee:             isNaN(fee) ? 0 : fee,
-          status:          b.querySelector('.tr_st').value
-        };
-        const tid = b.dataset.id;
-        const res = tid
-          ? await sb.from('nl_trial_lessons').update(row).eq('id', Number(tid)).select().single()
-          : await sb.from('nl_trial_lessons').insert(row).select().single();
-        if (res.error) { evErr = '체험 수업 — ' + res.error.message; break; }
-        trN++;
-        const k = TRIALS.findIndex(x => x.id === res.data.id);
-        if (k >= 0) TRIALS[k] = res.data; else TRIALS.push(res.data);
-        b.dataset.id = res.data.id;
-      }
-    }
-
     drawNextEv(cid);
     if (openId) await loadLogs(openId);
     draw();
@@ -1513,8 +1477,7 @@ $('saveDet').onclick = async () => {
     }
     showBox('msgD', '✅ 저장했습니다.'
       + (evN ? '\n평가 ' + evN + '건' : '')
-      + (trN ? '\n체험 수업 ' + trN + '건' : '')
-      + (evErr ? '\n⚠️ 평가·체험은 저장하지 못했습니다: ' + evErr : ''), true);
+      + (evErr ? '\n⚠️ 평가는 저장하지 못했습니다: ' + evErr : ''), true);
     // 평가를 못 저장했으면 「저장 전」으로 남긴다
     detOk = !evErr;
   } catch (e) {
@@ -1767,89 +1730,6 @@ function wireSt(box, pre, live) {
       if (k >= 0) EVALS[k] = data;
       draw();
       showBox('msgD', '✅ 평가 상태를 저장했습니다 — ' + v, true);
-    };
-  });
-}
-
-// ── 체험 수업 한 줄 (2026-09-16) ──
-//   담당·수업 시간을 고르면 그 선생님 정규 1회 단가를 채운다 (고칠 수 있음)
-function trFeeOf(thr, dur, date) {
-  const mk = String(date || today()).slice(0, 7);
-  const rows = TFEES.filter(f => Number(f.therapist_id) === Number(thr)
-                               && String(f.from_month || '') <= mk)
-    .sort((a, b) => String(b.from_month).localeCompare(String(a.from_month)));
-  if (!rows.length) return '';
-  const v = rows[0]['fee_' + (Number(dur) || 40)];
-  return v ? Number(v).toLocaleString() : '';
-}
-function trAddRow(t) {
-  const typeOpt = '<option value="">-- 치료 --</option>' + TTYPES.map(x =>
-    '<option value="' + x.id + '"' + (t && t.therapy_type_id === x.id ? ' selected' : '') + '>'
-    + esc(x.name) + '</option>').join('');
-  const thrOpt = '<option value="">-- 담당 --</option>' + THRS.filter(x => x.id <= 7).map(x =>
-    '<option value="' + x.id + '"' + (t && t.therapist_id === x.id ? ' selected' : '') + '>'
-    + esc(x.name) + '</option>').join('');
-  const durOpt = [40, 50, 60].map(v =>
-    '<option value="' + v + '"' + (Number(t ? t.duration_min : 40) === v ? ' selected' : '') + '>'
-    + v + '분</option>').join('');
-  const html =
-    '<div class="trrow" data-id="' + (t ? t.id : '') + '" style="border:1px solid #d6e6f2;'
-    + 'border-radius:8px; padding:10px 12px; margin-top:8px; background:#f7fbfe;">'
-    + '<div style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end;">'
-    + '<div><label style="font-size:12px;">체험 날짜</label>'
-    +   '<input class="tr_date" type="date" style="width:140px;" value="'
-    +   esc(t && t.lesson_date || '') + '"></div>'
-    + '<div><label style="font-size:12px;">시간</label>'
-    +   '<input class="tr_time" type="time" style="width:110px;" value="'
-    +   esc(t && t.lesson_time ? String(t.lesson_time).slice(0, 5) : '') + '"></div>'
-    + '<div><label style="font-size:12px;">치료 종류</label>'
-    +   '<select class="tr_type" style="width:120px;">' + typeOpt + '</select></div>'
-    + '<div><label style="font-size:12px;">수업 시간</label>'
-    +   '<select class="tr_dur" style="width:80px;">' + durOpt + '</select></div>'
-    + '<div><label style="font-size:12px;">담당</label>'
-    +   '<select class="tr_thr" style="width:120px;">' + thrOpt + '</select></div>'
-    + '<div><label style="font-size:12px;">금액</label>'
-    +   '<input class="tr_fee" type="text" inputmode="numeric" style="width:110px;" value="'
-    +   (t && t.fee ? Number(t.fee).toLocaleString() : '') + '"></div>'
-    + stSeg('tr', t && t.status)
-    + '</div></div>';
-  $('trRows').insertAdjacentHTML('beforeend', html);
-  const box = $('trRows').lastElementChild;
-  const upd = () => {
-    const f = trFeeOf(box.querySelector('.tr_thr').value, box.querySelector('.tr_dur').value,
-                      box.querySelector('.tr_date').value);
-    if (f) box.querySelector('.tr_fee').value = f;
-  };
-  box.querySelector('.tr_thr').onchange = upd;
-  box.querySelector('.tr_dur').onchange = upd;
-  wireStTr(box);
-}
-// 체험 줄 상태 단추 — 저장된 줄이면 누르는 순간 저장
-function wireStTr(box) {
-  const hid = box.querySelector('.tr_st');
-  const paint = v => {
-    box.querySelectorAll('.stb').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-    box.classList.toggle('evoff', v === '취소');
-  };
-  paint(hid.value);
-  box.querySelectorAll('.stb').forEach(b => {
-    b.onclick = async () => {
-      const v = b.dataset.v, old = hid.value;
-      if (v === old) return;
-      hid.value = v; paint(v);
-      const tid = box.dataset.id;
-      if (!tid) { detMarkDirty(); return; }
-      const { data, error } = await sb.from('nl_trial_lessons')
-        .update({ status: v }).eq('id', Number(tid)).select().single();
-      if (error) {
-        hid.value = old; paint(old);
-        showBox('msgD', '❌ 체험 수업 상태를 저장하지 못했습니다.\n' + error.message, false);
-        return;
-      }
-      const k = TRIALS.findIndex(x => x.id === Number(tid));
-      if (k >= 0) TRIALS[k] = data;
-      drawTimeline();
-      showBox('msgD', '✅ 체험 수업 상태를 저장했습니다 — ' + v, true);
     };
   });
 }
@@ -2610,6 +2490,7 @@ async function afterLogin(user) {
   }
   ME = me;
   NLDocs.init(sb, me.id);   // 평가보고서 창구 준비
+  if (window.NLTrials) NLTrials.init(sb, me.id);   // 체험 수업 칸 준비
 
   // 아동 이름표
   const { data: kids, error: e2 } = await sb
@@ -2639,16 +2520,13 @@ async function afterLogin(user) {
   EVFEES  = (ef.data || []).filter(x => x.active !== false);
   THRS    = (th.data || []).filter(x => x.active !== false);
   EVALS   = ev.data || [];
-  // 체험 수업에 쓰는 자료 (2026-09-16)
   try {
-    const [tr, tt, tf] = await Promise.all([
+    const [tr, tt] = await Promise.all([
       sb.from('nl_trial_lessons').select('*'),
-      sb.from('nl_therapy_types').select('*').order('id'),
-      sb.from('nl_therapist_fees').select('therapist_id, from_month, fee_40, fee_50, fee_60')
+      sb.from('nl_therapy_types').select('id, name').order('id')
     ]);
     TRIALS = tr.data || [];
-    TTYPES = (tt.data || []).filter(x => x.active !== false);
-    TFEES  = tf.data || [];
+    TTYPES = tt.data || [];
   } catch (e) { console.warn('체험 수업 자료를 못 가져옴', e); }
   reCount();
   reOnDraw();
