@@ -1945,8 +1945,19 @@ function drawWl(){
     const k = KIDS.find(x => x.id === w.child_id);
     const cls = w.status === '대기중' ? '#00695c'
               : w.status === '보류'   ? '#8a6116' : '#5a625c';
+    // 맨 앞 「✓ 배정」 — 배정됨 줄에는 안 붙인다 (2026-09-16)
+    const doneBtn = w.status === '배정됨' ? ''
+      : '<button type="button" class="tab wldone" data-wldone="' + w.id + '"'
+        + ' style="padding:3px 10px;font-size:12.5px;white-space:nowrap;'
+        + 'background:#e8f3ea;color:#2e7d32;border:1px solid #a9d6b3;font-weight:600;">✓ 배정</button>';
+    // 치료중 아동이면 시간 옮기기 대기임을 알아보게
+    const trTag = (k && k.status === '치료중')
+      ? '<span style="background:#e3f0fb;color:#0c447c;border-radius:9px;padding:0 7px;'
+        + 'font-size:11.5px;white-space:nowrap;">치료중</span>' : '';
     return '<div class="evrow" style="cursor:pointer;" data-wlid="' + w.id + '">'
+      + doneBtn
       + '<span class="kn">' + esc(k ? k.name : '(' + w.child_id + '번)') + '</span>'
+      + trTag
       + (wlKind === '그룹'
           ? '<span class="d">' + esc(w.group_name || '(그룹 미정)') + '</span>' : '')
       + '<span class="d">' + (k && k.phone ? esc(k.phone) : '연락처 없음') + '</span>'
@@ -1960,6 +1971,34 @@ function drawWl(){
   $('wlRows').querySelectorAll('[data-wlid]').forEach(el => {
     el.onclick = () => openWl(Number(el.dataset.wlid));
   });
+  $('wlRows').querySelectorAll('[data-wldone]').forEach(b => {
+    b.onclick = (ev) => { ev.stopPropagation(); wlMarkDone(Number(b.dataset.wldone), b); };
+  });
+}
+
+// 「✓ 배정」 — 명단 상태를 배정됨으로, 마지막 연락일은 오늘로 (2026-09-16)
+//   줄은 지우지 않는다 (배정됨 갈래에 남음)
+async function wlMarkDone(id, btn) {
+  const w = WL.find(x => x.id === id);
+  if (!w) return;
+  const k = KIDS.find(x => x.id === w.child_id);
+  const nm = k ? k.name : (w.child_id + '번');
+  if (!confirm(nm + ' 아동을 「배정됨」으로 바꿀까요?\n\n'
+      + '시간 조율이 끝나 대기에서 빼는 것입니다.\n'
+      + '줄은 지우지 않고 「배정됨」 갈래에 남습니다.')) return;
+  btn.disabled = true; btn.textContent = '바꾸는 중…';
+  const td = today();
+  const { error } = await sb.from('nl_waitlist')
+    .update({ status: '배정됨', last_contact: td }).eq('id', id);
+  if (error) {
+    alert('바꾸지 못했습니다.\n' + error.message);
+    btn.disabled = false; btn.textContent = '✓ 배정';
+    return;
+  }
+  w.status = '배정됨';
+  w.last_contact = td;
+  drawWl();
+  wlmsg('✅ ' + nm + ' 아동을 「배정됨」으로 바꿨습니다.', true);
 }
 
 function openWl(id){
