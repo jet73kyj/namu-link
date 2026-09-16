@@ -13,7 +13,10 @@
   .page-title { font-size:18px; font-weight:bold; color:#2e7d32; margin:10px 0; }
   .form-actions { display:flex; gap:8px; margin:12px 0; }
   .form-actions button { padding:8px 18px; border:none; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; }
-  .btn-save { background:#2e7d32; color:white; }
+  /* 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) (2026-09-16) */
+  .btn-save { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3 !important; }
+  .btn-save.done { background:#2e7d32; color:white; border-color:#2e7d32 !important; }
+  .btn-save:disabled { background:#bbb; color:white; border-color:#bbb !important; cursor:default; }
   .btn-print { background:#1565c0; color:white; }
   .btn-back { background:#eee; color:#555; }
   .sheet { background:white; padding:26px 32px; border:1px solid #ddd; box-shadow:0 1px 4px rgba(0,0,0,0.05); margin-bottom:22px; page-break-after:always; }
@@ -146,7 +149,7 @@
   <div class="page-title" id="pageTitle">발달재활 서비스 기록지</div>
 
   <div class="form-actions no-print">
-    <button class="btn-save" onclick="saveRecord()">💾 저장</button>
+    <button class="btn-save" id="btnSave" onclick="saveRecord()">💾 저장 전</button>
     <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
     <button onclick="_shareRecordHelp()" style="background:#fee500;color:#3c1e1e;">💬 학부모 전달 안내</button>
     <button class="btn-back" onclick="history.back()">◀ 돌아가기</button>
@@ -497,6 +500,7 @@ function drawChildSelect() {
 // 한 아동 · 한 달 불러오기
 // ─────────────────────────────────────────────
 async function loadOne() {
+  if (DIRTY && !confirm('저장하지 않은 내용이 있습니다.\n\n그래도 다른 기록지를 불러올까요?\n(적어 둔 내용은 사라집니다)')) return;
   const cid = $('pChild').value;
   const mv  = $('pMonth').value;
   if (!cid) { alert('아동을 고르세요.'); return; }
@@ -548,6 +552,8 @@ async function loadOne() {
 
     LOADED = true;
     drawAll(lg.data);
+    DIRTY = false;
+    setSaveBtn(LOGID ? 'done' : 'before');
     $('pInfo').textContent = mk + ' · 바우처 ' + VOUCHER.length + '건'
       + (LOGID ? ' · 저장된 기록 있음' : ' · 새로 작성');
   } catch (e) {
@@ -747,6 +753,8 @@ async function saveRecord() {
   const mk = mkNow();
   const wd = ($('s1_writeDate').value || '').replace(/\./g,'-').replace(/-(\d)(?!\d)/g,'-0$1');
 
+  SAVING = true;
+  setSaveBtn('saving');
   try {
     // 1) 기록지 한 장
     const logRow = {
@@ -813,12 +821,46 @@ async function saveRecord() {
     if (ins.error) throw ins.error;
 
     ITEMS = items;
-    alert('✅ 저장되었습니다.');
+    // 저장 알림 창은 뺐다 — 단추 모양이 알려 준다 (2026-09-16)
     $('pInfo').textContent = mk + ' · 바우처 ' + VOUCHER.length + '건 · 저장됨';
+    DIRTY = false;
+    setSaveBtn('done');
   } catch (e) {
     alert('❌ 저장하지 못했습니다.\n' + e.message);
+    setSaveBtn('before');
+  } finally {
+    setTimeout(() => { SAVING = false; }, 300);
   }
 }
+
+// ─────────────────────────────────────────────
+// 저장 단추 상태 (2026-09-16)
+//   before 저장 전 / saving 저장 중 / done 저장됨
+//   칸을 고치면 다시 「저장 전」. 저장 전인 채 나가면 묻는다
+// ─────────────────────────────────────────────
+let DIRTY  = false;
+let SAVING = false;
+function setSaveBtn(st) {
+  const b = $('btnSave');
+  if (!b) return;
+  b.classList.toggle('done', st === 'done');
+  b.disabled = (st === 'saving');
+  b.textContent = st === 'saving' ? '저장 중…'
+                : st === 'done'   ? '\u2713 저장됨'
+                : '💾 저장 전';
+}
+function markDirty() {
+  if (!LOADED || SAVING) return;
+  DIRTY = true;
+  setSaveBtn('before');
+}
+document.querySelector('.container').addEventListener('input',  markDirty);
+document.querySelector('.container').addEventListener('change', markDirty);
+window.addEventListener('beforeunload', e => {
+  if (!DIRTY) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 function _hm(v) {
   const m = String(v || '').match(/(\d{1,2}):(\d{2})/);
   return m ? m[1].padStart(2,'0') + ':' + m[2] : null;
@@ -835,6 +877,7 @@ function _saveAbsence(day) {
     makeupTime: ($('_absMakeupTime') ? $('_absMakeupTime').value : '').trim(),
     makeupMemo: ($('_absMakeupMemo') ? $('_absMakeupMemo').value : '').trim()
   };
+  markDirty();
   const m = $('_absModal'); if (m) m.remove();
   buildCalendar();
   for (let d = 1; d <= 31; d++) _applyAbsenceToCell(d);
@@ -844,6 +887,7 @@ function _saveAbsence(day) {
 }
 function _clearAbsence(day) {
   delete ABS[day];
+  markDirty();
   const m = $('_absModal'); if (m) m.remove();
   buildCalendar();
   for (let d = 1; d <= 31; d++) _applyAbsenceToCell(d);
@@ -1134,6 +1178,7 @@ function buildStatusRows(existing) {
 // 한 줄에서 하나만 고를 수 있는 항목 (아동표정은 여러 개 가능)
 const _EXCLUSIVE_FIELDS = new Set(['cloth','sock','wear','health']);
 function _toggleOpt(el) {
+  markDirty();
   const field = el.getAttribute('data-field');
   const wasSelected = el.classList.contains('selected');
   const tr = el.closest('tr');
