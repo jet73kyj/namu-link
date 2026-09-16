@@ -211,23 +211,29 @@ async function doConfirm(id) {
      : '보강 · 아직 안 정함\n\n결석만 반영할까요?';
   if (!confirm(m)) return;
 
+  // 누르는 동안 단추를 잠가 두 번 눌러지지 않게 한다 (2026-09-16)
+  const btn = document.querySelector('button[data-ok="' + id + '"]');
+  if (btn) { btn.disabled = true; btn.textContent = '확정 중…'; }
   try {
     const { data, error } = await sb.rpc('nl_absence_confirm', { p_req_id: id });
     if (error) throw error;
     // 창구가 「확정했습니다.」가 아닌 글을 돌려주면 확정이 안 된 것이다 (2026-09-11)
     //   보기: 「확정하지 못했습니다 — 09/21(월) 09:50 : 월요일은 선생님 출근 요일이 아닙니다 …」
     //   전에는 무슨 글이 오든 초록 칸에 띄워, 막힌 것을 알아보기 어려웠다
+    //   「확정했습니다. (이미 잡아 두신 보강을 그대로 씁니다)」도 성공이다 (2026-09-16)
+    //   전에는 글자가 「확정했습니다.」와 똑같을 때만 성공으로 봐서, 확정됐는데 빨간 칸이 떴다
     const res = String(data || '');
-    if (res !== '확정했습니다.') {
+    if (res.indexOf('확정했습니다') !== 0) {
       show($('msg2'), '❌ ' + (res || '확정하지 못했습니다.'), false);
       alert(res || '확정하지 못했습니다.');
       await loadAll();
       return;
     }
-    show($('msg2'), '확정했습니다.', true);
+    show($('msg2'), res, true);
     await loadAll();
   } catch (e) {
     show($('msg2'), '❌ 확정하지 못했습니다.\n' + (e.message || e), false);
+    if (btn) { btn.disabled = false; btn.textContent = '확정하기'; }
   }
 }
 
@@ -235,6 +241,8 @@ async function doConfirm(id) {
 async function doReject(id) {
   const why = prompt('왜 반려하시는지 적어주세요.\n(학부모께는 따로 연락해 주셔야 합니다)');
   if (why === null) return;
+  const btn = document.querySelector('button[data-no="' + id + '"]');
+  if (btn) { btn.disabled = true; btn.textContent = '반려 중…'; }
   try {
     const { error } = await sb.from('nl_absence_requests')
       .update({ state: '반려', staff_memo: why || null,
@@ -245,6 +253,7 @@ async function doReject(id) {
     await loadAll();
   } catch (e) {
     show($('msg2'), '❌ 반려하지 못했습니다.\n' + (e.message || e), false);
+    if (btn) { btn.disabled = false; btn.textContent = '반려'; }
   }
 }
 
