@@ -936,10 +936,24 @@ $('detBox').addEventListener('change', e => {
   detMarkDirty();
 });
 window.addEventListener('beforeunload', e => {
-  if (!detPending().length) return;
+  if (ADD_LEAVING) return;
+  if (!detPending().length && !addDraft()) return;
   e.preventDefault();
   e.returnValue = '';
 });
+
+// ── 새 문의 등록 창 — 쓰던 것이 있는지 (2026-09-16) ──
+//   등록하면 칸이 비워지므로 「글자가 있음」 = 아직 등록 안 한 것
+//   아동 메모는 틀(MEMO_TMPL)과 다를 때만, 평가 줄은 날짜를 넣었을 때만 센다
+let ADD_LEAVING = false;
+function addDraft() {
+  if (!$('k_name')) return false;
+  const any = ['k_name','k_birth','k_guardian','k_phone','a_channel','a_action','k_evalsum']
+    .some(k => $(k) && String($(k).value || '').trim());
+  if (any) return true;
+  if (String($('k_memo').value || '').trim() !== MEMO_TMPL.trim()) return true;
+  return Array.from(document.querySelectorAll('#nvRows .nv_date')).some(el => el.value);
+}
 
 let LOGS = [];   // 이 문의의 상담 기록
 
@@ -1090,7 +1104,13 @@ $('goNew').onclick = () => {
   DET_DIRTY = false;
   if (window.NLDocs) NLDocs.close();
   $('detBox').style.display = 'none'; openId = null;
-  resetAddBox();
+  // 쓰던 새 문의가 있으면 지울지 묻는다. 취소하면 쓰던 것을 그대로 보여 준다
+  if (addDraft() && !confirm('쓰던 새 문의가 있습니다.\n\n'
+      + '확인 — 지우고 새로 씁니다\n취소 — 쓰던 것을 이어서 씁니다')) {
+    $('addBox').style.display = 'block';
+  } else {
+    resetAddBox();
+  }
   draw();
   $('addBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
@@ -2170,6 +2190,7 @@ function resetAddBox() {
 
 // 「취소」 — 창은 그대로 두고 적은 것만 비운다 (단추가 없어 다시 못 열기 때문)
 $('cancelNew').onclick = () => {
+  if (addDraft() && !confirm('쓰던 새 문의를 지울까요?')) return;
   resetAddBox();
   draw();
 };
@@ -2349,6 +2370,7 @@ $('saveNew').onclick = async () => {
       await kidToActive(cid);
       if (confirm(kid.name + ' — 「치료시작」으로 등록했습니다.\n\n'
         + '문의 목록에서는 감춰집니다.\n아동 목록으로 갈까요?')) {
+        ADD_LEAVING = true;   // 등록을 마친 칸이라 묻지 않는다
         location.href = 'children-new.html'; return;
       }
     }
