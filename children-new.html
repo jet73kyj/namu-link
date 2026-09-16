@@ -109,6 +109,12 @@
          border:1px solid #ddd; border-radius:5px; background:#fff; }
   .lsn .del { font:inherit; font-size:11.5px; padding:5px 8px; cursor:pointer;
          background:#fff; color:#9c2b2b; border:1px solid #e0bcbc; border-radius:5px; }
+  /* 지원 카드번호 칸 저장 단추 (2026-09-16) */
+  .cardsave { width:auto; margin:0; padding:6px 14px; font-size:13px; font-weight:700;
+              border-radius:7px; cursor:pointer;
+              background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
+  .cardsave.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  .cardsave:disabled { background:#bbb; color:#fff; border-color:#bbb; cursor:default; }
 </style>
 </head>
 <body>
@@ -340,6 +346,9 @@
           <div style="font-size:12.5px; font-weight:700; color:#2c5c37; margin-bottom:6px;">👪 학부모 계정</div>
           <div id="e_acc" style="font-size:12.5px; color:#5a6156;">불러오는 중...</div>
         </div>
+        <!-- 지원 카드번호 — 8·9번만 (2026-09-16) -->
+        <div id="e_cards" style="display:none; border:1px solid #f0d5a8; border-radius:10px;
+             background:#fff8ec; padding:10px 12px; margin-top:10px;"></div>
         <div class="addbtns">
           <button id="saveEdit" class="tab" style="background:#1565c0;color:#fff;font-weight:bold;">저장</button>
           <button type="button" id="e_formX" class="tab">취소</button>
@@ -1087,6 +1096,7 @@ function openEdit(id) {
   if (!CAN_EDIT) return;
   const c = ALL.find(x => x.id === id);
   if (!c) return;
+  if (!cardLeaveOk()) return;
   edId = id;
   $('addBox').style.display = 'none';
   $('edTitle').textContent = '아동 ' + c.id + '번 고치기';
@@ -1117,6 +1127,7 @@ function openEdit(id) {
   $('edBox').scrollIntoView({ behavior:'smooth', block:'start' });
   loadGrade(id);
   drawAcc(id);
+  drawCards(id);
   drawDocs(id);
   loadNotes(id);
   drawBasic(c);
@@ -1641,6 +1652,105 @@ async function drawDocs(cid) {
   });
 }
 
+// ── 지원 카드번호 (2026-09-16) ──────────────────
+//   표 nl_child_cards (아동·갈래마다 한 줄) · 8·9번만 보고 적음 (표 잠금도 8·9번)
+//   칸마다 따로 저장. 수정 전 글자 화면·목록에는 보이지 않는다
+const CARD_KINDS = ['치료지원', '방과후'];
+let CARD_ORIG = {};   // 갈래 -> 저장된 메모
+function cardCan() { return MEID === 8 || MEID === 9; }
+async function drawCards(cid) {
+  const box = $('e_cards');
+  if (!box) return;
+  CARD_ORIG = {};
+  if (!cardCan()) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+  box.innerHTML = '불러오는 중...';
+  let rows = [];
+  try {
+    const { data, error } = await sb.from('nl_child_cards')
+      .select('kind, memo, updated_by, updated_at').eq('child_id', cid);
+    if (error) throw error;
+    rows = data || [];
+  } catch (e) {
+    box.innerHTML = '카드번호를 가져오지 못했습니다. ' + esc(e.message || e);
+    return;
+  }
+  if (edId !== cid) return;
+  const by = {}; rows.forEach(r => { by[r.kind] = r; });
+  box.innerHTML = '<div style="font-size:12.5px; font-weight:700; color:#8a4b00; margin-bottom:8px;">'
+    + '💳 지원 카드번호 <span style="font-weight:normal;color:#a07a4a;font-size:12px;">'
+    + '— 대표 · 행정만 보입니다</span></div>'
+    + CARD_KINDS.map(k => {
+        const r = by[k] || {};
+        CARD_ORIG[k] = String(r.memo || '');
+        const who = r.updated_at
+          ? String(r.updated_at).slice(0, 10) + ' · ' + (r.updated_by ? r.updated_by + '번' : '')
+          : '';
+        return '<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">'
+          + '<span style="width:92px; font-size:13px;">' + k + ' 카드</span>'
+          + '<input class="cardin" data-kind="' + k + '" type="text" autocomplete="off"'
+          + ' value="' + esc(r.memo || '').replace(/"/g, '&quot;') + '"'
+          + ' placeholder="카드번호 · 카드사 · 재발급 등" style="flex:1; min-width:200px; margin:0;">'
+          + '<button type="button" class="cardsave' + (r.memo ? ' done' : '') + '" data-kind="' + k + '">'
+          + (r.memo ? '\u2713 저장됨' : '💾 저장 전') + '</button>'
+          + '</div>'
+          + '<div style="font-size:11.5px; color:#a07a4a; margin:0 0 8px 100px;" data-who="' + k + '">'
+          + (who ? '고친 날 ' + esc(who) : '') + '</div>';
+      }).join('');
+  box.querySelectorAll('.cardin').forEach(el => {
+    el.addEventListener('input', () => {
+      const b = box.querySelector('.cardsave[data-kind="' + el.dataset.kind + '"]');
+      if (b) { b.classList.remove('done'); b.textContent = '💾 저장 전'; }
+    });
+  });
+  box.querySelectorAll('.cardsave').forEach(b => {
+    b.onclick = () => saveCard(cid, b.dataset.kind, b);
+  });
+}
+async function saveCard(cid, kind, btn) {
+  const box = $('e_cards');
+  const el = box.querySelector('.cardin[data-kind="' + kind + '"]');
+  if (!el) return;
+  const v = el.value.trim();
+  btn.disabled = true; btn.classList.remove('done'); btn.textContent = '저장 중…';
+  try {
+    const now = new Date().toISOString();
+    const { error } = await sb.from('nl_child_cards')
+      .upsert({ child_id: cid, kind: kind, memo: v || null,
+                updated_by: MEID, updated_at: now },
+              { onConflict: 'child_id,kind' });
+    if (error) throw error;
+    CARD_ORIG[kind] = v;
+    el.value = v;
+    btn.classList.add('done'); btn.textContent = '\u2713 저장됨';
+    const w = box.querySelector('[data-who="' + kind + '"]');
+    if (w) w.textContent = '고친 날 ' + now.slice(0, 10) + ' · ' + MEID + '번';
+  } catch (e) {
+    alert('카드번호를 저장하지 못했습니다.\n' + (e.message || e));
+    btn.textContent = '💾 저장 전';
+  } finally {
+    btn.disabled = false;
+  }
+}
+// 적고 저장을 안 누른 카드 칸
+function cardPendingN() {
+  const box = $('e_cards');
+  if (!box || box.style.display === 'none') return 0;
+  if ($('edBox').style.display === 'none') return 0;
+  return Array.from(box.querySelectorAll('.cardin'))
+    .filter(el => el.value.trim() !== String(CARD_ORIG[el.dataset.kind] || '').trim()).length;
+}
+function cardLeaveOk() {
+  const n = cardPendingN();
+  if (!n) return true;
+  return confirm('카드번호 칸 ' + n + '개를 아직 저장하지 않았습니다.\n\n그래도 나갈까요? (적어 둔 번호는 사라집니다)');
+}
+window.addEventListener('beforeunload', e => {
+  if (!cardPendingN()) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
 // ── 학부모 계정 ──────────────────────────────
 // 번호가 바뀌면 표의 아이디만 고친다. 계정과 비밀번호는 그대로 둔다
 async function drawAcc(cid) {
@@ -1802,8 +1912,9 @@ async function saveGuards(id){
   return rows;
 }
 
-$('cancelEdit').onclick = () => { $('edBox').style.display = 'none'; edId = null; };
+$('cancelEdit').onclick = () => { if (!cardLeaveOk()) return; $('edBox').style.display = 'none'; edId = null; };
 $('e_backList').onclick = () => {
+  if (!cardLeaveOk()) return;
   $('edBox').style.display = 'none'; edId = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
