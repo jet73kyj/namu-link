@@ -7048,6 +7048,8 @@ function evalTap(s){
     alert('보기 창을 불러오지 못했습니다. 화면을 새로 열어 주세요.\n\n평가 일정은 「문의·상담 관리」에서 고칩니다.');
     return;
   }
+  // 보기 창은 서버 연결(init)을 먼저 해야 한다 — 빠뜨려서 「아동을 먼저 고르세요」만 떴음
+  NLDocs.init(sb, ME_ID);
   NLDocs.openIntake(s.child_id);
 }
 // 찾기 창 단추 누르기 — 상태 돌리기 · ＋ 는 보강 잡기 창
