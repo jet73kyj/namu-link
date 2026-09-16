@@ -106,6 +106,10 @@
     white-space:nowrap; }
   @media (max-width:620px) { .vacadd { grid-template-columns:1fr 1fr; } }
   @media print { .vacbox { display:none; } }
+  /* 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) (2026-09-16) */
+  button#save { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
+  button#save.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  button#save:disabled { background:#bbb; color:#fff; border-color:#bbb; }
 </style>
 </head>
 <body>
@@ -158,7 +162,7 @@
       </div>
     </div>
     <div class="btns">
-      <button id="save" class="btn2">저장하기</button>
+      <button id="save" class="btn2">💾 저장 전</button>
       <button id="prev" class="btn2 grey">지난 달 금액 가져오기</button>
     </div>
 
@@ -464,7 +468,36 @@ async function loadRow(){
     fillForm(ROW);
   }
   drawPaper();
+  setSaveBtn(DIRTY || !ROW ? 'before' : 'done');
 }
+
+// ── 저장 단추 상태 (2026-09-16) ──
+//   before 저장 전 / saving 저장 중 / done 저장됨
+//   금액·지급일·휴가 칸을 고치면 「저장 전」 (DIRTY 를 함께 켠다)
+let SAVING = false;
+function setSaveBtn(st) {
+  const b = $('save');
+  if (!b) return;
+  b.classList.toggle('done', st === 'done');
+  b.disabled = (st === 'saving');
+  b.textContent = st === 'saving' ? '저장 중…'
+                : st === 'done'   ? '\u2713 저장됨'
+                : '💾 저장 전';
+}
+function markDirty() {
+  if (SAVING) return;
+  DIRTY = true;
+  setSaveBtn('before');
+}
+document.querySelectorAll('.editbox .grid input').forEach(el => {
+  el.addEventListener('input',  markDirty);
+  el.addEventListener('change', markDirty);
+});
+window.addEventListener('beforeunload', e => {
+  if (!DIRTY) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 $('save').onclick = async () => {
   const row = {
@@ -482,7 +515,8 @@ $('save').onclick = async () => {
   };
   if (!row.base_pay) { msg2('기본급을 넣으세요.', false); return; }
 
-  $('save').disabled = true; $('save').textContent = '저장 중...';
+  SAVING = true;
+  setSaveBtn('saving');
   try {
     const { error } = await sb.from('nl_salary')
       .upsert(row, { onConflict: 'staff_id,month_key' });
@@ -492,8 +526,9 @@ $('save').onclick = async () => {
     await loadRow();
   } catch (e) {
     msg2('❌ 저장하지 못했습니다.\n' + e.message, false);
+    setSaveBtn('before');
   } finally {
-    $('save').disabled = false; $('save').textContent = '저장하기';
+    SAVING = false;
   }
 };
 
@@ -511,6 +546,7 @@ $('prev').onclick = async () => {
   $('f_loc').value  = won(data.local_tax);
   $('f_pd').value   = payDay(mon);
   DIRTY = true;
+  setSaveBtn('before');
   msg2('✅ ' + monNo(pm) + '월 금액을 가져왔습니다. 휴가는 새로 적으세요.\n'
      + '이제 달을 바꾸어도 금액이 남습니다. 「저장하기」를 눌러야 저장됩니다.', true);
 };
@@ -563,7 +599,21 @@ async function afterLogin(user){
   await loadRow();
 }
 
-$('mon').onchange   = async () => { mon = $('mon').value; await loadRow(); drawVacs(); };
+$('mon').onchange   = async () => {
+  // 적은 금액이 있는데 저장 자료가 있는 달로 가면 그 달 자료로 바뀌므로 묻는다 (2026-09-16)
+  //   자료가 없는 달이면 지금처럼 적은 금액을 그대로 남긴다
+  const to = $('mon').value;
+  if (DIRTY) {
+    const { data: ex } = await sb.from('nl_salary')
+      .select('id').eq('staff_id', sid).eq('month_key', to).maybeSingle();
+    if (ex && !confirm('저장하지 않은 금액이 있습니다.\n'
+        + monNo(to) + '월에는 저장된 자료가 있어, 달을 바꾸면 적은 금액이 지워집니다.\n그래도 바꿀까요?')) {
+      $('mon').value = mon; return;
+    }
+    if (ex) DIRTY = false;
+  }
+  mon = to; await loadRow(); drawVacs();
+};
 $('staff').onchange = async () => {
   // 사람이 바뀌면 넣어둔 금액을 반드시 비운다 (엉뚱한 사람에게 저장되는 것을 막음)
   if (DIRTY && !confirm('저장하지 않은 금액이 있습니다.\n사람을 바꾸면 지워집니다. 그래도 바꿀까요?')) {
@@ -587,6 +637,8 @@ $('btn').onclick = async () => {
   finally { $('btn').disabled = false; $('btn').textContent = '로그인'; }
 };
 $('out').onclick = async () => {
+  if (DIRTY && !confirm('저장하지 않은 금액이 있습니다.\n그래도 로그아웃할까요?')) return;
+  DIRTY = false;
   nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
