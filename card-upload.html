@@ -107,6 +107,10 @@
     .thrgrp { break-inside:avoid; margin-bottom:14px; }
     .thrhead { background:#f0f2ee; font-size:12.5px; padding:5px 8px; }
   }
+  /* 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) (2026-09-16) */
+  button#save { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
+  button#save.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  button#save:disabled { background:#bbb; color:#fff; border-color:#bbb; }
 </style>
 </head>
 <body>
@@ -167,7 +171,7 @@
   <div class="card" id="saveCard" style="display:none;">
     <h2>③ 저장</h2>
     <div id="readstat" class="sum"></div>
-    <button id="save" type="button">저장하기</button>
+    <button id="save" type="button">💾 저장 전</button>
     <div id="msg3" class="out"></div>
   </div>
 
@@ -266,17 +270,53 @@ function setKind(st) {
   $('saveCard').style.display = 'none';
   hide($('msg2')); hide($('msg3'));
 }
-$('kTr').onclick = () => setKind(3);
-$('kAf').onclick = () => setKind(5);
+$('kTr').onclick = () => { if (cuLeaveOk()) { CU_DIRTY = false; setKind(3); } };
+$('kAf').onclick = () => { if (cuLeaveOk()) { CU_DIRTY = false; setKind(5); } };
+
+// ── 저장 단추 상태 · 나갈 때 묻기 (2026-09-16) ──
+//   엑셀을 읽거나 ②에서 아동을 고르면 「저장 전」, 저장하면 「✓ 저장됨」(계속 남김)
+let CU_DIRTY = false;
+let CU_LEAVING = false;
+function setCuBtn(st) {
+  const b = $('save');
+  if (!b) return;
+  b.classList.toggle('done', st === 'done');
+  b.disabled = (st === 'saving');
+  b.textContent = st === 'saving' ? '저장 중…'
+                : st === 'done'   ? '\u2713 저장됨'
+                : '💾 저장 전';
+}
+function cuLeaveOk() {
+  if (!CU_DIRTY) return true;
+  return confirm('읽은 엑셀을 아직 저장하지 않았습니다.\n\n그래도 계속할까요? (읽은 내용과 고른 아동 짝이 사라집니다)');
+}
+document.querySelector('a[href="index.html"]').addEventListener('click', e => {
+  if (!cuLeaveOk()) { e.preventDefault(); return; }
+  CU_LEAVING = true;
+});
+window.addEventListener('beforeunload', e => {
+  if (CU_LEAVING || !CU_DIRTY) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 // ── 엑셀 읽기 ─────────────────────────────────────
 $('drop').onclick = () => $('file').click();
 $('drop').addEventListener('dragover', e => { e.preventDefault(); });
 $('drop').addEventListener('drop', e => {
   e.preventDefault();
-  if (e.dataTransfer.files && e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+  if (!(e.dataTransfer.files && e.dataTransfer.files[0])) return;
+  if (!cuLeaveOk()) return;
+  CU_DIRTY = false;
+  readFile(e.dataTransfer.files[0]);
 });
-$('file').onchange = e => { if (e.target.files[0]) readFile(e.target.files[0]); };
+$('file').onchange = e => {
+  if (!e.target.files[0]) return;
+  if (!cuLeaveOk()) { e.target.value = ''; return; }
+  CU_DIRTY = false;
+  readFile(e.target.files[0]);
+  e.target.value = '';
+};
 
 function readFile(f) {
   hide($('msg2')); hide($('msg3'));
@@ -365,6 +405,8 @@ function parse(aoa) {
     + (left0 ? ' · <span class="warn">아동을 고르지 않은 성명 ' + left0 + '명</span>'
              : ' · <span class="good">아동 짝 다 맞음</span>');
   $('saveCard').style.display = 'block';
+  CU_DIRTY = true;
+  setCuBtn('before');
 }
 
 // ── 짝 맺기 ───────────────────────────────────────
@@ -408,6 +450,8 @@ function drawMap() {
   $('mapBody').querySelectorAll('.mapsel').forEach(el => {
     el.onchange = () => {
       NEWCARDS[Number(el.dataset.i)].child_id = el.value ? Number(el.value) : null;
+      CU_DIRTY = true;
+      setCuBtn('before');
       const left = NEWCARDS.filter(n => !n.child_id).length;
       $('readstat').innerHTML = '읽은 줄 <b>' + ROWS.length + '</b>건 · ' + KIND[ST]
         + (left ? ' · <span class="warn">아동을 고르지 않은 성명 ' + left + '명</span>'
@@ -429,7 +473,8 @@ $('save').onclick = async () => {
       + '그 줄은 아동 없이 저장되고, 미결제 점검에는 안 들어갑니다.\n\n그대로 저장할까요?')) return;
   }
 
-  $('save').disabled = true; $('save').textContent = '저장 중...';
+  setCuBtn('saving');
+  let cuOk = false;
   try {
     // ① 새로 고른 짝을 사전에 넣는다
     const maps = NEWCARDS.filter(n => n.child_id).map(n => ({
@@ -462,10 +507,12 @@ $('save').onclick = async () => {
     show($('msg3'), '✅ ' + done + '줄 저장했습니다.\n'
       + (maps.length ? '성명 ' + maps.length + '명을 아동과 이어 두었습니다. 다음부터는 저절로 붙습니다.\n' : '')
       + '같은 파일을 다시 올려도 중복으로 쌓이지 않습니다.', true);
+    cuOk = true;
   } catch (e) {
     show($('msg3'), '❌ 저장하지 못했습니다.\n' + (e.message || e), false);
   } finally {
-    $('save').disabled = false; $('save').textContent = '저장하기';
+    if (cuOk) CU_DIRTY = false;
+    setCuBtn(cuOk ? 'done' : 'before');
   }
 };
 
@@ -685,6 +732,8 @@ $('btn').onclick = async () => {
   }
 };
 $('out').onclick = async () => {
+  if (!cuLeaveOk()) return;
+  CU_LEAVING = true;
   nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
