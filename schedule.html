@@ -2504,15 +2504,8 @@ function drawFind(){
 
   // 숫자만 넣으면 아동 번호로 찾는다 (2026-09-11 — 시간표 줄을 누르면 번호로 연다)
   const isNo = /^[0-9]+$/.test(q);
-  const hit = ROWS.filter(r => isNo ? String(r._cid) === q : (r._name || '').includes(q));
+  const hit0 = ROWS.filter(r => isNo ? String(r._cid) === q : (r._name || '').includes(q));
   $('findBox').style.display = 'block';
-
-  if (!hit.length) {
-    $('findTitle').textContent = '🔍 "' + q + '" 찾기';
-    $('findRows').innerHTML = '<div class="findnone">그 이름의 수업이 없습니다. '
-      + '종결한 아동이거나 수업이 아직 없는 아동입니다.</div>';
-    return;
-  }
 
   // 회기를 수업별로 모으기
   const byScd = {}, mkOf = {};
@@ -2521,6 +2514,24 @@ function drawFind(){
     if (!s.schedule_id) return;          // 직접 넣은 보강은 따로 그린다
     (byScd[s.schedule_id] = byScd[s.schedule_id] || []).push(s);
   });
+
+  // 끝난 수업인데 이 달 회기가 한 줄도 없으면 감춘다 (2026-09-16)
+  //   한 번도 안 하고 종결한 수업(144번)이 빈 줄로 남아 헷갈렸다
+  //   이 달에 수업하다 종결한 아동은 보강·기록 때문에 그대로 보인다
+  const hit = hit0.filter(r => {
+    if (!(r.to_date || r.to_month)) return true;
+    if ((byScd[r.id] || []).length) return true;
+    return SESS.some(s => s.child_id === r._cid && !s.schedule_id
+      && (s.support_type_id === r.support_type_id
+          || (r.support_type_id === 2 && s.support_type_id === 8)));
+  });
+
+  if (!hit.length) {
+    $('findTitle').textContent = '🔍 "' + q + '" 찾기';
+    $('findRows').innerHTML = '<div class="findnone">그 이름의 수업이 없습니다. '
+      + '종결한 아동이거나 수업이 아직 없는 아동입니다.</div>';
+    return;
+  }
   Object.values(byScd).forEach(a => a.sort((x,y)=>String(x.plan_date).localeCompare(String(y.plan_date))));
 
   const names = Array.from(new Set(hit.map(r => r._name)));
