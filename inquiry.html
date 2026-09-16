@@ -133,6 +133,10 @@
   .stseg .stb.on[data-v="취소"] { background:#9aa19c; color:#fff;    font-weight:bold; }
   .evoff { background:#eeefed !important; }
   .evoff input, .evoff select { color:#9a9a9a; text-decoration:line-through; background:#f4f4f2; }
+  /* 열기 창 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) (2026-09-16) */
+  .tab.detsave { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
+  .tab.detsave.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  .tab.detsave:disabled { background:#bbb; color:#fff; border-color:#bbb; }
 </style>
 </head>
 <body>
@@ -567,7 +571,7 @@
     </div>
 
     <div class="btns">
-      <button id="saveDet" class="tab" style="background:#2e7d32;color:#fff;font-weight:bold;">저장</button>
+      <button id="saveDet" class="tab detsave done" style="font-weight:bold;">✓ 저장됨</button>
       <button id="closeDet" class="tab">닫기</button>
       <button id="goNew" class="tab" style="background:#eaf3de;color:#27500a;border:1px solid #97c459;font-weight:bold;">＋ 새 문의 등록</button>
     </div>
@@ -821,6 +825,7 @@ function draw() {
 async function openDetail(id) {
   const r = ALL.find(x => x.id === id);
   if (!r) return;
+  if (!detLeaveOk()) return;
   openId = id;
 
   $('addBox').style.display = 'none';
@@ -858,6 +863,9 @@ async function openDetail(id) {
   tlTab('log', true);
   $('l_date').value = today();
   $('l_content').value = '';
+  $('l_content').dataset.orig = '';
+  DET_DIRTY = false;
+  setDetBtn('done');
   showBox('msgL', '', true); $('msgL').className = 'out';
 
   // 평가보고서 개수 · 평가 예정일 저절로 비우기
@@ -879,6 +887,59 @@ async function openDetail(id) {
   await loadLogs(id);
   $('detBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+// ── 열기 창 저장 단추 상태 (2026-09-16) ──
+//   before 저장 전 / saving 저장 중 / done 저장됨
+//   윗칸 · 평가 줄 · 아동 메모를 고치면 「저장 전」
+//   따로 저장하는 상담 기록 · 평가 요약은 단추를 안 바꾸고, 나갈 때만 함께 묻는다
+let DET_DIRTY = false;
+let DET_SAVING = false;
+function setDetBtn(st) {
+  const b = $('saveDet');
+  if (!b) return;
+  b.classList.toggle('done', st === 'done');
+  b.disabled = (st === 'saving');
+  b.textContent = st === 'saving' ? '저장 중…'
+                : st === 'done'   ? '\u2713 저장됨'
+                : '💾 저장 전';
+}
+function detMarkDirty() {
+  if (DET_SAVING || !openId) return;
+  DET_DIRTY = true;
+  setDetBtn('before');
+}
+// 저장 안 한 것이 무엇인지 — 없으면 빈 목록
+function detPending() {
+  const out = [];
+  if ($('detBox').style.display === 'none' || !openId) return out;
+  const km = $('d_kmemo');
+  if (DET_DIRTY || (km.value.trim() !== (km.dataset.orig || ''))) out.push('윗칸 · 평가 줄 · 아동 메모 (아래 「저장」)');
+  const lc = $('l_content');
+  if (lc.value.trim() && lc.value.trim() !== (lc.dataset.orig || '')) out.push('상담 기록 (「기록 추가」)');
+  const ds = $('dsumEdit');
+  if (ds.value.trim() !== (ds.dataset.orig || '')) out.push('평가 요약 (「요약 저장」)');
+  return out;
+}
+function detLeaveOk() {
+  const p = detPending();
+  if (!p.length) return true;
+  return confirm('저장하지 않은 내용이 있습니다.\n\n· ' + p.join('\n· ')
+    + '\n\n그래도 나갈까요? (적어 둔 내용은 사라집니다)');
+}
+$('detBox').addEventListener('input', e => {
+  if (e.target.closest('#logForm, #dsumEdit')) return;
+  detMarkDirty();
+});
+$('detBox').addEventListener('change', e => {
+  if (e.target.closest('#logForm, #dsumEdit')) return;
+  if (e.target.matches('.dv_st')) return;
+  detMarkDirty();
+});
+window.addEventListener('beforeunload', e => {
+  if (!detPending().length) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 let LOGS = [];   // 이 문의의 상담 기록
 
@@ -1007,6 +1068,7 @@ function logEdit(lid) {
   $('l_date').value    = l.log_date || today();
   $('l_way').value     = l.way || '전화';
   $('l_content').value = l.content || '';
+  $('l_content').dataset.orig = (l.content || '').trim();
   $('addLog').dataset.editId = String(lid);
   $('addLog').textContent = '고쳐 저장';
   showBox('msgL', '고치는 중입니다. 저장하면 그 줄이 바뀝니다.', true);
@@ -1015,13 +1077,17 @@ function logEditClear() {
   delete $('addLog').dataset.editId;
   $('addLog').textContent = '기록 추가';
   $('l_content').value = '';
+  $('l_content').dataset.orig = '';
 }
 
-$('closeDet').onclick = () => { $('detBox').style.display = 'none'; openId = null;
+$('closeDet').onclick = () => { if (!detLeaveOk()) return;
+  DET_DIRTY = false; $('detBox').style.display = 'none'; openId = null;
   $('addBox').style.display = 'block'; };
 
 // 열기 창에서 곧장 새 문의 등록으로 — 열기 창을 닫고, 등록 창을 비워서 그 자리로 올라간다
 $('goNew').onclick = () => {
+  if (!detLeaveOk()) return;
+  DET_DIRTY = false;
   if (window.NLDocs) NLDocs.close();
   $('detBox').style.display = 'none'; openId = null;
   resetAddBox();
@@ -1184,6 +1250,8 @@ function reCount() {
 $('reBtn').onclick = () => {
   const open = $('reBox').style.display === 'block';
   if (open) { $('reBox').style.display = 'none'; return; }
+  if (!detLeaveOk()) return;
+  DET_DIRTY = false;
   $('detBox').style.display = 'none';
   $('reBox').style.display = 'block';
   const n = new Date();
@@ -1279,8 +1347,9 @@ $('saveDet').onclick = async () => {
     updated_at:      new Date().toISOString()
   };
 
-  $('saveDet').disabled = true;
-  $('saveDet').textContent = '저장 중...';
+  DET_SAVING = true;
+  setDetBtn('saving');
+  let detOk = false;
   try {
     const { data, error } = await sb.from('nl_inquiries')
       .update(up).eq('id', openId).select().single();
@@ -1340,6 +1409,7 @@ $('saveDet').onclick = async () => {
     drawNextEv(cid);
     if (openId) await loadLogs(openId);
     draw();
+    detOk = !evErr;   // 아래에서 아동 목록으로 넘어갈 때 묻지 않게
     if (up.status === '치료시작') {
       await kidToActive(data.child_id);
       if (confirm(kidName(data.child_id) + ' — 「치료시작」으로 저장했습니다.\n\n'
@@ -1350,11 +1420,14 @@ $('saveDet').onclick = async () => {
     showBox('msgD', '✅ 저장했습니다.'
       + (evN ? '\n평가 ' + evN + '건' : '')
       + (evErr ? '\n⚠️ 평가는 저장하지 못했습니다: ' + evErr : ''), true);
+    // 평가를 못 저장했으면 「저장 전」으로 남긴다
+    detOk = !evErr;
   } catch (e) {
     showBox('msgD', '❌ 저장하지 못했습니다.\n' + e.message, false);
   } finally {
-    $('saveDet').disabled = false;
-    $('saveDet').textContent = '저장';
+    DET_DIRTY = !detOk;
+    setDetBtn(detOk ? 'done' : 'before');
+    setTimeout(() => { DET_SAVING = false; }, 300);
   }
 };
 
@@ -1970,6 +2043,8 @@ document.querySelectorAll('.wltab').forEach(el => {
 });
 
 async function openWlBox(kind) {
+  if (!detLeaveOk()) return;
+  DET_DIRTY = false;
   wlKind = kind;
   $('wlTitle').textContent = kind + ' 대기 명단';
   $('w_groupWrap').style.display = (kind === '그룹') ? 'block' : 'none';
@@ -2063,7 +2138,7 @@ watchFee('nvRows', 'nv');
 watchFee('dvRows', 'dv');
 
 $('nvAdd').onclick = () => nvAddRow();
-$('dvAdd').onclick = () => { tlTab('ev'); dvAddRow(null); };
+$('dvAdd').onclick = () => { tlTab('ev'); dvAddRow(null); detMarkDirty(); };
 
 // 등록 창에 평가 줄이 하나도 없으면 하나 만들어 둔다
 function nvEnsureOne() {
