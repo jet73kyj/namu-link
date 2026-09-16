@@ -253,7 +253,7 @@ async function saveNotice() {
   if (!confirm(okMsg)) return;
 
   $('save').disabled = true;
-  $('save').textContent = '올리는 중...';
+  $('save').textContent = '올리는 중…';
   try {
     const { error } = await sb.from('nl_notices').insert({
       title: title,
@@ -359,6 +359,8 @@ $('btn').onclick = async () => {
 };
 
 $('out').onclick = async () => {
+  if (!leaveOk()) return;
+  LEAVING = true;
   nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
@@ -366,7 +368,30 @@ $('out').onclick = async () => {
 };
 
 $('save').onclick = saveNotice;
-$('clr').onclick  = () => { clearForm(); hide($('msg2')); };
+$('clr').onclick  = () => {
+  if (!leaveOk()) return;
+  clearForm(); hide($('msg2'));
+};
+
+// ── 올리지 않은 글이 있으면 나갈 때 묻는다 (2026-09-16) ──
+//   공지는 올리면 칸이 비워지므로 「제목·내용에 글자가 있음」 = 아직 안 올린 글
+let LEAVING = false;   // 한 번 물었으면 탭 닫기 창을 또 띄우지 않는다
+function hasDraft() {
+  return !!($('ttl').value.trim() || $('bdy').value.trim());
+}
+function leaveOk() {
+  if (!hasDraft()) return true;
+  return confirm('올리지 않은 공지가 있습니다.\n\n그래도 나갈까요? (적어 둔 글은 사라집니다)');
+}
+document.querySelector('.btn-home').addEventListener('click', e => {
+  if (!leaveOk()) { e.preventDefault(); return; }
+  LEAVING = true;
+});
+window.addEventListener('beforeunload', e => {
+  if (LEAVING || !hasDraft()) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 // 로그인 칸에서 엔터
 $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });

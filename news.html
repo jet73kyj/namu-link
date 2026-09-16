@@ -94,7 +94,7 @@
           <div class="who" id="who"></div>
         </div>
         <div class="btns" style="margin:0;">
-          <button onclick="location.href='index.html'">처음으로</button>
+          <button id="goHome">처음으로</button>
           <button id="out">로그아웃</button>
         </div>
       </div>
@@ -256,12 +256,14 @@ function clearForm() {
   $('f_pin').value = '0';
   $('save').textContent = '올리기';
   $('cancel').style.display = 'none';
+  ED_ORIG = null;
   show($('msg2'), '', true);
 }
 
 function openEdit(id) {
   const r = ROWS.find(x => x.id === id);
   if (!r) return;
+  if (!leaveOk()) return;
   edId = id;
   $('f_kind').value  = r.kind || '센터 소식';
   $('f_title').value = r.title || '';
@@ -272,6 +274,7 @@ function openEdit(id) {
   $('f_pin').value   = r.pinned ? '1' : '0';
   $('save').textContent = '고친 대로 저장';
   $('cancel').style.display = '';
+  ED_ORIG = snapForm();
   $('edBox').scrollIntoView({ behavior:'smooth', block:'start' });
   show($('msg2'), '고치는 중입니다.', true);
 }
@@ -304,6 +307,7 @@ $('save').onclick = async () => {
   };
 
   $('save').disabled = true;
+  $('save').textContent = '저장 중…';
   try {
     let data, error;
     if (edId) {
@@ -322,12 +326,46 @@ $('save').onclick = async () => {
     clearForm();
   } catch (e) {
     show($('msg2'), '❌ 저장하지 못했습니다.\n' + e.message, false);
+    $('save').textContent = edId ? '고친 대로 저장' : '올리기';
   } finally {
     $('save').disabled = false;
   }
 };
 
-$('cancel').onclick = clearForm;
+$('cancel').onclick = () => {
+  if (!leaveOk()) return;
+  clearForm();
+};
+
+// ── 올리지 않은 글이 있으면 나갈 때 묻는다 (2026-09-16) ──
+//   새로 쓸 때 — 제목·내용·주소에 글자가 있음
+//   고칠 때   — 불러온 것에서 하나라도 바뀜
+let ED_ORIG = null;
+let LEAVING = false;   // 한 번 물었으면 탭 닫기 창을 또 띄우지 않는다
+function snapForm() {
+  return [$('f_kind').value, $('f_title').value, $('f_url').value, $('f_body').value,
+          $('f_from').value, $('f_to').value, $('f_pin').value].join('\u0001');
+}
+function hasDraft() {
+  if (!$('f_title')) return false;
+  if (edId) return ED_ORIG !== null && snapForm() !== ED_ORIG;
+  return !!($('f_title').value.trim() || $('f_body').value.trim() || $('f_url').value.trim());
+}
+function leaveOk() {
+  if (!hasDraft()) return true;
+  return confirm((edId ? '고친 소식을 아직 저장하지 않았습니다.' : '올리지 않은 소식이 있습니다.')
+    + '\n\n그래도 나갈까요? (적어 둔 글은 사라집니다)');
+}
+$('goHome').onclick = () => {
+  if (!leaveOk()) return;
+  LEAVING = true;
+  location.href = 'index.html';
+};
+window.addEventListener('beforeunload', e => {
+  if (LEAVING || !hasDraft()) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 function sortRows() {
   ROWS.sort((a, b) =>
@@ -385,6 +423,8 @@ $('btn').onclick = async () => {
 };
 
 $('out').onclick = async () => {
+  if (!leaveOk()) return;
+  LEAVING = true;
   nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
