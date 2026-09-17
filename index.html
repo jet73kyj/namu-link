@@ -12,8 +12,9 @@
 <link rel="apple-touch-icon" href="img/nl-icon-180.png">
 <style>
   :root {
-    --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
-    --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec;
+    /* 꾸밈 B (2026-09-17) — 시간표와 같은 색. 옛 초록은 --acc:#3c7a4a */
+    --ink:#2F2926; --ink2:#4A433F; --ink3:#A39C95;
+    --line:#ECE8E3; --bg:#F5F4F2; --acc:#B07A4A; --acc-bg:#F8F1E8;
   }
   * { box-sizing:border-box; }
   body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:var(--bg);
@@ -31,35 +32,44 @@
   input:focus { outline:2px solid var(--acc); outline-offset:-1px; border-color:transparent; }
   button { font:inherit; font-size:14px; font-weight:500; padding:10px 16px;
            background:var(--acc); color:#fff; border:none; border-radius:8px; cursor:pointer; }
-  button:hover { filter:brightness(1.08); }
+  button:hover { background:#98663A; }
   button:disabled { background:#c3c8c0; cursor:default; }
   .box button { width:100%; padding:12px; margin-top:24px; }
-  .ghost { background:none; color:var(--ink2); border:1px solid var(--line); }
+  .ghost { background:#fff; color:var(--ink2); border:1px solid #E4E0DA; }
+  .ghost:hover { background:#F7F6F4; }
 
   .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
          line-height:1.6; display:none; white-space:pre-wrap; }
-  .ok  { background:var(--acc-bg); color:#2c5c37; display:block; }
+  .ok  { background:var(--acc-bg); color:#7E5530; display:block; }
   .err { background:#fdeeee; color:#9c2b2b; display:block; }
 
-  .top { display:flex; justify-content:space-between; align-items:flex-start;
-         gap:12px; margin-bottom:6px; }
-  .who { font-size:13px; color:var(--ink3); margin-top:4px; }
+  .top { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;
+         gap:12px; margin-bottom:6px; background:#fff; border:1px solid var(--line);
+         border-radius:12px; padding:12px 16px; }
+  .toptitle { display:flex; align-items:center; gap:14px; }
+  .toptitle > div { border-left:1px solid var(--line); padding-left:14px; }
+  .toplogo { height:48px; width:auto; display:block; }
+  .toprt { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .toprt button { padding:8px 13px; font-size:13px; }
+  .loginlogo { display:block; height:56px; width:auto; margin:0 0 14px; }
+  .who { font-size:12.5px; color:var(--ink3); margin-top:3px; }
 
   .grp { margin-top:30px; }
-  .grp h2 { font-size:11.5px; font-weight:600; letter-spacing:.08em; color:var(--ink3);
-            margin:0 0 12px; }
+  .grp h2 { font-size:13.5px; font-weight:600; color:var(--ink);
+            margin:0 0 12px; line-height:1.2; }
   .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(228px, 1fr)); gap:12px; }
   /* 「일정」 묶음만 한 줄에 두 개씩 (2026-09-13) */
   .cards.two { grid-template-columns:repeat(2, minmax(228px, 1fr)); }
   @media (max-width:700px){ .cards.two { grid-template-columns:1fr; } }
   a.card { display:block; background:#fff; border:1px solid var(--line); border-radius:12px;
+           border-left:3px solid var(--gc, #C9A27E);
            padding:18px 20px; text-decoration:none; color:inherit; transition:.12s; }
-  a.card:hover { border-color:var(--acc); transform:translateY(-1px);
-                 box-shadow:0 3px 12px rgba(60,122,74,.09); }
+  a.card:hover { border-color:var(--gc, #C9A27E); transform:translateY(-1px);
+                 box-shadow:0 3px 12px rgba(176,122,74,.10); }
   a.card .nm { font-size:15px; font-weight:600; letter-spacing:-.01em; }
   a.card .de { font-size:12.5px; color:var(--ink3); margin-top:5px; line-height:1.55; }
   a.card .tag { display:inline-block; font-size:10.5px; font-weight:600; padding:2px 7px;
-                border-radius:20px; background:var(--acc-bg); color:#2c5c37; margin-left:6px;
+                border-radius:20px; background:var(--acc-bg); color:#7E5530; margin-left:6px;
                 vertical-align:2px; }
   a.card .tag.adm { background:#fdf3e6; color:#a9701c; }
 
@@ -69,8 +79,9 @@
           border-top:1px solid var(--line); padding-top:16px; }
 
   /* 알림 */
-  .bell { position:relative; background:none; border:1px solid var(--line);
-          color:var(--ink2); padding:10px 14px; margin-right:6px; }
+  .bell { position:relative; background:#fff; border:1px solid #E4E0DA;
+          color:var(--ink2); padding:8px 12px; line-height:1; }
+  .bell:hover { background:#F7F6F4; }
   .bell .cnt { position:absolute; top:-6px; right:-6px; min-width:19px; height:19px;
                line-height:19px; padding:0 5px; border-radius:10px; background:#c0392b;
                color:#fff; font-size:11px; font-weight:700; }
@@ -83,7 +94,7 @@
            line-height:1.65; color:var(--ink2); }
   .alrow:first-of-type { border-top:none; }
   .alkind { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px;
-            border-radius:10px; background:var(--acc-bg); color:#2c5c37; margin-right:6px; }
+            border-radius:10px; background:var(--acc-bg); color:#7E5530; margin-right:6px; }
   .alkind.w { background:#fdf3e6; color:#a9701c; }
   .albtn { width:100%; margin-top:18px; padding:12px; }
   .alnone { padding:26px 0; text-align:center; color:var(--ink3); font-size:14px; }
@@ -93,7 +104,8 @@
 
 <!-- 로그인 전 -->
 <div class="box" id="loginBox">
-  <h1>🌿 나무링크</h1>
+  <img src="img/nl-logo.png" alt="자라는나무" class="loginlogo" onerror="this.style.display='none'">
+  <h1>나무링크</h1>
   <div class="sub">자라는나무 아동발달치료센터</div>
   <label for="em">이메일</label>
   <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
@@ -106,12 +118,15 @@
 <!-- 로그인 후 -->
 <div class="wide" id="mainBox" style="display:none;">
   <div class="top">
-    <div>
-      <h1>🌿 나무링크</h1>
+    <div class="toptitle">
+      <img src="img/nl-logo.png" alt="자라는나무" class="toplogo" onerror="this.style.display='none'">
+      <div>
+      <h1>나무링크</h1>
       <div class="who" id="who"></div>
+      </div>
     </div>
-    <div>
-      <button id="bell" class="bell" style="display:none;">🔔<span id="bellCnt" class="cnt" style="display:none;">0</span></button>
+    <div class="toprt">
+      <button id="bell" class="bell" style="display:none;" aria-label="알림"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px"><path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg><span id="bellCnt" class="cnt" style="display:none;">0</span></button>
       <button id="pcKey" class="ghost" style="display:none;">이 컴퓨터 등록</button>
       <button id="out" class="ghost">로그아웃</button>
     </div>
@@ -160,6 +175,10 @@ const sb = window.supabase.createClient(URL_, KEY_, {
   }
 });
 const $  = id => document.getElementById(id);
+
+// 묶음마다 카드 왼쪽 줄 색 (2026-09-17) — 없는 묶음은 카멜
+const GCOLOR = { '일정':'#C9A27E', '아동':'#8FB39A', '납부':'#8AA6C1', '학부모':'#D6A3B2',
+                 '소식':'#D4B266', '정산':'#C98B73', '치료 기록지':'#A99BC9' };
 
 // 화면 목록 — roles 에 적힌 역할만 볼 수 있다
 const MENU = [
@@ -236,7 +255,7 @@ const MENU = [
     { f:'record-center.html', nm:'센터 기록지',
       de:'센터비용 아동 치료 기록 · 월 4회',
       roles:['관리자','행정','치료사'] },
-    { f:'intake.html', nm:'📋 아동 자료 모음',
+    { f:'intake.html', nm:'아동 자료 모음',
       de:'아동별 초기 상담 · 평가보고서<br>첫 수업 전에 확인',
       roles:['관리자','행정','치료사'] },
     { f:'forms.html', nm:'서식',
@@ -319,7 +338,7 @@ async function afterLogin(user) {
     if (g.boss && !isBoss) return;      // 대표만 보는 묶음
     const list = g.items.filter(it => it.roles.includes(role));
     if (!list.length) return;
-    html += '<div class="grp"><h2>' + esc(g.grp) + '</h2>'
+    html += '<div class="grp" style="--gc:' + (GCOLOR[g.grp] || '#C9A27E') + '"><h2>' + esc(g.grp) + '</h2>'
       + '<div class="cards' + (g.grp === '일정' ? ' two' : '') + '">'
       + list.map(it =>
           '<a class="card" href="' + it.f + '">'
