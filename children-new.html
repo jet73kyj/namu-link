@@ -797,16 +797,27 @@ async function afterLogin(user) {
   // 아동별 회기방식 — 「매주」가 아닌 것만 모은다
   try {
     const { data: tp } = await sb.from('nl_therapies')
-      .select('child_id, count_mode, ended_on, support_type_id');
+      .select('child_id, count_mode, ended_on, support_type_id, nl_therapy_schedules(week1, week2, week3, week4, to_month, to_date)');
     CMODE = {};
     DEVKID = {};
     (tp || []).forEach(function (r) {
       if (r.ended_on) return;                       // 끝난 수업은 뺀다
       if (Number(r.support_type_id) === 2) DEVKID[r.child_id] = true;
       const m = String(r.count_mode || '').trim();
+      const k = r.child_id;
+      // 오는 주가 일부만인 요일줄 — 「1·3주 (월 2회)」 (2026-09-17)
+      const nowMk2 = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
+      (r.nl_therapy_schedules || []).forEach(function (sc) {
+        if (sc.to_month && sc.to_month < nowMk2) return;   // 끝난 요일줄은 뺀다
+        const on = [sc.week1, sc.week2, sc.week3, sc.week4]
+          .map(function (v, i) { return v !== false ? i + 1 : 0; }).filter(Boolean);
+        if (!on.length || on.length === 4) return;
+        const w = on.join('·') + '주 (월 ' + on.length + '회)';
+        CMODE[k] = CMODE[k] || [];
+        if (CMODE[k].indexOf(w) < 0) CMODE[k].push(w);
+      });
       // 「매주」와 「발추대체」는 안 적는다 (발추대체는 세부 표기라 목록에서는 뺌)
       if (!m || m === '매주' || m === '발추대체') return;
-      const k = r.child_id;
       CMODE[k] = CMODE[k] || [];
       if (CMODE[k].indexOf(m) < 0) CMODE[k].push(m);
     });

@@ -1372,7 +1372,11 @@ function tagOf(it){
   const st = it.row_st || it.base_st;
   const nm = TYPES[st] || '';
   const md = it.mode || '';
-  const txt = nm + (md ? ' · ' + md : '');
+  // 오는 주가 일부만이면 「1·3주 (월 2회)」 (2026-09-17)
+  const wk = it.wk || [true, true, true, true];
+  const on = [1, 2, 3, 4].filter((w, i) => wk[i] !== false);
+  const wtxt = (on.length && on.length < 4) ? on.join('·') + '주 (월 ' + on.length + '회)' : '';
+  const txt = nm + (md ? ' · ' + md : '') + (wtxt ? ' · ' + wtxt : '');
   if (!txt.trim()) return '';
   let cls = 'sttag';
   if (String(it.label).indexOf('5주차') >= 0) cls += ' five';
