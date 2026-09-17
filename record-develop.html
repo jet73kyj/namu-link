@@ -525,7 +525,7 @@ function buildChildList() {
 function drawChildSelect() {
   const keep = $('pChild').value;
   $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
-    + CHILDREN.map(c => '<option value="' + c.id + '">' + esc(c.name)
+    + CHILDREN.map(c => '<option value="' + c.id + '" data-cid="' + c.id + '">' + esc(c.name)
         + ' · ' + fmtBirth(c.birth)
         + (c.status === '종결' ? ' (종결)' : '') + '</option>').join('');
   if (keep && CHILDREN.some(c => String(c.id) === String(keep))) $('pChild').value = keep;
@@ -1318,5 +1318,83 @@ $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click
 
 </script>
 </div>
+<!-- 아동 이름 타자로 찾기 (2026-09-17) — 안쪽 고르기 칸(#pChild)은 숨겨 두고 그대로 쓴다 -->
+<style>
+  .kidpickwrap { position:relative; display:inline-block; vertical-align:middle; }
+  #pChildQ { min-width:260px; padding:6px 10px; font:inherit; font-size:14px;
+             border:1px solid #ccc; border-radius:6px; background:#fff; }
+  #pChildList { position:absolute; left:0; top:100%; z-index:50; min-width:100%; max-height:320px;
+                overflow-y:auto; background:#fff; border:1px solid #ccc; border-radius:6px;
+                box-shadow:0 4px 14px rgba(0,0,0,.12); display:none; margin-top:2px; }
+  #pChildList div { padding:6px 10px; font-size:13.5px; cursor:pointer; white-space:nowrap; }
+  #pChildList div.on, #pChildList div:hover { background:#F8F1E8; }
+  #pChildList .none { color:#999; cursor:default; }
+  @media print { .kidpickwrap { display:none !important; } }
+</style>
+<script>
+(function () {
+  const sel = document.getElementById('pChild');
+  if (!sel) return;
+  sel.style.display = 'none';
+  const wrap = document.createElement('span');
+  wrap.className = 'kidpickwrap';
+  wrap.innerHTML = '<input id="pChildQ" type="text" autocomplete="off" placeholder="아동 이름이나 번호를 치세요">'
+                 + '<div id="pChildList"></div>';
+  sel.parentNode.insertBefore(wrap, sel);
+  const q = document.getElementById('pChildQ'), box = document.getElementById('pChildList');
+  let hits = [], cur = -1;
+  const opts = () => Array.from(sel.options).filter(o => o.value !== '');
+  function show() {
+    const t = q.value.trim().toLowerCase();
+    hits = opts().filter(o => !t || o.text.toLowerCase().includes(t)
+      || (/^\d+$/.test(t) && String(o.dataset.cid || '') === t));
+    cur = hits.length ? 0 : -1;
+    box.innerHTML = hits.length
+      ? hits.map((o, i) => '<div data-i="' + i + '"' + (i === cur ? ' class="on"' : '') + '>'
+          + o.text.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</div>').join('')
+      : '<div class="none">찾는 아동이 없습니다</div>';
+    box.style.display = 'block';
+  }
+  function mark() {
+    box.querySelectorAll('div[data-i]').forEach(d => d.classList.toggle('on', Number(d.dataset.i) === cur));
+    const el = box.querySelector('div.on'); if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+  function pick(o) {
+    sel.value = o.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    q.value = o.text;
+    q.dataset.picked = o.value;
+    box.style.display = 'none';
+  }
+  q.addEventListener('focus', () => { q.select(); show(); });
+  q.addEventListener('input', () => { q.dataset.picked = ''; show(); });
+  q.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { if (hits.length) { cur = (cur + 1) % hits.length; mark(); } e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { if (hits.length) { cur = (cur - 1 + hits.length) % hits.length; mark(); } e.preventDefault(); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (box.style.display === 'block' && hits[cur]) pick(hits[cur]);
+      else if (q.dataset.picked) { const b = document.getElementById('pLoad'); if (b) b.click(); }
+    }
+    else if (e.key === 'Escape') { box.style.display = 'none'; }
+  });
+  box.addEventListener('mousedown', e => {
+    const d = e.target.closest('div[data-i]'); if (!d) return;
+    e.preventDefault(); pick(hits[Number(d.dataset.i)]);
+  });
+  q.addEventListener('blur', () => setTimeout(() => {
+    box.style.display = 'none';
+    // 고르지 않고 나가면 지금 고른 아동 이름으로 되돌린다
+    const o = sel.options[sel.selectedIndex];
+    q.value = (o && o.value !== '') ? o.text : '';
+  }, 150));
+  // 목록이 다시 그려지면(달·전체 보기 바꿈) 칸 글자를 맞춘다
+  new MutationObserver(() => {
+    const o = sel.options[sel.selectedIndex];
+    if (document.activeElement !== q) q.value = (o && o.value !== '') ? o.text : '';
+  }).observe(sel, { childList: true });
+})();
+</script>
+
 </body>
 </html>
