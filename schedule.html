@@ -792,6 +792,208 @@
   .legend { font-size:12px; color:#7a8a6a; margin-top:12px; line-height:2.2; }
   .lg { display:inline-block; padding:2px 9px; border-radius:10px; margin-right:6px; }
   .note { font-size:12.5px; color:#888; margin-top:8px; line-height:1.9; }
+  /* ===== 꾸밈 B (2026-09-17) — 흰색 미니멀 · 따뜻한 색은 로고·처음으로·이번 달·오늘에만 =====
+     바탕 #FFFFFF · 겉 #F5F4F2 · 선 #ECE8E3 · 글 #2F2926 · 옅은 글 #A39C95 · 주인공 #B07A4A
+     칸 — 예정 #F1F7F2/#5E9A6E · 완료 #F7F6F4/#C9C3BC · 보강 #EFF4F9/#5A86B0 · 결석 #FCEFEA/#D8684A
+     되돌리려면 이 묶음(꾸밈 B 시작 ~ 꾸밈 B 끝)만 지우면 된다 */
+  body { background:#F5F4F2 !important; color:#2F2926 !important; }
+  #mainBox.wide { background:#fff; box-shadow:none; border:1px solid #ECE8E3; }
+  #mainBox .top { background:#fff; margin:-22px -22px 12px; padding:10px 22px;
+                  border-bottom:none; border-radius:12px 12px 0 0;
+                  align-items:center; }
+  #mainBox .toptitle { display:flex; align-items:center; gap:14px; }
+  #mainBox .toplogo { height:52px; width:auto; display:block; }
+  #mainBox .toptitle > div { border-left:1px solid #ECE8E3; padding-left:14px; }
+  #mainBox h1 { color:#2F2926; font-size:19px; font-weight:600; margin:0 0 2px; }
+  #mainBox #monBig { color:#B07A4A; font-size:19px; font-weight:600; vertical-align:0; margin-left:4px; }
+  #mainBox .who { color:#A39C95; font-size:12px; }
+  #mainBox .toprt { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+  #mainBox .topbtns { gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+  #mainBox .btn-out, #mainBox .offbtn-top {
+    background:#fff !important; color:#4A433F !important; border:1px solid #E4E0DA !important;
+    border-radius:6px; padding:6px 12px; font-size:12.5px; font-weight:500; }
+  #mainBox .btn-out:hover, #mainBox .offbtn-top:hover { background:#F7F6F4 !important; }
+  #mainBox .btn-home, #albg .btn-home { background:#B07A4A; color:#fff; border-radius:6px;
+    padding:7px 15px; font-weight:600; font-size:12.5px; }
+  #mainBox .btn-home:hover { filter:none; background:#98663A; }
+  #mainBox .topwork .findbox { width:200px; padding:6px 11px; font-size:12.5px;
+    border:1px solid #E4E0DA; border-radius:6px; }
+  #mainBox .findbox:focus { outline:2px solid #B07A4A; outline-offset:-1px; }
+  #mainBox .jumpbtn { background:#B07A4A; }
+  #mainBox .jumpbtn:hover { background:#98663A; }
+  #mainBox .pickbtn.on { background:#B07A4A; border-color:#B07A4A; }
+  #xlsBtn { display:none !important; }
+  #mainBox .count { color:#A39C95; }
+  @media (max-width:700px) {
+    #mainBox .toprt { align-items:stretch; width:100%; }
+    #mainBox .topbtns { justify-content:flex-start; }
+    #mainBox .toplogo { height:40px; }
+  }
+
+  /* 왼쪽 기둥 */
+  #mainBox .sidecal, #mainBox .sideth { background:#FBF5EE; border-color:#F0E4D6; }
+  #mainBox .scmon { background:#fff; border-color:#E4E0DA; }
+  #mainBox .scd:hover { background:#fff; }
+  #mainBox .scnav button { color:#B07A4A; }
+  #mainBox .scnav button:hover { color:#7E5530; }
+  #mainBox .sctbl .scd.on { background:#B07A4A !important; color:#fff !important; }
+  #mainBox .scd.today { outline:1.5px solid #B07A4A; }
+  #mainBox .scd.sun, #mainBox .scd.holi, #mainBox .sctbl th.sun { color:#C2553A; }
+  #mainBox .sideview .vtab { background:transparent !important; border:none !important;
+    border-bottom:2px solid transparent !important; border-radius:0 !important;
+    color:#A39C95 !important; font-size:11px !important; }
+  #mainBox .sideview .vtab.on { background:transparent !important; color:#2F2926 !important;
+    border-bottom-color:#2F2926 !important; font-weight:700; }
+  #mainBox .sideth .sthd { color:#7D7670; }
+  #mainBox .sideth .sthrow { color:#2F2926; font-weight:600; }
+  #mainBox .sideth .sthrow.off { color:#4A433F; font-weight:400; }
+  #mainBox .sideth .sthd button { color:#7E5530 !important; }
+  #mainBox .sideth .sthb { background:#fff !important; border-color:#E4E0DA !important;
+    color:#4A433F !important; }
+  #mainBox .sideth .sthb:hover { background:#F7F6F4 !important; color:#2F2926 !important; }
+  #mainBox .sideth .sthrow input { accent-color:#B07A4A; }
+  /* 상자 셋 — 띠 모양 · 숫자만 색 */
+  #mainBox .colL #shortTop, #mainBox .colL #gapTop, #mainBox .colL #prevHint {
+    background:#fff !important; border:1px solid #ECE8E3 !important;
+    border-left:2px solid #D8684A !important; border-radius:6px !important;
+    color:#2F2926 !important; font-weight:400 !important; font-size:11.5px !important; }
+  #mainBox .colL #gapTop { border-left-color:#D29A3C !important; }
+  #mainBox .colL #prevHint { border-left-color:#5A86B0 !important; }
+  #mainBox .colL #shortTop:hover, #mainBox .colL #gapTop:hover,
+  #mainBox .colL #prevHint:hover { background:#FAF9F7 !important; }
+  #mainBox .colL .topt { display:flex !important; justify-content:space-between; min-width:0 !important;
+    align-items:center; gap:6px; }
+  #mainBox .colL .topt .bxl { font-weight:500; }
+  #mainBox .colL .topt .bxn { font-size:15px; font-weight:700; }
+  #mainBox #shortTop .bxn { color:#C2553A; }
+  #mainBox #gapTop .bxn { color:#9A6E20; }
+  #mainBox #prevHint .bxn { color:#4A76A0; }
+  #mainBox .colL .go { color:#A39C95 !important; }
+  #mainBox .colL .topf { border-color:#ECE8E3; background:#fff; }
+  #mainBox .shortbox, #mainBox .prevbox { background:#fff; border:1px solid #ECE8E3; }
+  #mainBox .short-t { color:#9A3E27; }
+  #mainBox .prev-t { color:#3E6690; }
+  #mainBox .short-line { border-bottom-color:#ECE8E3; }
+  #mainBox .sline1 .stxt { color:#2F2926; }
+  #mainBox .prevone { border-color:#ECE8E3; }
+
+  /* 시간표 틀 — 색 없는 머리줄 · 가는 선 한 가지 */
+  #mainBox table.grid th, #mainBox table.grid td { border-color:#F0EDE9; }
+  #mainBox table.grid thead th { background:#F8F1E8 !important; color:#2F2926 !important;
+    box-shadow:inset 0 -2px 0 #C9A27E; font-weight:500; }
+  #mainBox .thname { font-weight:600; }
+  #mainBox .thkind { color:#A39C95; }
+  #mainBox .hcol { background:#fff !important; color:#4A433F;
+    border-right:1px solid #ECE8E3 !important; }
+  #mainBox .hno { color:#4A433F; font-weight:600; }
+  #mainBox table.grid tbody tr td { border-top:1px solid #E4E0DA; }
+  #mainBox table.grid tbody tr td.cell,
+  #mainBox table.grid tbody tr td.free { background:#fff; }
+  #mainBox td.lunch { background:#FAF9F7 !important; }
+  #mainBox .lunchtxt { color:#B5AEA7; }
+  #mainBox td.free:hover { background:#FAF9F7; outline-color:#B07A4A; }
+  #mainBox .plus { color:#DAD5CF; }
+  #mainBox td.free:hover .plus { color:#7E5530; }
+  #mainBox .nosat { background:#FAF9F7 !important; }
+
+  /* 칸 — 요일별 보기 (ln) · 테두리 없이 옅은 바탕 + 왼쪽 가는 줄 */
+  #mainBox .ln { background:#F1F7F2; color:#2F2926; border:1px solid #D5E6D9;
+    border-left:2px solid #5E9A6E; border-radius:4px; }
+  #mainBox .ln:hover { outline:1px solid #B07A4A; }
+  #mainBox .ln .n { color:#2F2926; font-weight:600; }
+  #mainBox .ln .d, #mainBox .ln .hm { color:#7D7670; }
+  #mainBox .rno { color:#7E5530; }
+  #mainBox .ln.kidtop { border-top:none; margin-top:8px; padding-top:4px; }
+  #mainBox .ln-plan .s { color:#4E8A5D; }
+  #mainBox .ln-done { background:#F7F6F4; border-color:#E6E2DD; border-left-color:#C9C3BC; }
+  #mainBox .ln-done .n { color:#6F6862; }
+  #mainBox .ln-done .d, #mainBox .ln-done .hm, #mainBox .ln-done .s { color:#A39C95; }
+  #mainBox .ln-mk { background:#EFF4F9; border-color:#D3E0EC; border-left-color:#5A86B0; }
+  #mainBox .ln-mk .s { color:#4A76A0; }
+  #mainBox .ln.ln-abs { background:#FCEFEA; border:1px solid #F2D3C8; border-left:2px solid #D8684A; }
+  #mainBox .ln.ln-abs .s { color:#C2553A; }
+  #mainBox .ln.ln-off, #mainBox .ln.ln-block, #mainBox .ln.ln-holi {
+    background:repeating-linear-gradient(135deg,#F4F2EF 0 5px,#fff 5px 10px) !important;
+    color:#B5AEA7 !important; border:1px solid #EEEAE5; }
+  #mainBox .ln.ln-off .d, #mainBox .ln.ln-off .n, #mainBox .ln.ln-off .s, #mainBox .ln.ln-off .hm,
+  #mainBox .ln.ln-block .d, #mainBox .ln.ln-block .n, #mainBox .ln.ln-block .hm,
+  #mainBox .ln.ln-holi .d, #mainBox .ln.ln-holi .n {
+    color:#A39C95 !important; font-weight:500; }
+  #mainBox .ln.ln-cons { background:#FBF0F4 !important; border:1px solid #EFD5DF; border-left:2px solid #D98AA8; }
+  #mainBox .ln.ln-eval { background:#FBF0F4; border:1px solid #EFD5DF; border-left:2px solid #C7648E; }
+  #mainBox .ln.ln-eval .d, #mainBox .ln.ln-eval .n, #mainBox .ln.ln-eval .s { color:#8E3A5E; }
+  #mainBox .ln.ln-eval[data-sid^="T"] { background:#EEF5FA; border-color:#D3E0EC; border-left-color:#4E93C4; }
+  #mainBox .ln.ln-eval[data-sid^="T"] .d, #mainBox .ln.ln-eval[data-sid^="T"] .n,
+  #mainBox .ln.ln-eval[data-sid^="T"] .s { color:#2F6A9A; }
+  /* 빈 자리 — 날짜만 옅게, 마우스를 올리면 「빈 자리」 */
+  #mainBox .ln.ln-open:not(.ln-cons):not(.ln-block) { background:transparent; border:none;
+    color:#D4CFC9; cursor:default; }
+  #mainBox .ln.ln-open:not(.ln-cons):not(.ln-block) .d,
+  #mainBox .ln.ln-open:not(.ln-cons):not(.ln-block) .n,
+  #mainBox .ln.ln-open:not(.ln-cons):not(.ln-block) .hm { color:#D4CFC9; font-weight:400; }
+  #mainBox .ln.ln-open:not(.ln-cons):not(.ln-block):not(.ln-holi) .n { visibility:hidden; }
+  #mainBox .ln.ln-open:not(.ln-cons):not(.ln-block):hover { outline:none; background:#FAF9F7; }
+  #mainBox .ln.ln-open:not(.ln-cons):not(.ln-block):hover .n { visibility:visible; color:#A39C95; }
+  #mainBox .ln.ln-open.ln-holi { background:repeating-linear-gradient(135deg,#F4F2EF 0 5px,#fff 5px 10px);
+    border:1px solid #EEEAE5; }
+  #mainBox .ln.ln-open.ln-holi .d, #mainBox .ln.ln-open.ln-holi .n { color:#A39C95; }
+  #mainBox .ln.ln-rest { background:transparent; border:none; color:#B5AEA7; }
+  #mainBox .ln.ln-rest .d, #mainBox .ln.ln-rest .n { color:#B5AEA7; font-weight:400; }
+  #mainBox .ln.ln-nosess { background:transparent; border:1px dotted #E4E0DA; color:#B5AEA7; }
+  #mainBox .addbtn { background:transparent; color:#7E5530; border:1px dashed #E4E0DA; }
+  #mainBox .addbtn:hover { background:#FAF9F7; }
+  @media (hover:hover) {
+    #mainBox .addbtn { opacity:0; transition:opacity .12s; }
+    #mainBox td.cell:hover .addbtn, #mainBox .addbtn:focus { opacity:1; }
+  }
+
+  /* 칸 — 치료사별·주간 보기 (run) */
+  #mainBox .chip { background:#fff !important; border:none; }
+  #mainBox .chip .dur { color:#A39C95; }
+  #mainBox .run { background:#F1F7F2; color:#2F2926; border:1px solid #D5E6D9;
+    border-left:2px solid #5E9A6E; border-radius:4px; }
+  #mainBox .run:hover { outline:1px solid #B07A4A; }
+  #mainBox .run .no { color:#7E5530; }
+  #mainBox .run .st { color:#4E8A5D; }
+  #mainBox .run.r-done { background:#F7F6F4 !important; color:#7D7670 !important;
+    border:1px solid #E6E2DD !important; border-left:2px solid #C9C3BC !important; }
+  #mainBox .run.r-done .st { color:#A39C95; }
+  #mainBox .run.r-mk { background:#EFF4F9; color:#2F2926; border-color:#D3E0EC; border-left-color:#5A86B0; }
+  #mainBox .run.r-mk .st { color:#4A76A0; }
+  #mainBox .run.r-abs { background:#FCEFEA !important; color:#2F2926 !important;
+    border:1px solid #F2D3C8 !important; border-left:2px solid #D8684A !important; }
+  #mainBox .run.r-abs .st, #mainBox .run.r-abs .stabs { color:#C2553A; }
+  #mainBox .run.r-off { background:repeating-linear-gradient(135deg,#F4F2EF 0 5px,#fff 5px 10px) !important;
+    color:#A39C95 !important; border:1px solid #EEEAE5 !important; }
+  #mainBox .run.r-off .st, #mainBox .run.r-off .no, #mainBox .run.r-off .stabs { color:#A39C95; }
+  #mainBox .run.r-rest { background:transparent !important; color:#B5AEA7 !important;
+    border:1px dashed #E4E0DA !important; }
+  #mainBox .run.r-eval { background:#FBF0F4; color:#8E3A5E; border-color:#EFD5DF; border-left-color:#C7648E; }
+  #mainBox .run.r-eval[data-sid^="T"] { background:#EEF5FA; color:#2F6A9A; border-color:#D3E0EC; border-left-color:#4E93C4; }
+  #mainBox .run.r-ghost { background:transparent !important; color:#A39C95 !important;
+    border:1px dashed #E4E0DA !important; }
+  #mainBox table.grid th.wkth { background:#F8F1E8 !important; }
+  #mainBox table.grid thead .thno { display:none; }
+
+  /* 칸 — 하루 보기 (oneli) */
+  #mainBox .oneli { background:#F1F7F2; color:#2F2926; border:1px solid #D5E6D9;
+    border-left:3px solid #5E9A6E; border-radius:6px; }
+  #mainBox .oneli .ot { color:#4A433F; }
+  #mainBox .oneli.o-done { background:#F7F6F4; color:#7D7670; border-color:#E6E2DD; border-left-color:#C9C3BC; }
+  #mainBox .oneli.o-mk { background:#EFF4F9; color:#2F2926; border-color:#D3E0EC; border-left-color:#5A86B0; }
+  #mainBox .oneli.o-abs { background:#FCEFEA; color:#2F2926; border-color:#F2D3C8; border-left-color:#D8684A; }
+  #mainBox .oneli.o-off { background:repeating-linear-gradient(135deg,#F4F2EF 0 5px,#fff 5px 10px);
+    color:#A39C95; border-color:#EEEAE5; }
+  #mainBox .oneli.o-off .ot, #mainBox .oneli.o-off .os, #mainBox .oneli.o-off .oth { color:#A39C95; }
+  #mainBox .oneli.o-rest { background:transparent; color:#B5AEA7; border:1px dashed #E4E0DA; }
+  #mainBox .oneli.o-eval { background:#FBF0F4; color:#8E3A5E; border-color:#EFD5DF; border-left-color:#C7648E; }
+  #mainBox .oneli.o-eval[data-sid^="T"] { background:#EEF5FA; color:#2F6A9A; border-color:#D3E0EC; border-left-color:#4E93C4; }
+  #mainBox .oneday { color:#4A433F; }
+  #mainBox .calhead b { color:#2F2926; }
+  #mainBox .calnav { color:#7E5530; border-color:#E4E0DA; }
+  #mainBox .calday.has { color:#2F2926; background:#FAF9F7; }
+  #mainBox .calday.today { box-shadow:inset 0 0 0 2px #B07A4A; }
+  /* ===== 꾸밈 B 끝 ===== */
 </style>
 </head>
 <body>
@@ -822,17 +1024,28 @@
 <!-- 로그인 후 -->
 <div class="wide" id="mainBox" style="display:none;">
   <div class="top">
-    <div>
-      <h1>🌿 시간표 <span id="monBig">　</span></h1>
+    <div class="toptitle">
+      <img src="img/nl-logo.png" alt="자라는나무" class="toplogo" onerror="this.style.display='none'">
+      <div>
+      <h1>시간표 <span id="monBig">　</span></h1>
       <div class="who" id="who"></div>
+      </div>
     </div>
+    <div class="toprt">
     <div class="topbtns">
-      <button id="bell" class="btn-out" style="position:relative; display:none;">🔔<span id="bellCnt"
+      <button id="bell" class="btn-out" style="position:relative; display:none;" aria-label="알림"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px"><path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg><span id="bellCnt"
         style="display:none; position:absolute; top:-6px; right:-6px; min-width:19px; height:19px;
         padding:0 4px; border-radius:10px; background:#d64545; color:#fff; font-size:11px;
         font-weight:700; line-height:19px; text-align:center;">0</span></button>
-      <a href="index.html" class="btn-home">🌿 처음으로</a>
       <button id="out" class="btn-out">로그아웃</button>
+      <a href="index.html" class="btn-home">처음으로</a>
+    </div>
+    <div class="topbtns topwork">
+      <input id="findName" class="findbox" type="text" placeholder="아동 찾기 (이름·번호)">
+      <button id="findJump" class="jumpbtn" style="display:none;">›</button>
+      <button id="pairBtn" class="offbtn-top">연결시간 찾기</button>
+      <button id="offBtn" class="offbtn-top">휴무 관리</button>
+    </div>
     </div>
   </div>
 
@@ -847,11 +1060,7 @@
     <select id="wkTh" class="sel" style="display:none;"></select>
     <select id="mon" class="sel" style="display:none;"></select>
     <span style="flex:1"></span>
-    <input id="findName" class="findbox" type="text" placeholder="🔍 아동 이름으로 찾기">
-    <button id="findJump" class="jumpbtn" style="display:none;">›</button>
     <div id="findPick" class="findpick" style="display:none;"></div>
-    <button id="pairBtn" class="offbtn-top" style="background:#fff1e4;color:#8a4b1a;">🔗 연결시간 찾기</button>
-    <button id="offBtn" class="offbtn-top">🏖 휴무 관리</button>
     <button id="xlsBtn" class="offbtn-top" style="background:#eef3ec;color:#2c5c37;">📄 엑셀로 저장</button>
     <span class="count" id="count"></span>
   </div>
@@ -1429,7 +1638,7 @@
     5번 있는 달은 그대로 다 원래 유형입니다.<br>
     <b>발추5/5</b> — 그 요일이 5번 있는 달만 5회차가 발추입니다.
     4번뿐인 달은 발달재활 4회만 하고 발추가 없습니다.<br>
-    위 <b>🔍 아동 이름으로 찾기</b>에 이름을 치면 그 아동의 모든 수업이
+    위 <b>아동 찾기</b> 칸에 이름을 치면 그 아동의 모든 수업이
     요일과 상관없이 한 번에 나옵니다. 거기서 바로 회기 표시와 수정이 됩니다.<br>
 그 아동이 안 오는 날은 <b>초록 빈 자리</b>로 보입니다.
     그 자리의 <b>보강</b> 단추를 누르면 보강이 필요한 아동 목록이 뜨고,
@@ -1847,7 +2056,7 @@ function workdayWhy(th, d, hm){
   const p   = String(d).split('-');
   const who = Number(th) + '번 ' + thName(Number(th)) + ' 선생님';
   const day = Number(p[1]) + '월 ' + Number(p[2]) + '일(' + wd + ')';
-  const go  = '\n\n🏖 휴무 관리 → 「나오는 날」에서 ';
+  const go  = '\n\n휴무 관리 → 「나오는 날」에서 ';
   const r = t[wd];
   if (!r || !r.works)
     return who + '은 ' + day + '에 출근하지 않으십니다.'
@@ -2148,9 +2357,8 @@ function drawShort(_byScd, _mkOf){
     $('shortTop').innerHTML = '';
   } else {
     $('shortTop').style.display = 'block';
-    $('shortTop').innerHTML = '<span class="topt">⚠️ ' + monNo(mon)
-      + '월 결석 보강 ' + nMiss + '건</span>'
-      + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
+    $('shortTop').innerHTML = '<span class="topt"><span class="bxl">결석 보강</span><b class="bxn">' + nMiss + '</b></span>'
+      + '<input class="topf" type="text" placeholder="아동 이름">'
       + '<span class="go arrow" data-for="short"></span>';
     $('shortTop').onclick = (ev) => {
       // 찾기 칸이나 그 결과를 눌렀을 때는 화면을 안 옮긴다
@@ -2197,9 +2405,8 @@ function drawShort(_byScd, _mkOf){
     $('gapTop').innerHTML = '';
   } else {
     $('gapTop').style.display = 'block';
-    $('gapTop').innerHTML = '<span class="topt">📌 ' + monNo(mon)
-      + '월 회기가 모자란 수업 ' + gapRows.length + '건</span>'
-      + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
+    $('gapTop').innerHTML = '<span class="topt"><span class="bxl">모자란 수업</span><b class="bxn">' + gapRows.length + '</b></span>'
+      + '<input class="topf" type="text" placeholder="아동 이름">'
       + '<span class="go arrow" data-for="gapBox"></span>';
     $('gapTop').onclick = (ev) => {
       if (ev.target.closest('.topf, .topres')) return;
@@ -3398,9 +3605,8 @@ function drawPrev(){
   const pm = prevMon(mon);
 
   $('prevHint').style.display = 'block';
-  $('prevHint').innerHTML = '<span class="topt">⏪ ' + monNo(prevMon(mon))
-    + '월에서 넘어온 보강 ' + need.length + '건</span>'
-    + '<input class="topf" type="text" placeholder="🔍 아동 이름">'
+  $('prevHint').innerHTML = '<span class="topt"><span class="bxl">' + monNo(prevMon(mon)) + '월에서 넘어온 보강</span><b class="bxn">' + need.length + '</b></span>'
+    + '<input class="topf" type="text" placeholder="아동 이름">'
     + '<span class="go arrow" data-for="prevBox"></span>';
   $('prevHint').onclick = (ev) => {
     if (ev.target.closest('.topf, .topres')) return;
@@ -3534,7 +3740,7 @@ function drawOne(){
 
   $('ghead').innerHTML = '<tr><th class="hcol">교시</th>'
     + ths.map(x => '<th><div class="thname">' + esc(x.name || '') + '</div>'
-        + '<div class="thkind">' + x.id + '번</div></th>').join('') + '</tr>';
+        + '<div class="thkind thno">' + x.id + '번</div></th>').join('') + '</tr>';
 
   $('gbody').innerHTML = SLOTS.map(s => {
     if (!slotOnWd(s, wd)) return '';
@@ -3999,7 +4205,7 @@ function drawHead(){
   const w = (88 / Math.max(ths.length, 1)).toFixed(3) + '%';
   $('ghead').innerHTML = '<tr><th class="hcol" style="width:12%">교시</th>'
     + ths.map(t=>'<th style="width:' + w + '"><div class="thname">'+esc(t.name)+'</div>'
-        + '<div class="thkind">'+t.id+'번</div></th>').join('') + '</tr>';
+        + '<div class="thkind thno">'+t.id+'번</div></th>').join('') + '</tr>';
 }
 
 function draw(){
