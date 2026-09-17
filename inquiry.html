@@ -670,6 +670,7 @@
         <th>아동</th>
         <th>문의일</th>
         <th>상태</th>
+        <th>평가</th>
         <th>다음 확인</th>
         <th>다음 할 일</th>
         <th style="text-align:right;">
@@ -772,6 +773,47 @@ function kidBirth6(cid) {
   return /^\d{4}-\d{2}-\d{2}/.test(b) ? b.slice(2, 4) + b.slice(5, 7) + b.slice(8, 10) : '';
 }
 // 이 아동이 평가를 받은 적이 있는가 (취소는 뺀다)
+// 평가보고서 — 평가 줄마다 센터 보고서 장 수 (2026-09-17)
+//   null 이면 못 읽음(데스크 계정 등)
+let EVDOCN = null;
+let REPMISS = false;   // 「보고서 없음」만 보기
+async function loadDocs() {
+  try {
+    const { data, error } = await sb.from('nl_eval_docs').select('eval_id, source');
+    if (error) { EVDOCN = null; return; }
+    EVDOCN = {};
+    (data || []).forEach(d => {
+      if (!d.eval_id || (d.source || '센터') === '타기관') return;
+      EVDOCN[d.eval_id] = (EVDOCN[d.eval_id] || 0) + 1;
+    });
+  } catch (e) { EVDOCN = null; }
+}
+function liveEvals(cid) {
+  return EVALS.filter(e => e.child_id === cid && e.status !== '취소')
+    .sort((a, b) => String(a.eval_date || '9999').localeCompare(String(b.eval_date || '9999')));
+}
+// 보고서를 올려야 하는데 안 올린 평가 (평가일이 오늘이거나 지남)
+function repMissing(e) {
+  if (EVDOCN === null) return false;
+  return !!e.eval_date && e.eval_date <= today() && !EVDOCN[e.id];
+}
+function kidRepMissN(cid) { return liveEvals(cid).filter(repMissing).length; }
+function evalCell(cid) {
+  return liveEvals(cid).map(e => {
+    const d = e.eval_date
+      ? (+String(e.eval_date).slice(5, 7)) + '/' + (+String(e.eval_date).slice(8, 10)) : '날짜 미정';
+    const tp = (EVTYPES.find(t => t.id === e.eval_type_id) || {}).name || '평가';
+    const th = THRS.find(t => t.id === e.therapist_id);
+    let rep;
+    if (EVDOCN === null) rep = '<span style="color:#999;">—</span>';
+    else if (EVDOCN[e.id]) rep = '<span style="color:#2e7d32;font-weight:bold;">보고서 ✓ ' + EVDOCN[e.id] + '장</span>';
+    else if (repMissing(e)) rep = '<span style="color:#c62828;font-weight:bold;">보고서 없음</span>';
+    else rep = '<span style="color:#999;">평가 전</span>';
+    return '<div class="nowrap" style="font-size:13px;line-height:1.7;">'
+      + esc(d) + ' ' + esc(String(tp).replace(/평가$/, '')) + ' · '
+      + (th ? th.id + '번 ' + esc(th.name) : '담당 미정') + ' · ' + rep + '</div>';
+  }).join('');
+}
 function hasEval(cid) {
   return EVALS.some(e => e.child_id === cid && e.status !== '취소');
 }
@@ -847,6 +889,7 @@ function draw() {
     // 치료시작은 아동 목록으로 넘어간 것이므로 평소엔 감춘다
     if (r.status === '치료시작' && stFilter !== '치료시작') return false;
     if (q) return kidName(r.child_id).toLowerCase().includes(q);
+    if (REPMISS) return kidRepMissN(r.child_id) > 0;
     if (stFilter === '전체') return true;
     if (stFilter === '진행중') return LIVE.indexOf(r.status) >= 0;
     return r.status === stFilter;
@@ -866,13 +909,22 @@ function draw() {
   });
 
   const goneN = ALL.filter(r => r.status === '치료시작').length;
+  // 보고서 없음 — 문의 줄 기준 (같은 아동 문의가 여럿이면 한 번만)
+  const missKids = Array.from(new Set(ALL.map(r => r.child_id))).filter(c => kidRepMissN(c) > 0);
+  const missN = missKids.reduce((t, c) => t + kidRepMissN(c), 0);
   $('count').innerHTML = list.length + '건 / 전체 ' + ALL.length + '건'
+    + (REPMISS
+        ? ' · <a href="#" id="repLink" style="color:#c62828;font-weight:bold;">보고서 없음만 보는 중 — 전체로</a>'
+        : (missN ? ' · <a href="#" id="repLink" style="color:#c62828;font-weight:bold;">보고서 없음 '
+                   + missN + '건</a>' : ''))
     + (q ? ' · 「' + esc(q) + '」 로 찾는 중' : '')
     + (goneN && stFilter !== '치료시작'
         ? ' · <a href="#" id="goneLink" style="color:#00695c;">치료시작 '
           + goneN + '건 보기</a>' : '')
     + (stFilter === '치료시작'
         ? ' · <a href="#" id="backLink" style="color:#00695c;">전체로 돌아가기</a>' : '');
+  const rl = document.getElementById('repLink');
+  if (rl) rl.onclick = (ev) => { ev.preventDefault(); REPMISS = !REPMISS; draw(); };
   const gl = document.getElementById('goneLink');
   if (gl) gl.onclick = (ev) => { ev.preventDefault(); stFilter = '치료시작';
     document.querySelectorAll('.tab[data-st]').forEach(x => x.classList.remove('on')); draw(); };
@@ -892,8 +944,8 @@ function draw() {
         + (kidBirth6(r.child_id) ? ' <span class="kb6">' + kidBirth6(r.child_id) + '</span>' : '')
         + '</td>'
       + '<td class="nowrap">' + esc(r.inquiry_date) + '</td>'
-      + '<td>' + badge(r.status)
-        + (hasEval(r.child_id) ? ' ' + badge('평가완료') : '') + '</td>'
+      + '<td>' + badge(r.status) + '</td>'
+      + '<td>' + evalCell(r.child_id) + '</td>'
       + '<td class="nowrap ' + (late ? 'late' : '') + '">'
         + esc(r.next_check_date) + '</td>'
       + '<td>' + esc(r.next_action).slice(0, 30) + '</td>'
@@ -1212,7 +1264,8 @@ function logEditClear() {
 
 $('closeDet').onclick = () => { if (!detLeaveOk()) return;
   DET_DIRTY = false; $('detBox').style.display = 'none'; openId = null;
-  $('addBox').style.display = 'block'; };
+  $('addBox').style.display = 'block';
+  loadDocs().then(draw); };   // 올린 보고서를 목록에 바로 반영 (2026-09-17)
 
 // 열기 창에서 곧장 새 문의 등록으로 — 열기 창을 닫고, 등록 창을 비워서 그 자리로 올라간다
 $('goNew').onclick = () => {
@@ -2600,6 +2653,7 @@ async function afterLogin(user) {
   EVFEES  = (ef.data || []).filter(x => x.active !== false);
   THRS    = (th.data || []).filter(x => x.active !== false);
   EVALS   = ev.data || [];
+  await loadDocs();
   try {
     const [tr, tt] = await Promise.all([
       sb.from('nl_trial_lessons').select('*'),
