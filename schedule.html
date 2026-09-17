@@ -7631,9 +7631,9 @@ function haveHtml(s){
     .sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
   if (!ms.length) return '';
   const ps = ms.filter(x => Number(x.minutes || 40) !== 40);
-  const sum = ps.reduce((t, v) => t + Number(v.minutes || 0), 0);
+  const sum = ps.reduce((t, v) => pCount(v) ? t + Number(v.minutes || 0) : t, 0);   // 결석 조각은 안 셈 (2026-09-17)
   return '<b>잡힌 보강</b><br>' + ms.map(x => dLbl(x.plan_date) + ' ' + h12(x.start_time)
-      + ' · ' + Number(x.minutes || 40) + '분 · ' + esc(x.status || '')
+      + ' · ' + Number(x.minutes || 40) + '분 · ' + esc(x.status || '') + (x.status === '결석' ? '(안 셈)' : '')
       + (Number(x.therapist_id) !== Number(s.therapist_id) ? ' · ' + x.therapist_id + '번' : '')).join('<br>')
     + (ps.length ? '<br>채운 분 ' + sum + ' / 40' : '');
 }
@@ -8151,7 +8151,7 @@ $('mkSave').onclick = async () => {
     //   먼저 채운 조각이 있으면 그 선생님과 같아야 한다
     const madeBy = SESS.concat(PREV)
       .filter(v => Number(v.makeup_for) === Number(mkSess.id)
-                && Number(v.minutes || 40) !== 40);
+                && Number(v.minutes || 40) !== 40 && pCount(v));
     if (madeBy.length && Number(madeBy[0].therapist_id) !== th) {
       mkmsg('한 회기는 같은 선생님만 채울 수 있습니다.\n'
         + '이미 ' + thName(madeBy[0].therapist_id) + ' 선생님이 채우기 시작했습니다.', false);
