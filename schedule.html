@@ -7449,7 +7449,8 @@ function splitHosts(s){
       && Number(x.makeup_for || 0) !== Number(s.id)
       && Number(x.child_id) === Number(s.child_id)
       && Number(x.therapist_id) === Number(s.therapist_id)
-      && Number(x.support_type_id) === hostSp
+      // 발달재활 조각은 같은 선생님의 발추 수업에도 붙는다 (2026-09-17)
+      && (Number(x.support_type_id) === hostSp || (sp === 2 && Number(x.support_type_id) === 8))
       && (isMk(x) ? (x.status === '보강' || x.status === '완료')
                   : (x.status === '예정' || x.status === '완료'))
       && Number(x.minutes || 40) === 40 && x.start_time
