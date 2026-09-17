@@ -3375,16 +3375,18 @@ function drawWeek(){
             : '';
           return '<td class="cell">' + plus2 + list.map(x => {
             // 시간표 보기와 같은 모양으로 그린다 (ln 계열)
-            const cls = pieceFilled(x) ? 'ln-abs ln-cut'
+            const cls = pieceFilled(x) ? 'ln-abs'
                       : x.status === '완료' ? 'ln-done'
-                      : x.status === '결석' ? 'ln-abs ln-cut'
-                      : x.status === '휴무' ? 'ln-off ln-cut'
+                      : x.status === '결석' ? 'ln-abs'
+                      : x.status === '휴무' ? 'ln-off'
                       : x.status === '쉼'   ? 'ln-rest'
                       : x._isEval ? 'ln-eval'
                       : isMk(x) ? ('ln-mk' + (Number(x.minutes||40)!==40 ? ' splitrun' : '')) : 'ln-plan';
             const _st = x.support_type_id;
-            const nm = (_st ? (STYPE[_st] || '') + ' ' : '')
+            const nm0 = (_st ? (STYPE[_st] || '') + ' ' : '')
                      + esc(x._name || '') + cidTag(x.child_id);
+            // 줄긋기는 이름에만 — 조각·회차 표시는 긋지 않는다 (2026-09-17)
+            const nm = (absLike(x) || x.status === '휴무') ? '<span class="ln-cut">' + nm0 + '</span>' : nm0;
             return '<div class="ln ' + cls + '" data-sid="' + x.id + '"'
               + ' data-kid="' + esc(x._name || '') + '"'
               + ' data-cid="' + (x.child_id || '') + '">'
@@ -3938,16 +3940,18 @@ function drawOne(){
               + '" title="보강 넣기">＋보강</button>'
             : '';
           return '<td class="cell">' + plus2 + list.map(x => {
-            const cls = pieceFilled(x) ? 'ln-abs ln-cut'
+            const cls = pieceFilled(x) ? 'ln-abs'
                       : x.status === '완료' ? 'ln-done'
-                      : x.status === '결석' ? 'ln-abs ln-cut'
-                      : x.status === '휴무' ? 'ln-off ln-cut'
+                      : x.status === '결석' ? 'ln-abs'
+                      : x.status === '휴무' ? 'ln-off'
                       : x.status === '쉼'   ? 'ln-rest'
                       : x._isEval ? 'ln-eval'
                       : isMk(x) ? ('ln-mk' + (Number(x.minutes||40)!==40 ? ' splitrun' : '')) : 'ln-plan';
             const _st = x.support_type_id;
-            const nm = (_st ? (STYPE[_st] || '') + ' ' : '')
+            const nm0 = (_st ? (STYPE[_st] || '') + ' ' : '')
                      + esc(x._name || '') + cidTag(x.child_id);
+            // 줄긋기는 이름에만 — 조각·회차 표시는 긋지 않는다 (2026-09-17)
+            const nm = (absLike(x) || x.status === '휴무') ? '<span class="ln-cut">' + nm0 + '</span>' : nm0;
             return '<div class="ln ' + cls + '" data-sid="' + x.id + '"'
               + ' data-kid="' + esc(x._name || '') + '"'
               + ' data-cid="' + (x.child_id || '') + '">'
@@ -4694,6 +4698,8 @@ function drawDay(){
 
             // 공휴일인 날은 「공휴일」 한 줄만 (2026-09-10)
             if (isHoli(L2.d)) {
+              // 공휴일 줄로 대신 그린 수업도 「그렸다」로 둔다 — 안 그러면 아래에서 「회기 없음」이 뜬다 (2026-09-17)
+              if (L2.kind === 'run' && L2.r) seenSc[L2.r.id] = true;
               if (holiDone[L2.d]) return;
               holiDone[L2.d] = 1;
               html += '<div class="ln ln-off">'
@@ -4734,15 +4740,16 @@ function drawDay(){
               const tag = (L2.kind === 'mk') ? '보강' : '직접';
               // 완료면 흰 바탕. 결석·휴무는 회색. 아직 안 한 평가는 핑크
               const mkCls = (x.status === '완료') ? 'ln-done'
-                          : (x.status === '결석') ? 'ln-abs ln-cut'
-                          : (x.status === '휴무') ? 'ln-off ln-cut'
+                          : (x.status === '결석') ? 'ln-abs'
+                          : (x.status === '휴무') ? 'ln-off'
                           : x._isEval ? 'ln-eval' : 'ln-mk';
               html += '<div class="ln ' + mkCls + kidCls + '" data-sid="' + x.id + '"'
                 + ' data-kid="' + esc(x._name || '') + '"'
                 + ' data-cid="' + (x.child_id || '') + '">'
                 + '<span class="d">' + day + '</span>'
                 + hmTag(x, s, t.id, wd)
-                + '<span class="n">🔁 ' + nm
+                + '<span class="n">🔁 '
+                + ((x.status === '결석' || x.status === '휴무') ? '<span class="ln-cut">' + nm + '</span>' : nm)
                 + '<span class="rno">'
                 + ((isMk(x) || isPrevMn(x)) ? mnLabel(x)
                    : (L2.kind === 'mn' && !x.run_no) ? ''
@@ -4783,7 +4790,8 @@ function drawDay(){
             if (x.status === '쉼') {
               tail = '<span class="s">쉼</span>';
             } else if (x.status === '결석' || x.status === '휴무') {
-              const mk = mkOf[x.id];
+              // 쪼갠 조각은 화살표로 안 그린다 (조각 표시 +10 이 대신함) (2026-09-17)
+              const mk = (mkOf[x.id] && Number(mkOf[x.id].minutes || 40) === 40) ? mkOf[x.id] : null;
               // 발달재활 공휴일 줄에 번호가 없으면(회차 0) 보강할 필요가 없다
               const noNeed = (Number(x.support_type_id) === 2 && !x.run_no);
               tail = (mk
@@ -4809,9 +4817,9 @@ function drawDay(){
               + ' data-cid="' + (r._cid || '') + '">'
               + '<span class="d">' + day + '</span>'
               + hmTag(x, s, x.therapist_id, wdOf(x.plan_date))
-              + '<span class="n' + cut + '">'
+              + '<span class="n">'
               + splitPieces(x, splitOf[L2.d], r._cid, true)
-              + nm + dur
+              + (cut ? '<span class="ln-cut">' + nm + '</span>' : nm) + dur
               + '<span class="rno">' + monNo(mon) + '-' + x.run_no + '</span>'
               + splitTag(x) + minTag(x) + fillTag(x)
               + splitPieces(x, splitOf[L2.d], r._cid, false)
