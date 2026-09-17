@@ -464,7 +464,7 @@
       </div>
       <div>
         <label for="e_time">평가 시간</label>
-        <input id="e_time" type="time">
+        <input id="e_time" type="time" style="min-width:150px;">
       </div>
       <div>
         <label for="e_type">평가 종류</label>
@@ -494,11 +494,11 @@
           <option value="취소">취소</option>
         </select>
       </div>
-      <div>
+      <div style="display:none;">
         <label for="e_paid">납부일</label>
         <input id="e_paid" type="date">
       </div>
-      <div>
+      <div style="display:none;">
         <label for="e_card">카드 승인번호</label>
         <input id="e_card" type="text" placeholder="평가일에 받으면 기재">
       </div>
@@ -1691,7 +1691,7 @@ function dvAddRow(e) {
     +   '<input class="dv_date" type="date" style="width:140px;" value="'
     +   esc(e && e.eval_date || '') + '"></div>'
     + '<div><label style="font-size:12px;">시간</label>'
-    +   '<input class="dv_time" type="time" style="width:110px;" value="'
+    +   '<input class="dv_time" type="time" style="width:150px;padding:8px 10px;" value="'
     +   esc(e && e.eval_time ? String(e.eval_time).slice(0,5) : '') + '"></div>'
     + '<div><label style="font-size:12px;">평가 종류</label>'
     +   '<select class="dv_type" style="width:130px;">' + typeOpt + '</select></div>'
@@ -1702,10 +1702,11 @@ function dvAddRow(e) {
     + '<div><label style="font-size:12px;">평가비</label>'
     +   '<input class="dv_fee" type="text" inputmode="numeric" style="width:110px;" value="'
     +   (e ? Number(e.fee || 0).toLocaleString() : '') + '"></div>'
-    + '<div><label style="font-size:12px;">납부일</label>'
+    // 납부일·카드 승인번호는 납부 계산과 겹쳐 숨긴다 (2026-09-17) — 칸은 남겨 저장 값을 그대로 둔다
+    + '<div style="display:none;"><label style="font-size:12px;">납부일</label>'
     +   '<input class="dv_paid" type="date" style="width:140px;" value="'
     +   esc(e && e.paid_on || '') + '"></div>'
-    + '<div><label style="font-size:12px;">카드 승인번호</label>'
+    + '<div style="display:none;"><label style="font-size:12px;">카드 승인번호</label>'
     +   '<input class="dv_card" type="text" style="width:140px;" value="'
     +   esc(e && e.card_no || '') + '"></div>'
     + stSeg('dv', e && e.status)
@@ -1825,7 +1826,7 @@ function nvAddRow() {
     + '<div><label style="font-size:12px;">평가 날짜</label>'
     +   '<input class="nv_date" type="date" style="width:140px;"></div>'
     + '<div><label style="font-size:12px;">시간</label>'
-    +   '<input class="nv_time" type="time" style="width:110px;"></div>'
+    +   '<input class="nv_time" type="time" style="width:150px;padding:8px 10px;"></div>'
     + '<div><label style="font-size:12px;">평가 종류</label>'
     +   '<select class="nv_type" style="width:130px;">' + typeOpt + '</select></div>'
     + '<div><label style="font-size:12px;">개수</label>'
@@ -1836,9 +1837,10 @@ function nvAddRow() {
     +   '<select class="nv_thr" style="width:120px;">' + thrOpt + '</select></div>'
     + '<div><label style="font-size:12px;">평가비</label>'
     +   '<input class="nv_fee" type="text" inputmode="numeric" style="width:110px;"></div>'
-    + '<div><label style="font-size:12px;">납부일</label>'
+    // 납부일·카드 승인번호는 납부 계산과 겹쳐 숨긴다 (2026-09-17) — 칸은 남겨 저장 값을 그대로 둔다
+    + '<div style="display:none;"><label style="font-size:12px;">납부일</label>'
     +   '<input class="nv_paid" type="date" style="width:140px;"></div>'
-    + '<div><label style="font-size:12px;">카드 승인번호</label>'
+    + '<div style="display:none;"><label style="font-size:12px;">카드 승인번호</label>'
     +   '<input class="nv_card" type="text" style="width:140px;"></div>'
     + stSeg('nv', '예정')
     + '</div></div>';
