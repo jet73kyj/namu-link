@@ -2840,10 +2840,31 @@ function drawFind(){
   Object.values(byScd).forEach(a => a.sort((x,y)=>String(x.plan_date).localeCompare(String(y.plan_date))));
 
   const names = Array.from(new Set(hit.map(r => r._name)));
-  $('findTitle').textContent = '🔍 ' + names.join(' · ') + ' — 수업 ' + hit.length + '건';
-
   const ord = { '월':1,'화':2,'수':3,'목':4,'금':5,'토':6 };
   hit.sort((a,b) => (ord[a.weekday]-ord[b.weekday]) || (toMin(a.start_time)-toMin(b.start_time)));
+  // 같은 치료 · 같은 요일 · 같은 사업이면 요일줄이 나뉘어도 한 줄로 (2026-09-17)
+  //   달 중간에 시각·담당을 바꾸면 요일줄이 둘이 되어 찾기 창이 두 줄로 그려졌다 (127번)
+  //   줄의 주인(수정 · 이 미정)은 가장 나중에 시작한 요일줄
+  const IDSOF = {}, GRPOF = {};
+  const grp = [];
+  {
+    const gm = {};
+    hit.forEach(r => {
+      const k = r._cid + '|' + r.therapy_id + '|' + r.weekday + '|' + r.support_type_id;
+      if (!gm[k]) { gm[k] = []; grp.push(gm[k]); }
+      gm[k].push(r);
+    });
+    const stOf = x => String(x.from_date || ((x.from_month || '0000-00') + '-00'));
+    grp.forEach((rows, i) => {
+      rows.sort((a, b) => stOf(a).localeCompare(stOf(b)));
+      const own = rows[rows.length - 1];
+      IDSOF[own.id] = rows.map(x => x.id);
+      GRPOF[own.id] = rows;
+      grp[i] = own;
+    });
+  }
+  const idsOf = r => IDSOF[r.id] || [r.id];
+  $('findTitle').textContent = '🔍 ' + names.join(' · ') + ' — 수업 ' + grp.length + '건';
 
   // 요일줄에 안 딸린 회기(직접 보강 · 이월 보강 · 선보강)도 함께 보여 준다
   //   한 줄에만 붙게 이미 쓴 것은 표시해 둔다
@@ -2892,16 +2913,16 @@ function drawFind(){
       if (s.child_id !== r._cid) return false;
       if (isPart(s)) return false;   // 쪼갠 조각은 따로 그리지 않는다
       if (usedX[s.id]) return false;
-      if (s.schedule_id === r.id && !isMk(s)) return false;   // 이미 위에 그린 정규 회기
+      if (idsOf(r).indexOf(s.schedule_id) >= 0 && !isMk(s)) return false;   // 이미 위에 그린 정규 회기
       // 결석 줄 옆에 「→ 12일」로 이미 보이는 보강은 다시 안 그린다
       if (s.makeup_for && mkOf[s.makeup_for] && mkOf[s.makeup_for].id === s.id
-          && (byScd[r.id] || []).some(function(o){ return o.id === s.makeup_for; }))
+          && idsOf(r).some(function(id){ return (byScd[id] || []).some(function(o){ return o.id === s.makeup_for; }); }))
         return false;
       // 그 수업 줄에 딸린 것만 붙인다.
       //   지원유형만 같다고 붙이면, 한 아동이 같은 사업으로 수업을 둘 받을 때
       //   서로 다른 요일의 회기가 양쪽에 겹쳐 보인다
       const st = s.support_type_id;
-      const same = (s.schedule_id === r.id)
+      const same = (idsOf(r).indexOf(s.schedule_id) >= 0)
                 || (!s.schedule_id && st
                     && (st === r.support_type_id
                         || (r.support_type_id === 2 && st === 8)));
@@ -2929,10 +2950,22 @@ function drawFind(){
   }
 
   // 찾기 창 수업 줄 — 날짜 단추 (2026-09-11 원칙 1). ② 단계는 보기만
-  $('findRows').innerHTML = hit.map(r => {
+  $('findRows').innerHTML = grp.map(r => {
     const th = THS_ALL.find(t => t.id === r.therapist_id);
     const sl = nearest(toMin(r.start_time));
-    const _rl = (byScd[r.id] || []);
+    const _rl = [].concat.apply([], idsOf(r).map(id => byScd[id] || []))
+      .sort((x, y) => String(x.plan_date).localeCompare(String(y.plan_date)));
+    // 묶인 요일줄의 시각·담당·분 — 바뀌었으면 「2:00→2:20」처럼
+    const _gr = GRPOF[r.id] || [r];
+    const _uniq = a => a.filter((v, i) => v !== '' && a.indexOf(v) === i);
+    //   시각이 바뀐 줄은 실제 시각으로 (2:00 과 2:20 이 같은 교시로 보이지 않게)
+    const _hms = _uniq(_gr.map(x => String(x.start_time || '').slice(0, 5)));
+    const _whenTxt = (_hms.length > 1) ? _hms.map(h12).join('→') : h12(sl.hm);
+    const _thTxt = _uniq(_gr.map(x => {
+      const t2 = THS_ALL.find(t => t.id === x.therapist_id);
+      return t2 ? t2.id + '번 ' + (t2.name || '') : '';
+    })).join('→');
+    const _durTxt = _uniq(_gr.map(x => String(x.duration || ''))).join('→');
     const days = fDates(mon, r.weekday);
     const slot = {}, other = [], bunsan = [];
     _rl.forEach(x => {
@@ -2955,7 +2988,7 @@ function drawFind(){
     const pvx = (PREV || []).filter(s => isMk(s) && s.child_id === r._cid
         && String(s.plan_date).slice(0, 7) === String(mon)
         && s.status !== '취소'
-        && (s.schedule_id === r.id
+        && (idsOf(r).indexOf(s.schedule_id) >= 0
             || (!s.schedule_id && (s.support_type_id === r.support_type_id
                                    || (r.support_type_id === 2 && s.support_type_id === 8)))))
       .sort((a, b) => String(a.plan_date).localeCompare(String(b.plan_date)));
@@ -2992,11 +3025,11 @@ function drawFind(){
     return '<div class="findrow">'
       + '<div class="fr-top">'
         + '<span class="fr-nm">' + (r._cid ? '[' + r._cid + '] ' : '') + esc(r._name) + '</span>'
-        + '<span class="fr-when">' + r.weekday + ' ' + h12(sl.hm) + '</span>'
+        + '<span class="fr-when">' + r.weekday + ' ' + _whenTxt + '</span>'
         + '<span class="fr-th">' + (FTOP[r.support_type_id] || STYPE[r.support_type_id] || '') + ' · '
           + (TTYPE[r._tt] || '') + ' · '
-          + (th ? th.id + '번 ' + (th.name || '') : '') + ' · '
-          + (r.duration || '') + '분'
+          + _thTxt + ' · '
+          + _durTxt + '분'
           + ((nOn && nOn < days.length) ? ' · 월 ' + nOn + '회' : '') + '</span>'
         + (CAN_EDIT ? '<button class="fr-btn" data-ed="'+r.id+'" title="고치기">수정</button>' : '')
       + '</div>'
