@@ -122,13 +122,81 @@
               background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
   .cardsave.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
   .cardsave:disabled { background:#bbb; color:#fff; border-color:#bbb; cursor:default; }
+
+  /* ===== 꾸밈 B (2026-09-17) — 목록 화면 + 고치기 창 바탕·제목·저장 =====
+     되돌리려면 이 묶음(꾸밈 B ~ 꾸밈 B 끝)만 지우면 된다 */
+  body { background:#F5F4F2; color:#2F2926; }
+  .box { box-shadow:none; border:1px solid #ECE8E3; }
+  .loginlogo { display:block; height:52px; width:auto; margin:0 0 12px; }
+  #loginBox h1 { color:#2F2926; }
+  #loginBox button { background:#B07A4A; }
+  .wide { background:transparent; box-shadow:none; padding:0 0 24px; }
+  .top { background:#fff; border:1px solid #ECE8E3; border-radius:12px; padding:12px 16px; }
+  .toptitle { display:flex; align-items:center; gap:14px; }
+  .toptitle > div { border-left:1px solid #ECE8E3; padding-left:14px; }
+  .toplogo { height:48px; width:auto; display:block; }
+  .toprt { display:flex; align-items:center; gap:6px; }
+  .top h1 { color:#2F2926; }
+  .who { color:#A39C95; }
+  .btn-out { background:#fff; color:#4A433F; border:1px solid #E4E0DA; font-weight:500; }
+  .btn-home { background:#fff; color:#7E5530; border:1px solid #D9C3A7; font-weight:600; margin-right:0; }
+  .btn-home:hover { filter:none; background:#FBF5EE; }
+  /* 단추 — 기본은 흰 테두리 */
+  .tab { background:#fff; color:#4A433F; border:1px solid #E4E0DA; }
+  .tab:hover { background:#F7F6F4; }
+  /* 전체 · 치료중 · 종결 · 대기중 — 밑줄 모양 */
+  .tools { gap:14px; }
+  .tab[data-st] { background:transparent; border:none; border-bottom:2px solid transparent;
+                  border-radius:0; color:#A39C95; padding:6px 2px; }
+  .tab[data-st]:hover { background:transparent; color:#2F2926; }
+  .tab[data-st].on { background:transparent; color:#2F2926; border-bottom-color:#2F2926; font-weight:700; }
+  .search { border:1px solid #E4E0DA; border-radius:6px; }
+  #addBtn { background:#fff !important; color:#7E5530 !important; border:1px solid #D9C3A7 !important; }
+  #addBtn:hover { background:#FBF5EE !important; }
+  .count { color:#A39C95; }
+  /* 표 */
+  table { background:#fff; border:1px solid #ECE8E3; border-radius:8px; overflow:hidden;
+          border-collapse:separate; border-spacing:0; }
+  th { background:#F8F1E8; color:#4A433F; border-bottom:2px solid #C9A27E; }
+  td { border-bottom:1px solid #F0EDE9; }
+  tr:hover td { background:#FAF9F7; }
+  .idcell { color:#7E5530; }
+  .b-ing  { background:#EEF5EF; color:#3F6B4B; }
+  .b-end  { background:#F4F2EF; color:#A39C95; }
+  .b-wait { background:#FBF3E4; color:#9A6E20; }
+  .cmtag { background:#F7F6F4; color:#4A433F; border-color:#E4E0DA; }
+  .mncell { color:#7D7670; }
+  .telcell { color:#3E7A6E; }
+  .memocell { color:#4A433F; }
+  .paycell { background:transparent; }
+  .paycell b { color:#7E5530; }
+  .flag { color:#C2553A; }
+  .thview { background:#fff; color:#4A433F; border-color:#E4E0DA; }
+  /* 신규 등록 창 · 고치기 창 */
+  .addbox { background:#fff; border:1px solid #ECE8E3; }
+  .addtitle { color:#2F2926; }
+  .editbox { background:#fff; border:1px solid #ECE8E3; padding-top:0; overflow:hidden; }
+  .editbox > div:first-child { background:#F8F1E8; border-bottom:2px solid #C9A27E;
+    margin:0 -18px 14px; padding:10px 18px; }
+  .edittitle { color:#2F2926; margin-bottom:0; }
+  .edmark { color:#7E5530; }
+  #saveNew, #saveEdit { background:#B07A4A !important; color:#fff !important; border-color:#B07A4A !important; }
+  #saveNew:hover, #saveEdit:hover { background:#98663A !important; }
+  .grb:hover { border-color:#B07A4A; }
+  .grb.on { background:#B07A4A; border-color:#B07A4A; }
+  .lsn { background:#FAF9F7; border-color:#ECE8E3; }
+  .ok { background:#F8F1E8; color:#7E5530; }
+  /* 지원 카드번호 상자 — 주황 면 대신 옅은 회백 (2026-09-17) */
+  #e_cardView, #e_cards { background:#FAF9F7 !important; border-color:#ECE8E3 !important; }
+  /* ===== 꾸밈 B 끝 ===== */
 </style>
 </head>
 <body>
 
 <!-- 로그인 전 화면 -->
 <div class="box" id="loginBox">
-  <h1>🌿 나무링크</h1>
+  <img src="img/nl-logo.png" alt="자라는나무" class="loginlogo" onerror="this.style.display='none'">
+  <h1>나무링크</h1>
   <div class="sub">아동 목록을 보려면 로그인하세요.</div>
 
   <label for="em">이메일</label>
@@ -144,12 +212,17 @@
 <!-- 로그인 후 화면 -->
 <div class="wide" id="listBox" style="display:none;">
   <div class="top">
-    <div>
-      <h1>🌿 아동 목록</h1>
+    <div class="toptitle">
+      <img src="img/nl-logo.png" alt="자라는나무" class="toplogo" onerror="this.style.display='none'">
+      <div>
+      <h1>아동 목록</h1>
       <div class="who" id="who"></div>
+      </div>
     </div>
-    <a href="index.html" class="btn-home">🌿 처음으로</a>
+    <div class="toprt">
     <button id="out" class="btn-out">로그아웃</button>
+    <a href="index.html" class="btn-home">처음으로</a>
+    </div>
   </div>
 
   <div class="tools">
@@ -394,7 +467,10 @@
     <!-- ③ 평가 · 상담 메모 -->
     <div style="background:#fff; border:1px solid #d5dad2; border-radius:10px;
          padding:12px 14px; margin-bottom:12px;">
-      <div style="font-size:12.5px; font-weight:700; color:#0c447c; margin-bottom:6px;">📎 평가보고서</div>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+        <div style="font-size:12.5px; font-weight:700; color:#0c447c;">📎 평가보고서</div>
+        <span id="e_docOther"></span>
+      </div>
       <div id="e_docs" style="font-size:13px; color:#5a6156;">불러오는 중...</div>
 
       <div style="border-top:1px solid #eceee9; margin-top:10px; padding-top:10px;">
@@ -1649,8 +1725,9 @@ document.addEventListener('click', ev => {
 // ── 평가보고서 (2026-09-11) ──────────────────
 // 우리 센터 평가마다 「평가보고서」 단추, 맨 아래 「타기관 평가보고서」 단추.
 // 올리기·보기 창은 신규 아동 관리와 같은 것(nl-evaldocs.js)을 쓴다
-const DOCBTN = 'width:auto;margin:0;padding:6px 12px;background:#e3f0fb;color:#0c447c;'
-             + 'border:1px solid #85b7eb;border-radius:7px;font-size:13px;font-weight:600;';
+// 흰 테두리 단추 (2026-09-17 꾸밈 B — 전에는 하늘색 면)
+const DOCBTN = 'width:auto;margin:0;padding:4px 11px;background:#fff;color:#4A433F;'
+             + 'border:1px solid #E4E0DA;border-radius:6px;font-size:12.5px;font-weight:500;';
 async function drawDocs(cid) {
   const box = $('e_docs');
   if (!box) return;
@@ -1658,6 +1735,7 @@ async function drawDocs(cid) {
     box.textContent = '평가보고서는 관리자(8·9번)만 볼 수 있습니다.'; return;
   }
   box.innerHTML = '불러오는 중...';
+  if ($('e_docOther')) $('e_docOther').innerHTML = '';
   const [ev, ty, cnt] = await Promise.all([
     sb.from('nl_evaluations').select('id, eval_date, eval_type_id, status')
       .eq('child_id', cid).order('eval_date'),
@@ -1679,13 +1757,15 @@ async function drawDocs(cid) {
        + '<span style="flex:1;">' + esc(e.eval_date || '날짜 없음') + ' · ' + esc(nm)
        +   ' · ' + esc(e.status || '예정') + '</span>'
        + '<button type="button" data-ev="' + e.id + '" data-t="' + esc(nm + ' 결과보고서') + '"'
-       +   ' data-d="' + esc(e.eval_date || '') + '" style="' + DOCBTN + '">📎 평가보고서 '
+       +   ' data-d="' + esc(e.eval_date || '') + '" style="' + DOCBTN + '">평가보고서 '
        +   (n || '') + '</button></div>';
   });
   if (!evs.length) h += '<div style="color:#888;padding:4px 0;">우리 센터 평가 기록이 없습니다.</div>';
-  h += '<div style="margin-top:10px;"><button type="button" data-other="1" style="' + DOCBTN + '">'
-     + '📎 타기관 평가보고서 ' + (cnt.other || '') + '</button></div>';
   box.innerHTML = h;
+  // 「타기관 평가보고서」는 「평가보고서」 제목 옆에 둔다 (2026-09-17)
+  const oth = $('e_docOther');
+  if (oth) oth.innerHTML = '<button type="button" data-other="1" style="' + DOCBTN + '">'
+     + '타기관 평가보고서 ' + (cnt.other || '') + '</button>';
 
   box.querySelectorAll('[data-ev]').forEach(b => {
     b.onclick = () => NLDocs.open({
@@ -1693,7 +1773,8 @@ async function drawDocs(cid) {
       title: b.dataset.t, date: b.dataset.d, onChange: () => drawDocs(cid)
     });
   });
-  box.querySelector('[data-other]').onclick = () => NLDocs.open({
+  const othBtn = oth ? oth.querySelector('[data-other]') : null;
+  if (othBtn) othBtn.onclick = () => NLDocs.open({
     cid: cid, kid: kid, source: '타기관', onChange: () => drawDocs(cid)
   });
 }
