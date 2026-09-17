@@ -402,6 +402,39 @@ async function afterLogin(user) {
   $('mainBox').style.display  = 'block';
 }
 
+// ── 그 달에 살아 있던 요일줄만 쓴다 (2026-09-17) ──
+//   달 중간에 담당·요일·시각을 바꾸면 요일줄이 둘이 된다.
+//   전에는 요일줄을 모두(지금 것까지) 읽어 지난 달 기록지의 담당·요일·시간이 바뀌어 보였다
+const _SWD = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
+function _ymd(d) { return year + '-' + String(month).padStart(2,'0') + '-' + String(d).padStart(2,'0'); }
+function schedActive(rows) {
+  const mk = year + '-' + String(month).padStart(2,'0');
+  const first = mk + '-01', last = _ymd(new Date(year, month, 0).getDate());
+  return (rows || []).filter(s => (s.from_month || '0000-00') <= mk && (s.to_month || '9999-12') >= mk
+    && (!s.from_date || String(s.from_date) <= last) && (!s.to_date || String(s.to_date) >= first));
+}
+function schedInMonth(rows) {
+  const act = schedActive(rows);
+  const st = s => String(s.from_date || ((s.from_month || '0000-00') + '-01'));
+  return (act.length ? act : (rows || [])).slice().sort((a, b) => st(a).localeCompare(st(b)));
+}
+// 그 날 수업을 맡은 요일줄 (요일·기간이 맞는 것)
+function schedOnDay(d) {
+  const iso = _ymd(d), wd = new Date(year, month - 1, d).getDay();
+  return SCHED.find(s => _SWD[s.weekday] === wd
+    && (!s.from_date || String(s.from_date) <= iso)
+    && (!s.to_date || String(s.to_date) >= iso)) || null;
+}
+function thOnIso(iso) {
+  const pre = year + '-' + String(month).padStart(2,'0') + '-';
+  const s = (iso && String(iso).startsWith(pre)) ? schedOnDay(parseInt(String(iso).slice(8, 10), 10)) : null;
+  return s ? s.therapist_id : (SCHED.length ? SCHED[SCHED.length - 1].therapist_id : null);
+}
+function schedThNames(nameOf) {
+  return [...new Set(SCHED.map(s => s.therapist_id).filter(v => v != null))]
+    .map(nameOf).filter(Boolean).join('·');
+}
+
 // ── 불러오기 ──
 async function loadOne() {
   const idx = $('pChild').value;
@@ -411,13 +444,18 @@ async function loadOne() {
   if (!mv) { alert('달을 고르세요.'); return; }
 
   cur = PAIRS[Number(idx)];
-  SCHED = cur.sched || [];
   year  = parseInt(mv.split('-')[0], 10);
   month = parseInt(mv.split('-')[1], 10);
+  SCHED = schedInMonth(cur.sched || []);
   const mk = mkNow();
 
   $('pLoad').disabled = true; $('pLoad').textContent = '불러오는 중...';
   try {
+    // 고른 달의 요일줄을 다시 읽는다 (목록은 이번 달 기준으로 모은 것이라)
+    const scq = await sb.from('nl_therapy_schedules')
+      .select('id, weekday, start_time, therapist_id, duration, from_month, to_month, from_date, to_date')
+      .eq('therapy_id', cur.therapy_id);
+    if (!scq.error) SCHED = schedInMonth(scq.data || []);
     const [lg, pr] = await Promise.all([
       sb.from('nl_session_logs').select('*')
         .eq('child_id', cur.child.id).eq('support_type_id', SUPPORT)
@@ -456,7 +494,7 @@ function _classDays() {
   const last = new Date(year, month, 0).getDate();
   const out = [];
   for (let d = 1; d <= last; d++) {
-    if (dows.includes(new Date(year, month - 1, d).getDay())) out.push(d);
+    if (dows.includes(new Date(year, month - 1, d).getDay()) && schedOnDay(d)) out.push(d);
   }
   return out.slice(0, SESSIONS);
 }
@@ -472,7 +510,7 @@ function _timeText() {
 function drawAll(saved) {
   const c = cur.child;
   const area = TTYPE[cur.therapy_type_id] || '';
-  const tname = SCHED.length ? (THERAPISTS[SCHED[0].therapist_id] || '') : '';
+  const tname = schedThNames(id => THERAPISTS[id] || '');
 
   $('pageTitle').textContent = `치료 기록지 — ${c.name} · ${area} · ${year}년 ${month}월`;
   $('sheetTitle').textContent = `${year}년 ${month}월 치료 기록지`;
@@ -549,7 +587,7 @@ async function saveRecord() {
     const logRow = {
       child_id: cur.child.id, support_type_id: SUPPORT,
       therapy_id: cur.therapy_id, month_key: mk,
-      therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
+      therapist_id: SCHED.length ? SCHED[SCHED.length - 1].therapist_id : null,
       goal_short:     $('f_goal').value  || null,
       guardian_note:  $('f_guard').value || null,
       area_text:      $('f_area').value  || null,
@@ -585,7 +623,7 @@ async function saveRecord() {
         service_date: iso,
         start_time: _hm(tv[0] || ''),
         end_time:   _hm(tv[1] || ''),
-        therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
+        therapist_id: thOnIso(iso),
         content:  tr.querySelector('.q_content').value || null,
         reaction: null,
         homework: null,

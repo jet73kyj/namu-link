@@ -552,7 +552,7 @@ async function loadOne() {
   try {
     const [t, g, v, lg] = await Promise.all([
       sb.from('nl_therapies')
-        .select('id, therapy_type_id, nl_therapy_schedules(weekday, start_time, therapist_id, duration)')
+        .select('id, therapy_type_id, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration, from_month, to_month, from_date, to_date)')
         .eq('child_id', cid).eq('support_type_id', 2),
       sb.from('nl_child_grades').select('*').eq('child_id', cid),
       sb.from('nl_voucher_rows').select('*').eq('child_id', cid).eq('month_key', mk)
@@ -563,8 +563,10 @@ async function loadOne() {
     if (t.error) throw t.error;
 
     child   = CHILDREN.find(c => String(c.id) === String(cid));
-    therapy = (t.data || [])[0] || null;
-    SCHED   = therapy ? (therapy.nl_therapy_schedules || []) : [];
+    // 그 달에 살아 있던 발달재활 수업을 고른다 (치료가 둘인 아동 — 66번 등)
+    const tl = t.data || [];
+    therapy = tl.find(x => schedActive(x.nl_therapy_schedules).length) || tl[0] || null;
+    SCHED   = therapy ? schedInMonth(therapy.nl_therapy_schedules) : [];
     const gm = pickLatest(g.data, mk, 'child_id');
     GRADE   = gm[cid] || null;
     VOUCHER = (v.data || []).filter(r => (r.amount || 0) > 0);
@@ -600,6 +602,39 @@ async function loadOne() {
   }
 }
 
+// ── 그 달에 살아 있던 요일줄만 쓴다 (2026-09-17) ──
+//   달 중간에 담당·요일·시각을 바꾸면 요일줄이 둘이 된다.
+//   전에는 요일줄을 모두(지금 것까지) 읽어 지난 달 기록지의 담당·요일·시간이 바뀌어 보였다
+const _SWD = { 일:0, 월:1, 화:2, 수:3, 목:4, 금:5, 토:6 };
+function _ymd(d) { return year + '-' + String(month).padStart(2,'0') + '-' + String(d).padStart(2,'0'); }
+function schedActive(rows) {
+  const mk = year + '-' + String(month).padStart(2,'0');
+  const first = mk + '-01', last = _ymd(new Date(year, month, 0).getDate());
+  return (rows || []).filter(s => (s.from_month || '0000-00') <= mk && (s.to_month || '9999-12') >= mk
+    && (!s.from_date || String(s.from_date) <= last) && (!s.to_date || String(s.to_date) >= first));
+}
+function schedInMonth(rows) {
+  const act = schedActive(rows);
+  const st = s => String(s.from_date || ((s.from_month || '0000-00') + '-01'));
+  return (act.length ? act : (rows || [])).slice().sort((a, b) => st(a).localeCompare(st(b)));
+}
+// 그 날 수업을 맡은 요일줄 (요일·기간이 맞는 것)
+function schedOnDay(d) {
+  const iso = _ymd(d), wd = new Date(year, month - 1, d).getDay();
+  return SCHED.find(s => _SWD[s.weekday] === wd
+    && (!s.from_date || String(s.from_date) <= iso)
+    && (!s.to_date || String(s.to_date) >= iso)) || null;
+}
+function thOnIso(iso) {
+  const pre = year + '-' + String(month).padStart(2,'0') + '-';
+  const s = (iso && String(iso).startsWith(pre)) ? schedOnDay(parseInt(String(iso).slice(8, 10), 10)) : null;
+  return s ? s.therapist_id : (SCHED.length ? SCHED[SCHED.length - 1].therapist_id : null);
+}
+function schedThNames(nameOf) {
+  return [...new Set(SCHED.map(s => s.therapist_id).filter(v => v != null))]
+    .map(nameOf).filter(Boolean).join('·');
+}
+
 // 화면 전체 그리기
 function drawAll(saved) {
   const mk = mkNow();
@@ -608,7 +643,7 @@ function drawAll(saved) {
   $('sheet2Title').textContent = child ? esc(child.name) : '';
 
   const area = _getServiceType();
-  const tname = SCHED.length ? thrName(SCHED[0].therapist_id) : '';
+  const tname = schedThNames(thrName);
 
   $('s1_childName').value  = child ? child.name : '';
   $('s1_childName2').value = child ? child.name : '';
@@ -618,8 +653,11 @@ function drawAll(saved) {
   $('s1_svcType').value    = area;
   $('s1_costType').value   = area;
   $('s1_svcCharge').value  = tname;
+  const _days0 = [...(_getScheduledDaysCapped())].sort((a, b) => a - b);
   for (let i = 1; i <= SESSIONS; i++) {
-    const el = $('s1_therapistName_' + i); if (el) el.value = tname;
+    // 회차마다 그 날 맡은 선생님 (달 중간에 바뀐 경우)
+    const _so = _days0[i - 1] ? schedOnDay(_days0[i - 1]) : null;
+    const el = $('s1_therapistName_' + i); if (el) el.value = _so ? thrName(_so.therapist_id) : tname;
     const tt = $('s1_totalTime_' + i);     if (tt) tt.value = VOUCH_MIN + '분';
     const tc = $('s1_totalCost_' + i);     if (tc) tc.value = UNIT.toLocaleString() + '원';
   }
@@ -711,6 +749,7 @@ function _getScheduledDaysCapped() {
   const all = [];
   for (let d = 1; d <= last; d++) {
     if (!dows.includes(new Date(year, month - 1, d).getDay())) continue;
+    if (!schedOnDay(d)) continue;   // 그 날 살아 있던 요일줄만
     if (_holidayFor(year, month, d)) continue;
     all.push(d);
   }
@@ -796,7 +835,7 @@ async function saveRecord() {
     // 1) 기록지 한 장
     const logRow = {
       child_id: Number(childId), support_type_id: 2, month_key: mk,
-      therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
+      therapist_id: SCHED.length ? SCHED[SCHED.length - 1].therapist_id : null,
       sig_admin:    $('s1_adminSig').value || null,
       sig_guardian: $('s1_guardianSig').value || null,
       cycle_text:   $('s1_svcCycle').value || null,
@@ -840,7 +879,7 @@ async function saveRecord() {
         service_date: provIso || (day ? `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}` : null),
         start_time: $('s1_startTime_' + (i+1)).value ? _hm($('s1_startTime_' + (i+1)).value) : null,
         end_time:   $('s1_endTime_'   + (i+1)).value ? _hm($('s1_endTime_'   + (i+1)).value) : null,
-        therapist_id: SCHED.length ? SCHED[0].therapist_id : null,
+        therapist_id: day ? thOnIso(_ymd(day)) : thOnIso(null),
         reaction:   tr ? tr.querySelector('.st_result').value : null,
         staff_memo: tr ? tr.querySelector('.st_note').value : null,
         voucher_date: tr ? d2iso(tr.querySelector('.st_apprDate').value) : null,
