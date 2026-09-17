@@ -2813,6 +2813,30 @@ function fExtra(s){
     + esc(lb + ' ' + mkDay(s)) + (sm ? '<small>' + esc(sm) + '</small>' : '') + '</span>';
 }
 
+// 같은 원래 줄을 메우는 쪼개기 조각을 단추 하나로 (2026-09-17 은정님)
+//   「8월분 - 4일(+20), 11일(+20) 결석 ＋」
+//   조각마다 누르면 그 조각 상태가 돈다 · 결석 조각 뒤 ＋ 는 원래 줄 보강 잡기 창
+function fPartGroup(list, origId){
+  list = list.slice().sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
+  const s0 = list[0];
+  const other = s0.month_key && String(s0.month_key) !== String(mon);
+  const lb = other ? monNo(s0.month_key) + '월분' : '보강';
+  const allDone = list.every(x => x.status === '완료');
+  const got = list.filter(x => x.status === '완료' || x.status === '보강')
+                  .reduce((t, x) => t + Number(x.minutes || 0), 0);
+  const need = got < 40;
+  const parts = list.map(x => {
+    const cut = (x.status === '결석');
+    return '<span class="fpart" data-psid="' + x.id + '" style="cursor:pointer;'
+      + (cut ? 'text-decoration:line-through;' : '') + '">'
+      + esc(mkDay(x)) + '(+' + Number(x.minutes || 0) + ')</span>'
+      + (cut ? '<small>결석</small>' : (x.status === '보강' ? '<small>예정</small>' : ''))
+      + ((cut && need && CAN_EDIT) ? '<b class="fplus fpplus" data-orig="' + origId + '">＋</b>' : '');
+  }).join(', ');
+  return '<span class="fb fpv' + (allDone ? ' fdn' : '') + '">'
+    + esc(lb) + ' - ' + parts + '</span>';
+}
+
 function drawFind(){
   const q = $('findName').value.trim();
   if (!q) { $('findBox').style.display = 'none'; return; }
@@ -3004,7 +3028,15 @@ function drawFind(){
       .sort((a, b) => String(a.plan_date).localeCompare(String(b.plan_date)));
     // 지난달 몫인데 이번 달 날짜인 줄은 SESS 에도 담겨 있어 아래 extraOf 에서 또 잡힌다
     pvx.forEach(s => { usedX[s.id] = 1; });
-    const ext = pvx.map(fExtra).join('') + extraOf(r).map(fExtra).join('');
+    // 조각은 원래 줄마다 단추 하나로 묶는다 (2026-09-17)
+    const _xs = pvx.concat(extraOf(r));
+    const _grp = {}, _one = [];
+    _xs.forEach(x => {
+      if (x.makeup_for && Number(x.minutes || 40) !== 40) (_grp[x.makeup_for] = _grp[x.makeup_for] || []).push(x);
+      else _one.push(x);
+    });
+    const ext = _one.map(fExtra).join('')
+      + Object.keys(_grp).map(k => fPartGroup(_grp[k], Number(k))).join('');
     // 요일 밖 날짜의 원래 줄 (발추를 다른 날에 잡은 것 등) · 발추 나눠서 진행 자리표
     const oth = other.map(x => fBtn(x, mkOf, PARTS, HOSTADD)).join('')
               + bunsan.map(fBunsan).join('');
@@ -3062,6 +3094,22 @@ function drawFind(){
   //   단추를 누르면 전처럼 상태가 돈다: 예정 → 완료 → 결석 → 예정 (보강 줄은 보강 → 완료 → 결석)
   //   ＋ 를 누르면 보강 잡기 창. 청구하는 쉬는 날은 단추를 눌러도 보강 잡기 창
   //   치료사는 자기 수업만 바꿀 수 있다 (원칙 10)
+  // 묶은 조각 단추 — 조각 글씨를 누르면 그 조각 상태가 돌고, ＋ 는 원래 줄 보강 잡기 창
+  $('findRows').querySelectorAll('.fpart[data-psid]').forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      lastClick = { clientX: e.clientX, clientY: e.clientY };
+      findTap(Number(el.dataset.psid), false);
+    };
+  });
+  $('findRows').querySelectorAll('.fpplus[data-orig]').forEach(el => {
+    el.style.cursor = 'pointer';
+    el.onclick = (e) => {
+      e.stopPropagation();
+      lastClick = { clientX: e.clientX, clientY: e.clientY };
+      openDay(Number(el.dataset.orig));
+    };
+  });
   $('findRows').querySelectorAll('.fb[data-sid]').forEach(el => {
     el.onclick = (e) => {
       e.stopPropagation();
