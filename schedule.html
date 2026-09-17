@@ -2981,7 +2981,10 @@ function drawFind(){
              return x.child_id === r._cid && !x.makeup_for && isX8N(x); });
       const needX8 = (r._mode === '발4+발추1')
         || (r._mode === '발4+5주발추' && countWdOpen(mon, r.weekday) >= 5);
-      if (needX8 && !hasX8) ghost = '<span class="fb s8 off' + (CAN_EDIT ? ' fx8' : '') + '"'
+      // 서버 셈(nl_need_rows)이 있으면 그것만 따른다 (2026-09-17)
+      //   발추 「적용 없음」·0원 달은 서버가 빼 주므로 「이 미정」이 안 뜬다
+      const wantX8 = NEEDSRV ? !!NEEDSRV.x8[r._cid] : (needX8 && !hasX8);
+      if (wantX8) ghost = '<span class="fb s8 off' + (CAN_EDIT ? ' fx8' : '') + '"'
         + (CAN_EDIT ? ' data-x8="' + r.id + '" title="발추 자리 잡기"' : '') + '>이 미정'
         + (CAN_EDIT ? ' <b class="fplus">＋</b>' : '') + '</span>';
     }
