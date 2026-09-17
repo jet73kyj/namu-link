@@ -1928,9 +1928,11 @@ function slotNoOf(x){
 
 // 그 결석 줄이 몇 분 채워졌는지 (2026-09-09)
 //   40분 보강 한 줄이면 40분, 10분짜리 세 줄이면 30분
+// 못 한(결석·취소) 조각은 채운 분에 안 넣는다 (2026-09-17 — 서버 nl_split40_trg 와 같음)
+function pCount(v){ return v && v.status !== '결석' && v.status !== '취소'; }
 function filledMin(id, pool){
   return (pool || SESS.concat(PREV)).reduce(function(t, v){
-    return Number(v.makeup_for) === Number(id) ? t + Number(v.minutes || 40) : t; }, 0);
+    return (Number(v.makeup_for) === Number(id) && pCount(v)) ? t + Number(v.minutes || 40) : t; }, 0);
 }
 // 아직 40분을 못 채웠는가 — 상자에 남길지 정한다
 function needMore(id, pool){ return filledMin(id, pool) < 40; }
@@ -1940,11 +1942,11 @@ function fillNote(id, pool){
     .filter(function(v){ return Number(v.makeup_for) === Number(id); })
     .sort(function(a,b){ return String(a.plan_date).localeCompare(String(b.plan_date)); });
   if (!parts.length) return '';
-  const sum = parts.reduce(function(t,v){ return t + Number(v.minutes || 40); }, 0);
+  const sum = parts.reduce(function(t,v){ return pCount(v) ? t + Number(v.minutes || 40) : t; }, 0);
   const left = 40 - sum;
   if (left <= 0) return '';
   return ' <b class="pwhy">'
-    + parts.map(function(v){ return '+' + Number(v.minutes || 40); }).join(' ')
+    + parts.map(function(v){ return '+' + Number(v.minutes || 40) + (pCount(v) ? '' : '(결석)'); }).join(' ')
     + ' (' + left + '분 더 필요)</b>';
 }
 
@@ -1975,10 +1977,10 @@ function fillTag(x){
     .filter(v => Number(v.makeup_for) === Number(x.id) && Number(v.minutes || 40) !== 40)
     .sort((a,b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
   if (!parts.length) return '';
-  const sum = parts.reduce((t, v) => t + Number(v.minutes || 0), 0);
+  const sum = parts.reduce((t, v) => pCount(v) ? t + Number(v.minutes || 0) : t, 0);
   const left = 40 - sum;
   return '<span class="filltag">'
-    + parts.map(v => '+' + Number(v.minutes)).join(' ')
+    + parts.map(v => '+' + Number(v.minutes) + (pCount(v) ? '' : '(결석)')).join(' ')
     + ((left > 0 && x.status !== '완료') ? ' <i>(' + left + '분 더 필요)</i>' : ' <b>완료</b>')
     + '</span>';
 }
@@ -2762,7 +2764,7 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   }
   // 작은 글 — 상태 + 보강 정보
   const ps = PARTS[x.id] || [], mk = mkOf[x.id];
-  const psum = ps.reduce(function(t, v){ return t + Number(v.minutes || 0); }, 0);
+  const psum = ps.reduce(function(t, v){ return pCount(v) ? t + Number(v.minutes || 0) : t; }, 0);
   const word = x.no_makeup ? '보강 없음'
              : ({ '예정':'예정', '완료':'완료', '결석':'결석' }[x.status] || '');
   let info = '';
@@ -2932,7 +2934,7 @@ function drawFind(){
   function partsTxt(id, st){
     const ps = PARTS[id];
     if (!ps || !ps.length) return '';
-    const sum = ps.reduce(function(t,v){ return t + Number(v.minutes || 0); }, 0);
+    const sum = ps.reduce(function(t,v){ return pCount(v) ? t + Number(v.minutes || 0) : t; }, 0);
     const m0 = Number(ps[0].minutes);
     const same = ps.every(function(v){ return Number(v.minutes) === m0; });
     const txt = same
@@ -7431,7 +7433,7 @@ function hostDur(h){
 // 이 줄에 이미 붙은 조각의 분 합
 function partsSum(id){
   return allSessU().filter(x => Number(x.makeup_for) === Number(id)
-      && Number(x.minutes || 40) !== 40 && x.status !== '취소')
+      && Number(x.minutes || 40) !== 40 && pCount(x))
     .reduce((t, v) => t + Number(v.minutes || 0), 0);
 }
 // 쪼개기를 붙일 수 있는 수업 (원칙 2·4)
