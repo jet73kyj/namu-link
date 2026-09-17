@@ -88,12 +88,50 @@
     .sheetlogo { margin-top:8mm; page-break-inside:avoid; }
     .sheetlogo img { height:40px; }
   }
+
+  /* ===== 꾸밈 B (2026-09-17) — 화면에서만 보이는 곳. 인쇄 서식(표·선·칸 색)은 그대로 =====
+     되돌리려면 이 묶음(꾸밈 B ~ 꾸밈 B 끝)만 지우면 된다 */
+  body { background:#F5F4F2; color:#2F2926; }
+  header { background:#fff !important; color:#2F2926 !important; border-bottom:1px solid #ECE8E3;
+           padding:10px 24px !important; }
+  header .toplogo { height:40px; width:auto; display:block; }
+  header h1 { color:#2F2926; font-size:17px !important; border-left:1px solid #ECE8E3; padding-left:12px; }
+  header #who { color:#A39C95; opacity:1 !important; }
+  header .hdout { background:#fff !important; color:#4A433F !important; border:1px solid #E4E0DA !important; }
+  .page-title { color:#2F2926 !important; }
+  .picker select, .picker input { border:1px solid #E4E0DA; border-radius:6px; background:#fff; color:#2F2926; }
+  .picker button, .picker #pIntake {
+    background:#fff !important; color:#4A433F !important; border:1px solid #E4E0DA !important;
+    border-radius:6px !important; font-weight:500 !important; }
+  .picker button:hover { background:#F7F6F4 !important; }
+  .form-actions { align-items:center; }
+  .form-actions button, .form-actions a {
+    background:#fff !important; color:#4A433F !important; border:1px solid #E4E0DA !important;
+    font-weight:500 !important; }
+  .form-actions button:hover, .form-actions a:hover { background:#F7F6F4 !important; }
+  .form-actions a[href="index.html"] { color:#7E5530 !important; border-color:#D9C3A7 !important;
+    font-weight:600 !important; }
+  .form-actions a[href="index.html"]:hover { background:#FBF5EE !important; }
+  /* 저장 — 저장 전 흰 테두리 / 저장됨만 초록 (납부 계산과 같게) */
+  .form-actions .btn-save { font-weight:600 !important; }
+  .form-actions .btn-save.done { background:#2e7d32 !important; color:#fff !important;
+    border-color:#2e7d32 !important; }
+  .form-actions .btn-save:disabled { background:#bbb !important; color:#fff !important;
+    border-color:#bbb !important; }
+  .sheet { border-color:#ECE8E3; }
+  .loginbox { border-color:#ECE8E3; }
+  .loginbox .loginlogo { display:block; height:52px; width:auto; margin:0 0 12px; }
+  .loginbox h1 { color:#2F2926 !important; }
+  .loginbox #btn { background:#B07A4A !important; }
+  .ok { background:#F8F1E8; color:#7E5530; }
+  /* ===== 꾸밈 B 끝 ===== */
 </style>
 </head>
 <body>
 
 <!-- 로그인 전 -->
 <div class="loginbox" id="loginBox">
+  <img src="img/nl-logo.png" alt="자라는나무" class="loginlogo" onerror="this.style.display='none'">
   <h1 style="font-size:19px;margin:0 0 4px;color:#2e7d32;">치료지원 누가기록서</h1>
   <div style="font-size:13px;color:#888;margin-bottom:20px;">나무링크</div>
   <label style="display:block;font-size:12px;color:#666;margin:12px 0 5px;">이메일</label>
@@ -106,17 +144,17 @@
 
 <div id="mainBox" style="display:none;">
 <header>
-  <span style="font-size:22px;">🌿</span>
-  <h1 style="margin:0;font-size:20px;">나무링크 · 치료지원 누가기록서</h1>
+  <img src="img/nl-logo.png" alt="자라는나무" class="toplogo" onerror="this.style.display='none'">
+  <h1 style="margin:0;font-size:20px;">치료지원 누가기록서</h1>
   <span style="margin-left:auto;font-size:13px;opacity:.9;" id="who"></span>
-  <button onclick="logout()" class="no-print" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;">로그아웃</button>
+  <button onclick="logout()" class="no-print hdout" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;">로그아웃</button>
 </header>
 
 <div class="picker no-print">
   <select id="pChild" style="min-width:280px;"></select>
   <input id="pMonth" type="month">
   <button id="pLoad">불러오기</button>
-  <button type="button" id="pIntake" style="background:#e3f0fb;color:#0c447c;border:1px solid #85b7eb;border-radius:7px;font-weight:600;">📋 상담 · 보고서</button>
+  <button type="button" id="pIntake" style="background:#e3f0fb;color:#0c447c;border:1px solid #85b7eb;border-radius:7px;font-weight:600;">상담 · 보고서</button>
   <span id="pInfo"></span>
 </div>
 
@@ -124,9 +162,9 @@
   <div class="page-title" id="pageTitle">치료지원 누가기록서</div>
 
   <div class="form-actions no-print">
-    <button class="btn-save" id="btnSave" onclick="saveRecord()">💾 저장 전</button>
-    <button class="btn-print" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
-    <a href="index.html" style="margin-left:auto;background:#eee;color:#555;text-decoration:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:bold;">🌿 처음으로</a>
+    <button class="btn-save" id="btnSave" onclick="saveRecord()">저장 전</button>
+    <button class="btn-print" onclick="window.print()">인쇄 / PDF 저장</button>
+    <a href="index.html" style="margin-left:auto;background:#eee;color:#555;text-decoration:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:bold;">처음으로</a>
   </div>
 
   <div class="sheet" id="sheet1">
@@ -612,7 +650,7 @@ function setSaveBtn(st) {
   b.disabled = (st === 'saving');
   b.textContent = st === 'saving' ? '저장 중…'
                 : st === 'done'   ? '\u2713 저장됨'
-                : '💾 저장 전';
+                : '저장 전';
 }
 function markDirty() {
   if (!LOADED || SAVING) return;
