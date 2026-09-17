@@ -1930,6 +1930,11 @@ function slotNoOf(x){
 //   40분 보강 한 줄이면 40분, 10분짜리 세 줄이면 30분
 // 못 한(결석·취소) 조각은 채운 분에 안 넣는다 (2026-09-17 — 서버 nl_split40_trg 와 같음)
 function pCount(v){ return v && v.status !== '결석' && v.status !== '취소'; }
+// 보강 짝 고르기 — 결석(안 함)한 보강보다 살아 있는 보강을 먼저 (2026-09-17)
+function mkPut(map, x){
+  const k = x.makeup_for, cur = map[k];
+  if (!cur || !pCount(cur) || pCount(x)) map[k] = x;
+}
 function filledMin(id, pool){
   return (pool || SESS.concat(PREV)).reduce(function(t, v){
     return (Number(v.makeup_for) === Number(id) && pCount(v)) ? t + Number(v.minutes || 40) : t; }, 0);
@@ -2776,7 +2781,7 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
          + ((psum < 40 && x.status !== '완료') ? ' · ' + (40 - psum) + '분 남음' : '');
   } else if (mk && (x.status === '결석' || x.status === '휴무')) {
     // 보강 날짜 뒤에 그 보강의 상태도 적는다 — 아직 안 했으면 예정, 했으면 완료 (2026-09-11)
-    info = '→' + mkDay(mk) + ' ' + (mk.status === '완료' ? '완료' : mk.status === '결석' ? '결석' : '예정');
+    info = '→' + mkDay(mk) + ' ' + (mk.status === '완료' ? '완료' : mk.status === '결석' ? '결석(안 함)' : '예정');
   }
   if (HOSTADD[x.id]) info = (info ? info + ' ' : '') + '+' + HOSTADD[x.id];
   const sm = [word, info].filter(Boolean).join(' ');
@@ -2784,7 +2789,7 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   //   청구하는 날(납부 계산에서 켜진 단추)만. 회색(청구 안 함)이면 ＋ 없음 (2026-09-11 납부와 잇기)
   //   쉬는 날에 보강하려면 납부 계산에서 그 날 단추를 먼저 켠다 (월 4회 아동)
   //   40분 보강이 없고 조각도 40분이 안 됐을 때
-  const done40 = (mk && Number(mk.minutes || 40) === 40) || psum >= 40;
+  const done40 = (mk && Number(mk.minutes || 40) === 40 && pCount(mk)) || psum >= 40;
   const plus = CAN_EDIT && on && !done40
     && (x.status === '결석' || x.status === '휴무');
   const grey = !on || x.status === '결석';
@@ -2851,7 +2856,7 @@ function drawFind(){
   // 회기를 수업별로 모으기
   const byScd = {}, mkOf = {};
   SESS.forEach(s => {
-    if (isMk(s)) { mkOf[s.makeup_for] = s; return; }
+    if (isMk(s)) { mkPut(mkOf, s); return; }
     if (!s.schedule_id) return;          // 직접 넣은 보강은 따로 그린다
     (byScd[s.schedule_id] = byScd[s.schedule_id] || []).push(s);
   });
@@ -3251,7 +3256,7 @@ $('findJump').onclick = () => jumpTo(hitAt + 1);
 let MKOF = {};
 function buildMkOf(){
   MKOF = {};
-  SESS.forEach(x => { if (isMk(x) && x.makeup_for) MKOF[x.makeup_for] = x; });
+  SESS.forEach(x => { if (isMk(x) && x.makeup_for) mkPut(MKOF, x); });
 }
 
 // 아직 자리를 못 잡은 결석·휴무를 아동별로 모은다 (2026-09-10)
@@ -3488,7 +3493,7 @@ function drawWeekOld(){
   // 회기·보강 모으기
   const byScd = {}, mkOf = {};
   SESS.forEach(s => {
-    if (isMk(s)) { mkOf[s.makeup_for] = s; return; }
+    if (isMk(s)) { mkPut(mkOf, s); return; }
     if (!s.schedule_id) return;          // 직접 넣은 보강은 따로 그린다
     (byScd[s.schedule_id] = byScd[s.schedule_id] || []).push(s);
   });
@@ -4489,7 +4494,7 @@ function drawDay(){
 
   // 결석 -> 보강 잇기
   const mkOf = {};
-  SESS.forEach(s => { if (isMk(s)) mkOf[s.makeup_for] = s; });
+  SESS.forEach(s => { if (isMk(s)) mkPut(mkOf, s); });
 
   drawShort(byScdAll, mkOf);
   drawFind();
@@ -4846,7 +4851,7 @@ function drawDay(){
               const noNeed = (Number(x.support_type_id) === 2 && !x.run_no);
               tail = (mk
                 ? '<span class="go">→ ' + mkDay(mk) + ' '
-                  + h12(nearest(toMin(mk.start_time)).hm) + '</span>' : '')
+                  + h12(nearest(toMin(mk.start_time)).hm) + (pCount(mk) ? '' : ' 안 함') + '</span>' : '')
                 + ((CAN_EDIT && !noNeed) ? '<button class="mkbtn" data-mk="' + x.id + '"'
                   + ' title="' + (mk ? '보강 고치기' : '보강 잡기') + '">＋</button>' : '')
                 + findBtn(x, mk);
@@ -7191,7 +7196,7 @@ function openW5(d5, th, hm){
 
   // 보강을 못 잡은 결석·휴무 모으기
   const mkOf = {};
-  SESS.forEach(s => { if (isMk(s)) mkOf[s.makeup_for] = s; });
+  SESS.forEach(s => { if (isMk(s)) mkPut(mkOf, s); });
   const need = SESS.filter(s =>
     (s.status === '결석' || s.status === '휴무') && !mkOf[s.id])
     .concat(prevNeed());   // 지난 달에서 넘어온 것도 함께
@@ -7524,7 +7529,7 @@ function drawSplit(){
   if (!box || !mkSess) return;
   const s = mkSess;
   const has40 = allSessU().some(x => Number(x.makeup_for) === Number(s.id)
-      && Number(x.minutes || 40) === 40 && x.status !== '취소');
+      && Number(x.minutes || 40) === 40 && pCount(x));
   if (has40) {
     box.innerHTML = '<div class="spnone">40분 보강이 잡혀 있어 쪼개지 않습니다.</div>';
     sum.textContent = ''; return;
@@ -7735,8 +7740,9 @@ function openMk(absId){
   const s = findSess(absId);
   if (!s) return;
   mkSess = s;
-  const has = SESS.find(x => isMk(x) && x.makeup_for === absId)
-           || PREV.find(x => isMk(x) && x.makeup_for === absId);
+  // 결석(안 함)한 보강은 「잡힌 보강」으로 치지 않는다 — 다시 잡을 수 있게 (2026-09-17)
+  const has = SESS.find(x => isMk(x) && x.makeup_for === absId && pCount(x))
+           || PREV.find(x => isMk(x) && x.makeup_for === absId && pCount(x));
   const km = s.month_key || mon;
   const old = (km !== mon);
   $('mkTitle').textContent = (s._name||'') + ' · ' + monNo(km)+'-'+s.run_no
@@ -8284,7 +8290,7 @@ $('mkSave').onclick = async () => {
     const all = SESS.concat(PREV).filter(x => isMk(x)
       && Number(x.makeup_for) === Number(mkSess.id));
     const old = (mkMin === 40)
-      ? all.find(x => Number(x.minutes || 40) === 40)
+      ? all.find(x => Number(x.minutes || 40) === 40 && pCount(x))   // 결석한 보강 줄은 기록으로 남기고 새로 넣는다
       : all.find(x => String(x.plan_date) === String(d)
           && String(x.start_time).slice(0,5) === String(row.start_time).slice(0,5));
     let data, error;
@@ -8318,8 +8324,8 @@ $('mkSave').onclick = async () => {
 //   발달재활은 그쪽에서 막혀 있어, 시간표에서만 처리할 수 있다.
 $('mkGiveup').onclick = async () => {
   if (!mkSess) return;
-  const has = SESS.find(x => isMk(x) && x.makeup_for === mkSess.id)
-           || PREV.find(x => isMk(x) && x.makeup_for === mkSess.id);
+  const has = SESS.find(x => isMk(x) && x.makeup_for === mkSess.id && pCount(x))
+           || PREV.find(x => isMk(x) && x.makeup_for === mkSess.id && pCount(x));
   if (has) {
     mkmsg('이미 보강을 잡아 두었습니다.\n먼저 「보강 취소」를 누르세요.', false);
     return;
@@ -8346,8 +8352,8 @@ $('mkGiveup').onclick = async () => {
 
 $('mkDel').onclick = async () => {
   if (!mkSess) return;
-  const old = SESS.find(x => isMk(x) && x.makeup_for === mkSess.id)
-           || PREV.find(x => isMk(x) && x.makeup_for === mkSess.id);
+  const old = SESS.find(x => isMk(x) && x.makeup_for === mkSess.id && pCount(x))
+           || PREV.find(x => isMk(x) && x.makeup_for === mkSess.id && pCount(x));
   if (!old) { mkmsg('취소할 보강이 없습니다.', false); return; }
   if (!confirm('이 보강을 취소할까요?')) return;
   const { error } = await sb.from('nl_sessions').delete().eq('id', old.id);
