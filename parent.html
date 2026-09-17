@@ -1201,6 +1201,23 @@ function showPopups() {
   one();
 }
 
+// 쪼갠 보강 내역 글 (2026-09-17)
+//   완료한 조각만 「완료」로 센다 · 아직 안 한 조각은 「예정」 · 결석한 조각은 빼고 셈
+function fillText(parts) {
+  parts = parts.slice().sort((a, b) =>
+    String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
+  const done = parts.filter(v => v.status === '완료').reduce((t, v) => t + Number(v.minutes || 0), 0);
+  const plan = parts.filter(v => v.status === '보강' || v.status === '예정')
+                    .reduce((t, v) => t + Number(v.minutes || 0), 0);
+  const list = parts.map(v => '+' + Number(v.minutes)
+    + ((v.status === '결석' || v.status === '취소') ? '(못 함)' : '')).join(' ');
+  let tail;
+  if (done >= 40) tail = ' · 완료';
+  else if (done + plan >= 40) tail = ' · ' + plan + '분 예정';
+  else tail = ' · ' + (40 - done - plan) + '분 남음';
+  return list + tail;
+}
+
 // ── 한 달 시간표 ────────────────────────────────────────
 async function loadMonth() {
   $('mkLabel').textContent = CURMK.slice(0, 4) + '년 ' + (+CURMK.slice(5, 7)) + '월';
@@ -1218,6 +1235,25 @@ async function loadMonth() {
     $('list').innerHTML = '<div class="none">시간표를 가져오지 못했습니다.<br>센터로 연락해 주세요.</div>';
     return;
   }
+  // 다른 달 몫이지만 이 달 날짜에 하는 보강·조각도 함께 보여 준다 (2026-09-17)
+  //   8월 결석분 20분을 9월 18일 수업 뒤에 하는 것 등
+  try {
+    const y = +CURMK.slice(0, 4), m = +CURMK.slice(5, 7);
+    const last = CURMK + '-' + String(new Date(y, m, 0).getDate()).padStart(2, '0');
+    const { data: ox } = await sb.from('nl_sessions')
+      .select('id, plan_date, start_time, status, therapist_id, therapy_id,'
+            + ' support_type_id, run_no, makeup_for, minutes, no_makeup')
+      .eq('child_id', CURKID)
+      .neq('month_key', CURMK)
+      .not('makeup_for', 'is', null)
+      .gte('plan_date', CURMK + '-01').lte('plan_date', last);
+    // 못 한(결석·취소) 다른 달 조각은 빼고 보여 준다
+    const ox2 = (ox || []).filter(v => v.status !== '결석' && v.status !== '취소');
+    if (ox2.length) {
+      data = (data || []).concat(ox2).sort((a, b) =>
+        String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
+    }
+  } catch (e) {}
   // 「보강 없음」으로 뺀 날은 학부모 시간표에도 안 그린다 (2026-09-09)
   if (data) data = data.filter(r => !r.no_makeup);
   if (!data || !data.length) {
@@ -1304,7 +1340,16 @@ async function loadMonth() {
       if (st === '쉼' || st === '휴무') {
         const txt = HOL[d] ? HOL[d] + ' · 공휴일'
                            : (thn ? thn + ' 선생님 휴가' : '휴가');
-        return '<div class="row rest"><div class="nm">' + esc(txt) + '</div></div>';
+        // 이 날 몫을 다른 날에 채우면 함께 적는다 (2026-09-17)
+        const mine = (data || []).filter(v => Number(v.makeup_for) === Number(r.id)
+          && v.status !== '취소');
+        let fill = '';
+        const pz = mine.filter(v => Number(v.minutes || 40) !== 40);
+        const m40 = mine.filter(v => Number(v.minutes || 40) === 40 && v.status !== '결석');
+        if (pz.length) fill = ' · 보강 ' + fillText(pz);
+        else if (m40.length) fill = ' · ' + m40.map(v => (+String(v.plan_date).slice(5, 7)) + '/'
+          + (+String(v.plan_date).slice(8, 10)) + ' 보강').join(', ');
+        return '<div class="row rest"><div class="nm">' + esc(txt + fill) + '</div></div>';
       }
 
       let cls = 'tag', txt = st;
@@ -1362,13 +1407,7 @@ async function loadMonth() {
       {
         const parts = (data || []).filter(v =>
           Number(v.makeup_for) === Number(r.id) && Number(v.minutes || 40) !== 40);
-        if (parts.length) {
-          const sum = parts.reduce((t, v) => t + Number(v.minutes || 0), 0);
-          filltag = '<div class="fillnote">'
-            + parts.map(v => '+' + Number(v.minutes)).join(' ')
-            + (sum >= 40 ? ' · 완료' : ' · ' + (40 - sum) + '분 남음')
-            + '</div>';
-        }
+        if (parts.length) filltag = '<div class="fillnote">' + fillText(parts) + '</div>';
       }
 
       return '<div class="row">'
