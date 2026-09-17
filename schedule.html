@@ -7200,11 +7200,15 @@ function splitHosts(s){
   const sp = Number(s.support_type_id) || 0;
   const hostSp = (sp === 8) ? 2 : sp;
   const from = String(s.month_key || mon) + '-01', lim = mkLimit(s);
-  return allSessU().filter(x => !isMk(x) && x.id !== s.id
+  // 2026-09-17 원칙 2 바뀜 — 40분 보강 수업 앞·뒤에도 조각을 붙일 수 있다
+  //   정규 줄은 예정·완료 / 보강 줄은 보강·완료 (서버 nl_split_host_trg 와 같은 규칙)
+  return allSessU().filter(x => x.id !== s.id
+      && Number(x.makeup_for || 0) !== Number(s.id)
       && Number(x.child_id) === Number(s.child_id)
       && Number(x.therapist_id) === Number(s.therapist_id)
       && Number(x.support_type_id) === hostSp
-      && (x.status === '예정' || x.status === '완료')
+      && (isMk(x) ? (x.status === '보강' || x.status === '완료')
+                  : (x.status === '예정' || x.status === '완료'))
       && Number(x.minutes || 40) === 40 && x.start_time
       && String(x.plan_date) >= from && String(x.plan_date) <= lim)
     .sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
@@ -7294,7 +7298,8 @@ function drawSplit(){
     const tg = (k, v, t, on, dis) => '<button type="button" class="sptg' + (on ? ' on' : '') + '"'
       + ' data-k="' + k + '" data-v="' + v + '"' + (dis ? ' disabled' : '') + '>' + t + '</button>';
     return '<div class="sprow" data-h="' + h.id + '">'
-      + '<span class="spd">' + dLbl(h.plan_date) + ' ' + h12(h.start_time) + '</span>'
+      + '<span class="spd">' + dLbl(h.plan_date) + ' ' + h12(h.start_time)
+        + (isMk(h) ? ' <small style="color:#5A86B0;">(보강)</small>' : '') + '</span>'
       + tg('side', 'before', '앞', side === 'before', false)
       + tg('side', 'after', '뒤', side === 'after', false)
       + '<span style="width:6px;"></span>'
