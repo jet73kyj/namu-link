@@ -993,6 +993,96 @@
   #mainBox .calnav { color:#7E5530; border-color:#E4E0DA; }
   #mainBox .calday.has { color:#2F2926; background:#FAF9F7; }
   #mainBox .calday.today { box-shadow:inset 0 0 0 2px #B07A4A; }
+  /* 안쪽 창 — 보강 잡기 · 수업 넣기 · 수정 · 휴무 관리 · 5주차 자리 · 보강 넣기 (2026-09-17)
+     흰 바탕 · 제목 줄 옅은 카멜 · 「저장」만 카멜 단추 · 저장·닫기는 오른쪽 끝 (자리만 옮김, 하는 일 그대로) */
+  #mainBox .panel, #mainBox .panel.mkskin, #mainBox .panel.blue, #mainBox .panel.green,
+  #mainBox .panel.grey-p { background:#fff; border:1px solid #ECE8E3; color:#2F2926; }
+  #mainBox .panel .panel-t { color:#2F2926 !important; font-size:15px; }
+  #mainBox .float { box-shadow:0 10px 30px rgba(47,41,38,.18); }
+  #mainBox .float .drag { background:#F8F1E8; border-bottom:2px solid #C9A27E;
+    border-radius:10px 10px 0 0; color:#A39C95; }
+  #mainBox .float .drag b { color:#2F2926; }
+  #mainBox .float .drag .xbtn { background:#fff; color:#4A433F; border:1px solid #E4E0DA;
+    margin:0 0 0 auto; padding:3px 10px; }
+  #mainBox .float .drag .xbtn:hover { background:#F7F6F4; }
+  #mainBox .panel label, #mainBox .pgrid label { color:#7D7670; }
+  #mainBox .panel input, #mainBox .panel select, #mainBox .panel textarea {
+    border-color:#E4E0DA; }
+  #mainBox .panel input:focus, #mainBox .panel select:focus, #mainBox .panel textarea:focus {
+    outline:2px solid #B07A4A; outline-offset:-1px; }
+  #mainBox .sub2 { color:#A39C95; }
+  /* 단추 */
+  #mainBox .pbtns { flex-wrap:wrap; align-items:center; }
+  #mainBox .panel .pbtn { background:#fff !important; color:#4A433F !important;
+    border:1px solid #E4E0DA !important; border-radius:6px; font-weight:500; }
+  #mainBox .panel .pbtn:hover { background:#F7F6F4 !important; }
+  #mainBox .panel .pbtn.ok-btn, #mainBox #mkSave {
+    background:#B07A4A !important; color:#fff !important; border-color:#B07A4A !important;
+    font-weight:600; order:20; }
+  #mainBox .panel .pbtn.ok-btn:hover, #mainBox #mkSave:hover { background:#98663A !important; }
+  #mainBox .panel .pbtn.red, #mainBox #mkDel, #mainBox #mnDel {
+    background:#fff !important; color:#C2553A !important; border-color:#F2D3C8 !important; }
+  #mainBox .panel .pbtn.red:hover, #mainBox #mkDel:hover, #mainBox #mnDel:hover {
+    background:#FCEFEA !important; }
+  #mainBox #mkClose, #mainBox #mnClose, #mainBox #adClose, #mainBox #offClose,
+  #mainBox #blkClose, #mainBox #cnsClose, #mainBox #wkClose, #mainBox #w5Close {
+    order:10; margin-left:auto; }
+  #mainBox .panel .pbtn:disabled, #mainBox #edBox .pbtn.locked {
+    background:#F4F2EF !important; color:#B5AEA7 !important; border-color:#ECE8E3 !important; }
+  /* 휴무 관리 갈래 — 밑줄 모양 */
+  #mainBox .offtabs { gap:16px; border-bottom:1px solid #ECE8E3; }
+  #mainBox .offtab { flex:0 0 auto; width:auto; margin:0; background:transparent; border:none;
+    border-bottom:2px solid transparent; border-radius:0; color:#A39C95;
+    padding:6px 2px; margin-bottom:-1px; }
+  #mainBox .offtab.on { background:transparent; color:#2F2926; border-bottom-color:#2F2926;
+    font-weight:700; }
+  #mainBox .blkslot { border-color:#E4E0DA; color:#2F2926; }
+  #mainBox .blkslot b { color:#A39C95; }
+  #mainBox .blkslot.on { background:#B07A4A; border-color:#B07A4A; color:#fff; }
+  #mainBox .blkslot.on b { color:#F4E9DC; }
+  #mainBox .meetb { border-color:#E4E0DA; color:#4A433F; }
+  #mainBox .meetb.on { background:#B07A4A; border-color:#B07A4A; color:#fff; }
+  #mainBox .offlist-t { color:#4A433F; }
+  #mainBox .offone { border-color:#E4E0DA; color:#4A433F; }
+  #mainBox .offone .del { color:#C2553A; }
+  #mainBox .offnone { color:#A39C95; }
+  /* 보강 잡기 창 안쪽 */
+  #mainBox .mkhave { background:#EFF4F9; border:none; border-left:2px solid #5A86B0;
+    border-radius:4px; color:#3E6690; }
+  #mainBox .mkstat .stb { border-color:#E4E0DA; color:#4A433F; }
+  #mainBox .mkstat .stb.on, #mainBox .mkstat .stb.on:disabled {
+    background:#F8F1E8; border-color:#C9A27E; color:#2F2926; }
+  #mainBox .sprow { border-bottom-color:#F0EDE9; }
+  #mainBox .sprow .spd { color:#4A433F; }
+  #mainBox .sprow .sptg { border-color:#E4E0DA; color:#4A433F; }
+  #mainBox .sprow .sptg.on { background:#F8F1E8; border-color:#C9A27E; color:#2F2926; }
+  #mainBox .spsum { color:#9A6E20; }
+  #mainBox .spsum.ok { color:#4E8A5D; }
+  #mainBox .minbtn { border-color:#E4E0DA; color:#4A433F; }
+  #mainBox .minbtn.on { background:#B07A4A; border-color:#B07A4A; }
+  #mainBox .freeone { border-color:#E4E0DA; color:#4A433F; }
+  #mainBox .freeone:hover { background:#B07A4A; border-color:#B07A4A; color:#fff; }
+  #mainBox .freenone { color:#C2553A; }
+  /* 수업 넣기 · 수정 창 안쪽 */
+  #mainBox #edBox .ednow { background:#FAF9F7; border:none; border-left:2px solid #C9A27E;
+    border-radius:4px; color:#2F2926; }
+  #mainBox #edBox .ednow .nowline2 { color:#7D7670; }
+  #mainBox #edBox .edsec-t { color:#2F2926; border-top-color:#ECE8E3; }
+  #mainBox #edBox .edend { background:#FCEFEA; border:none; border-left:2px solid #D8684A;
+    border-radius:4px; }
+  #mainBox #edBox .edend-t { color:#9A3E27; }
+  #mainBox #edBox .edend-note { color:#8A5A4A; }
+  #mainBox .ednote { background:#FAF9F7; color:#7D7670; }
+  #mainBox .wkhead { color:#B5AEA7; }
+  #mainBox .wkbox.on .wkhead { color:#7E5530; }
+  #mainBox .wk { border-color:#E4E0DA; color:#A39C95; }
+  #mainBox .wk.on { background:#B07A4A; border-color:#B07A4A; color:#fff; }
+  #mainBox .wksum { color:#4A433F; }
+  #mainBox .hit { border-color:#E4E0DA; }
+  #mainBox .hit:hover { background:#B07A4A; border-color:#B07A4A; }
+  #mainBox .picked { color:#2F2926; }
+  #mainBox .w5one { border-color:#E4E0DA; }
+  #mainBox .w5one:hover { background:#B07A4A; border-color:#B07A4A; }
   /* ===== 꾸밈 B 끝 ===== */
 </style>
 </head>
@@ -1078,7 +1168,7 @@
          max-height:80vh;overflow:auto;padding:18px 20px;box-shadow:0 8px 30px rgba(0,0,0,.2);
          position:relative;">
       <div id="pairHead" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:move">
-        <b style="font-size:17px">🔗 연달아 가능한 자리</b>
+        <b style="font-size:17px">연달아 가능한 자리</b>
         <span style="font-size:12px;color:#999">(제목 줄을 잡고 옮기세요)</span>
         <button id="pairX" style="margin-left:auto;border:0;background:#2c5c37;
           color:#fff;font-weight:700;border-radius:8px;padding:7px 16px;
@@ -1090,7 +1180,7 @@
 
   <!-- 휴무 관리 창 -->
   <div id="offBox" class="panel grey-p" style="display:none;">
-    <div class="panel-t">🏖 휴무 관리</div>
+    <div class="panel-t">휴무 관리</div>
     <div class="offtabs">
       <button id="tabOff"  class="offtab on">휴무</button>
       <button id="tabBlk" class="offtab">시간 막음</button>
@@ -5952,7 +6042,7 @@ function floatOn(id, ev){
     bar.className = 'drag';
     bar.innerHTML = '<b>' + (FLOATNM[id] || '') + '</b>'
       + '<span>제목을 끌어 옮기세요</span>'
-      + '<button type="button" class="xbtn">✕ 닫기</button>';
+      + '<button type="button" class="xbtn">닫기</button>';
     box.insertBefore(bar, box.firstChild);
     bar.querySelector('.xbtn').onclick = () => { box.style.display = 'none'; };
     dragBind(bar, box);
