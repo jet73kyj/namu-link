@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>나무링크 · 학부모</title>
+<title>자라는나무 · 학부모</title>
 <link rel="manifest" href="manifest-parent.json">
 <meta name="theme-color" content="#3c7a4a">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -12,8 +12,9 @@
 <link rel="apple-touch-icon" href="img/nl-icon-180.png">
 <style>
   :root {
-    --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
-    --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec;
+    /* 꾸밈 B (2026-09-17) — 직원 화면과 같은 색. 옛 초록은 --acc:#3c7a4a */
+    --ink:#2F2926; --ink2:#4A433F; --ink3:#A39C95;
+    --line:#ECE8E3; --bg:#F5F4F2; --acc:#B07A4A; --acc-bg:#F8F1E8;
   }
   * { box-sizing:border-box; }
   body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:var(--bg);
@@ -294,14 +295,113 @@
   .nwbtn:active { background:#c25a28; }
   .foot { margin-top:26px; font-size:12px; color:var(--ink3); line-height:1.9;
           border-top:1px solid var(--line); padding-top:14px; }
+
+  /* ===== 꾸밈 B (2026-09-17) — 학부모 화면. 따뜻하지만 차분하게 =====
+     내용·셈은 그대로. 되돌리려면 이 묶음과 :root 색만 되돌리면 된다 */
+  .loginlogo { display:block; height:52px; width:auto; margin:0 0 12px; }
+  .toptitle { display:flex; align-items:center; gap:10px; }
+  .toptitle h1 { font-size:16px; border-left:1px solid var(--line); padding-left:10px; }
+  .toplogo { height:36px; width:auto; display:block; }
+  .top { background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px 12px; }
+  .ghost { background:#fff; color:var(--ink2); border:1px solid #E4E0DA; padding:7px 12px; font-size:13px; }
+  .ok  { color:#7E5530; }
+  /* 갈래 단추 — 옅은 바탕에 고른 것만 흰색 */
+  .tabs { background:#ECE8E3; border-radius:12px; padding:3px; gap:2px; }
+  .tabs button { background:transparent; border:none; color:#7D7670; padding:9px 2px;
+                 font-size:14px; border-radius:9px; }
+  .tabs button.on { background:#fff; color:var(--ink); border:none; font-weight:700;
+                    box-shadow:0 1px 3px rgba(47,41,38,.10); }
+  .rtabs { background:#F0EDE9; border-radius:10px; padding:3px; gap:2px; }
+  .rtabs button { background:transparent; border:none; color:#7D7670; border-radius:8px; }
+  .rtabs button.on { background:#fff; color:var(--ink); border:none;
+                     box-shadow:0 1px 3px rgba(47,41,38,.10); }
+  /* 자녀 고르기 */
+  .kid { color:#7D7670; border-color:#E4E0DA; }
+  .kid.on { background:#fff; color:var(--ink); border-color:var(--acc); font-weight:700; }
+  .onekid { background:#fff; color:var(--ink); border:1px solid var(--line);
+            border-left:3px solid #C9A27E; border-radius:8px; }
+  .bar button.ghost { padding:7px 12px; }
+  /* 시간표 */
+  .day { border-color:var(--line); }
+  .tag { background:#EEF5EF; color:#3F6B4B; }
+  .tag.off { background:#F4F2EF; color:#A39C95; }
+  .tag.ab  { background:#FCEFEA; color:#B8573B; }
+  .tag.mk  { background:#EFF4F9; color:#4A76A0; }
+  .row.rest { background:#F7F6F4; }
+  .row.rest .nm { color:#A39C95; }
+  .sup { background:#F4F2EF; color:#7D7670; }
+  .sup.s1 { background:#F7F1E6; color:#8A6420; }
+  .sup.s2 { background:#EFF4F9; color:#4A76A0; }
+  .sup.s3, .sup.s4 { background:#F2F0F8; color:#5E5591; }
+  .sup.s5 { background:#FBF0EA; color:#9A5A3A; }
+  .sup.s6, .sup.s7 { background:#FBF0F4; color:#8E3A5E; }
+  .sup.s8 { background:#EEF5F3; color:#3E7A6E; }
+  .prevmk { background:#EFF4F9; color:#4A76A0; }
+  .fillnote { color:#4A76A0; }
+  .runno { color:#A39C95; }
+  .absbtn { border-color:#E4E0DA; color:var(--ink2); }
+  .absbtn.wait { border-color:#E8CFA0; background:#FBF6EC; color:#9A6E20; }
+  .absbtn.undo { border-color:#D3E0EC; background:#fff; color:#4A76A0; }
+  /* 보강이 필요한 수업 — 흰 바탕 + 왼쪽 코랄 줄 */
+  .needbox { background:#fff; border:1px solid #F2D3C8; border-left:3px solid #D8684A; }
+  .needttl { color:#B8573B; }
+  .needone { background:#FAF9F7; }
+  .needd { color:var(--ink); }
+  .needw { color:#7D7670; }
+  .needbtn, .fixbtn, .popbtn { background:var(--acc); }
+  .needbtn.gray, .fixbtn.gray { background:#fff; border:1px solid #E4E0DA; color:#7D7670; }
+  .popbtn.gray { background:#fff; border:1px solid #E4E0DA; color:#7D7670; }
+  .needlock { background:#FAF9F7; border-color:var(--line); color:var(--ink2); }
+  .askinfo { background:#FAF9F7; color:var(--ink2); }
+  .asklb { color:var(--ink2); }
+  #askWhy, .slot { border-color:#E4E0DA; }
+  .slot { color:var(--ink2); }
+  .slot.on { background:var(--acc); border-color:var(--acc); }
+  .plgrp { border-color:var(--line); }
+  .plst, .pltot { color:var(--ink); }
+  .plam { color:#7E5530; }
+  /* 기록지 */
+  .rc, .nt { border-color:var(--line); }
+  .rctitle, .nttitle, .poptitle { color:var(--ink); }
+  .rcpdf { border-color:#E4E0DA; color:#7E5530; }
+  .rctbl th { background:#F8F1E8; color:var(--ink2); border-color:var(--line); }
+  .rctbl td { border-color:#F0EDE9; }
+  .abs { color:#B8573B; }
+  .mkup { color:#4A76A0; }
+  /* 공지 */
+  .nt.unread { border-color:#E8CFA0; background:#FFFCF6; }
+  .poptag { background:#F8F1E8; color:#7E5530; }
+  .dot { background:#D8684A; }
+  /* 교육비 — 자녀마다 흰 카드 + 이름 앞 카멜 줄 */
+  .pkid.c0, .pkid.c1, .pkid.c2, .pkid.c3 { background:#fff; border:1px solid var(--line); }
+  .pkid .knm::before { width:3px; background:#C9A27E; }
+  .grpttl { background:#FAF9F7; color:#7D7670; }
+  .pr { background:#fff; border-top:1px solid #F0EDE9; border-radius:0; margin-bottom:0; }
+  .pdet { border-top-color:#ECE8E3; }
+  .dtl.ded { color:#B8573B; }
+  .pill.paid { background:#EEF5EF; color:#3F6B4B; }
+  .pill.no   { background:#FCEFEA; color:#B8573B; }
+  .pill.est  { background:#F4F2EF; color:#7D7670; }
+  .estnote { background:#FAF9F7; color:#7D7670; }
+  .ptot { background:#F8F1E8; color:var(--ink); border:1px solid #EFE3D3; box-shadow:none; }
+  .pacc { background:#FAF9F7; }
+  .unpaid { background:#fff; border:1px solid #F2D3C8; border-left:3px solid #D8684A; }
+  .unpaid .ut, .unpaid .pr .pa { color:#B8573B; }
+  /* 소식 — 「구경하러 가기」 주황은 그대로 */
+  .nwrow { border-color:var(--line); }
+  .nwrow.pin { background:#FFFCF6; border-color:#E8CFA0; }
+  .nwkind { background:#F8F1E8; color:#7E5530; }
+  .nwtt { color:var(--ink); }
+  /* ===== 꾸밈 B 끝 ===== */
 </style>
 </head>
 <body>
 
 <!-- 로그인 전 -->
 <div class="box" id="loginBox">
-  <h1>🌿 나무링크</h1>
-  <div class="sub">자라는나무 아동발달치료센터</div>
+  <img src="img/nl-logo.png" alt="자라는나무" class="loginlogo" onerror="this.style.display='none'">
+  <h1>자라는나무</h1>
+  <div class="sub">아동발달치료센터 · 학부모</div>
   <label for="ph">휴대폰 번호</label>
   <input id="ph" type="tel" inputmode="numeric" autocomplete="username"
          placeholder="01012345678">
@@ -313,7 +413,8 @@
 
 <!-- 첫 로그인 — 비밀번호 바꾸기 -->
 <div class="box" id="pwBox" style="display:none;">
-  <h1>🌿 비밀번호 정하기</h1>
+  <img src="img/nl-logo.png" alt="자라는나무" class="loginlogo" onerror="this.style.display='none'">
+  <h1>비밀번호 정하기</h1>
   <div class="sub">처음 들어오셨습니다.<br>쓰실 비밀번호를 정해 주세요.</div>
   <label for="np1">새 비밀번호 (숫자 4자리)</label>
   <input id="np1" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password">
@@ -330,7 +431,10 @@
 <!-- 로그인 후 -->
 <div class="wrap" id="mainBox" style="display:none;">
   <div class="top">
-    <h1>🌿 나무링크</h1>
+    <div class="toptitle">
+      <img src="img/nl-logo.png" alt="자라는나무" class="toplogo" onerror="this.style.display='none'">
+      <h1>자라는나무</h1>
+    </div>
     <button id="out" class="ghost">로그아웃</button>
   </div>
 

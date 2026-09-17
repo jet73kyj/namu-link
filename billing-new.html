@@ -2454,8 +2454,32 @@ async function toggleFix(childId, btn) {
   // 바꾸고 저장하지 않은 칸이 있으면 먼저 저장한다 (2026-09-15)
   //   다시 그릴 때 저장된 값으로 돌아가, 「적용 없음」을 고르고 확정하면 되돌아가던 일
   const ch = CHANGED[childId];
-  //   확정 → 예정으로 돌릴 때도 같다 (28번 9월 승인번호가 저장 안 된 채 사라진 일)
-  if (ch && (ch.card || ch.bank)) {
+  // 확정 = 금액 확정 = 납부할 금액 확정 (2026-09-17 은정님 정함)
+  //   「확정」을 누르면 저장 단추를 따로 누르지 않아도 저장한다
+  //   바꾼 쪽 + 금액이 있는데 아직 저장 줄이 없는 쪽. 낸 날이 비어 있으면 미납으로 저장된다
+  if (now) {
+    const box0 = document.querySelector('.kid[data-child="' + childId + '"]');
+    const cal = CALC[childId] || {};
+    const sv = SAVED[childId] || {};
+    const ks = Object.keys(sv);
+    const need = {
+      card: !!(ch && ch.card) || (cal.card > 0 && !ks.some(k => Number(k) !== 2)),
+      bank: !!(ch && ch.bank) || (cal.bank > 0 && !ks.some(k => Number(k) === 2))
+    };
+    for (const side of ['card', 'bank']) {
+      if (!need[side]) continue;
+      const sb2 = box0 ? box0.querySelector('.ksave2[data-only="' + side + '"]') : null;
+      if (!sb2) continue;
+      const r = await saveKid(childId, sb2, side);
+      if (r === 'empty') continue;
+      if (!sb2.classList.contains('done')) {
+        alert('저장하지 못해 확정을 하지 않았습니다. 위 알림 글을 확인해 주세요.');
+        return;
+      }
+    }
+  }
+  //   확정 → 예정으로 돌릴 때는 바꾼 칸이 있으면 물어보고 저장한다 (28번 9월 승인번호가 저장 안 된 채 사라진 일)
+  else if (ch && (ch.card || ch.bank)) {
     const what = [ch.card ? '카드' : '', ch.bank ? '계좌' : ''].filter(Boolean).join(' · ');
     if (!confirm('바꾼 내용(' + what + ')이 아직 저장되지 않았습니다.\n저장하고 '
         + (now ? '확정할까요?' : '예정으로 돌릴까요?'))) return;
@@ -2592,7 +2616,7 @@ async function saveKid(childId, btn, only) {
     && (!only || (only === 'bank' ? st === 2 : st !== 2)));
 
   if (!rows.length && !deadSt.length) {
-    show($('msg2'), '저장할 내용이 없습니다.', false); return;
+    show($('msg2'), '저장할 내용이 없습니다.', false); return 'empty';
   }
 
   // 지울 것이 있으면 한 번 물어본다
