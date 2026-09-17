@@ -4327,6 +4327,8 @@ function draw(){
     return;
   }
   if (VIEW === 'week') { drawWeek(); afterDraw(); return; }
+  // 이름 줄도 함께 다시 그린다 — 치료사 체크를 바꾸면 아래 칸과 어긋나던 것 (2026-09-17)
+  drawHead();
   drawDay();
   afterDraw();
 }
