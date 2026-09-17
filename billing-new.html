@@ -1300,6 +1300,7 @@ async function load() {
       liveScs(t).forEach(s => {
         (SCHED[t.child_id] = SCHED[t.child_id] || []).push({
           sched_id: s.id,
+          therapy_id: t.id,
           therapy_type_id: t.therapy_type_id,
           support_type_id: t.support_type_id,
           weekday: s.weekday,
@@ -1399,6 +1400,10 @@ function buildRows(childId, mk) {
       therapist_id: s.therapist_id,
       unit: unit,
       sched_id: s.sched_id,
+      therapy_id: s.therapy_id,
+      ttname: TTYPES[s.therapy_type_id] || '치료',
+      hm: String(s.start_time).slice(0,5),
+      dur: s.duration,
       mode: s.count_mode || '',
       base_st: s.support_type_id,
       wk: s.wk || [true,true,true,true],
@@ -1505,6 +1510,15 @@ function hasBill(childId) {
 // 카드·계좌 가운데 화면이 금액을 셈했는데 저장 줄이 없는 쪽 (2026-09-15)
 //   카드만 저장하고 본인부담금(계좌)을 저장 안 하면 「미납만」에서 빠지고
 //   「완납만」에 들어가던 일(79번 9월)을 막는다
+// 그 쪽(카드·계좌)에 저장된 줄이 있고 바꾼 칸이 없으면 처음부터 「✓ 저장됨」 (2026-09-17)
+//   전에는 늘 「저장 전」으로 그려, 확정해서 저장한 뒤 다시 그리면 저장 안 된 것처럼 보였다
+function sideSaved(childId, side) {
+  const ch = CHANGED[childId];
+  if (ch && ch[side]) return false;
+  const ks = Object.keys(SAVED[childId] || {});
+  return side === 'bank' ? ks.some(k => Number(k) === 2) : ks.some(k => Number(k) !== 2);
+}
+
 function sideMissing(childId) {
   const cal = CALC[childId];
   if (!cal) return false;
@@ -1919,18 +1933,42 @@ function drawKid(c) {
       // 발달재활 수업 — 보기만 한다 (본인부담금은 계좌입금 상자). 날짜 단추는 잠김
       const devG = groups.find(x => x.support_type_id === 2);
       if (devG && devG.items && devG.items.length) {
+        // 같은 치료 · 같은 사업이면 한 줄로 합친다 (2026-09-17)
+        //   달 중간에 시각·요일을 바꾸면 요일줄이 둘로 나뉘어 두 층으로 보이던 것
+        //   글은 「목 14:00→14:20」, 날짜 단추는 날짜 차례로 한 줄에. 회기 수는 더한다
+        const bag = [];
         devG.items.forEach(it => {
-          const dn = Math.round(Number(it.count || 0) * 100) / 100;
+          const key = (it.therapy_id || it.sched_id) + '|' + it.row_st;
+          let g2 = bag.find(x => x.key === key);
+          if (!g2) { g2 = { key: key, list: [] }; bag.push(g2); }
+          g2.list.push(it);
+        });
+        bag.forEach(g2 => {
+          const it = g2.list[0];
+          const uniq = a => a.filter((v, i) => v && a.indexOf(v) === i);
+          const wds = uniq(g2.list.map(x => x.weekday));
+          const hms = uniq(g2.list.map(x => x.hm));
+          const lbl = g2.list.length === 1 ? it.label
+            : it.ttname + ' ' + wds.join('→') + ' ' + hms.join('→') + ' (' + it.dur + '분)'
+              + (/5주차/.test(it.label) ? ' · 5주차' : '');
+          const ths = uniq(g2.list.map(x => x.therapist_name));
+          const dn = Math.round(g2.list.reduce((a, x) => a + Number(x.count || 0), 0) * 100) / 100;
+          const srows = [];
+          g2.list.forEach(x => { (SROWS[x.sched_id + '|' + x.row_st] || []).forEach(r => srows.push(r)); });
+          srows.sort((a, b2) => String(a.plan_date).localeCompare(String(b2.plan_date)));
           b += '<div class="r look">'
             + '<span class="nm"></span>'
-            + '<span class="de">' + tagOf(it) + esc(it.label)
-            + ' · <b class="thr">' + esc(it.therapist_name) + '</b>'
+            + '<span class="de">' + tagOf(it) + esc(lbl)
+            + ' · <b class="thr">' + esc(ths.join('→')) + '</b>'
             + ' · 본인부담금은 아래 계좌입금</span>'
             + '<span class="ap"></span>'
             + '<span class="ct"><span class="lookcnt">발 ' + dn + '회</span></span>'
             + '<span class="up"></span>'
             + '<span class="am"></span></div>'
-            + btnRowHtml(it);
+            + (srows.length
+               ? '<div class="sbrow" data-sched="' + it.sched_id + '" data-bst="' + it.row_st + '">'
+                 + srows.map(sbHtml).join('') + '</div>'
+               : '');
         });
       }
     }
@@ -1988,8 +2026,8 @@ function drawKid(c) {
     + '<input class="dt pday" type="date" value="' + (cp ? cp.paid_on : '') + '">'
     + '<input class="tx kmemo" type="text" placeholder="카드 승인번호" value="'
     + esc(cm ? memoOf(cm, false) : '') + '">'
-    + '<button class="ksave2" type="button" data-only="card"'
-    + ' data-ttl="카드 저장 전">카드 저장 전</button></div>';
+    + '<button class="ksave2' + (sideSaved(c.id, 'card') ? ' done' : '') + '" type="button" data-only="card"'
+    + ' data-ttl="카드 저장 전">' + (sideSaved(c.id, 'card') ? '\u2713 저장됨' : '카드 저장 전') + '</button></div>';
 
   const dev = groups.find(g => g.support_type_id === 2);
   if (dev) {
@@ -2024,8 +2062,8 @@ function drawKid(c) {
            + '<input class="dt bday" type="date" value="' + (ds && ds.paid_on ? ds.paid_on : '') + '">'
            + '<input class="tx bmemo" type="text" placeholder="입금자명" value="'
            + esc(payerOf(c.id)) + '">'
-           + '<button class="ksave2" type="button" data-only="bank"'
-           + ' data-ttl="계좌 저장 전">계좌 저장 전</button></div>')
+           + '<button class="ksave2' + (sideSaved(c.id, 'bank') ? ' done' : '') + '" type="button" data-only="bank"'
+           + ' data-ttl="계좌 저장 전">' + (sideSaved(c.id, 'bank') ? '\u2713 저장됨' : '계좌 저장 전') + '</button></div>')
       + '</div>';
   }
 
