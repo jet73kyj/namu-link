@@ -8185,7 +8185,7 @@ async function autoDone(){
     let rows = [];
     for (let i = 0; i < ids.length; i += 200) {
       const { data: ss } = await sb.from('nl_sessions')
-        .select('id, child_id, plan_date, start_time, makeup_for')
+        .select('id, child_id, plan_date, start_time, makeup_for, minutes')
         .in('id', ids.slice(i, i + 200));
       rows = rows.concat(ss || []);
     }
@@ -8205,7 +8205,9 @@ async function autoDone(){
     });
     const line = function(s){
       const d = String(s.plan_date).slice(5).replace('-', '/');
-      return '  ' + d + ' ' + h12(s.start_time) + '  '
+      // 보강은 몇 분짜리인지 함께 적는다 (+10 쪼개기 조각 / +40 한 회 보강) (2026-09-17)
+      const mn = s.makeup_for ? ('  +' + (Number(s.minutes) || 40)) : '';
+      return '  ' + d + ' ' + h12(s.start_time) + mn + '  '
            + s.child_id + '번 ' + (KIDNM[s.child_id] || '');
     };
     const fix = rows.filter(function(s){ return !s.makeup_for; });
