@@ -2084,8 +2084,18 @@ function noCountOpt() {
 // 그 날짜가 그 치료사에게 쉬는 날인지
 //   공휴일이면 모든 치료사, 치료사 휴무면 그 치료사만
 // 그 날 쉬는 까닭 — 센터 전체가 쉬면 「공휴일」, 그 치료사만 쉬면 「휴가」
+// 쪼갠 조각으로 채워 「완료」가 된 원래 줄 (2026-09-17)
+//   실제로는 그 날 결석이라 이름에 줄을 긋고, 그 자리는 빈 자리로 보인다
+function pieceFilled(x){
+  if (!x || isMk(x) || x.status !== '완료') return false;
+  const all = (SESS || []).concat(PREV || [], NEXTM || []);
+  const mine = all.filter(p => Number(p.makeup_for) === Number(x.id));
+  return mine.length > 0 && mine.every(p => Number(p.minutes || 40) !== 40);
+}
+function absLike(x){ return !!x && (x.status === '결석' || pieceFilled(x)); }
 function stWord(x){
   if (!x) return '';
+  if (pieceFilled(x)) return '결석·쪼갬 완료';
   if (x.status === '휴무') return offWord(x.plan_date, x.therapist_id);
   // 자료에는 '보강'으로 저장하고, 화면에만 '보강예정'으로 보여 준다
   if (x.status === '보강') return '보강예정';
@@ -3365,7 +3375,8 @@ function drawWeek(){
             : '';
           return '<td class="cell">' + plus2 + list.map(x => {
             // 시간표 보기와 같은 모양으로 그린다 (ln 계열)
-            const cls = x.status === '완료' ? 'ln-done'
+            const cls = pieceFilled(x) ? 'ln-abs ln-cut'
+                      : x.status === '완료' ? 'ln-done'
                       : x.status === '결석' ? 'ln-abs ln-cut'
                       : x.status === '휴무' ? 'ln-off ln-cut'
                       : x.status === '쉼'   ? 'ln-rest'
@@ -3388,7 +3399,12 @@ function drawWeek(){
               + mkTail(x)
               + '<span class="s">' + stWord(x) + '</span>'
               + '</div>';
-          }).join('') + '</td>';
+          }).join('')
+            // 결석·쪼개기로 채운 날 — 다른 보강이 없으면 빈 자리로 (2026-09-17)
+            + ((list.some(absLike) && !list.some(x => !absLike(x) && x.status !== '휴무' && x.status !== '쉼'))
+                ? '<div class="ln ln-open"><span class="d">' + dayNo(ds2) + '일</span>'
+                  + '<span class="n">빈 자리</span></div>' : '')
+            + '</td>';
           }).join('');
         }).join('')
       + '</tr>';
@@ -3922,7 +3938,8 @@ function drawOne(){
               + '" title="보강 넣기">＋보강</button>'
             : '';
           return '<td class="cell">' + plus2 + list.map(x => {
-            const cls = x.status === '완료' ? 'ln-done'
+            const cls = pieceFilled(x) ? 'ln-abs ln-cut'
+                      : x.status === '완료' ? 'ln-done'
                       : x.status === '결석' ? 'ln-abs ln-cut'
                       : x.status === '휴무' ? 'ln-off ln-cut'
                       : x.status === '쉼'   ? 'ln-rest'
@@ -3948,7 +3965,12 @@ function drawOne(){
               + ((x.status === '결석' || x.status === '휴무' || x.status === '쉼')
                    ? '' : unpaidTag(x.child_id))
               + '</div>';
-          }).join('') + '</td>';
+          }).join('')
+            // 결석·쪼개기로 채운 날 — 다른 보강이 없으면 빈 자리로 (2026-09-17)
+            + ((list.some(absLike) && !list.some(x => !absLike(x) && x.status !== '휴무' && x.status !== '쉼'))
+                ? '<div class="ln ln-open"><span class="d">' + dayNo(oneDate) + '일</span>'
+                  + '<span class="n">빈 자리</span></div>' : '')
+            + '</td>';
         }).join('')
       + '</tr>';
   }).join('');
@@ -4603,6 +4625,17 @@ function drawDay(){
             if (!dup) lines.push({ d: dd, kind: 'open', x: x });
           });
 
+          // 결석한 날 · 쪼개기로 채운 날은 그 자리를 빈 자리로도 보여 준다 (2026-09-17 은정님)
+          //   다른 아동 보강이 들어갈 수 있게. 이미 보강이 놓였으면 안 만든다
+          lines.slice().forEach(function(L2){
+            if (L2.kind !== 'run' || !absLike(L2.x)) return;
+            const dd = L2.d;
+            const used = lines.some(function(v){
+              return (v.kind === 'mk' || v.kind === 'mn' || v.kind === 'open') && v.d === dd; });
+            if (used) return;
+            lines.push({ d: dd, kind: 'open', x: { plan_date: dd } });
+          });
+
           // 그 요일 날짜 중 아직 아무것도 안 놓인 날은 빈 자리로 둔다
           // (5주차, 보강만 있는 칸, 다른 요일 회기가 들어온 칸 모두 포함)
           wdDates(mon, wd).forEach(function(dd){
@@ -4733,12 +4766,13 @@ function drawDay(){
 
             const r = L2.r;
             // 완료면 흰 바탕. 아직 안 한 평가는 핑크 (요일별 보기와 같은 규칙)
-            const cls = x.status === '완료' ? 'ln-done'
+            const cls = pieceFilled(x) ? 'ln-abs'
+                      : x.status === '완료' ? 'ln-done'
                       : x.status === '결석' ? 'ln-abs'
                       : x.status === '휴무' ? 'ln-off'
                       : x.status === '쉼' ? 'ln-rest'
                       : x._isEval ? 'ln-eval' : 'ln-plan';
-            const cut = (x.status === '결석' || x.status === '휴무') ? ' ln-cut' : '';
+            const cut = (absLike(x) || x.status === '휴무') ? ' ln-cut' : '';
             const spn = (x.support_type_id && x.support_type_id !== r.support_type_id)
               ? (STYPE[x.support_type_id] || '') : (STYPE[r.support_type_id] || '?');
             const nm = tmDif(x, r) + spn + (r._tt === 3 ? '(전산)' : ' ') + esc(r._name) + cidTag(r._cid);
