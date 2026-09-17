@@ -5493,8 +5493,21 @@ $('edSave').onclick = async () => {
           : monNo(mon) + '월 1일부터 바뀌고, 지난 달 시간표는 그대로 남습니다.')
       + '\n계속할까요?')) return;
     const scId0 = edRow.id;
+    const thOld0 = Number(edRow.therapist_id), tpId0 = edRow.therapy_id;
     await changeFromThisMonth(nw, slot, th, du, newHm, applyD);
+    if (Number(th) !== thOld0) await moveMakeupsTo(tpId0, thOld0, th, edFromDay(applyD));
     await applySplit(scId0, wantSp);
+    draw();
+    return;
+  }
+
+  // 담당만 바뀌면 변경 시작일에서 요일줄을 나눈다 (2026-09-17 은정님 정함)
+  //   지난 기록은 옛 선생님 줄에 남고, 그날부터의 수업·옛 선생님 보강은 새 선생님이 맡는다
+  //   묻지 않는다
+  if (Number(th) !== Number(edRow.therapist_id)) {
+    const scId1 = edRow.id;
+    const ok = await changeTherapistFrom(th, du, applyD);
+    if (ok === true) await applySplit(scId1, wantSp);
     draw();
     return;
   }
@@ -5564,6 +5577,144 @@ $('edSave').onclick = async () => {
     $('edSave').disabled = false; $('edSave').textContent = '저장';
   }
 };
+
+// ===== 담당 바꾸기 (2026-09-17) =====
+// 변경 시작일 — 적었으면 그 날, 비었으면 오늘과 이 달 1일 중 늦은 날
+function edFromDay(applyD){
+  const d = String(applyD || '').trim();
+  if (d) return d;
+  const now = new Date();
+  const t = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0')
+          + '-' + String(now.getDate()).padStart(2,'0');
+  const m1 = mon + '-01';
+  return (t > m1) ? t : m1;
+}
+// 옛 선생님으로 잡힌 그날부터의 보강·조각을 새 선생님께 (일부러 다른 선생님께 맡긴 보강은 그대로)
+async function moveMakeupsTo(therapyId, thOld, thNew, from){
+  const { data: mk, error } = await sb.from('nl_sessions')
+    .select('id, makeup_for, minutes').eq('therapy_id', therapyId)
+    .not('makeup_for', 'is', null).eq('therapist_id', thOld)
+    .eq('status', '보강').gte('plan_date', from);
+  if (error) throw error;
+  // 40분 보강 먼저, 조각은 나중에 (조각은 새 선생님 수업이 있어야 붙는다)
+  const list = (mk || []).sort((a, b) =>
+    (Number(a.minutes || 40) === 40 ? 0 : 1) - (Number(b.minutes || 40) === 40 ? 0 : 1));
+  for (const x of list) {
+    const { error: e } = await sb.from('nl_sessions')
+      .update({ therapist_id: thNew }).eq('id', x.id);
+    if (e) throw e;
+  }
+  return list.length;
+}
+async function changeTherapistFrom(th, du, applyD){
+  if (!edRow) return false;
+  const from = edFromDay(applyD);
+  const dd = new Date(from + 'T00:00:00'); dd.setDate(dd.getDate() - 1);
+  const before = dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0')
+               + '-' + String(dd.getDate()).padStart(2,'0');
+  const old = Object.assign({}, edRow);
+  const thOld = Number(old.therapist_id);
+  $('edSave').disabled = true; $('edSave').textContent = '바꾸는 중...';
+  try {
+    // 그날 앞에 이 줄 회기가 있는가 — 없으면 줄을 나누지 않고 담당만 바꾼다
+    const { count: pastN } = await sb.from('nl_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('schedule_id', old.id).lt('plan_date', from);
+    let ns;
+    if (!pastN) {
+      const { data, error } = await sb.from('nl_therapy_schedules')
+        .update({ therapist_id: th, duration: du }).eq('id', old.id).select().single();
+      if (error) throw error;
+      ns = data;
+    } else {
+      // ① 새 줄 — 같은 요일·시각 · 새 선생님 · 그날부터
+      const row = { therapy_id: old.therapy_id, weekday: old.weekday,
+        start_time: old.start_time, therapist_id: th, duration: du,
+        from_month: from.slice(0, 7), from_date: from,
+        to_month: old.to_month || null, to_date: old.to_date || null,
+        week1: edWk[0], week2: edWk[1], week3: edWk[2], week4: edWk[3] };
+      const { data: d2, error: e2 } = await sb.from('nl_therapy_schedules')
+        .insert(row).select().single();
+      if (!e2) ns = d2;
+      else {
+        // 같은 자리에 예전 그 선생님 줄이 있으면 되살려 쓴다 (uq_sched_slot)
+        const { data: same } = await sb.from('nl_therapy_schedules').select('id')
+          .eq('therapy_id', old.therapy_id).eq('weekday', old.weekday)
+          .eq('start_time', old.start_time).eq('therapist_id', th)
+          .neq('id', old.id).limit(1);
+        if (!(same && same.length)) throw e2;
+        const up = Object.assign({}, row); delete up.therapy_id;
+        const { data: d3, error: e3 } = await sb.from('nl_therapy_schedules')
+          .update(up).eq('id', same[0].id).select().single();
+        if (e3) throw e3;
+        ns = d3;
+      }
+      // ② 옛 줄 — 그날 하루 전까지
+      const { error: e1 } = await sb.from('nl_therapy_schedules')
+        .update({ to_month: from.slice(0, 7), to_date: before }).eq('id', old.id);
+      if (e1) {
+        if (ns.id !== old.id) await sb.from('nl_therapy_schedules').delete().eq('id', ns.id);
+        throw e1;
+      }
+      // ③ 그날부터의 수업 줄(예정·휴무·쉼·결석)을 새 줄 · 새 선생님으로 옮긴다 (지우지 않고 옮김 — 딸린 보강이 끊기지 않게)
+      const { error: e4 } = await sb.from('nl_sessions')
+        .update({ schedule_id: ns.id, therapist_id: th })
+        .eq('schedule_id', old.id).is('makeup_for', null).gte('plan_date', from)
+        .in('status', ['예정', '휴무', '쉼', '결석']);
+      if (e4) throw e4;
+      // ③-2 옮긴 줄에 딸린 보강의 요일줄 번호도 새 줄로
+      const { data: moved } = await sb.from('nl_sessions').select('id')
+        .eq('schedule_id', ns.id).is('makeup_for', null).gte('plan_date', from);
+      const mids = (moved || []).map(v => v.id);
+      for (let i = 0; i < mids.length; i += 200) {
+        await sb.from('nl_sessions').update({ schedule_id: ns.id })
+          .in('makeup_for', mids.slice(i, i + 200));
+      }
+    }
+    if (!pastN) {
+      // 줄을 안 나눈 경우 — 그날부터의 수업 줄 담당만 바꾼다
+      const { error: e5 } = await sb.from('nl_sessions')
+        .update({ therapist_id: th })
+        .eq('schedule_id', old.id).is('makeup_for', null).gte('plan_date', from)
+        .in('status', ['예정', '휴무', '쉼', '결석']);
+      if (e5) throw e5;
+    }
+    // ④ 옛 선생님으로 잡힌 그날부터의 보강·조각 → 새 선생님
+    const nMk = await moveMakeupsTo(old.therapy_id, thOld, th, from);
+    // ⑤ 치료 종류 · 지원유형 · 회기 방식도 함께
+    const ntt = Number($('ed_tt').value), nmode = $('ed_cnt').value, nst = Number($('ed_st2').value);
+    const wkCnt = edWk.filter(Boolean).length || 4;
+    await sb.from('nl_therapies').update({
+      therapy_type_id: ntt, support_type_id: nst, count_mode: nmode,
+      monthly_count: wkCnt + ((nmode !== '4회만') ? 1 : 0), duration_min: du
+    }).eq('id', old.therapy_id);
+    try { await sb.rpc('nl_renum_month', { p_month: mon, p_therapy: old.therapy_id }); } catch (e) {}
+    // 화면이 들고 있는 요일줄 목록도 맞춘다 (loadMonth 는 요일줄을 다시 읽지 않는다)
+    const extra = { _tt: ntt, support_type_id: nst, _mode: nmode,
+      _cnt: wkCnt + ((nmode !== '4회만') ? 1 : 0), _wks: wkCnt,
+      _w1: edWk[0], _w2: edWk[1], _w3: edWk[2], _w4: edWk[3] };
+    const oldRef = ROWS_ALL.find(x => x.id === old.id);
+    if (!pastN) {
+      if (oldRef) Object.assign(oldRef, ns, extra);
+    } else {
+      if (oldRef) Object.assign(oldRef, { to_month: from.slice(0, 7), to_date: before });
+      for (let i = ROWS_ALL.length - 1; i >= 0; i--) if (ROWS_ALL[i].id === ns.id) ROWS_ALL.splice(i, 1);
+      ROWS_ALL.push(Object.assign({}, ns, { _cid: old._cid, _name: old._name, _birth: old._birth }, extra));
+    }
+    edRow = null;
+    $('edBox').style.display = 'none';
+    await loadMonth();
+    edmsg('✅ ' + from + ' 부터 담당을 ' + thName(th) + ' 선생님으로 바꿨습니다.'
+      + (pastN ? '\n그 앞의 수업은 ' + thName(thOld) + ' 선생님 기록으로 남습니다.' : '')
+      + (nMk ? '\n잡혀 있던 보강 ' + nMk + '건도 새 선생님께 옮겼습니다.' : ''), true);
+    return true;
+  } catch (e) {
+    edmsg('❌ 담당을 바꾸지 못했습니다.\n' + (e.message || e), false);
+    return false;
+  } finally {
+    $('edSave').disabled = false; $('edSave').textContent = '저장';
+  }
+}
 
 // ===== 이번 달부터 바꾸기 =====
 // 옛 줄은 지난 달까지로 끝내고, 새 요일 줄을 따로 만든다.
