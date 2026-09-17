@@ -6,8 +6,9 @@
 <title>납부 내역 - 나무링크</title>
 <style>
   :root {
-    --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
-    --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec;
+    /* 꾸밈 B (2026-09-17) — 시간표·홈과 같은 색. 옛 초록은 --acc:#3c7a4a */
+    --ink:#2F2926; --ink2:#4A433F; --ink3:#A39C95;
+    --line:#ECE8E3; --bg:#F5F4F2; --acc:#B07A4A; --acc-bg:#F8F1E8;
   }
   * { box-sizing:border-box; }
   body { font-family:-apple-system, "Malgun Gothic", sans-serif; background:var(--bg);
@@ -295,6 +296,98 @@
   .helpfold > summary { cursor:pointer; color:#5a6156; font-weight:bold; list-style:revert; }
   .helpfold:not([open]) { padding-top:8px; padding-bottom:8px; }
   .helpfold[open] > summary { margin-bottom:6px; }
+
+  /* ===== 꾸밈 B (2026-09-17) — 흰색 미니멀 · 시간표·홈과 같은 규칙 =====
+     계산·저장 코드는 그대로. 되돌리려면 이 묶음(꾸밈 B ~ 꾸밈 B 끝)과 :root 색만 되돌리면 된다 */
+  .wide { max-width:860px; }
+  button:hover { filter:none; }
+  .top { background:#fff; border:1px solid #ECE8E3; border-radius:12px; padding:12px 16px;
+         align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+  .toptitle { display:flex; align-items:center; gap:14px; }
+  .toptitle > div { border-left:1px solid #ECE8E3; padding-left:14px; }
+  .toplogo { height:48px; width:auto; display:block; }
+  .toprt { display:flex; align-items:center; gap:6px; }
+  .ghost { background:#fff; color:#4A433F; border:1px solid #E4E0DA; padding:8px 13px; font-size:13px; }
+  .ghost:hover { background:#F7F6F4; }
+  /* 색이 꽉 찬 단추는 두지 않는다 — 처음으로는 카멜 글씨, 불러오기는 흰 테두리 */
+  .btn-home { background:#fff; color:#7E5530; border:1px solid #D9C3A7; margin-right:0; font-weight:600;
+              padding:8px 14px; }
+  .btn-home:hover { filter:none; background:#FBF5EE; }
+  #load { background:#fff; color:#4A433F; border:1px solid #E4E0DA; }
+  #load:hover { background:#F7F6F4; }
+  .ok { color:#7E5530; }
+  /* 도구 줄 */
+  .tools { border-bottom-color:#ECE8E3; }
+  .paytabs { gap:14px; margin-left:6px; }
+  .ptab { background:transparent; color:#A39C95; border:none; border-bottom:2px solid transparent;
+          border-radius:0; padding:6px 2px; }
+  .ptab:hover { color:#2F2926; }
+  .ptab.on { background:transparent; color:#2F2926; border-bottom-color:#2F2926; font-weight:700; }
+  .btn-cash { background:#fff; color:#4A433F; border:1px solid #E4E0DA; }
+  .btn-cash:hover { filter:none; background:#F7F6F4; }
+  .helpfold > summary { color:#7D7670; }
+  /* 아동 카드 — 이름 줄은 옅은 카멜 띠 */
+  .kid { border-color:#ECE8E3; border-radius:12px; }
+  .kidhead { margin:-22px -24px 16px; padding:12px 24px; background:#F8F1E8;
+             border-bottom:1px solid #EFE3D3; border-radius:12px 12px 0 0; align-items:center; }
+  .kidno { color:#A39C95; }
+  .kfix.no  { background:#fff; color:#7D7670; border:1px solid #E4E0DA; }
+  .kfix.yes { background:#EEF5EF; color:#3F6B4B; border:1px solid #CFE2D3; }
+  .sect { color:#7D7670; letter-spacing:0; font-size:11.5px; }
+  .r.tot { border-top:1px solid #ECE8E3; }
+  .r.sum { border-top-color:#ECE8E3; }
+  .sttag { background:#F7F6F4; color:#4A433F; }
+  .sttag.dev  { background:#EEF5EF; color:#3F6B4B; }
+  .sttag.ctr  { background:#EFF4F9; color:#4A76A0; }
+  .sttag.five { background:#FBF3E4; color:#9A6E20; }
+  /* 발달재활 보기 줄 — 흰 바탕 + 왼쪽 세이지 줄 */
+  /* 한 줄로 넓게 — 왼쪽 빈 이름 칸을 없앤다 */
+  .r.look { background:transparent; border-left:2px solid #8FB39A; padding:3px 0 1px 10px; }
+  .r.look .nm, .r.look .ap { display:none; }
+  .r.look .de { font-size:12.5px; }
+  .r.look + .sbrow { border-left:2px solid #8FB39A; padding:2px 0 6px 10px; margin-bottom:4px; }
+  .r.look + .sbrow .sb { font-size:11px; padding:3px 7px; }
+  .r.look .de, .r.look .lookcnt, .r.look .lookam { color:#4A433F; }
+  .lookttl { color:#4E8A5D; }
+  /* 계좌입금 상자 — 흰 바탕 + 왼쪽 카멜 줄 */
+  .sect.bank { background:#fff; color:#7E5530; border:1px solid #ECE8E3; border-left:3px solid #C9A27E;
+               border-bottom:none; }
+  .bankbody { background:#fff; border:1px solid #ECE8E3; border-left:3px solid #C9A27E; border-top:none; }
+  /* 카드 저장 줄과 계좌입금 상자 사이 구분선 (2026-09-17) */
+  .sect.bank { position:relative; margin-top:36px; }
+  .sect.bank::before { content:''; position:absolute; left:-4px; right:-1px; top:-19px;
+                       border-top:1px solid #DDD6CD; }
+  .bankbody .nm, .bankbody .am { color:#2F2926; }
+  .bankbody .de { color:#A39C95; }
+  .bankbody input { border-color:#ECE8E3; }
+  .bankbody .grchg { background:#fff !important; color:#7D7670 !important;
+                     border:1px solid #E4E0DA !important; }
+  /* 숫자 칸 — 테두리 없이 밑줄만. 누르면 테두리 */
+  .r input.cnt, .r input.mn, .r input.spov, .r input.apu {
+    border:none; border-bottom:1px solid #E4E0DA; border-radius:0; background:transparent; }
+  .r input.apu, .r input.spov { border-bottom-style:dashed; border-bottom-color:#D9C3A7; }
+  .r input.cnt:focus, .r input.mn:focus, .r input.spov:focus, .r input.apu:focus {
+    border:1px solid #B07A4A; border-radius:5px; background:#fff; outline:none; }
+  .r.line.hasap input.apu, .r.gsum.hasov input.spov {
+    border:none; border-bottom:1px solid #D8A349; background:transparent; }
+  .r input.spov::placeholder, .r input.apu::placeholder { color:#C9C0B5; }
+  .r select.xthr, .r select.xmode, .r select.evsel {
+    background:#FAF9F7; border-color:#ECE8E3; color:#4A433F; }
+  .pay input { border-color:#ECE8E3; }
+  /* 저장 단추 — 저장 전은 흰 테두리, 저장됨만 초록 */
+  .pay .ksave2, .kidfoot .ksave { background:#fff; color:#4A433F; border:1px solid #E4E0DA; }
+  .pay .ksave2:hover, .kidfoot .ksave:hover { background:#F7F6F4; }
+  .pay .ksave2.done, .kidfoot .ksave.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  .pay .ksave2:disabled, .kidfoot .ksave:disabled { background:#bbb; color:#fff; border-color:#bbb; }
+  /* 아래 두 단추 — 흰 테두리 · 납부내역 안내만 카멜 글씨 */
+  .kidfoot .knotice { background:#fff; color:#7E5530; border:1px solid #D9C3A7; font-weight:600; }
+  .kidfoot .kdeduct { background:#fff; color:#4A433F; border:1px solid #E4E0DA; }
+  .kidfoot .knotice:hover, .kidfoot .kdeduct:hover { background:#F7F6F4; }
+  /* 창 */
+  .dsec { background:#F8F1E8; }
+  .nfoot .nmsg { color:#7E5530; }
+  .saved { color:#7E5530; }
+  /* ===== 꾸밈 B 끝 ===== */
 </style>
 </head>
 <body>
@@ -314,12 +407,17 @@
 <!-- 로그인 후 -->
 <div class="wide" id="mainBox" style="display:none;">
   <div class="top">
-    <div>
+    <div class="toptitle">
+      <img src="img/nl-logo.png" alt="자라는나무" class="toplogo" onerror="this.style.display='none'">
+      <div>
       <h1>납부 내역</h1>
       <div class="who" id="who"></div>
+      </div>
     </div>
-    <a href="index.html" class="btn-home">🌿 처음으로</a>
+    <div class="toprt">
     <button id="out" class="ghost">로그아웃</button>
+    <a href="index.html" class="btn-home">처음으로</a>
+    </div>
   </div>
 
   <div class="tools">
@@ -332,13 +430,13 @@
       <button class="ptab" data-pay="paid" id="tabPd">완납만</button>
       <button class="ptab" data-pay="todo" id="tabTodo">예정만</button>
     </span>
-    <a href="cash-receipt.html" class="btn-cash">🧾 현금영수증</a>
+    <a href="cash-receipt.html" class="btn-cash">현금영수증</a>
     <span class="allsum" id="allsum"></span>
   </div>
 
   <!-- 도움말은 접어 둔다 (2026-09-11). 「도움말」을 누르면 펼쳐진다 -->
   <details class="note helpfold">
-    <summary>ℹ️ 도움말 (눌러서 펼치기)</summary>
+    <summary>도움말 (눌러서 펼치기)</summary>
     <b>회기</b>는 수업 줄 아래 <b>날짜 단추</b>로 정합니다. 색 있음 = 청구, 회색 = 청구 안 함. 회기 수 = 켜진 단추 수.<br>
     켜진 단추를 누르면 회색(보강 없음), 회색 쉬는 날을 누르면 켜짐(보강 받음 → 시간표 「회기가 모자란 수업」).
     발달재활 단추는 여기서 바꾸지 않습니다. 매달 되풀이하는 주차는 시간표 수정 창 「오는 주차」에서 바꿉니다.<br>
@@ -821,6 +919,9 @@ function pickLatest(rows, mk, keyName) {
   return out;
 }
 
+// 로그인한 직원 번호 — 그 달 전체 금액은 대표(8번)만 본다 (2026-09-17)
+let ME_ID = null;
+
 async function afterLogin(user) {
   const { data: me, error: e1 } = await sb
     .from('nl_therapists').select('id, name, role')
@@ -828,6 +929,7 @@ async function afterLogin(user) {
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
+  ME_ID = Number(me.id);
 
   const [c, st, tt, th, ef] = await Promise.all([
     sb.from('nl_children').select('id, name, birth, manager_no, status').order('name'),
@@ -1928,8 +2030,8 @@ function drawKid(c) {
   }
 
   b += '<div class="kidfoot">'
-    + '<button class="knotice" type="button">\uD83D\uDCCB 납부내역 안내</button>'
-    + '<button class="kdeduct" type="button">\uD83D\uDCC4 소득공제</button></div>';
+    + '<button class="knotice" type="button">납부내역 안내</button>'
+    + '<button class="kdeduct" type="button">소득공제</button></div>';
 
   return '<div class="kid" data-child="' + c.id + '">' + head + b + '</div>';
 }
@@ -2270,7 +2372,9 @@ function sumAll() {
   });
   // 이 달 전체 미납 인원도 함께 보여준다
   const nUnpaid = CHILDREN.filter(c => isUnpaid(c.id)).length;
-  $('allsum').textContent = n + '명 · ' + won(t)
+  // 전체 금액은 대표(8번)에게만 보인다. 행정·데스크는 인원과 미납만
+  $('allsum').textContent = n + '명'
+    + (ME_ID === 8 ? ' · ' + won(t) : '')
     + (nUnpaid ? '   ·   미납 ' + nUnpaid + '명' : '   ·   미납 없음');
 }
 
