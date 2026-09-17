@@ -428,7 +428,6 @@
     <div class="btns">
       <button id="w_save" class="tab"
         style="background:#00695c;color:#fff;font-weight:bold;">저장</button>
-      <button id="w_del" class="tab" style="color:#c62828;">이 아동 대기 취소</button>
       <button id="w_close" class="tab">닫기</button>
     </div>
     <div id="msgW" class="out"></div>
@@ -439,6 +438,8 @@
         <button class="wltab tab" data-wl="대기중">대기중</button>
         <button class="wltab tab" data-wl="보류">보류</button>
         <button class="wltab tab" data-wl="배정됨">배정됨</button>
+        <!-- 2026-09-17 자리 옮김 (하는 일은 그대로 — 지금 고르고 있는 아동의 대기 줄을 지움) -->
+        <button id="w_del" class="tab" style="color:#c62828;">이 아동 대기 취소</button>
         <span class="count" id="wlCount"></span>
       </div>
       <div id="wlRows"></div>
@@ -717,7 +718,7 @@ const msg = $('msg');
 
 // 문의 단계 7가지
 const STATUS = ['연락대기','상담문의중','평가중','자리대기','그룹대기',
-                '일정조율중','치료시작'];
+                '일정조율중','치료시작','타기관이용'];   // 타기관이용 (2026-09-17) — 진행중(LIVE)에는 안 넣음
 // 아직 결론이 안 난 단계 (= 진행중)
 const LIVE = ['연락대기','상담문의중','평가중','자리대기','그룹대기','일정조율중'];
 // 「오늘까지 확인할 문의」 상자에 늘 띄울 단계
@@ -1381,7 +1382,7 @@ let reYM = null;   // 보고 있는 달 {y, m}
 function reList(y, m) {
   const out = [];
   KIDS.forEach(k => {
-    if (k.status === '종결') return;
+    if (k.status === '종결' || k.status === '타기관이용') return;
     const ds = EVALS.filter(e => e.child_id === k.id && e.eval_date && e.status !== '취소')
                     .map(e => String(e.eval_date)).sort();
     if (!ds.length) return;

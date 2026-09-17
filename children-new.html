@@ -230,6 +230,7 @@
     <button class="tab" data-st="치료중">치료중</button>
     <button class="tab" data-st="종결">종결</button>
     <button class="tab" data-st="대기중">대기중</button>
+    <button class="tab" data-st="타기관이용">타기관이용</button>
     <input class="search" id="q" type="text" placeholder="이름 검색">
     <button id="addBtn" class="tab" style="background:#8bc34a;color:#fff;font-weight:bold;">＋ 신규 등록</button>
     <span class="count" id="count"></span>
@@ -257,6 +258,7 @@
           <option value="대기중">대기중</option>
           <option value="치료중">치료중</option>
           <option value="종결">종결</option>
+          <option value="타기관이용">타기관이용</option>
         </select>
       </div>
       <div>
@@ -385,6 +387,7 @@
               <option value="치료중">치료중</option>
               <option value="대기중">대기중</option>
               <option value="종결">종결</option>
+              <option value="타기관이용">타기관이용</option>
             </select>
           </div>
           <div>
@@ -605,7 +608,7 @@ function age(birth) {
 
 function badge(st) {
   const c = st === '치료중' ? 'b-ing'
-          : st === '종결'   ? 'b-end'
+          : (st === '종결' || st === '타기관이용') ? 'b-end'
           : st === '대기중' ? 'b-wait' : 'b-etc';
   return '<span class="badge ' + c + '">' + (st || '미지정') + '</span>';
 }
