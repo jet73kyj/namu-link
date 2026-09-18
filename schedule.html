@@ -8193,9 +8193,20 @@ $('mkSave').onclick = async () => {
                   && !isMk(s)
                   && s.status !== '결석' && s.status !== '휴무' && s.status !== '쉼'
                   && nearest(toMin(s.start_time)).no === slot.no);
+  // 쪼갠 보강(10·20·30분)은 자리를 40분 차지하지 않는다 (2026-09-18)
+  //   교시로만 견주면 16:40 10분짜리가 16:50 자리를 막는다. 실제 시각으로 본다
+  //   서버 빈 자리 셈(nl_slots_core)과 같은 규칙
+  const newS = toMin(String((mkHm || slotHm(slot, th, wdOf(d))) || '').slice(0, 5));
+  const mkOverlap = s => {
+    const a = toMin(String(s.start_time).slice(0, 5));
+    return (a != null && newS != null
+            && a < newS + mkMin && newS < a + Number(s.minutes || 40));
+  };
   const takenMk = skipBusy ? [] : SESS.filter(s => isMk(s) && s.plan_date === d
                   && s.therapist_id === th
-                  && nearest(toMin(s.start_time)).no === slot.no
+                  && (Number(s.minutes || 40) === 40
+                        ? nearest(toMin(s.start_time)).no === slot.no
+                        : mkOverlap(s))
                   && s.makeup_for !== mkSess.id);
   // 다른 아동이 그 자리에 있으면 아예 넣지 않는다 (겹쳐 예약 막기)
   const busy = taken.concat(takenMk)
