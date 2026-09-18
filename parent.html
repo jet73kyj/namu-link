@@ -461,6 +461,7 @@
   </div>
 
   <div id="rectabs" class="rtabs" style="display:none;"></div>
+  <div id="nwtabs" class="rtabs" style="display:none;flex-wrap:wrap;"></div>
 
   <div id="need" style="display:none;"></div>
   <div id="list"></div>
@@ -881,6 +882,7 @@ function drawTabs() {
   // 공지·소식은 아동과 상관없으므로 아동 고르는 줄을 감춘다
   $('kids').style.display    = ((TAB === 'nt' || TAB === 'nw') ? 'none' : 'flex');
   if (TAB !== 'rec') $('rectabs').style.display = 'none';
+  if (TAB !== 'nw')  $('nwtabs').style.display  = 'none';
   // 공지는 달과 상관없으므로 달 고르는 줄을 감춘다
   document.querySelector('.bar').style.display =
     ((TAB === 'nt' || TAB === 'nw') ? 'none' : 'flex');
@@ -926,19 +928,37 @@ function nwBtn(r) {
        + '<span class="ar">›</span></a>';
 }
 
-async function loadNews() {
-  const box = $('nwlist');
-  box.innerHTML = '<div class="none">불러오는 중입니다...</div>';
-  const { data, error } = await sb.from('nl_news').select('*');
-  if (error) {
-    box.innerHTML = '<div class="none">소식을 불러오지 못했습니다.</div>';
-    return;
-  }
-  const list = (data || []).slice().sort((a, b) =>
-    (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
-    || String(b.from_date || '').localeCompare(String(a.from_date || ''))
-    || (b.id - a.id));
+// 소식 갈래 — 올라온 것이 있는 갈래만 단추로 보여 준다 (2026-09-18)
+//   갈래가 늘거나 줄면 단추도 저절로 따라간다
+const NW_ORD = ['치료사 인사', '센터 소식', '인스타그램', '블로그'];
+let NW_ALL = [];        // 내려받은 소식 전부
+let NW_G = '';          // 고른 갈래 ('' = 전체)
 
+function pickNwGrp(k) {
+  NW_G = k;
+  drawNews();
+}
+
+function drawNwTabs() {
+  const box = $('nwtabs');
+  const have = NW_ORD.filter(k => NW_ALL.some(r => r.kind === k));
+  // 갈래가 하나뿐이면 고를 것이 없으므로 단추를 안 그린다
+  if (have.length < 2) { box.style.display = 'none'; return; }
+  if (NW_G && have.indexOf(NW_G) < 0) NW_G = '';
+  let h = '<button class="' + (NW_G === '' ? 'on' : '') + '"'
+        + ' onclick="pickNwGrp(\'\')">전체</button>';
+  have.forEach(k => {
+    h += '<button class="' + (NW_G === k ? 'on' : '') + '"'
+       + ' onclick="pickNwGrp(\'' + k + '\')">' + esc(k) + '</button>';
+  });
+  box.innerHTML = h;
+  box.style.display = 'flex';
+}
+
+function drawNews() {
+  const box = $('nwlist');
+  drawNwTabs();
+  const list = NW_G ? NW_ALL.filter(r => r.kind === NW_G) : NW_ALL;
   if (!list.length) {
     box.innerHTML = '<div class="none">아직 올라온 소식이 없습니다.</div>';
     return;
@@ -961,6 +981,23 @@ async function loadNews() {
       + (r.url && !yid ? nwBtn(r) : '')
       + '</div>';
   }).join('');
+}
+
+async function loadNews() {
+  const box = $('nwlist');
+  box.innerHTML = '<div class="none">불러오는 중입니다...</div>';
+  const { data, error } = await sb.from('nl_news').select('*');
+  if (error) {
+    NW_ALL = [];
+    $('nwtabs').style.display = 'none';
+    box.innerHTML = '<div class="none">소식을 불러오지 못했습니다.</div>';
+    return;
+  }
+  NW_ALL = (data || []).slice().sort((a, b) =>
+    (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
+    || String(b.from_date || '').localeCompare(String(a.from_date || ''))
+    || (b.id - a.id));
+  drawNews();
 }
 
 // ── 치료기록지 ─────────────────────────────────────────
