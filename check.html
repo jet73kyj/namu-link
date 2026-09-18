@@ -5,61 +5,71 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>매일 점검 - 나무링크</title>
 <style>
-  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:#f5f9f0;
-         margin:0; padding:18px; color:#333; }
-  .wrap { max-width:900px; margin:0 auto; }
-  .top { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-         margin-bottom:14px; }
-  .top h1 { font-size:21px; margin:0; color:#2c5c37; }
-  .top .who { font-size:12.5px; color:#7a8a76; }
-  .top .sp { flex:1 1 auto; }
-  button { font:inherit; border:none; border-radius:8px; padding:8px 15px;
-           background:#4a7c59; color:#fff; cursor:pointer; font-weight:700;
-           font-size:13.5px; }
-  button:hover { background:#3d6849; }
-  button.grey { background:#8a938a; }
-  button.grey:hover { background:#767f76; }
-  select { font:inherit; font-size:13.5px; padding:7px 9px; border-radius:8px;
-           border:1px solid #cfd8cb; background:#fff; color:#2a2f2b; }
-  .card { background:#fff; border-radius:12px; padding:20px 22px;
-          box-shadow:0 2px 12px rgba(0,0,0,.07); margin-bottom:14px; }
-  .ok { background:#e8f5e9; border:1px solid #7cc466; border-radius:12px;
-        padding:26px; text-align:center; font-size:17px; font-weight:800;
-        color:#2c5c37; }
-  .ok .sub { font-size:13px; font-weight:500; color:#5b7a56; margin-top:8px; }
-  .grp { margin-bottom:20px; }
+  :root{
+    --bg:#F5F4F2; --sf:#FFFFFF; --line:#ECE8E3; --tx:#2F2926; --dim:#A39C95;
+    --cam:#B07A4A; --camL:#F8F1E8; --camB:#C9A27E;
+    --sage:#5E9A6E; --coral:#D8684A; --coralL:#FCEFEA; --coralT:#993C1D;
+  }
+  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:var(--bg);
+         margin:0; padding:0; color:var(--tx); }
+  .hd { background:var(--sf); border-bottom:1px solid var(--line);
+        display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+        padding:10px 16px; }
+  .hd img.lg { height:22px; display:block; }
+  .hd .bar { width:1px; height:16px; background:var(--line); }
+  .hd h1 { font-size:15px; font-weight:600; margin:0; color:var(--tx); }
+  .hd .who { font-size:12px; color:var(--dim); }
+  .hd .sp { flex:1 1 auto; }
+  .wrap { max-width:900px; margin:0 auto; padding:16px; }
+  button { font:inherit; border-radius:8px; padding:6px 13px; font-size:13px;
+           background:var(--sf); color:var(--tx); border:1px solid var(--dim);
+           cursor:pointer; font-weight:500; }
+  button:hover { background:var(--camL); }
+  button.grey { border-color:var(--line); color:var(--cam); }
+  button.grey:hover { background:var(--camL); }
+  select { font:inherit; font-size:13px; padding:6px 9px; border-radius:8px;
+           border:1px solid var(--line); background:var(--sf); color:var(--tx); }
+  .card { background:var(--sf); border:1px solid var(--line); border-radius:12px;
+          padding:18px 20px; margin-bottom:14px; }
+  .ok { background:var(--sf); border-left:3px solid var(--sage);
+        padding:22px; text-align:center; font-size:16px; font-weight:600;
+        color:var(--tx); }
+  .ok .sub { font-size:13px; font-weight:400; color:var(--dim); margin-top:7px; }
+  .grp { margin-bottom:22px; border-left:3px solid var(--coral); padding-left:13px; }
   .grp:last-child { margin-bottom:0; }
-  .grp-t { font-size:15px; font-weight:800; color:#b34a2a; margin-bottom:3px; }
-  .grp-n { display:inline-block; background:#b34a2a; color:#fff;
-           border-radius:11px; padding:1px 9px; font-size:12px;
-           margin-left:7px; vertical-align:1px; }
-  .grp-why { font-size:12.5px; color:#7a8a76; margin-bottom:9px;
+  .grp-t { font-size:14px; font-weight:600; color:var(--tx); margin-bottom:3px; }
+  .grp-n { display:inline-block; background:var(--coralL); color:var(--coralT);
+           border-radius:10px; padding:1px 9px; font-size:12px;
+           margin-left:6px; vertical-align:1px; font-weight:500; }
+  .grp-why { font-size:12.5px; color:var(--dim); margin-bottom:9px;
              line-height:1.6; }
-  table { width:100%; border-collapse:collapse; font-size:13.5px; }
-  th { background:#f2f6f0; color:#3d5a38; text-align:left; font-weight:700;
-       padding:7px 10px; border-bottom:1px solid #dfe6db; white-space:nowrap; }
-  td { padding:7px 10px; border-bottom:1px solid #eef2ec; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { background:var(--camL); color:#4A1B0C; text-align:left; font-weight:500;
+       padding:6px 10px; border-bottom:1px solid var(--camB); white-space:nowrap; }
+  td { padding:7px 10px; border-bottom:1px solid #F0EEEA; }
   tr:last-child td { border-bottom:none; }
-  .cid { font-weight:800; color:#2c5c37; white-space:nowrap; }
-  .sum { font-size:13.5px; color:#5b7a56; margin-bottom:12px; }
-  .err { background:#fdecea; border:1px solid #e8a49a; border-radius:10px;
-         padding:14px 16px; color:#a33a25; font-size:13.5px;
+  .cid { font-weight:500; color:var(--cam); white-space:nowrap; }
+  .sum { font-size:13px; color:var(--dim); margin-bottom:14px; }
+  .err { background:var(--sf); border-left:3px solid var(--coral);
+         padding:14px 16px; color:var(--coralT); font-size:13.5px;
          white-space:pre-wrap; line-height:1.7; }
-  .load { text-align:center; padding:34px; color:#7a8a76; font-size:14px; }
-  .note { font-size:12px; color:#8a938a; line-height:1.8; margin-top:16px; }
+  .load { text-align:center; padding:34px; color:var(--dim); font-size:14px; }
+  .note { font-size:12px; color:var(--dim); line-height:1.8; margin-top:16px; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <h1>🩺 매일 점검</h1>
-    <span class="who" id="who"></span>
-    <span class="sp"></span>
-    <select id="mon"></select>
-    <button id="run">점검하기</button>
-    <button id="home" class="grey">홈으로</button>
-  </div>
+<div class="hd">
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <span class="bar"></span>
+  <h1>매일 점검</h1>
+  <span class="who" id="who"></span>
+  <span class="sp"></span>
+  <select id="mon"></select>
+  <button id="run">점검하기</button>
+  <button id="home" class="grey">처음으로</button>
+</div>
 
+<div class="wrap">
   <div id="body">
     <div class="load">불러오는 중…</div>
   </div>
@@ -141,12 +151,12 @@ async function run(){
   $('body').innerHTML = '<div class="load">' + monNo(k) + '월을 점검하고 있습니다…</div>';
   const { data, error } = await sb.rpc('nl_daily_check', { p_month: k });
   if (error) {
-    $('body').innerHTML = '<div class="err">❌ 점검하지 못했습니다.\n' + esc(error.message) + '</div>';
+    $('body').innerHTML = '<div class="err">점검하지 못했습니다.\n' + esc(error.message) + '</div>';
     return;
   }
   const rows = data || [];
   if (!rows.length) {
-    $('body').innerHTML = '<div class="ok">✅ ' + monNo(k) + '월 — 어긋난 것이 없습니다'
+    $('body').innerHTML = '<div class="ok">' + monNo(k) + '월 — 어긋난 것이 없습니다'
       + '<div class="sub">모든 항목을 살펴봤습니다. 가벼운 마음으로 시작하세요.</div></div>';
     return;
   }
@@ -197,7 +207,7 @@ $('home').onclick = () => { location.href = 'index.html'; };
   const { data: me, error } = await sb.from('nl_therapists')
     .select('id, name, role').eq('login_email', user.email.toLowerCase()).maybeSingle();
   if (error || !me) {
-    $('body').innerHTML = '<div class="err">⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.</div>';
+    $('body').innerHTML = '<div class="err">직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.</div>';
     return;
   }
   nlKeep(me.id);
