@@ -12,70 +12,90 @@
   · 「📋 보기」는 공용 창 nl-evaldocs.js 의 NLDocs.openIntake
 -->
 <style>
-  body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:#f5f9f0;
-         margin:0; padding:16px; color:#333; }
-  .box { max-width:460px; margin:40px auto; background:#fff; border-radius:12px;
-         padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-  .wide { max-width:1100px; margin:0 auto; background:#fff; border-radius:12px;
-          padding:18px 20px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-  h1 { font-size:20px; color:#2e7d32; margin:0 0 4px; }
-  .sub { font-size:13px; color:#888; margin-bottom:22px; }
-  label { display:block; font-size:13px; font-weight:bold; margin:14px 0 5px; }
-  input { width:100%; padding:11px; border:1px solid #ddd; border-radius:7px;
-          font-size:15px; box-sizing:border-box; }
-  button { width:100%; padding:13px; margin-top:20px; background:#2e7d32; color:#fff;
-           border:none; border-radius:7px; font-size:15px; font-weight:bold; cursor:pointer; }
-  button:disabled { background:#bbb; cursor:default; }
+  :root{
+    --bg:#F5F4F2; --sf:#FFFFFF; --line:#ECE8E3; --tx:#2F2926; --dim:#A39C95;
+    --cam:#B07A4A; --camL:#F8F1E8; --camB:#C9A27E; --camBg:#FBF5EE;
+  }
+  body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:var(--bg);
+         margin:0; padding:0; color:var(--tx); }
+  .box { max-width:420px; margin:60px auto; background:var(--sf);
+         border:1px solid var(--line); border-radius:12px; padding:28px; }
+  .box img.lg { height:26px; display:block; margin:0 auto 14px; }
+  .hd { background:var(--sf); border-bottom:1px solid var(--line);
+        display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px; }
+  .hd img.lg { height:22px; display:block; }
+  .hd .bar0 { width:1px; height:16px; background:var(--line); }
+  .hd h1 { font-size:15px; font-weight:600; margin:0; color:var(--tx); }
+  .hd .sp { flex:1 1 auto; }
+  .wide { max-width:1100px; margin:0 auto; padding:16px; }
+  .panel { background:var(--sf); border:1px solid var(--line); border-radius:12px;
+           padding:14px 16px; }
+  h1 { font-size:18px; color:var(--tx); margin:0 0 4px; font-weight:600; }
+  .sub { font-size:13px; color:var(--dim); margin-bottom:20px; text-align:center; }
+  label { display:block; font-size:13px; font-weight:600; margin:14px 0 5px; }
+  input { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px;
+          font-size:15px; box-sizing:border-box; background:var(--sf); color:var(--tx); }
+  button { width:100%; padding:11px; margin-top:20px; background:var(--sf); color:var(--tx);
+           border:1px solid var(--dim); border-radius:8px; font-size:15px;
+           font-weight:500; cursor:pointer; }
+  button:hover { background:var(--camL); }
+  button:disabled { background:#f2f1ee; color:var(--dim); border-color:var(--line); cursor:default; }
   .out { margin-top:16px; padding:12px; border-radius:8px; font-size:14px;
          line-height:1.7; display:none; white-space:pre-wrap; }
-  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
-  .err { background:#ffebee; color:#b71c1c; display:block; }
+  .ok  { background:var(--sf); border-left:3px solid #5E9A6E; color:var(--tx); display:block; }
+  .err { background:var(--sf); border-left:3px solid #D8684A; color:#993C1D; display:block; }
 
-  .top { display:flex; justify-content:space-between; align-items:center;
-         flex-wrap:wrap; gap:10px; margin-bottom:12px; }
-  .who { font-size:13px; color:#666; }
+  .who { font-size:12px; color:var(--dim); }
   .topbtn { display:flex; gap:8px; }
-  .btn-out { width:auto; margin:0; padding:8px 14px; background:#757575; font-size:13px; }
-  .btn-home { display:inline-block; padding:8px 14px; background:#2e7d32; color:#fff;
-              font-size:13px; border-radius:7px; text-decoration:none; }
+  .btn-out { width:auto; margin:0; padding:5px 12px; font-size:13px;
+             border-color:var(--line); }
+  .btn-home { display:inline-block; padding:5px 12px; background:var(--sf); color:var(--cam);
+              font-size:13px; border:1px solid var(--line); border-radius:8px;
+              text-decoration:none; }
+  .btn-home:hover { background:var(--camL); }
 
-  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
-  .bar .tab { width:auto; margin:0; padding:7px 14px; background:#eee; color:#555;
-              font-size:13px; font-weight:normal; border-radius:7px; }
-  .bar .tab.on { background:#2e7d32; color:#fff; font-weight:bold; }
-  .bar input { width:200px; padding:8px 10px; font-size:14px; margin-left:auto; }
-  .cnt { font-size:12.5px; color:#777; margin-bottom:8px; }
+  .bar { display:flex; gap:16px; flex-wrap:wrap; align-items:center;
+         border-bottom:1px solid var(--line); padding-bottom:0; margin-bottom:10px; }
+  .bar .tab { width:auto; margin:0; padding:2px 0 7px; background:none; color:var(--dim);
+              font-size:13.5px; font-weight:400; border:none; border-bottom:2px solid transparent;
+              border-radius:0; }
+  .bar .tab:hover { background:none; color:var(--tx); }
+  .bar .tab.on { color:var(--tx); font-weight:500; border-bottom-color:var(--cam); }
+  .bar input { width:190px; padding:6px 10px; font-size:13px; margin-left:auto;
+               margin-bottom:6px; }
+  .cnt { font-size:12.5px; color:var(--dim); margin-bottom:8px; }
 
-  table { width:100%; border-collapse:collapse; font-size:13.5px; }
-  th { background:#eef3ec; color:#2c5c37; font-weight:600; text-align:left;
-       padding:8px; white-space:nowrap; }
-  td { padding:8px; border-top:1px solid #eceee9; vertical-align:top; }
-  tr.new td { background:#fffaf2; }
-  .no { color:#8d6e63; white-space:nowrap; }
-  .nm { font-weight:600; white-space:nowrap; }
-  .age { color:#777; font-size:12px; white-space:nowrap; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { background:var(--camL); color:#4A1B0C; font-weight:500; text-align:left;
+       padding:6px 8px; white-space:nowrap; border-bottom:1px solid var(--camB); }
+  td { padding:8px; border-top:1px solid #F0EEEA; vertical-align:top; }
+  tr.new td { background:var(--camBg); }
+  .no { color:var(--cam); white-space:nowrap; }
+  .nm { font-weight:500; white-space:nowrap; }
+  .age { color:var(--dim); font-size:12px; white-space:nowrap; }
   .cls { font-size:12.5px; line-height:1.7; }
   .tag { display:inline-block; font-size:11.5px; padding:0 7px; border-radius:9px;
          margin:1px 2px 1px 0; white-space:nowrap; }
-  .t-new { background:#fff3e0; color:#8a4b00; border:1px solid #ef9f27; }
-  .t-tr  { background:#cfe6f7; color:#0c447c; }
-  .t-ev  { background:#ffc2d8; color:#6d1338; }
-  .t-st  { background:#eceff1; color:#546e7a; }
-  .dim { color:#aaa; }
-  .view { width:auto; margin:0; padding:6px 12px; font-size:13px; white-space:nowrap;
-          background:#e3f0fb; color:#0c447c; border:1px solid #85b7eb; }
-  .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
+  .t-new { background:#FAEEDA; color:#854F0B; }
+  .t-tr  { background:#EEF5FA; color:#0C447C; }
+  .t-ev  { background:#FBEAF0; color:#993556; }
+  .t-st  { background:#F1EFE8; color:#5F5E5A; }
+  .dim { color:var(--dim); }
+  .view { width:auto; margin:0; padding:5px 11px; font-size:12.5px; white-space:nowrap;
+          background:var(--sf); color:var(--tx); border:1px solid var(--line); }
+  .view:hover { background:var(--camL); }
+  .empty { padding:40px; text-align:center; color:var(--dim); font-size:14px; }
 
   /* 핸드폰 — 표를 카드처럼 */
   @media (max-width:720px) {
-    body { padding:8px; }
-    .wide { padding:12px; }
+    .wide { padding:8px; }
+    .panel { padding:12px; }
     .bar input { width:100%; margin-left:0; }
     thead { display:none; }
     table, tbody, tr, td { display:block; width:100%; box-sizing:border-box; }
-    tr { border:1px solid #e3e8e0; border-radius:10px; margin-bottom:10px; padding:6px 8px; }
+    tr { border:1px solid var(--line); border-radius:10px; margin-bottom:10px; padding:6px 8px; }
     td { border:none; padding:3px 2px; }
-    td[data-l]::before { content:attr(data-l) ' · '; color:#999; font-size:12px; }
+    td[data-l]::before { content:attr(data-l) ' · '; color:var(--dim); font-size:12px; }
     .view { width:100%; margin-top:4px; padding:9px; }
   }
 </style>
@@ -83,7 +103,8 @@
 <body>
 
 <div class="box" id="loginBox">
-  <h1>📋 아동 자료 모음</h1>
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <h1 style="text-align:center">아동 자료 모음</h1>
   <div class="sub">나무링크 · 초기 상담과 평가보고서를 아동별로 봅니다</div>
   <label for="em">이메일</label>
   <input id="em" type="email" autocomplete="username">
@@ -93,23 +114,26 @@
   <div class="out" id="msg"></div>
 </div>
 
-<div class="wide" id="mainBox" style="display:none">
-  <div class="top">
-    <div>
-      <h1>📋 아동 자료 모음</h1>
-      <div class="who" id="who"></div>
-    </div>
-    <div class="topbtn">
-      <a class="btn-home" href="index.html">처음으로</a>
-      <button class="btn-out" id="out">로그아웃</button>
-    </div>
+<div id="mainBox" style="display:none">
+<div class="hd">
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <span class="bar0"></span>
+  <h1>아동 자료 모음</h1>
+  <span class="who" id="who"></span>
+  <span class="sp"></span>
+  <div class="topbtn">
+    <button class="btn-out" id="out">로그아웃</button>
+    <a class="btn-home" href="index.html">처음으로</a>
   </div>
+</div>
 
+<div class="wide">
+  <div class="panel">
   <div class="bar">
     <button class="tab on" data-f="all">전체</button>
     <button class="tab" data-f="new">새로 시작</button>
     <button class="tab" data-f="doc">보고서 있음</button>
-    <input id="q" type="text" autocomplete="off" placeholder="🔍 이름 · 번호 찾기">
+    <input id="q" type="text" autocomplete="off" placeholder="이름 · 번호 찾기">
   </div>
   <div class="cnt" id="cnt"></div>
   <div class="out" id="msg2"></div>
@@ -123,6 +147,8 @@
     </thead>
     <tbody id="rows"></tbody>
   </table>
+  </div>
+</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -293,7 +319,7 @@ function draw() {
       + '<td data-l="첫 수업">' + firstTxt + '</td>'
       + '<td data-l="초기 상담">' + memoTxt + '</td>'
       + '<td data-l="평가보고서">' + docTxt + '</td>'
-      + '<td><button class="view" data-cid="' + r.id + '">📋 보기</button></td>'
+      + '<td><button class="view" data-cid="' + r.id + '">보기</button></td>'
       + '</tr>';
   }).join('');
   $('rows').querySelectorAll('.view').forEach(b => {
