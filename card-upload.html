@@ -111,14 +111,63 @@
   button#save { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
   button#save.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
   button#save:disabled { background:#bbb; color:#fff; border-color:#bbb; }
+
+  /* ── 꾸밈 B (2026-09-18) — 화면에서 보이는 곳만. 인쇄 모양은 손대지 않음 ── */
+  :root { --ink:#2F2926; --ink2:#5F5E5A; --ink3:#A39C95;
+          --line:#ECE8E3; --bg:#F5F4F2; --acc:#B07A4A; --acc-bg:#F8F1E8;
+          --camBg:#FBF5EE; --camB:#C9A27E; }
+  body { padding:0; }
+  .hd { background:#fff; border-bottom:1px solid var(--line); display:flex;
+        align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px; }
+  .hd img.lg { height:22px; display:block; }
+  .hd .bar0 { width:1px; height:16px; background:var(--line); }
+  .hd h1 { font-size:15px; font-weight:600; margin:0; }
+  .hd .sp { flex:1 1 auto; }
+  .box { max-width:420px; margin:60px auto; border-radius:12px; padding:28px; }
+  .box img.lg { height:26px; display:block; margin:0 auto 14px; }
+  .wide { max-width:900px; margin:0 auto; padding:16px; }
+  h1 { font-size:18px; font-weight:600; }
+  .who { font-size:12px; color:var(--ink3); }
+  button { background:#fff; color:var(--ink); border:1px solid var(--ink3);
+           border-radius:8px; font-weight:500; padding:7px 16px; }
+  button:hover { background:var(--acc-bg); filter:none; }
+  button:disabled { background:#f2f1ee; color:var(--ink3); border-color:var(--line); }
+  .ghost, .pdfbtn { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  input, select { border:1px solid var(--line); border-radius:8px; }
+  .card { border:1px solid var(--line); border-radius:12px; padding:16px 18px;
+          margin-bottom:12px; }
+  .card h2 { font-size:14px; font-weight:600; }
+  .kinds button { background:#fff; color:var(--ink2); border:1px solid var(--line);
+                  padding:9px; }
+  .kinds button.on { background:var(--acc-bg); color:#4A1B0C;
+                     border-color:var(--camB); font-weight:500; }
+  .drop { border:2px dashed var(--line); border-radius:12px; background:var(--camBg);
+          color:var(--ink3); }
+  .drop:hover { border-color:var(--acc); color:var(--ink2); }
+  .drop b { color:var(--acc); font-weight:500; }
+  .out.ok  { background:#fff; border-left:3px solid #5E9A6E; color:var(--ink);
+             border-radius:0; }
+  .out.err { background:#fff; border-left:3px solid #D8684A; color:#993C1D;
+             border-radius:0; }
+  th { background:var(--acc-bg); color:#4A1B0C; font-weight:500;
+       border-bottom:1px solid var(--camB); }
+  td { border-bottom:1px solid #F0EEEA; }
+  .thrhead { background:var(--acc-bg); color:#4A1B0C; font-weight:600; }
+  .warn { color:#993C1D; font-weight:500; }
+  .good { color:#3B6D11; font-weight:500; }
+  button#save { background:#fff; color:var(--ink); border:1px solid var(--ink3); }
+  button#save.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  button#save:disabled { background:#f2f1ee; color:var(--ink3); border-color:var(--line); }
+  @media print { .hd { display:none !important; } .wide { padding:0; } }
 </style>
 </head>
 <body>
 
 <!-- 로그인 전 -->
 <div class="box" id="loginBox">
-  <h1>지원 결제 내역 올리기</h1>
-  <div class="sub">치료지원 · 방과후 카드 결제 내역</div>
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <h1 style="text-align:center">지원 결제 내역 올리기</h1>
+  <div class="sub" style="text-align:center">치료지원 · 방과후 카드 결제 내역</div>
   <label for="em">이메일</label>
   <input id="em" type="email" autocomplete="username">
   <label for="pw">비밀번호</label>
@@ -128,17 +177,17 @@
 </div>
 
 <!-- 로그인 후 -->
-<div class="wide" id="mainBox" style="display:none;">
-  <div class="top">
-    <div>
-      <h1>지원 결제 내역 올리기</h1>
-      <div class="who" id="who"></div>
-    </div>
-    <div>
-      <a href="index.html"><button class="ghost" type="button">처음으로</button></a>
-      <button id="out" class="ghost">로그아웃</button>
-    </div>
+<div id="mainBox" style="display:none;">
+  <div class="hd">
+    <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+    <span class="bar0"></span>
+    <h1>지원 결제 내역 올리기</h1>
+    <span class="who" id="who"></span>
+    <span class="sp"></span>
+    <button id="out" class="ghost">로그아웃</button>
+    <a href="index.html"><button class="ghost" type="button" style="color:#B07A4A">처음으로</button></a>
   </div>
+  <div class="wide">
 
   <!-- 1. 파일 올리기 -->
   <div class="card">
@@ -171,7 +220,7 @@
   <div class="card" id="saveCard" style="display:none;">
     <h2>③ 저장</h2>
     <div id="readstat" class="sum"></div>
-    <button id="save" type="button">💾 저장 전</button>
+    <button id="save" type="button">저장 전</button>
     <div id="msg3" class="out"></div>
   </div>
 
@@ -190,6 +239,7 @@
     </div>
     <div id="ckBody"><div class="empty">달과 갈래를 고르고 「점검하기」를 누르세요.</div></div>
     <div id="msg4" class="out"></div>
+  </div>
   </div>
 </div>
 
@@ -284,7 +334,7 @@ function setCuBtn(st) {
   b.disabled = (st === 'saving');
   b.textContent = st === 'saving' ? '저장 중…'
                 : st === 'done'   ? '\u2713 저장됨'
-                : '💾 저장 전';
+                : '저장 전';
 }
 function cuLeaveOk() {
   if (!CU_DIRTY) return true;
