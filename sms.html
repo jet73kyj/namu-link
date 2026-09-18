@@ -7,58 +7,69 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#3c7a4a">
 <style>
-  :root { --ink:#1c1f1a; --ink2:#5a6156; --ink3:#9aa294;
-          --line:#e8ebe4; --bg:#f7f8f5; --acc:#3c7a4a; --acc-bg:#eef3ec; }
+  :root { --ink:#2F2926; --ink2:#5F5E5A; --ink3:#A39C95;
+          --line:#ECE8E3; --bg:#F5F4F2; --acc:#B07A4A; --acc-bg:#F8F1E8;
+          --camB:#C9A27E; --camBg:#FBF5EE; }
   * { box-sizing:border-box; }
   body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:var(--bg);
-         margin:0; padding:20px; color:var(--ink); -webkit-font-smoothing:antialiased; }
-  .wrap { max-width:820px; margin:0 auto; }
-  .box { background:#fff; border:1px solid var(--line); border-radius:14px;
-         padding:24px; margin-bottom:14px; }
-  h1 { font-size:19px; font-weight:600; margin:0 0 4px; }
-  .who { font-size:13px; color:var(--ink3); }
+         margin:0; padding:0; color:var(--ink); -webkit-font-smoothing:antialiased; }
+  .hd { background:#fff; border-bottom:1px solid var(--line);
+        display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px; }
+  .hd img.lg { height:22px; display:block; }
+  .hd .bar0 { width:1px; height:16px; background:var(--line); }
+  .hd h1 { font-size:15px; font-weight:600; margin:0; }
+  .hd .sp { flex:1 1 auto; }
+  .wrap { max-width:820px; margin:0 auto; padding:16px; }
+  .box { background:#fff; border:1px solid var(--line); border-radius:12px;
+         padding:16px 18px; margin-bottom:12px; }
+  #loginBox { max-width:420px; margin:60px auto; padding:28px; }
+  #loginBox img.lg { height:26px; display:block; margin:0 auto 14px; }
+  h1 { font-size:18px; font-weight:600; margin:0 0 4px; }
+  .who { font-size:12px; color:var(--ink3); }
   .top { display:flex; justify-content:space-between; align-items:flex-start;
          gap:10px; flex-wrap:wrap; margin-bottom:14px; }
   label { display:block; font-size:12px; color:var(--ink2); margin:12px 0 5px; }
   input { width:100%; font:inherit; font-size:14px; padding:9px 11px;
     border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
   input:focus { outline:2px solid var(--acc); outline-offset:-1px; border-color:transparent; }
-  button { font:inherit; font-size:14px; padding:9px 16px; border-radius:8px;
-    border:1px solid var(--line); background:#fff; color:var(--ink2); cursor:pointer; }
-  button:hover { filter:brightness(0.97); }
-  .go { background:var(--acc); color:#fff; border-color:var(--acc); font-weight:600; }
+  button { font:inherit; font-size:14px; padding:7px 15px; border-radius:8px;
+    border:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+  button:hover { background:var(--acc-bg); }
+  .go { background:#fff; color:var(--ink); border-color:var(--ink3); font-weight:500; }
   .btns { display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
   .out { margin-top:12px; font-size:13.5px; line-height:1.7; white-space:pre-wrap; }
-  .ok { color:#2c5c37; } .err { color:#9c2b2b; }
+  .ok { color:var(--ink2); } .err { color:#993C1D; }
 
-  .dayt { font-size:14px; font-weight:700; color:var(--ink2);
-          margin:20px 0 9px; padding-left:2px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:14px;
-          padding:17px 18px; margin-bottom:11px; }
+  .dayt { font-size:13.5px; font-weight:500; color:var(--ink2);
+          margin:18px 0 8px; padding-left:2px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px;
+          padding:15px 16px; margin-bottom:11px; }
   .c1 { display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
-  .kind { font-size:12px; font-weight:bold; padding:3px 10px; border-radius:10px;
-          white-space:nowrap; background:var(--acc-bg); color:#2c5c37; }
-  .k-보강 { background:#fdf3e3; color:#8a5a1a; }
-  .k-첫수업 { background:#eef3ec; color:#2c5c37; }
-  .k-평가 { background:#eef2ff; color:#3a4a8a; }
-  .k-상담 { background:#fbeaf0; color:#8a2f4e; }
-  .k-요일변경 { background:#f0f7ff; color:#2a5a8a; }
-  .k-시간변경 { background:#f0f7ff; color:#2a5a8a; }
-  .nm { font-weight:700; font-size:15.5px; }
+  .kind { font-size:12px; font-weight:500; padding:2px 10px; border-radius:10px;
+          white-space:nowrap; background:var(--acc-bg); color:#4A1B0C; }
+  .k-보강 { background:#FAEEDA; color:#854F0B; }
+  .k-첫수업 { background:#EAF3DE; color:#3B6D11; }
+  .k-평가 { background:#FBEAF0; color:#993556; }
+  .k-상담 { background:#FBEAF0; color:#993556; }
+  .k-요일변경 { background:#E6F1FB; color:#185FA5; }
+  .k-시간변경 { background:#E6F1FB; color:#185FA5; }
+  .nm { font-weight:500; font-size:15px; }
   .ph { font-size:13px; color:var(--ink2); }
-  .ph b { font-weight:600; color:var(--ink); }
-  .msg { background:#f7f8f5; border-radius:9px; padding:13px 14px;
+  .ph b { font-weight:500; color:var(--ink); }
+  .msg { background:var(--camBg); border-radius:9px; padding:12px 14px;
          font-size:13.5px; line-height:1.8; white-space:pre-wrap; color:var(--ink); }
   .rb { display:flex; gap:7px; margin-top:11px; flex-wrap:wrap; }
-  .rb button { font-size:13px; padding:6px 14px; }
-  .cp { border-color:#c8d4c4; }
-  .sd { background:var(--acc); color:#fff; border-color:var(--acc); font-weight:600; }
+  .rb button { font-size:13px; padding:5px 14px; }
+  .cp { border-color:var(--ink3); }
+  .sd { background:#fff; color:var(--ink); border-color:var(--line); font-weight:400; }
   .none { text-align:center; color:var(--ink3); font-size:13.5px; padding:30px 0; }
-  .tabs { display:flex; gap:6px; margin-bottom:4px; flex-wrap:wrap; }
-  .tab { font-size:12.5px; padding:6px 12px; border-radius:8px; border:1px solid var(--line);
-         background:#fff; color:var(--ink2); cursor:pointer; }
-  .tab.on { background:var(--acc); color:#fff; border-color:var(--acc); }
-  .hint { font-size:11.5px; color:var(--ink3); margin-top:7px; line-height:1.6; }
+  .tabs { display:flex; gap:16px; margin-bottom:10px; flex-wrap:wrap;
+          border-bottom:1px solid var(--line); }
+  .tab { font-size:13.5px; padding:2px 0 7px; border:none; border-bottom:2px solid transparent;
+         border-radius:0; background:none; color:var(--ink3); cursor:pointer; }
+  .tab:hover { background:none; color:var(--ink); }
+  .tab.on { background:none; color:var(--ink); font-weight:500; border-bottom-color:var(--acc); }
+  .hint { font-size:11.5px; color:var(--ink3); margin-top:2px; line-height:1.6; }
 </style>
 </head>
 <body>
@@ -66,8 +77,9 @@
 
   <!-- 로그인 -->
   <div class="box" id="loginBox">
-    <h1>💬 문자 안내</h1>
-    <div class="who">나무링크에 로그인해 주세요.</div>
+    <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+    <h1 style="text-align:center">문자 안내</h1>
+    <div class="who" style="text-align:center">나무링크에 로그인해 주세요.</div>
     <label for="em">이메일</label>
     <input id="em" type="email" autocomplete="username">
     <label for="pw">비밀번호</label>
@@ -77,19 +89,23 @@
     <div id="msg" class="out"></div>
   </div>
 
+</div>
+
   <!-- 본 화면 -->
   <div id="mainBox" style="display:none;">
-    <div class="box">
-      <div class="top">
-        <div>
-          <h1>💬 문자 안내</h1>
-          <div class="who" id="who"></div>
-        </div>
-        <div class="btns" style="margin:0;">
-          <button onclick="location.href='index.html'">처음으로</button>
-          <button id="out">로그아웃</button>
-        </div>
+    <div class="hd">
+      <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+      <span class="bar0"></span>
+      <h1>문자 안내</h1>
+      <span class="who" id="who"></span>
+      <span class="sp"></span>
+      <div class="btns" style="margin:0;">
+        <button id="out">로그아웃</button>
+        <button onclick="location.href='index.html'" style="color:#B07A4A">처음으로</button>
       </div>
+    </div>
+    <div class="wrap">
+    <div class="box">
       <div class="tabs">
         <button class="tab on" data-f="안보냄">아직 안 보낸 것</button>
         <button class="tab" data-f="전체">전체</button>
@@ -100,8 +116,8 @@
     </div>
 
     <div id="list"></div>
+    </div>
   </div>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
