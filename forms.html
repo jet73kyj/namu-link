@@ -5,67 +5,83 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>서식 - 나무링크</title>
 <style>
-  body { font-family:'Malgun Gothic','맑은 고딕',sans-serif; background:#f5f7fa; margin:0; }
-  header { background:#2e7d32; color:white; padding:12px 24px; display:flex; align-items:center; gap:12px; }
-  .container { max-width:1100px; margin:16px auto; padding:0 16px; }
-  .page-title { font-size:18px; font-weight:bold; color:#2e7d32; margin:10px 0 4px; }
-  .sub { font-size:13px; color:#888; margin-bottom:16px; }
+  :root{ --bg:#F5F4F2; --sf:#FFFFFF; --line:#ECE8E3; --tx:#2F2926; --dim:#A39C95;
+         --cam:#B07A4A; --camL:#F8F1E8; --camB:#C9A27E; --camBg:#FBF5EE; }
+  body { font-family:'Malgun Gothic','맑은 고딕',sans-serif; background:var(--bg); margin:0;
+         color:var(--tx); }
+  header { background:var(--sf); color:var(--tx); border-bottom:1px solid var(--line);
+           padding:10px 16px; display:flex; align-items:center; gap:10px; }
+  header img.lg { height:22px; display:block; }
+  header .bar0 { width:1px; height:16px; background:var(--line); }
+  .container { max-width:1100px; margin:0 auto; padding:16px; }
+  .page-title { font-size:15px; font-weight:600; color:var(--tx); margin:0 0 4px; }
+  .sub { font-size:12.5px; color:var(--dim); margin-bottom:14px; }
 
-  .loginbox { max-width:400px; margin:56px auto; background:#fff; border-radius:12px;
-              padding:32px; border:1px solid #e0e0e0; }
-  .loginbox input { border:1px solid #ddd; padding:11px; border-radius:7px; font-size:15px; }
+  .loginbox { max-width:420px; margin:60px auto; background:var(--sf); border-radius:12px;
+              padding:28px; border:1px solid var(--line); }
+  .loginbox img.lg { height:26px; display:block; margin:0 auto 14px; }
+  .loginbox input { border:1px solid var(--line); padding:10px; border-radius:8px;
+                    font-size:15px; background:var(--sf); color:var(--tx); }
   .out { margin-top:16px; padding:12px 14px; border-radius:8px; font-size:13.5px;
          line-height:1.6; display:none; white-space:pre-wrap; }
-  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
-  .err { background:#ffebee; color:#b71c1c; display:block; }
+  .ok  { background:var(--sf); border-left:3px solid #5E9A6E; color:var(--tx); display:block; }
+  .err { background:var(--sf); border-left:3px solid #D8684A; color:#993C1D; display:block; }
 
-  .card { background:#fff; border:1px solid #e0e4dc; border-radius:10px;
-          padding:18px 20px; margin-bottom:18px; }
-  .card h3 { margin:0 0 12px; font-size:15px; color:#33691e; }
+  .card { background:var(--camBg); border:1px solid var(--line); border-radius:12px;
+          padding:14px 16px; margin-bottom:14px; }
+  .card h3 { margin:0 0 10px; font-size:14px; color:var(--tx); font-weight:600; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  select, input[type=text] { padding:8px 10px; border:1px solid #ccc;
-          border-radius:6px; font-size:14px; font-family:inherit; }
+  select, input[type=text] { padding:7px 10px; border:1px solid var(--line);
+          border-radius:8px; font-size:13.5px; font-family:inherit;
+          background:var(--sf); color:var(--tx); }
   input[type=file] { font-size:13px; }
-  button { border:none; border-radius:6px; padding:9px 16px; font-size:13.5px;
-           font-weight:bold; cursor:pointer; }
-  .btn-go { background:#2e7d32; color:#fff; }
-  .btn-sm { background:#eef3ec; color:#2c5c37; padding:6px 12px; font-size:12.5px; }
-  .btn-del { background:#f6e7e7; color:#a33; padding:6px 12px; font-size:12.5px; }
-  button:disabled { background:#bbb; color:#fff; cursor:default; }
+  button { border:1px solid var(--line); border-radius:8px; padding:7px 16px;
+           font-size:13.5px; font-weight:500; cursor:pointer;
+           background:var(--sf); color:var(--tx); }
+  button:hover { background:var(--camL); }
+  .btn-go { background:var(--sf); color:var(--tx); border-color:var(--dim); }
+  .btn-sm { padding:4px 11px; font-size:12.5px; font-weight:400; }
+  .btn-del { color:#993C1D; padding:4px 11px; font-size:12.5px; font-weight:400; }
+  .btn-del:hover { background:#FCEFEA; }
+  button:disabled { background:#f2f1ee; color:var(--dim); border-color:var(--line);
+                    cursor:default; }
 
-  table { width:100%; border-collapse:collapse; font-size:14px; background:#fff; }
-  th { background:#f1f8e9; color:#33691e; padding:10px 8px; text-align:left;
-       border-bottom:2px solid #c5e1a5; font-size:13px; white-space:nowrap; }
-  td { padding:10px 8px; border-bottom:1px solid #eee; vertical-align:middle; }
-  tr:hover td { background:#fafdf7; }
-  .yr { color:#8d6e63; font-weight:bold; white-space:nowrap; }
-  .cat { display:inline-block; padding:2px 9px; border-radius:11px; font-size:12px;
-         background:#e8f0e2; color:#2f5620; border:1px solid #c6d9b8; white-space:nowrap; }
-  .fn { font-size:12.5px; color:#777; }
-  .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; background:var(--sf); }
+  th { background:var(--camL); color:#4A1B0C; padding:7px 8px; text-align:left;
+       border-bottom:1px solid var(--camB); font-size:13px; white-space:nowrap;
+       font-weight:500; }
+  td { padding:9px 8px; border-bottom:1px solid #F0EEEA; vertical-align:middle; }
+  tr:hover td { background:var(--camBg); }
+  .yr { color:var(--cam); font-weight:500; white-space:nowrap; }
+  .cat { display:inline-block; padding:1px 9px; border-radius:11px; font-size:12px;
+         background:#F1EFE8; color:#5F5E5A; white-space:nowrap; }
+  .fn { font-size:12.5px; color:var(--dim); }
+  .empty { padding:40px; text-align:center; color:var(--dim); font-size:14px; }
 </style>
 </head>
 <body>
 
 <!-- 로그인 전 -->
 <div class="loginbox" id="loginBox">
-  <h1 style="font-size:19px;margin:0 0 4px;color:#2e7d32;">서식</h1>
-  <div style="font-size:13px;color:#888;margin-bottom:20px;">나무링크</div>
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <h1 style="font-size:18px;margin:0 0 4px;text-align:center;">서식</h1>
+  <div style="font-size:13px;color:#A39C95;margin-bottom:20px;text-align:center;">나무링크</div>
   <label style="display:block;font-size:12px;color:#666;margin:12px 0 5px;">이메일</label>
   <input id="em" type="email" autocomplete="username" placeholder="you@example.com" style="width:100%;">
   <label style="display:block;font-size:12px;color:#666;margin:12px 0 5px;">비밀번호</label>
   <input id="pw" type="password" autocomplete="current-password" style="width:100%;">
-  <button id="btn" style="width:100%;padding:12px;margin-top:20px;background:#2e7d32;color:#fff;border:none;border-radius:7px;font-size:15px;font-weight:bold;cursor:pointer;">로그인</button>
+  <button id="btn" style="width:100%;padding:11px;margin-top:20px;font-size:15px;">로그인</button>
   <div id="msg" class="out"></div>
 </div>
 
 <div id="mainBox" style="display:none;">
 <header>
-  <span style="font-size:22px;">🌿</span>
-  <h1 style="margin:0;font-size:20px;">나무링크 · 서식</h1>
-  <span style="margin-left:auto;font-size:13px;opacity:.9;" id="who"></span>
-  <a href="index.html" style="background:rgba(255,255,255,.15);color:#fff;text-decoration:none;border-radius:6px;padding:6px 12px;font-size:13px;">🌿 처음으로</a>
-  <button onclick="logout()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;">로그아웃</button>
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <span class="bar0"></span>
+  <h1 style="margin:0;font-size:15px;font-weight:600;">서식</h1>
+  <span style="margin-left:auto;font-size:12px;color:#A39C95;" id="who"></span>
+  <button onclick="logout()" style="padding:5px 12px;font-size:13px;">로그아웃</button>
+  <a href="index.html" style="background:#fff;color:#B07A4A;text-decoration:none;border:1px solid #ECE8E3;border-radius:8px;padding:5px 12px;font-size:13px;">처음으로</a>
 </header>
 
 <div class="container">
@@ -88,12 +104,12 @@
       <input id="u_title" type="text" placeholder="서식 이름 (예: 제공기록지 서식)" style="width:320px;">
     </div>
     <div class="row" style="margin-bottom:8px;">
-      <span style="width:110px;font-size:13px;color:#555;">📄 빈 서식</span>
+      <span style="width:110px;font-size:13px;color:#555;">빈 서식</span>
       <input id="u_blank" type="file" multiple>
       <span style="font-size:12px;color:#999;">내려받아 쓰는 파일. 여러 개 골라도 됩니다</span>
     </div>
     <div class="row" style="margin-bottom:10px;">
-      <span style="width:110px;font-size:13px;color:#555;">👀 작성 견본</span>
+      <span style="width:110px;font-size:13px;color:#555;">작성 견본</span>
       <input id="u_sample" type="file" multiple>
       <span style="font-size:12px;color:#999;">눌러서 보기만 합니다. PDF·사진이 잘 열립니다</span>
     </div>
@@ -173,7 +189,7 @@ function fillYears() {
 function fileLine(f) {
   const isSample = (f.kind === '작성 견본');
   return '<div style="padding:2px 0;font-size:13px;">'
-    + (isSample ? '👀 ' : '📄 ')
+    + ''
     + esc(f.file_name)
     + ' <button class="btn-sm" data-' + (isSample ? 'see' : 'dl') + '="' + f.id + '">'
     +   (isSample ? '보기' : '내려받기') + '</button>'
