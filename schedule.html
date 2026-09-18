@@ -8474,26 +8474,63 @@ async function autoDone(){
       return String(a.plan_date).localeCompare(String(b.plan_date))
           || String(a.start_time).localeCompare(String(b.start_time));
     });
+    // 브라우저 알림 창(alert)은 글이 길면 뒤를 잘라 버린다 (2026-09-18)
+    //   그래서 화면 안에 우리 창을 만들어 보강·고정을 좌우로 나눠 모두 보여 준다
+    const esc = function(v){
+      return String(v == null ? '' : v)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    };
     const line = function(s){
       const d = String(s.plan_date).slice(5).replace('-', '/');
       // 보강은 몇 분짜리인지 함께 적는다 (+10 쪼개기 조각 / +40 한 회 보강) (2026-09-17)
-      const mn = s.makeup_for ? ('  +' + (Number(s.minutes) || 40)) : '';
-      return '  ' + d + ' ' + h12(s.start_time) + mn + '  '
-           + s.child_id + '번 ' + (KIDNM[s.child_id] || '');
+      const mn = s.makeup_for
+        ? ' <b style="background:#E6F1FB;color:#0C447C;padding:1px 5px;border-radius:4px;'
+          + 'font-weight:400">+' + (Number(s.minutes) || 40) + '</b>'
+        : '';
+      return '<div style="padding:2px 0">' + esc(d) + ' ' + esc(h12(s.start_time)) + mn
+           + ' &nbsp;' + esc(s.child_id) + '번 ' + esc(KIDNM[s.child_id] || '') + '</div>';
     };
     const fix = rows.filter(function(s){ return !s.makeup_for; });
     const mkk = rows.filter(function(s){ return !!s.makeup_for; });
+    const colCss = 'padding:12px 14px;font-size:13px;line-height:1.7;'
+                 + 'max-height:46vh;overflow:auto';
+    const hdCss  = 'margin:0 0 8px;font-size:13px;font-weight:700;color:#5f5e5a';
 
-    let msg = '지난 수업 ' + rows.length + '건을 「완료」로 바꿨습니다.\n'
-            + '(' + last + ' 까지)\n';
-    if (fix.length) msg += '\n[고정 수업 ' + fix.length + '건]\n'
-                         + fix.map(line).join('\n') + '\n';
-    if (mkk.length) msg += '\n[보강 ' + mkk.length + '건]\n'
-                         + mkk.map(line).join('\n') + '\n';
-    msg += '\n결석이었던 것이 있으면 시간표에서 고쳐 주세요.';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:9999;'
+      + 'background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px';
+    wrap.innerHTML =
+      '<div style="width:100%;max-width:620px;background:#fff;border-radius:12px;overflow:hidden">'
+      + '<div style="background:#F8F1E8;border-bottom:1px solid #C9A27E;padding:12px 16px">'
+      +   '<div style="font-size:15px;font-weight:700;color:#4A1B0C">지난 수업 '
+      +     rows.length + '건을 「완료」로 바꿨습니다</div>'
+      +   '<div style="font-size:13px;color:#993C1D;margin-top:2px">' + esc(last) + ' 까지</div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:'
+      +   (mkk.length && fix.length ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)') + '">'
+      +   (mkk.length
+          ? '<div style="' + colCss + (fix.length ? ';border-right:1px solid #ECE8E3' : '') + '">'
+            + '<div style="' + hdCss + '">보강 ' + mkk.length + '건</div>'
+            + mkk.map(line).join('') + '</div>'
+          : '')
+      +   (fix.length
+          ? '<div style="' + colCss + '">'
+            + '<div style="' + hdCss + '">고정 수업 ' + fix.length + '건</div>'
+            + fix.map(line).join('') + '</div>'
+          : '')
+      + '</div>'
+      + '<div style="border-top:1px solid #ECE8E3;padding:10px 16px;display:flex;'
+      +   'align-items:center;justify-content:space-between;gap:12px">'
+      +   '<span style="font-size:13px;color:#5f5e5a">결석이었던 것이 있으면 시간표에서 고쳐 주세요</span>'
+      +   '<button id="adOk" style="width:auto;margin:0;padding:6px 18px;font-size:14px;'
+      +     'border:1px solid #A39C95;border-radius:8px;background:#fff;cursor:pointer">확인</button>'
+      + '</div></div>';
+    document.body.appendChild(wrap);
+    const close = function(){ if (wrap.parentNode) wrap.parentNode.removeChild(wrap); };
+    wrap.querySelector('#adOk').onclick = close;
+    wrap.onclick = function(e){ if (e.target === wrap) close(); };
 
     keepSet('nl_autodone_day', today);
-    alert(msg);
   } catch (e) {}
 }
 
