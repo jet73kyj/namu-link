@@ -5,60 +5,80 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>결석·보강 신청 - 나무링크</title>
 <style>
-  body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:#f5f9f0;
-         margin:0; padding:24px; color:#333; }
-  .box { max-width:460px; margin:40px auto; background:#fff; border-radius:12px;
-         padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-  .wide { max-width:900px; margin:20px auto; background:#fff; border-radius:12px;
-          padding:24px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-  h1 { font-size:20px; color:#2e7d32; margin:0 0 4px; }
-  .sub { font-size:13px; color:#888; margin-bottom:22px; }
-  label { display:block; font-size:13px; font-weight:bold; margin:14px 0 5px; }
-  input { width:100%; padding:11px; border:1px solid #ddd; border-radius:7px;
-          font-size:15px; box-sizing:border-box; }
-  button { width:100%; padding:13px; margin-top:20px; background:#2e7d32; color:#fff;
-           border:none; border-radius:7px; font-size:15px; font-weight:bold; cursor:pointer; }
-  button:disabled { background:#bbb; cursor:default; }
-  .out { margin-top:20px; padding:14px; border-radius:8px; font-size:14px;
+  :root{ --bg:#F5F4F2; --sf:#FFFFFF; --line:#ECE8E3; --tx:#2F2926; --dim:#A39C95;
+         --cam:#B07A4A; --camL:#F8F1E8; --camBg:#FBF5EE; }
+  body { font-family: -apple-system, "Malgun Gothic", sans-serif; background:var(--bg);
+         margin:0; padding:0; color:var(--tx); }
+  .hd { background:var(--sf); border-bottom:1px solid var(--line); display:flex;
+        align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px; }
+  .hd img.lg { height:22px; display:block; }
+  .hd .bar0 { width:1px; height:16px; background:var(--line); }
+  .hd h1 { font-size:15px; font-weight:600; margin:0; color:var(--tx); }
+  .hd .sp { flex:1 1 auto; }
+  .box { max-width:420px; margin:60px auto; background:var(--sf);
+         border:1px solid var(--line); border-radius:12px; padding:28px; }
+  .box img.lg { height:26px; display:block; margin:0 auto 14px; }
+  .wide { max-width:900px; margin:0 auto; padding:16px; }
+  h1 { font-size:18px; color:var(--tx); margin:0 0 4px; font-weight:600; }
+  .sub { font-size:13px; color:var(--dim); margin-bottom:20px; text-align:center; }
+  label { display:block; font-size:12.5px; font-weight:500; margin:12px 0 5px;
+          color:#5F5E5A; }
+  input { width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px;
+          font-size:14px; box-sizing:border-box; background:var(--sf); color:var(--tx); }
+  button { width:100%; padding:11px; margin-top:18px; background:var(--sf); color:var(--tx);
+           border:1px solid var(--dim); border-radius:8px; font-size:14px;
+           font-weight:500; cursor:pointer; }
+  button:hover { background:var(--camL); }
+  button:disabled { background:#f2f1ee; color:var(--dim); border-color:var(--line);
+                    cursor:default; }
+  .out { margin-top:16px; padding:13px; border-radius:8px; font-size:14px;
          line-height:1.7; display:none; white-space:pre-wrap; }
-  .ok  { background:#e8f5e9; color:#1b5e20; display:block; }
-  .err { background:#ffebee; color:#b71c1c; display:block; }
+  .ok  { background:var(--sf); border-left:3px solid #5E9A6E; color:var(--tx); display:block; }
+  .err { background:var(--sf); border-left:3px solid #D8684A; color:#993C1D; display:block; }
 
-  .top { display:flex; justify-content:space-between; align-items:center;
-         flex-wrap:wrap; gap:10px; margin-bottom:16px; }
-  .who { font-size:13px; color:#666; }
-  .btn-out { width:auto; margin:0; padding:8px 16px; background:#757575; font-size:13px; }
-  .btn-home { display:inline-block; padding:8px 16px; background:#2e7d32; color:#fff;
-              font-size:13px; border-radius:7px; text-decoration:none; margin-right:8px; }
+  .who { font-size:12px; color:var(--dim); }
+  .btn-out { width:auto; margin:0; padding:5px 12px; font-size:13px;
+             border-color:var(--line); }
+  .btn-home { display:inline-block; padding:5px 12px; background:var(--sf); color:var(--cam);
+              font-size:13px; border:1px solid var(--line); border-radius:8px;
+              text-decoration:none; margin-right:8px; }
+  .btn-home:hover { background:var(--camL); }
 
-  .tabs { display:flex; gap:8px; margin-bottom:18px; }
-  .tabs button { width:auto; margin:0; padding:8px 16px; background:#eee; color:#555;
-                 font-size:13px; font-weight:normal; }
-  .tabs button.on { background:#2e7d32; color:#fff; font-weight:bold; }
+  .tabs { display:flex; gap:16px; margin-bottom:14px;
+          border-bottom:1px solid var(--line); }
+  .tabs button { width:auto; margin:0; padding:2px 0 7px; background:none; color:var(--dim);
+                 font-size:13.5px; font-weight:400; border:none;
+                 border-bottom:2px solid transparent; border-radius:0; }
+  .tabs button:hover { background:none; color:var(--tx); }
+  .tabs button.on { background:none; color:var(--tx); font-weight:500;
+                    border-bottom-color:var(--cam); }
 
-  .rq { border:1px solid #e6e9e2; border-radius:10px; padding:16px; margin-bottom:12px; }
-  .rq.wait { border-color:#ffcc80; background:#fffdf7; }
+  .rq { background:var(--sf); border:1px solid var(--line); border-radius:12px;
+        padding:15px 16px; margin-bottom:10px; }
+  .rq.wait { border-radius:0; border-left:3px solid #D29A3C; }
   .rqhead { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .rqkid { font-size:15px; font-weight:bold; color:#2e3d2c; }
-  .tag { font-size:11.5px; padding:2px 9px; border-radius:11px; }
-  .t-wait { background:#ffe0b2; color:#e65100; }
-  .t-ok   { background:#e8f5e9; color:#1b5e20; }
-  .t-no   { background:#eceff1; color:#546e7a; }
-  .rqline { font-size:14px; color:#555; line-height:1.8; margin-top:9px; }
-  .rqline b { color:#2e3d2c; }
-  .why { background:#f4f7f2; border-radius:8px; padding:9px 12px;
-         font-size:13.5px; color:#5a6156; margin-top:9px; }
-  .none2 { color:#c62828; font-weight:bold; }
+  .rqkid { font-size:14.5px; font-weight:500; color:var(--tx); }
+  .tag { font-size:11.5px; padding:1px 9px; border-radius:11px; }
+  .t-wait { background:#FAEEDA; color:#854F0B; }
+  .t-ok   { background:#EAF3DE; color:#3B6D11; }
+  .t-no   { background:#F1EFE8; color:#5F5E5A; }
+  .rqline { font-size:13.5px; color:#5F5E5A; line-height:1.8; margin-top:9px; }
+  .rqline b { color:var(--tx); font-weight:500; }
+  .why { background:var(--camBg); border-radius:8px; padding:9px 12px;
+         font-size:13.5px; color:#5F5E5A; margin-top:9px; }
+  .none2 { color:#993C1D; font-weight:500; }
   .rqbtns { display:flex; gap:8px; margin-top:14px; }
-  .rqbtns button { width:auto; margin:0; padding:8px 18px; font-size:13px; }
-  .btn-no { background:#ef9a9a; color:#7f1d1d; font-weight:normal; }
-  .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
+  .rqbtns button { width:auto; margin:0; padding:6px 18px; font-size:13px; }
+  .btn-no { background:var(--sf); color:#993C1D; border-color:var(--line); font-weight:400; }
+  .btn-no:hover { background:#FCEFEA; }
+  .empty { padding:40px; text-align:center; color:var(--dim); font-size:14px; }
 </style>
 </head>
 <body>
 
 <div class="box" id="loginBox">
-  <h1>결석·보강 신청</h1>
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <h1 style="text-align:center">결석 · 보강 신청</h1>
   <div class="sub">나무링크 · 학부모가 낸 신청을 확인합니다</div>
   <label for="em">이메일</label>
   <input id="em" type="email" autocomplete="username">
@@ -68,17 +88,17 @@
   <div class="out" id="msg"></div>
 </div>
 
-<div class="wide" id="mainBox" style="display:none">
-  <div class="top">
-    <div>
-      <h1>결석·보강 신청</h1>
-      <div class="who" id="who"></div>
-    </div>
-    <div>
-      <a class="btn-home" href="index.html">처음으로</a>
-      <button class="btn-out" id="out" style="display:inline-block">로그아웃</button>
-    </div>
+<div id="mainBox" style="display:none">
+  <div class="hd">
+    <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+    <span class="bar0"></span>
+    <h1>결석 · 보강 신청</h1>
+    <span class="who" id="who"></span>
+    <span class="sp"></span>
+    <button class="btn-out" id="out" style="display:inline-block">로그아웃</button>
+    <a class="btn-home" href="index.html" style="margin-right:0">처음으로</a>
   </div>
+  <div class="wide">
 
   <div class="tabs">
     <button id="tabWait" class="on">확인할 것</button>
@@ -87,6 +107,7 @@
 
   <div class="out" id="msg2"></div>
   <div id="list"></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
