@@ -150,13 +150,66 @@
   button.slipsave { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
   button.slipsave.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
   button.slipsave:disabled { background:#bbb; color:#fff; border-color:#bbb; }
+
+  /* ── 꾸밈 B (2026-09-18) — 화면에서 보이는 곳만.
+     결의서·현금출납부·결산표의 인쇄 서식(.paper · .pin · .ptab · .sign · .logo)은 손대지 않음 ── */
+  body { background:#F5F4F2; padding:0; color:#2F2926; }
+  .hd { background:#fff; border-bottom:1px solid #ECE8E3; display:flex;
+        align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px; }
+  .hd img.lg { height:22px; display:block; }
+  .hd .bar0 { width:1px; height:16px; background:#ECE8E3; }
+  .hd h1 { font-size:15px; font-weight:600; margin:0; color:#2F2926; }
+  .hd .sub { font-size:12px; color:#A39C95; margin:0; }
+  .hd .sp { flex:1 1 auto; }
+  .box { max-width:420px; margin:60px auto; border:1px solid #ECE8E3; box-shadow:none; }
+  .box img.lg { height:26px; display:block; margin:0 auto 14px; }
+  .wide { max-width:1100px; margin:0 auto; padding:16px; background:none;
+          border-radius:0; box-shadow:none; }
+  h1 { color:#2F2926; font-size:18px; font-weight:600; }
+  .sub { color:#A39C95; }
+  button { background:#fff; color:#2F2926; border:1px solid #A39C95;
+           border-radius:8px; font-weight:500; padding:7px 15px; }
+  button:hover { background:#F8F1E8; }
+  button:disabled { background:#f2f1ee; color:#A39C95; border-color:#ECE8E3; }
+  .ghost { background:#fff; color:#2F2926; border:1px solid #ECE8E3; }
+  .btn-home { background:#fff; color:#B07A4A; border:1px solid #ECE8E3;
+              padding:5px 12px; border-radius:8px; font-weight:500; font-size:13px; }
+  .btn-home:hover { background:#F8F1E8; }
+  input, select, textarea { border:1px solid #ECE8E3; border-radius:8px; color:#2F2926; }
+  label { color:#5F5E5A; font-weight:500; }
+  .tabs { gap:16px; border-bottom:1px solid #ECE8E3; margin-bottom:14px; }
+  .tab { padding:2px 0 7px; border:none; border-bottom:2px solid transparent;
+         border-radius:0; background:none; color:#A39C95; font-size:13.5px; }
+  .tab:hover { background:none; color:#2F2926; }
+  .tab.on { background:none; color:#2F2926; font-weight:500;
+            border-bottom-color:#B07A4A; }
+  table:not(.ptab):not(.sign) th { background:#F8F1E8; color:#4A1B0C; font-weight:500;
+       border:1px solid #C9A27E; }
+  table:not(.ptab):not(.sign) td { border:1px solid #E6E2DD; }
+  table:not(.ptab):not(.sign) tr.sum td { background:#FBF5EE; font-weight:500; }
+  .listrow { border-bottom:1px solid #F0EEEA; }
+  .listrow:hover { background:#FBF5EE; }
+  .listrow .det { color:#5F5E5A; }
+  .del { background:#fff; color:#993C1D; border:1px solid #ECE8E3; border-radius:8px; }
+  .del:hover { background:#FCEFEA; }
+  .hint { color:#A39C95; }
+  .out.ok  { background:#fff; border-left:3px solid #5E9A6E; color:#2F2926;
+             border-radius:0; }
+  .out.err { background:#fff; border-left:3px solid #D8684A; color:#993C1D;
+             border-radius:0; }
+  button.slipsave { background:#fff; color:#2F2926; border:1px solid #A39C95; }
+  button.slipsave.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
+  button.slipsave:disabled { background:#f2f1ee; color:#A39C95; border-color:#ECE8E3; }
+  @media print { body { background:#fff; } .wide { padding:0; }
+                 .hd { display:none !important; } }
 </style>
 </head>
 <body>
 
 <div class="box" id="loginBox">
-  <h1>🌿 나무링크</h1>
-  <p class="sub">세무 — 대표만 볼 수 있습니다</p>
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <h1 style="text-align:center">나무링크</h1>
+  <p class="sub" style="text-align:center">세무 — 대표만 볼 수 있습니다</p>
   <label for="em">이메일</label>
   <input id="em" type="email" autocomplete="username">
   <label for="pw">비밀번호</label>
@@ -165,18 +218,18 @@
   <div id="msg" class="out"></div>
 </div>
 
-<div class="wide" id="mainBox" style="display:none;">
-  <div class="top">
-    <div>
-      <h1>🧾 세무</h1>
-      <p class="sub" style="margin:2px 0 0;">사업명 : 발달재활서비스</p>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <a class="btn-home" href="index.html">처음으로</a>
-      <button id="prt" class="ghost">🖨 인쇄 · PDF로 저장</button>
-      <button id="out" class="ghost">로그아웃</button>
-    </div>
+<div id="mainBox" style="display:none;">
+  <div class="hd noprint">
+    <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+    <span class="bar0"></span>
+    <h1>세무</h1>
+    <p class="sub">사업명 : 발달재활서비스</p>
+    <span class="sp"></span>
+    <button id="prt" class="ghost">인쇄 · PDF로 저장</button>
+    <button id="out" class="ghost">로그아웃</button>
+    <a class="btn-home" href="index.html">처음으로</a>
   </div>
+  <div class="wide">
 
   <div class="tabs noprint">
     <button class="tab on" data-tab="in">수입결의서</button>
@@ -199,6 +252,7 @@
 
   <div id="pane"></div>
   <div id="tmsg" class="out"></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
