@@ -94,13 +94,55 @@
               margin-top:14px; }
   .fold { font-size:12px; color:var(--acc); cursor:pointer; user-select:none;
           margin-top:8px; display:inline-block; }
+
+  /* ── 꾸밈 B (2026-09-18) ── */
+  :root { --ink:#2F2926; --ink2:#5F5E5A; --ink3:#A39C95;
+          --line:#ECE8E3; --bg:#F5F4F2; --acc:#B07A4A; --acc-bg:#F8F1E8;
+          --camBg:#FBF5EE; }
+  body { padding:0; }
+  .hd { background:#fff; border-bottom:1px solid var(--line); display:flex;
+        align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px; }
+  .hd img.lg { height:22px; display:block; }
+  .hd .bar0 { width:1px; height:16px; background:var(--line); }
+  .hd h1 { font-size:15px; font-weight:600; margin:0; }
+  .hd .sp { flex:1 1 auto; }
+  .box { max-width:420px; margin:60px auto; border-radius:12px; padding:28px; }
+  .box img.lg { height:26px; display:block; margin:0 auto 14px; }
+  .wide { max-width:1000px; margin:0 auto; padding:16px; }
+  h1 { font-size:18px; font-weight:600; }
+  .who { font-size:12px; color:var(--ink3); }
+  button { background:#fff; color:var(--ink); border:1px solid var(--ink3);
+           border-radius:8px; font-weight:500; padding:7px 15px; }
+  button:hover { background:var(--acc-bg); filter:none; }
+  button:disabled { background:#f2f1ee; color:var(--ink3); border-color:var(--line); }
+  .ghost { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  .btn-home { background:#fff; color:var(--acc); border:1px solid var(--line);
+              padding:5px 12px; border-radius:8px; margin-right:0; }
+  .btn-home:hover { background:var(--acc-bg); filter:none; }
+  input, select { border:1px solid var(--line); border-radius:8px; }
+  .out.ok  { background:#fff; border-left:3px solid #5E9A6E; color:var(--ink);
+             border-radius:0; }
+  .out.err { background:#fff; border-left:3px solid #D8684A; color:#993C1D;
+             border-radius:0; }
+  .kid { border:1px solid var(--line); border-radius:12px; }
+  .kid.done { border-radius:0; border-left:3px solid #5E9A6E;
+              border-color:var(--line); background:#fff; }
+  .kamt { color:var(--acc); font-weight:500; }
+  .kdone { background:#EAF3DE; color:#3B6D11; }
+  .kbody .tag { background:#F1EFE8; }
+  table.mix.bank tr.sumrow td { color:var(--acc); font-weight:500;
+                                border-top:2px solid var(--line); }
+  .asktitle { color:#854F0B; background:#FAEEDA; }
+  .fold { color:var(--acc); }
+  td.zc input { accent-color:var(--acc); }
 </style>
 </head>
 <body>
 
 <div class="box" id="loginBox">
-  <h1>현금영수증</h1>
-  <div class="sub">나무링크</div>
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <h1 style="text-align:center">현금영수증</h1>
+  <div class="sub" style="text-align:center">나무링크</div>
   <label for="em">이메일</label>
   <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
   <label for="pw">비밀번호</label>
@@ -109,15 +151,17 @@
   <div id="msg" class="out"></div>
 </div>
 
-<div class="wide" id="mainBox" style="display:none;">
-  <div class="top">
-    <div>
-      <h1>현금영수증</h1>
-      <div class="who" id="who"></div>
-    </div>
-    <a href="index.html" class="btn-home">🌿 처음으로</a>
+<div id="mainBox" style="display:none;">
+  <div class="hd">
+    <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+    <span class="bar0"></span>
+    <h1>현금영수증</h1>
+    <span class="who" id="who"></span>
+    <span class="sp"></span>
     <button id="out" class="ghost">로그아웃</button>
+    <a href="index.html" class="btn-home">처음으로</a>
   </div>
+  <div class="wide">
 
   <div class="tools">
     <select id="year"></select>
@@ -134,7 +178,7 @@
 
   <div class="note">
     한 해 동안 <b>계좌로 받은 돈</b>을 아동별로 모았습니다. 12월에 한꺼번에 발행하실 때 쓰는 화면입니다.<br>
-    <b>계좌로 본 것</b> — 메모에 「계좌」가 있는 것, 발달재활서비스, 발추 <span style="color:#3c7a4a;font-weight:600;">(판 3)</span><br>
+    <b>계좌로 본 것</b> — 메모에 「계좌」가 있는 것, 발달재활서비스, 발추 <span style="color:#B07A4A;font-weight:500;">(판 3)</span><br>
     <b>카드로 본 것</b> — 메모에 「카드」「결제선생」「결제완료」나 승인번호가 있는 것, 평가비<br>
     <b>메모에 「현영」</b>이 있으면 이미 발행한 것으로 보고 뺍니다.<br>
     어느 쪽인지 알 수 없는 것은 <b>「계좌로 봄」</b> 네모칸으로 골라 주세요. 한 번 고르면 메모에 남아 다음부터 자동으로 잡힙니다.
@@ -143,6 +187,7 @@
   <div id="kids"></div>
   <div class="empty" id="empty">연도를 고르고 불러오기를 누르세요.</div>
   <div id="msg2" class="out"></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -343,7 +388,7 @@ function render() {
       +   '<span class="tag">계좌 ' + won(g.bank) + '</span>'
       +   '<span class="tag">카드 ' + won(g.card) + '</span>'
       +   (g.done ? '<span class="tag">이미 발행 ' + won(g.done) + '</span>' : '')
-      +   (g.ask.length ? '<span class="tag" style="background:#fff3c4;">고를 것 '
+      +   (g.ask.length ? '<span class="tag" style="background:#FAEEDA;color:#854F0B;">고를 것 '
             + g.ask.length + '건</span>' : '')
       + '</div>'
       + (bankRows
