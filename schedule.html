@@ -6751,12 +6751,22 @@ $('mnSave').onclick = async () => {
 
   // 다른 아동이 그 자리에 있으면 아예 넣지 않는다 (겹쳐 예약 막기)
   {
+    // 쪼갠 보강(10·20·30분)은 자리를 40분 차지하지 않는다 (2026-09-18)
+    //   교시로만 견주면 16:40 10분짜리가 16:50 자리를 막는다. 실제 시각으로 본다
+    const nS2 = toMin(String(slotHm(slot2, mnKey.th, wd2) || '').slice(0, 5));
+    const ov2 = v => {
+      const a = toMin(String(v.start_time).slice(0, 5));
+      return (a != null && nS2 != null
+              && a < nS2 + 40 && nS2 < a + Number(v.minutes || 40));
+    };
     const busy = SESS.filter(v =>
          String(v.plan_date) === String(d)
       && Number(v.therapist_id) === Number(mnKey.th)
       && Number(v.id) !== Number(mnEditId || 0)
       && v.status !== '결석' && v.status !== '휴무' && v.status !== '쉼'
-      && nearest(toMin(v.start_time)).no === slot2.no
+      && (Number(v.minutes || 40) === 40
+            ? nearest(toMin(v.start_time)).no === slot2.no
+            : ov2(v))
       && Number(v.child_id) !== Number(mnKid.id));
     if (busy.length) {
       const who = busy.map(v => (v._name || ('아동 ' + v.child_id))).join(', ');
