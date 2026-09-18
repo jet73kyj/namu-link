@@ -420,7 +420,7 @@ function drawSlip(kind){
   // 자주 쓰는 것 — 목 단추를 누르면 적요가 펼쳐진다
   const favCs = cs.filter(c => FAVS.some(f => f.code_id === c.id));
   h += '<div id="favBox" style="display:none;margin-top:10px;'
-    + 'border:1px solid #e6ebe2;border-radius:8px;padding:12px;">'
+    + 'border:1px solid #ECE8E3;border-radius:8px;padding:12px;">'
     + '<div style="font-size:13px;color:#666;margin-bottom:8px;">'
     + '목을 누르면 자주 쓰는 적요가 나옵니다.</div>'
     + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
@@ -430,12 +430,12 @@ function drawSlip(kind){
 
   // 지난달 것
   h += '<div id="prevBox" style="display:none;margin-top:10px;'
-    + 'border:1px solid #e6ebe2;border-radius:8px;padding:12px;">'
+    + 'border:1px solid #ECE8E3;border-radius:8px;padding:12px;">'
     + '<div id="prevList"></div></div>';
 
   // 그 달 목록
-  h += '<div style="margin-top:10px;border:1px solid #e6ebe2;border-radius:8px;">'
-    + '<div class="listrow" style="background:#eef3ec;font-weight:600;">'
+  h += '<div style="margin-top:10px;border:1px solid #ECE8E3;border-radius:8px;">'
+    + '<div class="listrow" style="background:#F8F1E8;color:#4A1B0C;font-weight:500;border-bottom:1px solid #C9A27E;">'
     + '<span>날짜</span><span>적요</span><span>내역</span><span>목</span>'
     + '<span class="num">금액</span><span></span></div>';
   if (!list.length) {
@@ -462,7 +462,7 @@ function drawSlip(kind){
 
   // 쓰기 창
   h += '<div id="form" style="display:none;" class="noprint">'
-    + '<div style="border:1px solid #e6ebe2;border-radius:8px;padding:14px;margin-top:14px;">'
+    + '<div style="border:1px solid #ECE8E3;border-radius:8px;padding:14px;margin-top:14px;">'
     + '<div class="grid3">'
     + '<div><label>증빙서번호</label><input id="f_no" readonly></div>'
     + '<div><label>결의일</label><input id="f_date" type="date"></div>'
