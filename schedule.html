@@ -8394,8 +8394,18 @@ $('mkDel').onclick = async () => {
 
 // ===== 자료 불러오기 =====
 // 보고 있는 달에 맞는 수업요일 줄만 남긴다
-function applyMonthFilter(){
+//   셈은 서버 한 곳 — nl_live_rows(달) 이 「그 달에 살아 있던 수업」을 돌려준다 (2026-09-19)
+//   치료 끝난날·요일줄 끝난날까지 함께 보므로, 끝난 수업이 남아 보이지 않는다
+//   서버를 못 부르면 옛 셈(끝난달만 보는 것)으로 그린다
+async function applyMonthFilter(){
   if (!ROWS_ALL.length) return;
+  try {
+    const { data, error } = await sb.rpc('nl_live_rows', { p_month: mon, p_grace: 0 });
+    if (error) throw error;
+    const live = new Set((data || []).map(r => Number(r.schedule_id)));
+    ROWS = ROWS_ALL.filter(r => live.has(Number(r.id)));
+    return;
+  } catch (e) { /* 서버를 못 부르면 아래 옛 셈으로 */ }
   ROWS = ROWS_ALL.filter(r =>
     (!r.from_month || r.from_month <= mon) &&
     (!r.to_month   || r.to_month   >= mon));
@@ -8542,7 +8552,7 @@ async function autoDone(){
 
 async function loadMonth(){
   await autoDone();
-  applyMonthFilter();
+  await applyMonthFilter();
   BAL = new Set();
   OFF = new Set(); OFFTXT = {}; BLOCK = new Set(); CONS = {}; WORKX = {};
   const { data: off } = await sb.from('nl_offdays')
