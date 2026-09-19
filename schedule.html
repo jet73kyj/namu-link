@@ -3040,6 +3040,12 @@ function drawFind(){
     _rl.forEach(x => {
       if (x.status === '쉼') return;
       if (isBunsan(x)) { bunsan.push(x); return; }   // 발추 나눠서 진행 자리표
+      // 발추(8)는 날짜 칸에 넣지 않고 늘 줄 끝에 따로 그린다 (2026-09-19)
+      //   발추 날짜가 그 수업 요일과 겹치면 그 날 단추가 둘이 되어
+      //   「4주면 4개 · 5주면 5개」 규칙이 깨지고 빨간 「회기 줄 1개 더」가 떴다 (64번 10월)
+      if (Number(x.support_type_id) === 8 && Number(r.support_type_id) !== 8) {
+        other.push(x); return;
+      }
       const d = String(x.plan_date);
       if (days.indexOf(d) >= 0) (slot[d] = slot[d] || []).push(x);
       else other.push(x);
