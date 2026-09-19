@@ -509,9 +509,20 @@
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
 const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
 
-// 로그인을 창(탭) 안에서만 유지한다. 창을 닫으면 끊긴다.
+// 로그인을 남는 자리에 담는다 — 앱을 닫아도 계속 들어가 있다 (2026-09-19)
+//   홈 화면 아이콘으로 쓰시면 앱을 닫을 때마다 끊겨 매번 다시 로그인하셔야 했다
+//   끊으시려면 화면 위 「로그아웃」을 누르시면 된다
+//   저장소를 못 쓰는 브라우저(시크릿 창 등)에서는 예전처럼 창 안에서만 유지한다
+const NLSTORE = (function(){
+  try {
+    const k = '__nl_t';
+    window.localStorage.setItem(k, '1');
+    window.localStorage.removeItem(k);
+    return window.localStorage;
+  } catch (e) { return window.sessionStorage; }
+})();
 const sb = window.supabase.createClient(URL_, KEY_, {
-  auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }
+  auth: { storage: NLSTORE, persistSession: true, autoRefreshToken: true }
 });
 const $ = id => document.getElementById(id);
 
