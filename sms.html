@@ -54,6 +54,7 @@
   .k-요일변경 { background:#E6F1FB; color:#185FA5; }
   .k-시간변경 { background:#E6F1FB; color:#185FA5; }
   .k-체험 { background:#EEF5FA; color:#185FA5; }
+  .k-발추 { background:#F1ECF8; color:#5B3E9B; }
   .nm { font-weight:500; font-size:15px; }
   .ph { font-size:13px; color:var(--ink2); }
   .ph b { font-weight:500; color:var(--ink); }
@@ -166,7 +167,8 @@ const LINE1 = {
   '상담':     '아동 평가 상담 예약이 되었습니다',
   '요일변경': '아동 수업 요일이 바뀌었습니다',
   '시간변경': '아동 수업 시간이 바뀌었습니다',
-  '체험':     '아동 체험 수업이 예약되어 있습니다'
+  '체험':     '아동 체험 수업이 예약되어 있습니다',
+  '발추':     '아동 추가 수업이 예약되어 있습니다'
 };
 function smsText(it) {
   return HEAD + it.name + ' ' + (LINE1[it.kind] || '아동 일정 안내입니다') + '\n\n'
@@ -210,11 +212,18 @@ async function loadAll() {
 
   // ① 보강 · ② 첫 수업 — 회기 표에서
   const { data: ss } = await sb.from('nl_sessions')
-    .select('child_id, plan_date, start_time, status, therapist_id, makeup_for, schedule_id')
+    .select('child_id, plan_date, start_time, status, therapist_id, makeup_for, schedule_id, support_type_id, memo')
     .gte('plan_date', from).lte('plan_date', to);
   (ss || []).forEach(s => {
-    if (s.status === '휴무' || s.status === '쉼' || s.status === '결석') return;
-    if (s.makeup_for) push('보강', s.child_id, s.plan_date, s.start_time, s.therapist_id);
+    if (s.status === '휴무' || s.status === '쉼' || s.status === '결석'
+        || s.status === '취소') return;
+    if (s.makeup_for) { push('보강', s.child_id, s.plan_date, s.start_time, s.therapist_id); return; }
+    // ⑧ 발추(이) 수업 — 달마다 날짜가 달라지므로 따로 알린다 (2026-09-19)
+    //   보강 줄은 위에서 「보강」으로 이미 담았고,
+    //   메모에 [분산]이 든 자리표는 정규 수업에 10분씩 얹는 것이라 뺀다
+    if (Number(s.support_type_id) === 8
+        && String(s.memo || '').indexOf('분산') < 0)
+      push('발추', s.child_id, s.plan_date, s.start_time, s.therapist_id);
   });
 
   // 첫 수업 — 요일줄 시작날이 사흘 안
