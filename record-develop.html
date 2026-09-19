@@ -175,7 +175,7 @@
 
 <div class="picker no-print">
   <select id="pChild" style="min-width:220px;"></select>
-  <input id="pMonth" type="month" onchange="buildChildList();drawChildSelect();">
+  <input id="pMonth" type="month" onchange="buildChildList().then(drawChildSelect);">
   <button id="pLoad">불러오기</button>
   <button type="button" id="pIntake" style="background:#e3f0fb;color:#0c447c;border:1px solid #85b7eb;border-radius:7px;font-weight:600;">상담 · 보고서</button>
   <span id="pInfo"></span>
@@ -382,6 +382,7 @@ let ME = null, CHILDREN = [], THERAPISTS = {};
 let child = null, therapy = null, SCHED = [], GRADE = null;
 let VOUCHER = [], LOGID = null, ITEMS = [];
 let CH_RAW = [];   // 발달재활 수업 원본 (달을 바꿀 때 목록을 다시 만든다)
+let KIDS   = {};   // 아동번호 → 아동 정보 (창구가 돌려준 번호를 이름으로 바꿀 때 쓴다)
 let ABS = {};              // 날짜 -> {absent, reason, makeupDate, makeupTime, makeupMemo}
 let year = new Date().getFullYear();
 let month = new Date().getMonth() + 1;
@@ -480,9 +481,11 @@ async function afterLogin(user) {
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
 
   CH_RAW = ch.data || [];
-  buildChildList();
+  KIDS = {};
+  CH_RAW.forEach(r => { if (r.nl_children) KIDS[r.nl_children.id] = r.nl_children; });
 
   $('pMonth').value = mkNow();
+  await buildChildList();
   drawChildSelect();
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
@@ -500,12 +503,29 @@ function _keepMk(mk) {
   return y2 + '-' + String(m2).padStart(2,'0');
 }
 
-function buildChildList() {
+// 셈은 서버 한 곳 — nl_live_rows(달, 유예개월) 가 「그 달에 살아 있던 수업」을 돌려준다 (2026-09-19)
+//   유예 2 = 끝난 수업도 두 달까지 남긴다 (기록지를 쓸 시간을 준다)
+//   서버를 못 부르면 아래 옛 셈으로 그린다
+async function buildChildList() {
   const mv  = ($('pMonth') && $('pMonth').value) ? $('pMonth').value : mkNow();
   const mk0 = _keepMk(mv);
   const seen = {};
   CHILDREN = [];
   const allView = _isAllView(ME.role);
+  try {
+    const { data, error } = await sb.rpc('nl_live_rows', { p_month: mv, p_grace: 2 });
+    if (error) throw error;
+    (data || []).forEach(r => {
+      if (Number(r.support_type_id) !== 2) return;
+      if (!allView && String(r.therapist_id) !== String(ME.id)) return;
+      const c = KIDS[r.child_id];
+      if (!c || seen[c.id]) return;
+      seen[c.id] = true;
+      CHILDREN.push(c);
+    });
+    CHILDREN.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    return;
+  } catch (e) { /* 서버를 못 부르면 아래 옛 셈으로 */ }
   CH_RAW.forEach(r => {
     const c = r.nl_children;
     if (!c || seen[c.id]) return;
