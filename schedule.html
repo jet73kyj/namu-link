@@ -5045,8 +5045,8 @@ function drawWks(){
   box.style.display = '';
   $('ad_wks').innerHTML = wkText(wkOn)
     + '<div class="wklock">처음에는 매주로 넣습니다. '
-    + '오는 주차는 <b>납부 계산 화면</b>에서 정해 주세요. '
-    + '거기서 회기 칸 옆 「주차」 단추를 누르시면 됩니다.</div>';
+    + '이 달만 한 회를 빼실 때는 <b>납부 계산 화면</b>에서 그 날짜 단추를 눌러 끄세요. '
+    + '매달 되풀이해 빼는 것은 대표님께 말씀해 주세요.</div>';
 }
 $('ad_cnt').onchange = drawWks;
 
@@ -5234,8 +5234,9 @@ function drawEdWks(){
   }
   box.style.display = '';
   $('ed_wks').innerHTML = wkText(edWk)
-    + '<div class="wklock">주차는 <b>납부 계산 화면</b>에서 정합니다. '
-    + '거기서 회기 칸 옆 「주차」 단추를 누르세요.</div>';
+    + '<div class="wklock">이 달만 한 회를 빼실 때는 <b>납부 계산 화면</b>에서 '
+    + '그 날짜 단추를 눌러 끄세요. '
+    + '매달 되풀이해 빼는 것은 대표님께 말씀해 주세요.</div>';
 }
 
 $('ed_cnt').onchange = drawEdWks;
