@@ -144,6 +144,7 @@
   <input id="pMonth" type="month">
   <button id="pLoad">불러오기</button>
   <button type="button" id="pIntake" style="background:#e3f0fb;color:#0c447c;border:1px solid #85b7eb;border-radius:7px;font-weight:600;">상담 · 보고서</button>
+  <span id="pCount" style="font-size:14px;color:#5F5E5A;white-space:nowrap;"></span>
   <label style="font-size:12.5px;color:#555;margin-left:6px;white-space:nowrap;">
     <input type="checkbox" id="pAll" style="vertical-align:-2px;"> 전체 보기
   </label>
@@ -238,6 +239,8 @@ const TTYPE = { 1:'언어치료', 2:'작업치료', 3:'전산화인지치료',
                 4:'감각통합치료', 5:'음악치료', 6:'일상자립' };
 
 let ME = null, PAIRS = [], THERAPISTS = {};
+let TPRAW = [], OTRAW = [];   // 수업 원본 (서버를 못 부를 때 쓰는 옛 셈)
+let KIDS  = {};               // 아동번호 → 아동 정보
 let cur = null, SCHED = [], LOGID = null, ITEMS = [], PREV = null, WRITTEN = null;
 let year = new Date().getFullYear();
 let month = new Date().getMonth() + 1;
@@ -307,22 +310,34 @@ let OTHERTH = {};   // 아동번호 -> 발달재활·치료지원·방과후 치
 function drawKidList() {
   const all = $('pAll') && $('pAll').checked;
   const list = PAIRS.filter(p => all || !p.dup);
+  // 달을 바꿔 목록을 다시 그려도 고른 수업을 그대로 둔다 (2026-09-19)
+  const _keepTh = ($('pChild').selectedOptions && $('pChild').selectedOptions[0])
+    ? $('pChild').selectedOptions[0].getAttribute('data-th') : '';
   $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
     + list.map(p => {
         const i = PAIRS.indexOf(p);
         const tt = p.tts.map(v => TTYPE[v] || '').filter(v => v).join('·');
         const wd = [...new Set(p.sched.map(s => s.weekday).filter(v => v))].join('·');
         const tn = p.ths.map(v => THERAPISTS[v] || '').filter(v => v).join('·');
-        return '<option value="' + i + '" data-cid="' + p.child.id + '">' + esc(p.child.name)
+        return '<option value="' + i + '" data-cid="' + p.child.id + '"'
+             + ' data-th="' + p.therapy_id + '">' + esc(p.child.name)
              + (tt ? ' · ' + esc(tt) : '')
              + (wd ? ' · ' + esc(wd) : '')
              + ((_isAllView(ME.role) && tn) ? ' · ' + esc(tn) : '')
              + (p.dup ? ' · [같은 선생님 다른 기록지 있음]' : '')
              + '</option>';
       }).join('');
+  if (_keepTh) {
+    const i = PAIRS.findIndex(p => String(p.therapy_id) === String(_keepTh));
+    if (i >= 0) $('pChild').value = String(i);
+  }
   if (ME) $('who').textContent = ME.name + ' (' + ME.role + ') 님 · 센터 기록지 '
     + list.length + '명' + (all ? ' (전체 보기)' : '')
     + (_isAllView(ME.role) ? '' : ' (담당)');
+  // 단추 줄 아동 수 — 종결·타기관이용은 빼고 센다 (2026-09-19)
+  const _ids = {};
+  list.forEach(p => { if (p.child.status !== '종결' && p.child.status !== '타기관이용') _ids[p.child.id] = 1; });
+  if ($('pCount')) $('pCount').textContent = '아동 ' + Object.keys(_ids).length + '명';
 }
 
 async function afterLogin(user) {
@@ -345,46 +360,90 @@ async function afterLogin(user) {
     sb.from('nl_therapies').select('child_id, ended_on, nl_therapy_schedules(therapist_id, to_month)')
       .in('support_type_id', [2,3,4,6,7])
   ]);
-  OTHERTH = {};
-  (ot.data || []).forEach(r => {
-    const kp = _keepMk(mkNow());
-    if (r.ended_on && String(r.ended_on).slice(0,7) < kp) return;
-    (r.nl_therapy_schedules || []).forEach(s => {
-      if (s.to_month && s.to_month < kp) return;
-      if (s.therapist_id == null) return;
-      (OTHERTH[r.child_id] = OTHERTH[r.child_id] || {})[s.therapist_id] = true;
-    });
-  });
+  TPRAW = tp.data || [];
+  OTRAW = ot.data || [];
+  KIDS = {};
+  TPRAW.forEach(r => { if (r.nl_children) KIDS[r.nl_children.id] = r.nl_children; });
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
 
-  const mineOnly = !_isAllView(me.role);
-  const _mk0 = mkNow();
+  $('pAll').onchange = drawKidList;
+  $('pMonth').value = mkNow();
+  $('pMonth').onchange = () => buildPairs().then(drawKidList);
+  await buildPairs();
+  drawKidList();
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
 
-  // 기록지는 한 달에 수업(치료)당 한 장이다 (2026-09-11 바꿈)
-  //   요일이 여럿이어도 같은 수업이면 한 줄로 모은다.
-  //   선생님이 다른 센터 수업이 둘이면 두 줄이다
-  const _keep0 = _keepMk(_mk0);
+// 셈은 서버 한 곳 — nl_live_rows(달, 유예개월) 가 「그 달에 살아 있던 수업」을 돌려준다 (2026-09-19)
+//   유예 2 = 끝난 수업도 두 달까지 남긴다 (기록지를 쓸 시간을 준다)
+//   기록지는 한 달에 수업(치료)당 한 장이다 (2026-09-11)
+//   서버를 못 부르면 아래 옛 셈으로 그린다
+async function buildPairs() {
+  const mv = ($('pMonth') && $('pMonth').value) ? $('pMonth').value : mkNow();
+  const mineOnly = !_isAllView(ME.role);
   const byKid = {};
-  (tp.data || []).forEach(r => {
-    const c = r.nl_children;
-    if (!c) return;
-    // 끝난 수업도 두 달까지는 남긴다 (기록지를 쓸 시간을 준다)
-    if (r.ended_on && String(r.ended_on).slice(0,7) < _keep0) return;
-    const sc = (r.nl_therapy_schedules || [])
-      .filter(s => !s.to_month || s.to_month >= _keep0);
-    if (!sc.length) return;
-    // 치료사면 자기가 담당인 수업이 하나라도 있어야 한다
-    if (mineOnly && !sc.some(x => String(x.therapist_id) === String(me.id))) return;
-
-    const g = byKid[r.id] = byKid[r.id] || {
-      child: c, therapy_id: r.id, therapy_type_id: r.therapy_type_id,
-      tts: [], sched: [], ths: [] };
-    if (g.tts.indexOf(r.therapy_type_id) < 0) g.tts.push(r.therapy_type_id);
-    sc.forEach(s => {
-      g.sched.push(s);
-      if (s.therapist_id != null && g.ths.indexOf(s.therapist_id) < 0) g.ths.push(s.therapist_id);
+  OTHERTH = {};
+  PAIRS = [];
+  let ok = false;
+  try {
+    const { data, error } = await sb.rpc('nl_live_rows', { p_month: mv, p_grace: 2 });
+    if (error) throw error;
+    (data || []).forEach(r => {
+      const st = Number(r.support_type_id);
+      if ([2,3,4,6,7].indexOf(st) >= 0 && r.therapist_id != null) {
+        (OTHERTH[r.child_id] = OTHERTH[r.child_id] || {})[r.therapist_id] = true;
+      }
     });
-  });
+    (data || []).forEach(r => {
+      if (Number(r.support_type_id) !== SUPPORT) return;
+      const c = KIDS[r.child_id];
+      if (!c) return;
+      const g = byKid[r.therapy_id] = byKid[r.therapy_id] || {
+        child: c, therapy_id: r.therapy_id, therapy_type_id: r.therapy_type_id,
+        tts: [], sched: [], ths: [] };
+      if (g.tts.indexOf(r.therapy_type_id) < 0) g.tts.push(r.therapy_type_id);
+      g.sched.push({ weekday: r.weekday, start_time: r.start_time,
+                     therapist_id: r.therapist_id, duration: r.duration });
+      if (r.therapist_id != null && g.ths.indexOf(r.therapist_id) < 0) g.ths.push(r.therapist_id);
+    });
+    if (mineOnly) {
+      Object.keys(byKid).forEach(k => {
+        if (!byKid[k].ths.some(v => String(v) === String(ME.id))) delete byKid[k];
+      });
+    }
+    ok = true;
+  } catch (e) { /* 서버를 못 부르면 아래 옛 셈으로 */ }
+
+  if (!ok) {
+    const _keep0 = _keepMk(mv);
+    OTHERTH = {};
+    OTRAW.forEach(r => {
+      if (r.ended_on && String(r.ended_on).slice(0,7) < _keep0) return;
+      (r.nl_therapy_schedules || []).forEach(s => {
+        if (s.to_month && s.to_month < _keep0) return;
+        if (s.therapist_id == null) return;
+        (OTHERTH[r.child_id] = OTHERTH[r.child_id] || {})[s.therapist_id] = true;
+      });
+    });
+    TPRAW.forEach(r => {
+      const c = r.nl_children;
+      if (!c) return;
+      if (r.ended_on && String(r.ended_on).slice(0,7) < _keep0) return;
+      const sc = (r.nl_therapy_schedules || [])
+        .filter(s => !s.to_month || s.to_month >= _keep0);
+      if (!sc.length) return;
+      if (mineOnly && !sc.some(x => String(x.therapist_id) === String(ME.id))) return;
+      const g = byKid[r.id] = byKid[r.id] || {
+        child: c, therapy_id: r.id, therapy_type_id: r.therapy_type_id,
+        tts: [], sched: [], ths: [] };
+      if (g.tts.indexOf(r.therapy_type_id) < 0) g.tts.push(r.therapy_type_id);
+      sc.forEach(s => {
+        g.sched.push(s);
+        if (s.therapist_id != null && g.ths.indexOf(s.therapist_id) < 0) g.ths.push(s.therapist_id);
+      });
+    });
+  }
 
   PAIRS = Object.keys(byKid).map(k => byKid[k]);
   // 이 수업의 선생님이 모두 같은 아동의 다른 기록지도 맡고 있으면 「겹침」
@@ -394,12 +453,6 @@ async function afterLogin(user) {
   });
   PAIRS.sort((a,b) => (a.child.name||'').localeCompare(b.child.name||'')
                    || (a.therapy_id - b.therapy_id));
-
-  drawKidList();
-  $('pAll').onchange = drawKidList;
-  $('pMonth').value = mkNow();
-  $('loginBox').style.display = 'none';
-  $('mainBox').style.display  = 'block';
 }
 
 // ── 그 달에 살아 있던 요일줄만 쓴다 (2026-09-17) ──

@@ -155,6 +155,7 @@
   <input id="pMonth" type="month">
   <button id="pLoad">불러오기</button>
   <button type="button" id="pIntake" style="background:#e3f0fb;color:#0c447c;border:1px solid #85b7eb;border-radius:7px;font-weight:600;">상담 · 보고서</button>
+  <span id="pCount" style="font-size:14px;color:#5F5E5A;white-space:nowrap;"></span>
   <span id="pInfo"></span>
 </div>
 
@@ -277,6 +278,8 @@ const SUPPORTS = [3, 4, 6, 7];          // 치료지원(언어/작업) · 방과
 const TTYPE = { 1:'언어', 2:'작업', 3:'전산화인지', 4:'감각통합', 5:'음악', 6:'일상자립' };
 
 let ME = null, PAIRS = [], THERAPISTS = {}, SUPNAME = {};
+let TPRAW = [];   // 수업 원본 (서버를 못 부를 때 쓰는 옛 셈)
+let KIDS  = {};   // 아동번호 → 아동 정보
 let cur = null;                          // 고른 아동+지원유형
 let SCHED = [], LOGID = null, ITEMS = [], CONT = '', PREV = null, WRITTEN = null;
 let year = new Date().getFullYear();
@@ -381,22 +384,53 @@ async function afterLogin(user) {
   (th.data || []).forEach(t => THERAPISTS[t.id] = t.name);
   (st.data || []).forEach(s => SUPNAME[s.id] = s.name);
 
-  const allView = _isAllView(me.role);
-  const _mk0 = mkNow();
+  TPRAW = tp.data || [];
+  KIDS = {};
+  TPRAW.forEach(r => { if (r.nl_children) KIDS[r.nl_children.id] = r.nl_children; });
 
-  PAIRS = [];
+  $('pMonth').value = mkNow();
+  $('pMonth').onchange = () => buildPairs().then(drawPairSelect);
+  await buildPairs();
+  drawPairSelect();
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'block';
+}
+
+// 셈은 서버 한 곳 — nl_live_rows(달, 유예개월) 가 「그 달에 살아 있던 수업」을 돌려준다 (2026-09-19)
+//   유예 2 = 끝난 수업도 두 달까지 남긴다 (기록지를 쓸 시간을 준다)
+//   서버를 못 부르면 아래 옛 셈으로 그린다
+async function buildPairs() {
+  const mv = ($('pMonth') && $('pMonth').value) ? $('pMonth').value : mkNow();
+  const allView = _isAllView(ME.role);
   const seen = {};
-  const _keep0 = _keepMk(_mk0);
-  (tp.data || []).forEach(r => {
+  PAIRS = [];
+  try {
+    const { data, error } = await sb.rpc('nl_live_rows', { p_month: mv, p_grace: 2 });
+    if (error) throw error;
+    (data || []).forEach(r => {
+      if (SUPPORTS.indexOf(Number(r.support_type_id)) < 0) return;
+      if (!allView && String(r.therapist_id) !== String(ME.id)) return;
+      const c = KIDS[r.child_id];
+      if (!c) return;
+      const k = c.id + '-' + r.support_type_id;
+      if (seen[k]) return;
+      seen[k] = true;
+      PAIRS.push({ child: c, support_type_id: Number(r.support_type_id),
+                   therapy_id: r.therapy_id, therapy_type_id: r.therapy_type_id });
+    });
+    PAIRS.sort((a,b) => (a.child.name||'').localeCompare(b.child.name||'')
+                     || a.support_type_id - b.support_type_id);
+    return;
+  } catch (e) { /* 서버를 못 부르면 아래 옛 셈으로 */ }
+  const _keep0 = _keepMk(mv);
+  TPRAW.forEach(r => {
     const c = r.nl_children;
     if (!c) return;
-    // 끝난 수업도 두 달까지는 남긴다 (기록지를 쓸 시간을 준다)
     if (r.ended_on && String(r.ended_on).slice(0,7) < _keep0) return;
     const sc = (r.nl_therapy_schedules || [])
       .filter(s => !s.to_month || s.to_month >= _keep0);
     if (!sc.length) return;
-    // 치료사는 「이 수업」의 담당인 아동만 본다
-    if (!allView && !sc.some(s => String(s.therapist_id) === String(me.id))) return;
+    if (!allView && !sc.some(s => String(s.therapist_id) === String(ME.id))) return;
     const k = c.id + '-' + r.support_type_id;
     if (seen[k]) return;
     seen[k] = true;
@@ -405,15 +439,25 @@ async function afterLogin(user) {
   });
   PAIRS.sort((a,b) => (a.child.name||'').localeCompare(b.child.name||'')
                    || a.support_type_id - b.support_type_id);
+}
 
+function drawPairSelect() {
+  const keep = $('pChild').selectedOptions && $('pChild').selectedOptions[0]
+             ? $('pChild').selectedOptions[0].getAttribute('data-key') : '';
   $('pChild').innerHTML = '<option value="">— 아동을 고르세요 —</option>'
-    + PAIRS.map((p,i) => '<option value="' + i + '" data-cid="' + p.child.id + '">' + esc(p.child.name)
+    + PAIRS.map((p,i) => '<option value="' + i + '" data-cid="' + p.child.id + '"'
+        + ' data-key="' + p.child.id + '-' + p.support_type_id + '">' + esc(p.child.name)
         + ' · ' + esc(SUPNAME[p.support_type_id] || '') + '</option>').join('');
-  $('pMonth').value = mkNow();
-  $('who').textContent = me.name + ' (' + me.role + ') 님 · 치료지원 ' + PAIRS.length + '건'
-    + (_isAllView(me.role) ? '' : ' (담당)');
-  $('loginBox').style.display = 'none';
-  $('mainBox').style.display  = 'block';
+  if (keep) {
+    const i = PAIRS.findIndex(p => (p.child.id + '-' + p.support_type_id) === keep);
+    if (i >= 0) $('pChild').value = String(i);
+  }
+  $('who').textContent = ME.name + ' (' + ME.role + ') 님 · 치료지원 ' + PAIRS.length + '건'
+    + (_isAllView(ME.role) ? '' : ' (담당)');
+  // 단추 줄 아동 수 — 종결·타기관이용은 빼고 센다 (2026-09-19)
+  const ids = {};
+  PAIRS.forEach(p => { if (p.child.status !== '종결' && p.child.status !== '타기관이용') ids[p.child.id] = 1; });
+  if ($('pCount')) $('pCount').textContent = '아동 ' + Object.keys(ids).length + '명';
 }
 
 // ── 그 달에 살아 있던 요일줄만 쓴다 (2026-09-17) ──
