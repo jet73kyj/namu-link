@@ -5838,7 +5838,13 @@ async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
     oldUpd  = { to_month: mon, to_date: before };
     newFrom = _d;
   } else {
-    oldUpd = { to_month: prev };
+    // 시작일을 비우면 지난달까지로 끊는다.
+    //   끝난날도 함께 적는다 — 끝난달만 있고 끝난날이 비면 화면마다 다르게 본다 (2026-09-19)
+    const _pLastD = new Date(Number(prev.slice(0,4)), Number(prev.slice(5,7)), 0);
+    const _pLast  = _pLastD.getFullYear() + '-'
+      + String(_pLastD.getMonth()+1).padStart(2,'0') + '-'
+      + String(_pLastD.getDate()).padStart(2,'0');
+    oldUpd = { to_month: prev, to_date: _pLast };
   }
 
   $('edSave').disabled = true; $('edSave').textContent = '바꾸는 중...';
