@@ -2777,7 +2777,12 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   const d  = dayNo(x.plan_date);
   let txt;
   if (x.status === '휴무') {
-    txt = d + '일 ' + (isHoli(x.plan_date) ? holiShort(OFFTXT[String(x.plan_date)]) : '휴가');
+    // 쉬는 날 단추에도 사업·회차를 붙인다 (2026-09-19 은정님)
+    //   「이 10-5 · 3일 개천절」처럼. 어느 수업이 쉬는 것인지 바로 보이게
+    const _hd = (FABBR[sp] || STYPE[sp] || '')
+      + (Number(x.run_no) > 0 ? ' ' + monNo(x.month_key || mon) + '-' + x.run_no : '');
+    txt = (_hd ? _hd + ' · ' : '')
+        + d + '일 ' + (isHoli(x.plan_date) ? holiShort(OFFTXT[String(x.plan_date)]) : '휴가');
   } else {
     txt = (FABBR[sp] || STYPE[sp] || '') + ' '
         + (Number(x.run_no) > 0 ? monNo(x.month_key || mon) + '-' + x.run_no + ' ' : '') + d + '일';
