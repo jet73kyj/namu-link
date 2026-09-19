@@ -3040,12 +3040,9 @@ function drawFind(){
     _rl.forEach(x => {
       if (x.status === '쉼') return;
       if (isBunsan(x)) { bunsan.push(x); return; }   // 발추 나눠서 진행 자리표
-      // 발추(8)는 날짜 칸에 넣지 않고 늘 줄 끝에 따로 그린다 (2026-09-19)
-      //   발추 날짜가 그 수업 요일과 겹치면 그 날 단추가 둘이 되어
-      //   「4주면 4개 · 5주면 5개」 규칙이 깨지고 빨간 「회기 줄 1개 더」가 떴다 (64번 10월)
-      if (Number(x.support_type_id) === 8 && Number(r.support_type_id) !== 8) {
-        other.push(x); return;
-      }
+      // 발추(8)도 날짜 차례대로 그 날 칸에 넣는다 (2026-09-19 은정님)
+      //   서버가 5주인 달에는 공휴일 날을, 공휴일이 없으면 다섯째 날을 발추 자리로 배정하므로
+      //   한 날에 두 줄이 되지 않는다. 자리가 없는 발추만 줄 끝 「이 미정」으로 남는다
       const d = String(x.plan_date);
       if (days.indexOf(d) >= 0) (slot[d] = slot[d] || []).push(x);
       else other.push(x);
