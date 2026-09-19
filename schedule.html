@@ -3201,6 +3201,7 @@ function drawFind(){
         .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', id);
       if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
       s.status = nx;
+      await loadNeed();
       draw();
     };
   });
@@ -7683,6 +7684,7 @@ async function saveSplit(picks){
     });
     MKSPLIT = {};
     mkmsg('✅ 쪼개기 보강 ' + rows.length + '조각(' + add + '분)을 잡았습니다.', true);
+    await loadNeed();
     $('mkHave').innerHTML = haveHtml(s);
     $('mkHave').style.display = $('mkHave').innerHTML ? '' : 'none';
     $('mkDel').style.display = '';
@@ -7747,6 +7749,7 @@ async function findTap(sid, isPlus){
     .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', sid);
   if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
   s.status = nx;
+  await loadNeed();
   draw();
   drawFind();
   const b = $('findRows').querySelector('.fb[data-sid="' + sid + '"]');
@@ -7796,6 +7799,7 @@ document.addEventListener('click', async ev => {
     .update({ status: nx, updated_at: new Date().toISOString() }).eq('id', s.id);
   if (error) { mkmsg('❌ 바꾸지 못했습니다.\n' + error.message, false); return; }
   s.status = nx;
+  await loadNeed();
   draw();
   openDay(s.id);
   mkmsg('✅ ' + nx + '(으)로 바꿨습니다.', true);
@@ -8405,6 +8409,7 @@ $('mkSave').onclick = async () => {
     }
     mkmsg('✅ 보강을 ' + dayNo(d) + '일 ' + slotHm12(slot, th, wdOf(d)) + '으로 잡았습니다.', true);
     $('mkDel').style.display = '';
+    await loadNeed();   // 상자를 다시 세게 한다 (2026-09-19)
     draw();
   } catch (e) {
     // 서버 장치가 출근 요일·시각으로 막았으면 알림 창으로 알린다 (2026-09-11)
@@ -8441,6 +8446,7 @@ $('mkGiveup').onclick = async () => {
   const put = function(a){ a.forEach(function(x){
     if (x.id === mkSess.id) { x.no_makeup = true; x.no_makeup_why = why; } }); };
   put(SESS); put(PREV);
+  await loadNeed();
   mkmsg('✅ 보강하지 않는 것으로 정했습니다.\n'
     + '되돌리시려면 납부 계산 화면에서 「보강 잡기」를 누르세요.', true);
   $('mkBox').style.display = 'none';
@@ -8459,6 +8465,7 @@ $('mkDel').onclick = async () => {
   PREV = PREV.filter(x => x.id !== old.id);
   mkmsg('✅ 보강을 취소했습니다.', true);
   $('mkDel').style.display = 'none';
+  await loadNeed();
   draw();
 };
 
@@ -8860,8 +8867,14 @@ async function loadMonth(){
     SESS.forEach(s => { if (!s._name) s._name = n2[s.child_id] || ''; });
   }
 
-  // 「보강이 필요한 줄」을 서버 한 곳에서 받는다 (2026-09-11)
-  //   세 상자 · 찾기 창 ＋ · 하루 보기 멘트가 이것만 따른다
+  await loadNeed();
+}
+
+// 「보강이 필요한 줄」을 서버 한 곳에서 받는다 (2026-09-11)
+//   세 상자 · 찾기 창 ＋ · 하루 보기 멘트가 이것만 따른다
+//   2026-09-19 — 따로 떼어냈다. 보강을 잡거나 취소하거나 상태를 바꾸면 다시 받는다
+//   전에는 달을 불러올 때 한 번만 받아, 보강을 잡아도 상자에 그대로 남아 있었다
+async function loadNeed(){
   NEEDSRV = null;
   try {
     const fn = MY_TH ? 'nl_th_need' : 'nl_staff_need_all';
