@@ -7816,6 +7816,7 @@ function openMk(absId){
     + (s.status === '휴무' ? offWord(s.plan_date, s.therapist_id) : s.status === '쉼' ? '쉼' : '결석') + ') 보강'
     + (old ? ' — ' + monNo(km) + '월분을 ' + monNo(mon) + '월에 잡습니다' : '');
   $('mk_date').value = has ? has.plan_date : '';
+  fillMkSlots();   // 그 날 요일에 맞는 교시로 다시 그린다 (2026-09-19)
   $('mk_slot').value = has ? String(nearest(toMin(has.start_time)).no)
                            : String(nearest(toMin(s.start_time)).no);
   $('mk_th').value   = String(has ? has.therapist_id : s.therapist_id);
@@ -8087,6 +8088,21 @@ async function pairFreeSlots(thA, thB, childId, baseDate) {
   return out;
 }
 
+// 보강 잡기 창의 시간 목록 — 고른 날짜의 요일에 맞춘다 (2026-09-19)
+//   토요일은 점심이 없어 6교시가 1:10이고 11교시로 끝난다
+//   전에는 늘 평일 교시를 보여 주어 토요일에 1:10을 고를 수 없었다
+function fillMkSlots(){
+  const el = $('mk_slot'); if (!el) return;
+  const d  = $('mk_date') ? $('mk_date').value : '';
+  const wd = d ? wdOf(d) : '';
+  const th = Number($('mk_th') ? $('mk_th').value : 0);
+  const cur = el.value;
+  el.innerHTML = SLOTS.filter(x => slotOnWd(x, wd))
+    .map(x => '<option value="' + x.no + '">' + slotT(x, th, wd) + '</option>').join('');
+  if (cur && el.querySelector('option[value="' + cur + '"]')) el.value = cur;
+}
+if ($('mk_date')) $('mk_date').addEventListener('change', fillMkSlots);
+
 // 빈자리 찾기 — 서버 한 곳(nl_mk_slots)에서 받는다 (원칙 6)
 //   원래 선생님(원칙 5) · 그 아동 · 기한(원칙 3)은 서버가 그 줄에서 정한다
 $('mkFind').onclick = async () => {
@@ -8181,6 +8197,10 @@ $('mkSave').onclick = async () => {
   if (!d) { mkmsg('보강 날짜를 고르세요.', false); return; }
   const slot = SLOTS.find(x => x.no === Number($('mk_slot').value));
   const th   = Number($('mk_th').value);
+  // 겹침을 볼 교시 — 직접 시각을 적으면 그 시각이 우선이다 (2026-09-19 은정님)
+  //   전에는 늘 고른 교시로 보아, 토요일 1:10에 넣으려는데
+  //   12:20 자리의 제 수업을 보고 「이미 아동이 있다」고 물었다
+  let slotChk = slot;
 
   // 몇 분짜리인지 (10·20·30·40) — 40이면 여느 보강과 같다
   const mkMin = Number($('mk_min').value) || 40;
@@ -8196,6 +8216,7 @@ $('mkSave').onclick = async () => {
     mkHm = hh + ':' + mm;
     // 고른 교시와 직접 시각이 다르면 한 번 묻는다 (2026-09-11)
     //   교시는 6:30 으로 골랐는데 직접 시각에 4:30 이 들어가 4:30 으로 저장된 일이 있었다
+    slotChk = nearest(toMin(mkHm)) || slot;
     const slotHmNow = slot ? slotHm(slot, th, wdOf(d)) : '';
     if (mkMin === 40 && slotHmNow && mkHm !== slotHmNow) {
       if (!confirm('고른 교시는 ' + h12(slotHmNow) + ' 인데\n'
@@ -8257,7 +8278,7 @@ $('mkSave').onclick = async () => {
                   && s.therapist_id === th
                   && !isMk(s)
                   && s.status !== '결석' && s.status !== '휴무' && s.status !== '쉼'
-                  && nearest(toMin(s.start_time)).no === slot.no);
+                  && nearest(toMin(s.start_time)).no === slotChk.no);
   // 쪼갠 보강(10·20·30분)은 자리를 40분 차지하지 않는다 (2026-09-18)
   //   교시로만 견주면 16:40 10분짜리가 16:50 자리를 막는다. 실제 시각으로 본다
   //   서버 빈 자리 셈(nl_slots_core)과 같은 규칙
@@ -8270,7 +8291,7 @@ $('mkSave').onclick = async () => {
   const takenMk = skipBusy ? [] : SESS.filter(s => isMk(s) && s.plan_date === d
                   && s.therapist_id === th
                   && (Number(s.minutes || 40) === 40
-                        ? nearest(toMin(s.start_time)).no === slot.no
+                        ? nearest(toMin(s.start_time)).no === slotChk.no
                         : mkOverlap(s))
                   && s.makeup_for !== mkSess.id);
   // 다른 아동이 그 자리에 있으면 아예 넣지 않는다 (겹쳐 예약 막기)
