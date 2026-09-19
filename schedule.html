@@ -560,6 +560,9 @@
   .fdup { font-size:11.5px; color:#b3261e; font-weight:bold; align-self:center; }
   .fb .fplus { display:inline-block; min-width:16px; text-align:center; font-weight:bold;
                color:#fff; background:#3d84cf; border-radius:4px; font-size:11px; line-height:15px; }
+  .fb .fmned { display:inline-block; min-width:16px; text-align:center; font-weight:bold;
+               color:#fff; background:#8a7f6d; border-radius:4px; font-size:11px; line-height:15px;
+               cursor:pointer; }
   .fr-btn { width:auto; margin:0 0 0 auto; padding:3px 12px; font-size:11.5px;
             background:#546e7a; border-radius:12px; }
   .findnone { color:#c62828; font-size:13.5px; }
@@ -1868,6 +1871,18 @@ function mnLabel(x){
 }
 function isMk(x){ return !!(x && x.makeup_for); }
 // 오늘보다 뒤의 날인가 (2026-09-14)
+// 오늘이거나 앞날인가 — 아직 하지 않은 보강은 날짜를 옮길 수 있다 (2026-09-19)
+function isTodayOrLater(d){
+  const t = new Date();
+  const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0')
+              + '-' + String(t.getDate()).padStart(2, '0');
+  return String(d || '') >= today;
+}
+// 아직 하지 않은 40분 보강인가 (날짜 바꾸기 ✎ 를 붙일 줄)
+function canMoveMk(x){
+  return !!(CAN_EDIT && x && x.makeup_for && pCount(x)
+         && x.status !== '완료' && isTodayOrLater(x.plan_date));
+}
 function isFutureDay(d){
   const t = new Date();
   const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0')
@@ -2785,6 +2800,10 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   }
   if (HOSTADD[x.id]) info = (info ? info + ' ' : '') + '+' + HOSTADD[x.id];
   const sm = [word, info].filter(Boolean).join(' ');
+  // 아직 하지 않은 보강은 날짜를 옮길 수 있게 ✎ (2026-09-19)
+  //   전에는 날짜만 바꾸려 해도 길이 없어 「결석」을 눌러야 했다 (102번 8월분 21일)
+  const mvBtn = canMoveMk(mk)
+    ? ' <b class="fmned" data-fmned="' + mk.id + '" title="보강 날짜·시각 바꾸기">✎</b>' : '';
   // ＋ — 보강을 잡을 결석·쉬는 날 (8·9·11번 화면)
   //   청구하는 날(납부 계산에서 켜진 단추)만. 회색(청구 안 함)이면 ＋ 없음 (2026-09-11 납부와 잇기)
   //   쉬는 날에 보강하려면 납부 계산에서 그 날 단추를 먼저 켠다 (월 4회 아동)
@@ -2796,6 +2815,7 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   const cls = 'fb s' + sp + (grey ? ' off' : (x.status === '완료' ? ' fdn' : ''));
   return '<span class="' + cls + '" data-sid="' + x.id + '">' + esc(txt)
     + (sm ? '<small>' + esc(sm) + '</small>' : '')
+    + mvBtn
     + (plus ? ' <b class="fplus">＋</b>' : '') + '</span>';
 }
 // 「발추 1회를 나눠서 진행」 자리표 — 「이 +10×4 예정」 (2026-09-11)
@@ -2821,8 +2841,10 @@ function fExtra(s){
   //   전에는 이 단추에 ＋ 가 없어, 이월 보강 한 줄을 결석으로 바꾸면
   //   찾기 창에서 다시 잡을 길이 없었다 (102번 8월분 21일)
   const miss = CAN_EDIT && s.makeup_for && !pCount(s) && needMore(s.makeup_for);
+  const mv = canMoveMk(s);
   return '<span class="fb fpv' + (s.status === '완료' ? ' fdn' : '') + '" data-sid="' + s.id + '">'
     + esc(lb + ' ' + mkDay(s)) + (sm ? '<small>' + esc(sm) + '</small>' : '')
+    + (mv ? ' <b class="fmned" data-fmned="' + s.id + '" title="보강 날짜·시각 바꾸기">✎</b>' : '')
     + (miss ? ' <b class="fplus fpplus" data-orig="' + s.makeup_for + '">＋</b>' : '') + '</span>';
 }
 
@@ -3121,6 +3143,14 @@ function drawFind(){
       e.stopPropagation();
       lastClick = { clientX: e.clientX, clientY: e.clientY };
       openDay(Number(el.dataset.orig));
+    };
+  });
+  // ✎ — 보강 날짜·시각 바꾸기 창 (2026-09-19)
+  $('findRows').querySelectorAll('.fmned[data-fmned]').forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      lastClick = { clientX: e.clientX, clientY: e.clientY };
+      openMnEdit(Number(el.dataset.fmned));
     };
   });
   $('findRows').querySelectorAll('.fb[data-sid]').forEach(el => {
