@@ -986,6 +986,17 @@ async function load() {
 
     const pmk = prevMonth(mk);
 
+    // 그 달에 살아 있던 수업 줄 — 시간표와 같은 잣대 (2026-09-19)
+    //   창구를 못 부르면 아래에서 옛 셈으로 그린다 (화면이 비지 않게)
+    let LIVESC = null, LIVETH = null;
+    try {
+      const lv = await sb.rpc('nl_live_rows', { p_month: mk });
+      if (!lv.error && lv.data && lv.data.length) {
+        LIVESC = new Set(lv.data.map(r => Number(r.schedule_id)));
+        LIVETH = new Set(lv.data.map(r => Number(r.therapy_id)));
+      }
+    } catch (e) { LIVESC = null; LIVETH = null; }
+
     const [th, fe, ru, gr, pay, px, pv, ss] = await Promise.all([
       sb.from('nl_therapies')
         .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode, memo, ended_on, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration, week1, week2, week3, week4, from_month, to_month)')
@@ -1165,14 +1176,17 @@ async function load() {
     // 그 달에 해당하는 수업요일만 고른다.
     //   시작달이 그 달보다 늦으면 아직 시작 전 (예: 「이 달은 쉼」)
     //   끝난달이 그 달보다 이르면 이미 끝난 수업
+    //   창구(nl_live_rows)가 준 요일줄만 쓴다. 못 불렀으면 옛 셈으로
     const liveScs = (t) => (t.nl_therapy_schedules || []).filter(s =>
-      (!s.from_month || s.from_month <= mk) && (!s.to_month || s.to_month >= mk));
+      LIVESC ? LIVESC.has(Number(s.id))
+             : ((!s.from_month || s.from_month <= mk) && (!s.to_month || s.to_month >= mk)));
 
     NEEDCNT = {}; X8NEED = {}; X8FIVE = {};
     (th.data || []).forEach(t => {
-      // 그 달 전에 끝난 치료는 기준에서 뺀다
-      //   (안 빼면 끝난 수업까지 더해져 기준이 부풀어 오른다)
-      if (t.ended_on && String(t.ended_on) < mk + '-01') return;
+      // 그 달에 살아 있던 치료만 기준에 넣는다
+      //   창구를 못 불렀으면 옛 셈(끝난날만 봄)으로
+      if (LIVETH ? !LIVETH.has(Number(t.id))
+                 : (t.ended_on && String(t.ended_on) < mk + '-01')) return;
       const st   = Number(t.support_type_id) || 0;
       const mode = String(t.count_mode || '').trim();
       const scs  = liveScs(t);
@@ -1231,7 +1245,8 @@ async function load() {
         (th.data || []).forEach(t2 => {
           if (Number(t2.child_id) !== Number(t.child_id)) return;
           if (Number(t2.support_type_id) !== 2) return;
-          if (t2.ended_on && String(t2.ended_on) < mk + '-01') return;
+          if (LIVETH ? !LIVETH.has(Number(t2.id))
+                     : (t2.ended_on && String(t2.ended_on) < mk + '-01')) return;
           liveScs(t2).forEach(s2 => { if (s2.weekday) devWds.push(s2.weekday); });
         });
         const devFive = devWds.length ? devWds.some(w => countWeekdayOpen(mk, w) >= 5) : null;
