@@ -1134,7 +1134,7 @@ async function loadRecords() {
       + '<div class="rctitle">' + esc(nm) + '</div>'
       + '<div class="rcsub">' + CURMK.slice(0,4) + '년 ' + (+CURMK.slice(5,7)) + '월 · '
       + rows.length + '회</div></div>'
-      + '<button class="rcpdf" onclick="window.print()">PDF로 저장</button>'
+      + '<button class="rcpdf" onclick="saveRec(this)">그림으로 저장</button>'
       + '</div>'
       + '<table class="rctbl"><thead><tr>'
       + '<th>회차</th><th>날짜</th><th>시간</th><th>치료사</th><th>수업 내용</th>'
@@ -1169,10 +1169,61 @@ async function loadRecords() {
     return;
   }
   html += '<div class="rcnote">기록지는 최근 2개월분만 보실 수 있습니다.<br>'
-       + '「PDF로 저장」을 누르면 인쇄 창이 열립니다. '
-       + '거기서 「PDF로 저장」을 고르시면 파일로 받으실 수 있습니다.<br>'
+       + '「그림으로 저장」을 누르면 기록지가 그림으로 만들어집니다. '
+       + '휴대폰에서는 그림을 길게 눌러 「사진에 저장」을 고르시면 됩니다.<br>'
        + '더 지난 기록지가 필요하시면 센터로 말씀해 주세요.</div>';
   $('reclist').innerHTML = html;
+}
+
+// ── 기록지를 그림으로 저장 (2026-09-19) ────────────────
+//   홈 화면 아이콘(앱 모드)에는 인쇄 창이 없어 window.print() 가 아무 일도 안 했다
+//   그래서 화면을 그대로 그림으로 만들어 보여 주고, 길게 눌러 저장하시게 한다
+let H2C = null;
+function loadH2C(){
+  if (H2C) return H2C;
+  H2C = new Promise((ok, no) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    sc.onload = () => ok(window.html2canvas);
+    sc.onerror = () => { H2C = null; no(new Error('그림 만들기 꾸러미를 불러오지 못했습니다.')); };
+    document.head.appendChild(sc);
+  });
+  return H2C;
+}
+async function saveRec(btn){
+  const box = btn.closest('.rc');
+  if (!box) return;
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = '만드는 중…';
+  btn.style.visibility = 'hidden';
+  try {
+    const h2c = await loadH2C();
+    const cv = await h2c(box, { backgroundColor: '#ffffff', scale: 2, useCORS: true });
+    const url = cv.toDataURL('image/png');
+    showShot(url);
+  } catch (e) {
+    alert('그림을 만들지 못했습니다.\n' + (e && e.message ? e.message : ''));
+  } finally {
+    btn.style.visibility = '';
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+function showShot(url){
+  const w = document.createElement('div');
+  w.className = 'popwrap';
+  w.innerHTML = '<div class="popbox" style="max-width:560px;">'
+    + '<div style="font-size:13px;color:#5a6156;line-height:1.7;margin-bottom:10px;">'
+    + '그림을 <b>길게 눌러</b> 「사진에 저장」을 고르시면 저장됩니다.<br>'
+    + '컴퓨터에서는 아래 「내려받기」를 누르세요.</div>'
+    + '<img src="' + url + '" style="width:100%;border:1px solid #e6e9e2;border-radius:8px;">'
+    + '<div style="display:flex;gap:8px;margin-top:12px;">'
+    + '<a class="popbtn" id="shotDl" download="치료기록지.png" href="' + url + '"'
+    + ' style="flex:1;text-align:center;text-decoration:none;padding:11px 0;">내려받기</a>'
+    + '<button class="popbtn" id="shotNo" style="flex:1;">닫기</button>'
+    + '</div></div>';
+  document.body.appendChild(w);
+  w.querySelector('#shotNo').onclick = () => w.remove();
+  w.onclick = (e) => { if (e.target === w) w.remove(); };
 }
 
 // ── 공지사항 ───────────────────────────────────────────
