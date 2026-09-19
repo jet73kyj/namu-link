@@ -5784,8 +5784,11 @@ async function changeTherapistFrom(th, du, applyD){
         ns = d3;
       }
       // ② 옛 줄 — 그날 하루 전까지
+      //   끝난달은 「바꾸는 날의 달」이 아니라 「끝난날의 달」로 적는다 (2026-09-19)
+      //   10월 1일부터 바꾸면 옛 줄은 9월까지다. 끝난달을 10월로 적으면
+      //   납부 계산은 10월에 남기고 nl_live_rows 는 빼서 화면마다 달라진다 (109번)
       const { error: e1 } = await sb.from('nl_therapy_schedules')
-        .update({ to_month: from.slice(0, 7), to_date: before }).eq('id', old.id);
+        .update({ to_month: before.slice(0, 7), to_date: before }).eq('id', old.id);
       if (e1) {
         if (ns.id !== old.id) await sb.from('nl_therapy_schedules').delete().eq('id', ns.id);
         throw e1;
@@ -5831,7 +5834,7 @@ async function changeTherapistFrom(th, du, applyD){
     if (!pastN) {
       if (oldRef) Object.assign(oldRef, ns, extra);
     } else {
-      if (oldRef) Object.assign(oldRef, { to_month: from.slice(0, 7), to_date: before });
+      if (oldRef) Object.assign(oldRef, { to_month: before.slice(0, 7), to_date: before });
       for (let i = ROWS_ALL.length - 1; i >= 0; i--) if (ROWS_ALL[i].id === ns.id) ROWS_ALL.splice(i, 1);
       ROWS_ALL.push(Object.assign({}, ns, { _cid: old._cid, _name: old._name, _birth: old._birth }, extra));
     }
@@ -5872,7 +5875,8 @@ async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
     const before = dd.getFullYear() + '-'
       + String(dd.getMonth()+1).padStart(2,'0') + '-'
       + String(dd.getDate()).padStart(2,'0');
-    oldUpd  = { to_month: mon, to_date: before };
+    // 끝난달은 보고 있는 달이 아니라 끝난날의 달 (2026-09-19)
+    oldUpd  = { to_month: before.slice(0, 7), to_date: before };
     newFrom = _d;
   } else {
     // 시작일을 비우면 지난달까지로 끊는다.
