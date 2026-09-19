@@ -187,6 +187,12 @@ async function run(){
       + '<div class="grp-t">' + esc(t.replace(/^\d+\s*/, ''))
       + '<span class="grp-n">' + list.length + '건</span></div>'
       + '<div class="grp-why">' + esc(WHY[no] || '') + '</div>'
+      + (no === '22'
+          ? '<div style="margin:0 0 12px;">'
+            + '<button id="sendLog" style="width:auto;margin:0;">선생님께 알림 보내기</button>'
+            + '<span id="sendLogMsg" style="font-size:12px;color:var(--dim);margin-left:8px;">'
+            + '같은 달은 한 번만 갑니다</span></div>'
+          : '')
       + '<table><tr><th style="width:150px;">아동</th><th>내용</th></tr>';
     list.forEach(function(r){
       h += '<tr><td class="cid">' + esc(kidTxt(r['아동'])) + '</td>'
@@ -198,6 +204,32 @@ async function run(){
      + '※ 고치는 방법을 모르시겠으면 이 화면을 캡처해 물어보세요.</div>';
   h += '</div>';
   $('body').innerHTML = h;
+
+  // 「선생님께 알림 보내기」 — 22번(지난달 기록지 미작성) 상자에만 있다 (2026-09-19)
+  const sbtn = $('sendLog');
+  if (sbtn) sbtn.onclick = async function(){
+    const pm = prevMk(k);
+    if (!confirm('담당 선생님께 ' + pm + ' 기록지 알림을 보낼까요?\n\n'
+      + '· 선생님 화면 🔔 에 뜹니다\n'
+      + '· 같은 달 알림은 두 번 가지 않습니다')) return;
+    sbtn.disabled = true; sbtn.textContent = '보내는 중…';
+    try {
+      const { data, error } = await sb.rpc('nl_send_log_alerts', { p_month: pm });
+      if (error) throw error;
+      sbtn.textContent = '✓ 보냈습니다';
+      $('sendLogMsg').textContent = String(data || '');
+    } catch (e) {
+      sbtn.disabled = false; sbtn.textContent = '선생님께 알림 보내기';
+      alert('보내지 못했습니다.\n' + e.message);
+    }
+  };
+}
+
+// 고른 달의 지난달 ('2026-09' → '2026-08')
+function prevMk(k){
+  const y = Number(String(k).slice(0,4)), m = Number(String(k).slice(5,7));
+  const d = new Date(y, m - 2, 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
 }
 
 $('run').onclick = run;
