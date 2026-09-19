@@ -2816,8 +2816,14 @@ function fExtra(s){
   const lb = other ? monNo(s.month_key) + '월분' : '보강';
   const pt = Number(s.minutes || 40) !== 40 ? '+' + Number(s.minutes) : '';
   const sm = [s.status === '결석' ? '결석' : '', pt].filter(Boolean).join(' ');
+  // 못 한(결석·취소) 40분 보강에는 ＋ — 원래 줄이 아직 40분을 못 채웠을 때 (2026-09-19)
+  //   조각 묶음(fPartGroup)에만 있던 것을 여기에도 넣는다.
+  //   전에는 이 단추에 ＋ 가 없어, 이월 보강 한 줄을 결석으로 바꾸면
+  //   찾기 창에서 다시 잡을 길이 없었다 (102번 8월분 21일)
+  const miss = CAN_EDIT && s.makeup_for && !pCount(s) && needMore(s.makeup_for);
   return '<span class="fb fpv' + (s.status === '완료' ? ' fdn' : '') + '" data-sid="' + s.id + '">'
-    + esc(lb + ' ' + mkDay(s)) + (sm ? '<small>' + esc(sm) + '</small>' : '') + '</span>';
+    + esc(lb + ' ' + mkDay(s)) + (sm ? '<small>' + esc(sm) + '</small>' : '')
+    + (miss ? ' <b class="fplus fpplus" data-orig="' + s.makeup_for + '">＋</b>' : '') + '</span>';
 }
 
 // 같은 원래 줄을 메우는 쪼개기 조각을 단추 하나로 (2026-09-17 은정님)
