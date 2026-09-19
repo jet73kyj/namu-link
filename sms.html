@@ -53,6 +53,7 @@
   .k-상담 { background:#FBEAF0; color:#993556; }
   .k-요일변경 { background:#E6F1FB; color:#185FA5; }
   .k-시간변경 { background:#E6F1FB; color:#185FA5; }
+  .k-체험 { background:#EEF5FA; color:#185FA5; }
   .nm { font-weight:500; font-size:15px; }
   .ph { font-size:13px; color:var(--ink2); }
   .ph b { font-weight:500; color:var(--ink); }
@@ -164,7 +165,8 @@ const LINE1 = {
   '평가':     '아동 평가 예약이 되었습니다',
   '상담':     '아동 평가 상담 예약이 되었습니다',
   '요일변경': '아동 수업 요일이 바뀌었습니다',
-  '시간변경': '아동 수업 시간이 바뀌었습니다'
+  '시간변경': '아동 수업 시간이 바뀌었습니다',
+  '체험':     '아동 체험 수업이 예약되어 있습니다'
 };
 function smsText(it) {
   return HEAD + it.name + ' ' + (LINE1[it.kind] || '아동 일정 안내입니다') + '\n\n'
@@ -247,6 +249,15 @@ async function loadAll() {
     .eq('kind', '상담').gte('off_date', from).lte('off_date', to);
   (cs || []).forEach(c =>
     push('상담', c.child_id, c.off_date, c.start_time, c.therapist_id));
+
+  // ⑦ 체험 수업 — 체험 표에서 (2026-09-19)
+  const { data: tr } = await sb.from('nl_trial_lessons')
+    .select('child_id, lesson_date, lesson_time, therapist_id, status')
+    .gte('lesson_date', from).lte('lesson_date', to);
+  (tr || []).forEach(t => {
+    if (t.status === '취소') return;   // 취소한 체험은 안내 문자를 안 띄운다
+    push('체험', t.child_id, t.lesson_date, t.lesson_time, t.therapist_id);
+  });
 
   // ⑤⑥ 요일·시간 변경 — 알림 표에서. 바뀐 뒤 첫 수업이 사흘 안일 때만
   const { data: al } = await sb.from('nl_alerts')
