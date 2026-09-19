@@ -178,6 +178,7 @@
   <input id="pMonth" type="month" onchange="buildChildList().then(drawChildSelect);">
   <button id="pLoad">불러오기</button>
   <button type="button" id="pIntake" style="background:#e3f0fb;color:#0c447c;border:1px solid #85b7eb;border-radius:7px;font-weight:600;">상담 · 보고서</button>
+  <span id="pCount" style="font-size:14px;color:#5F5E5A;white-space:nowrap;"></span>
   <span id="pInfo"></span>
 </div>
 
@@ -551,6 +552,9 @@ function drawChildSelect() {
   if (keep && CHILDREN.some(c => String(c.id) === String(keep))) $('pChild').value = keep;
   $('who').textContent = ME.name + ' (' + ME.role + ') 님 · 발달재활 ' + CHILDREN.length + '명'
     + (_isAllView(ME.role) ? '' : ' (담당)');
+  // 단추 줄 아동 수 — 종결·타기관이용은 빼고 센다 (2026-09-19)
+  const _live = CHILDREN.filter(c => c.status !== '종결' && c.status !== '타기관이용').length;
+  $('pCount').textContent = '아동 ' + _live + '명';
 }
 
 // ─────────────────────────────────────────────
