@@ -5720,7 +5720,11 @@ $('edSave').onclick = async () => {
     edRow._wks = wkCnt;
 
     // 아직 안 지난 회기의 치료사·시각도 함께 고친다
-    const today = new Date().toISOString().slice(0,10);
+    // 오늘은 한국 날짜로 (2026-09-21) — 세계표준시로 세면 오전 9시 전에는
+    //   어제가 「오늘」이 되어, 어제 한 수업의 담당·시각까지 바뀌었다
+    const _t = new Date();
+    const today = _t.getFullYear() + '-' + String(_t.getMonth() + 1).padStart(2, '0')
+                + '-' + String(_t.getDate()).padStart(2, '0');
     await sb.from('nl_sessions')
       .update({ therapist_id: th, start_time: newHm + ':00' })
       .eq('schedule_id', edRow.id).gte('plan_date', today).neq('status','보강');
