@@ -208,11 +208,6 @@ const MENU = [
     { f:'billing-new.html', nm:'납부 계산',
       de:'그 달 회기로 금액 자동 계산. 매달 쓰는 화면',
       roles:['관리자','행정','데스크'] },
-    // 지난 납부 입력 — 지금은 감춰둠 (납부 계산 화면으로 대신함)
-    // 다시 쓰려면 아래 roles 에 '관리자','행정' 을 넣으면 된다
-    { f:'payments-new.html', nm:'지난 납부 입력',
-      de:'엑셀 보고 지난달 납부 넣기<br>연말정산 영수증용',
-      roles:[] },
     { f:'voucher-upload.html', nm:'발달 올리기',
       de:'발달재활 전자바우처 결제내역 엑셀<br>승인번호가 기록지에 들어감',
       roles:['관리자','행정'] },
@@ -294,7 +289,11 @@ async function afterLogin(user) {
     .from('nl_therapists').select('id, name, role')
     .eq('login_email', user.email.toLowerCase()).maybeSingle();
   if (error) { show($('msg'), '❌ 직원 조회 실패\n' + error.message, false); return; }
-  if (!me)   { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
+  if (!me)   {
+    // 직원이 아닌 계정은 로그인을 남기지 않는다 (2026-09-21)
+    try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+    show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return;
+  }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
 
   // 시스템 점검 중이면 화면을 덮는다 (대표 8번은 통과)  2026-09-08
@@ -374,6 +373,8 @@ async function afterLogin(user) {
 //   고치면 다음 사람 화면에는 아예 안 뜨고, 못 고치면 열 때마다 계속 뜬다
 const CHK_SEE = [8, 9, 11];
 let CHKHTML = '', CHKN = 0;
+// 점검 창은 홈에 들어올 때 한 번만 띄운다 (알림 창을 닫을 때마다 다시 뜨던 것 · 2026-09-21)
+let CHK_SHOWN = false;
 
 async function calcCheck(meId){
   CHKHTML = ''; CHKN = 0;
@@ -397,10 +398,12 @@ async function calcCheck(meId){
   } catch (e) {}
 
   // 항목별로 묶는다
-  const grp = {}, ord = [];
+  // 아동 번호가 없는 항목(선생님 단위 등)은 건수로 보인다 (2026-09-21)
+  const grp = {}, ord = [], cnt = {};
   rows.forEach(r => {
     const t = String(r['항목'] || '').replace(/^\d+\s*/, '');
-    if (!grp[t]) { grp[t] = []; ord.push(t); }
+    if (!grp[t]) { grp[t] = []; ord.push(t); cnt[t] = 0; }
+    cnt[t]++;
     const no = Number(r['아동']);
     const one = no ? (no + '번' + (nm[no] ? ' ' + nm[no] : '')) : '';
     if (one && grp[t].indexOf(one) < 0) grp[t].push(one);
@@ -409,11 +412,12 @@ async function calcCheck(meId){
   CHKN = rows.length;
   CHKHTML = ord.map(t =>
     '<div class="alrow"><span class="alkind w">' + esc(t) + '</span>'
-    + esc(grp[t].join(' · ')) + '</div>').join('');
+    + esc(grp[t].length ? grp[t].join(' · ') : cnt[t] + '건') + '</div>').join('');
 }
 
 function showChk(){
-  if (!CHKHTML) return;
+  if (!CHKHTML || CHK_SHOWN) return;
+  CHK_SHOWN = true;
   $('chkTitle').textContent = '⚠️ 이번 달 — 살펴볼 것이 ' + CHKN + '건';
   $('chkList').innerHTML = CHKHTML;
   $('chkbg').style.display = 'flex';
