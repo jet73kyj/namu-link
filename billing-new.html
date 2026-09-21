@@ -1011,9 +1011,19 @@ async function load() {
         .order('month_key', { ascending: false }),
       sb.from('nl_payments').select('child_id, support_type_id, memo')
         .eq('month_key', pmk),
-      sb.from('nl_sessions')
-        .select('id, child_id, schedule_id, support_type_id, status, plan_date, start_time, month_key, run_no, makeup_for, no_makeup, no_makeup_why, want_makeup, minutes')
-        .eq('month_key', mk)
+      // 1,000줄씩 나눠 끝까지 가져온다 (2026-09-21) — 한 번에는 1,000줄까지만 오고 뒤는 조용히 잘린다
+      (async () => {
+        let all = [];
+        for (let f = 0; ; f += 1000) {
+          const r = await sb.from('nl_sessions')
+            .select('id, child_id, schedule_id, support_type_id, status, plan_date, start_time, month_key, run_no, makeup_for, no_makeup, no_makeup_why, want_makeup, minutes')
+            .eq('month_key', mk).order('id').range(f, f + 999);
+          if (r.error) return r;
+          all = all.concat(r.data || []);
+          if ((r.data || []).length < 1000) break;
+        }
+        return { data: all, error: null };
+      })()
     ]);
 
     // 그 달 공휴일 (센터 전체가 쉬는 날). 치료사 휴가와 가려 적기 위함
@@ -1061,6 +1071,8 @@ async function load() {
     if (pay.error) throw pay.error;
     if (px.error)  throw px.error;
     if (pv.error)  throw pv.error;
+    // 회기를 못 읽었으면 멈춘다 (2026-09-21) — 전에는 조용히 0회로 그려졌다
+    if (ss && ss.error) throw ss.error;
 
     FEES   = pickLatest(fe.data, mk, 'therapist_id');
     RULES  = pickLatest(ru.data, mk, 'support_type_id');
@@ -1078,7 +1090,8 @@ async function load() {
     const mkCount = x => {
       const o = SBYID[x.makeup_for];
       if (!o || o.status !== '휴무') return false;
-      if (x.status === '취소' || x.status === '쉼') return false;
+      // 결석한 보강·조각은 안 센다 (2026-09-21 — 서버·시간표와 같은 규칙)
+      if (x.status === '취소' || x.status === '쉼' || x.status === '결석') return false;
       return Number(x.minutes || 40) === 40 || x.status === '완료';
     };
     // 회기 단추 (2026-09-11) — 켜진 단추 수 = 청구 회수
@@ -1114,7 +1127,8 @@ async function load() {
     const covered = {};
     // 보강을 마치면 상태가 '완료'로 바뀐다. 그래도 보강을 잡은 것이므로
     // 상태를 따지지 않고 makeup_for 가 있으면 '잡았다'로 센다
-    sess.forEach(x => { if (x.makeup_for) covered[x.makeup_for] = 1; });
+    //   다만 결석·취소한 보강은 「못 한 보강」이라 잡은 것으로 안 본다 (2026-09-21)
+    sess.forEach(x => { if (x.makeup_for && x.status !== '결석' && x.status !== '취소') covered[x.makeup_for] = 1; });
 
     // 아동·지원유형별 회기 순번 매기기 (날짜 순)
     const ord = {};
