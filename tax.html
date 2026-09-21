@@ -789,12 +789,18 @@ function bindSlip(kind){
     SLIP_SAVING = true;
     setSlipBtn('saving');
     try {
-      let sid;
+      let sid, oldRows = [];
       if (EDIT) {
         const { error } = await sb.from('nl_tax_slips').update(row).eq('id', EDIT.id);
         if (error) throw error;
         sid = EDIT.id;
-        await sb.from('nl_tax_slip_rows').delete().eq('slip_id', sid);
+        // 옛 줄을 들고 있다가, 새로 넣다 실패하면 되돌린다 (2026-09-21)
+        //   전에는 지우기 실패도 안 보고, 넣다 실패하면 적요·금액 줄이 모두 사라졌다
+        const oq = await sb.from('nl_tax_slip_rows').select('*').eq('slip_id', sid);
+        if (oq.error) throw oq.error;
+        oldRows = oq.data || [];
+        const dq = await sb.from('nl_tax_slip_rows').delete().eq('slip_id', sid);
+        if (dq.error) throw dq.error;
       } else {
         const { data, error } = await sb.from('nl_tax_slips')
           .insert(row).select().single();
@@ -803,7 +809,13 @@ function bindSlip(kind){
       }
       const { error: e2 } = await sb.from('nl_tax_slip_rows')
         .insert(items.map(r => Object.assign({ slip_id: sid }, r)));
-      if (e2) throw e2;
+      if (e2) {
+        if (oldRows.length) {
+          const back = oldRows.map(r => { const c = Object.assign({}, r); delete c.id; return c; });
+          await sb.from('nl_tax_slip_rows').insert(back);
+        }
+        throw new Error('내역을 저장하지 못해 전 내용으로 되돌렸습니다.\n' + e2.message);
+      }
       tmsg('✅ 저장했습니다. 합계 ' + won(total) + '원', true);
       SLIP_DIRTY = false;
       setSlipBtn('done');
