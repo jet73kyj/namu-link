@@ -6896,8 +6896,16 @@ $('mnSave').onclick = async () => {
     let data, error;
     if (fixing) {
       row.run_no = runv ? Number(runv) : 0;
+      // 결석에 딸린 보강(원래줄이 있는 줄)은 날짜·시각·메모만 바꾼다 (2026-09-21)
+      //   전에는 원래줄을 비우고 몫인달을 보고 있는 달로 덮어써,
+      //   8월 몫 보강이 9월 정규 회기로 바뀌었다 (102번 203388)
+      const x0 = SESS.find(v => v.id === mnEditId) || PREV.find(v => v.id === mnEditId);
+      const upd = (x0 && x0.makeup_for)
+        ? { plan_date: row.plan_date, start_time: row.start_time,
+            memo: (why || null), updated_at: new Date().toISOString() }
+        : row;
       ({ data, error } = await sb.from('nl_sessions')
-        .update(row).eq('id', mnEditId).select().single());
+        .update(upd).eq('id', mnEditId).select().single());
       if (error) throw error;
       const i = SESS.findIndex(v => v.id === mnEditId);
       data._name = mnKid.name;
