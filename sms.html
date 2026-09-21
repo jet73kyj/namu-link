@@ -170,8 +170,17 @@ const LINE1 = {
   '체험':     '아동 체험 수업이 예약되어 있습니다',
   '발추':     '아동 추가 수업이 예약되어 있습니다'
 };
+// 쪼개기 조각(40분 미만 보강)인지 (2026-09-21)
+function isPiece(it) { return it.kind === '보강' && it.mins > 0 && it.mins < 40; }
+function kindLabel(it) {
+  if (isPiece(it)) return '보강 +' + it.mins;
+  return it.kind === '상담' ? '평가 상담' : it.kind;
+}
 function smsText(it) {
-  return HEAD + it.name + ' ' + (LINE1[it.kind] || '아동 일정 안내입니다') + '\n\n'
+  const l1 = isPiece(it)
+    ? '아동 정규 수업에 이어 보강 ' + it.mins + '분이 진행됩니다'
+    : (LINE1[it.kind] || '아동 일정 안내입니다');
+  return HEAD + it.name + ' ' + l1 + '\n\n'
        + dayKo(it.on_date) + ' ' + timeKo(it.on_time) + '\n'
        + '담당 ' + (it.ther || '') + ' 선생님'
        + FOOT;
@@ -186,8 +195,12 @@ async function loadAll() {
     sb.from('nl_children').select('id, name, phone'),
     sb.from('nl_therapists').select('id, name'),
     sb.from('nl_guardians').select('child_id, name, phone, relation'),
+    // 보낸 기록은 오늘부터 사흘 안만 읽는다 (1,000줄 한도 · 2026-09-21)
     sb.from('nl_sms_sent').select('kind, child_id, on_date, on_time')
+      .gte('on_date', from).lte('on_date', to)
   ]);
+  // 읽기가 실패하면 조용히 비우지 않고 알린다 (2026-09-21)
+  [kidsR, thsR, gdR, sentR].forEach(r => { if (r.error) throw r.error; });
   const KID = {}; (kidsR.data || []).forEach(k => KID[k.id] = k);
   const TH  = {}; (thsR.data  || []).forEach(t => TH[t.id]  = t.name);
   const GD  = {}; (gdR.data   || []).forEach(g => {
@@ -200,24 +213,26 @@ async function loadAll() {
   });
 
   const out = [];
-  const push = (kind, cid, d, hm, thId, extra) => {
+  const push = (kind, cid, d, hm, thId, extra, mins) => {
     const k = KID[cid]; if (!k) return;
     out.push({
       kind: kind, cid: cid, name: k.name || ('아동 ' + cid),
       on_date: d, on_time: String(hm || '').slice(0,5),
       ther: thId ? (TH[thId] || '') : '',
-      phone: k.phone || '', gds: GD[cid] || [], extra: extra || ''
+      phone: k.phone || '', gds: GD[cid] || [], extra: extra || '',
+      mins: Number(mins) || 0
     });
   };
 
   // ① 보강 · ② 첫 수업 — 회기 표에서
-  const { data: ss } = await sb.from('nl_sessions')
-    .select('child_id, plan_date, start_time, status, therapist_id, makeup_for, schedule_id, support_type_id, memo')
+  const { data: ss, error: ssE } = await sb.from('nl_sessions')
+    .select('child_id, plan_date, start_time, status, therapist_id, makeup_for, schedule_id, support_type_id, memo, minutes')
     .gte('plan_date', from).lte('plan_date', to);
+  if (ssE) throw ssE;
   (ss || []).forEach(s => {
     if (s.status === '휴무' || s.status === '쉼' || s.status === '결석'
         || s.status === '취소') return;
-    if (s.makeup_for) { push('보강', s.child_id, s.plan_date, s.start_time, s.therapist_id); return; }
+    if (s.makeup_for) { push('보강', s.child_id, s.plan_date, s.start_time, s.therapist_id, '', s.minutes); return; }
     // ⑧ 발추(이) 수업 — 달마다 날짜가 달라지므로 따로 알린다 (2026-09-19)
     //   보강 줄은 위에서 「보강」으로 이미 담았고,
     //   메모에 [분산]이 든 자리표는 정규 수업에 10분씩 얹는 것이라 뺀다
@@ -227,9 +242,11 @@ async function loadAll() {
   });
 
   // 첫 수업 — 요일줄 시작날이 사흘 안
-  const { data: sc } = await sb.from('nl_therapy_schedules')
+  const { data: sc, error: scE } = await sb.from('nl_therapy_schedules')
     .select('id, therapy_id, weekday, start_time, therapist_id, from_date');
-  const { data: th } = await sb.from('nl_therapies').select('id, child_id');
+  if (scE) throw scE;
+  const { data: th, error: thE } = await sb.from('nl_therapies').select('id, child_id');
+  if (thE) throw thE;
   const THC = {}; (th || []).forEach(x => THC[x.id] = x.child_id);
   const firstOf = {};
   (ss || []).forEach(s => {
@@ -239,56 +256,89 @@ async function loadAll() {
   });
   (sc || []).forEach(x => {
     if (!x.from_date || x.from_date < from || x.from_date > to) return;
+    // 담당·요일을 바꿔 나뉜 요일줄은 첫 수업이 아니다 (2026-09-21)
+    //   같은 치료에 더 앞선(또는 시작날이 빈) 요일줄이 있으면 뺀다
+    const older = (sc || []).some(y => y.id !== x.id && y.therapy_id === x.therapy_id
+      && (!y.from_date || y.from_date < x.from_date));
+    if (older) return;
     const cid = THC[x.therapy_id]; if (!cid) return;
     push('첫수업', cid, x.from_date, x.start_time, x.therapist_id);
   });
 
   // ③ 평가 — 평가 표에서
-  const { data: ev } = await sb.from('nl_evaluations')
+  const { data: ev, error: evE } = await sb.from('nl_evaluations')
     .select('child_id, eval_date, eval_time, therapist_id, status')
     .gte('eval_date', from).lte('eval_date', to);
+  if (evE) throw evE;
   (ev || []).forEach(e => {
     if (e.status === '취소') return;   // 취소한 평가는 안내 문자를 안 띄운다 (2026-09-11)
     push('평가', e.child_id, e.eval_date, e.eval_time, e.therapist_id);
   });
 
   // ④ 평가 상담 — 휴무 표의 「상담」 줄
-  const { data: cs } = await sb.from('nl_offdays')
+  const { data: cs, error: csE } = await sb.from('nl_offdays')
     .select('off_date, kind, therapist_id, start_time, child_id')
     .eq('kind', '상담').gte('off_date', from).lte('off_date', to);
+  if (csE) throw csE;
   (cs || []).forEach(c =>
     push('상담', c.child_id, c.off_date, c.start_time, c.therapist_id));
 
   // ⑦ 체험 수업 — 체험 표에서 (2026-09-19)
-  const { data: tr } = await sb.from('nl_trial_lessons')
+  const { data: tr, error: trE } = await sb.from('nl_trial_lessons')
     .select('child_id, lesson_date, lesson_time, therapist_id, status')
     .gte('lesson_date', from).lte('lesson_date', to);
+  if (trE) throw trE;
   (tr || []).forEach(t => {
     if (t.status === '취소') return;   // 취소한 체험은 안내 문자를 안 띄운다
     push('체험', t.child_id, t.lesson_date, t.lesson_time, t.therapist_id);
   });
 
   // ⑤⑥ 요일·시간 변경 — 알림 표에서. 바뀐 뒤 첫 수업이 사흘 안일 때만
-  const { data: al } = await sb.from('nl_alerts')
+  const { data: al, error: alE } = await sb.from('nl_alerts')
     .select('id, kind, child_id, body, created_at')
     .eq('kind', '시간변경')
     .gte('created_at', ymd(addDays(t0, -30)));
-  (al || []).forEach(a => {
-    const cid = a.child_id; if (!cid) return;
-    // 그 아동의 사흘 안 첫 수업을 찾는다
-    let hit = null;
-    (ss || []).forEach(s => {
-      if (s.child_id !== cid || s.makeup_for) return;
-      if (s.status === '휴무' || s.status === '쉼') return;
-      if (!hit || s.plan_date < hit.plan_date) hit = s;
+  if (alE) throw alE;
+  // 알림 뒤 「첫 수업」이 사흘 안일 때만 한 번 (2026-09-21)
+  //   전에는 30일 동안 사흘 안 수업마다 다시 떴다
+  //   바뀐 수업 줄은 알림 뒤에 새로 깔리거나 고쳐지므로, 그 뒤에 만들어지거나
+  //   고쳐진 줄 가운데 가장 이른 것을 첫 수업으로 본다
+  const alist = (al || []).filter(a => a.child_id);
+  if (alist.length) {
+    const aDay = a => ymd(new Date(a.created_at));
+    const minD = alist.map(aDay).sort()[0];
+    const cids = Array.from(new Set(alist.map(a => a.child_id)));
+    const aft = [];
+    for (let f = 0; ; f += 1000) {
+      const { data: part, error: pE } = await sb.from('nl_sessions')
+        .select('id, child_id, plan_date, start_time, status, therapist_id, makeup_for, created_at, updated_at')
+        .in('child_id', cids).gte('plan_date', minD).lte('plan_date', to)
+        .order('id').range(f, f + 999);
+      if (pE) throw pE;
+      aft.push(...(part || []));
+      if (!part || part.length < 1000) break;
+    }
+    alist.forEach(a => {
+      const cid = a.child_id, ad = aDay(a), at = new Date(a.created_at).getTime() - 60000;
+      let hit = null;
+      aft.forEach(s => {
+        if (s.child_id !== cid || s.makeup_for) return;
+        if (['휴무','쉼','결석','취소'].indexOf(s.status) >= 0) return;
+        if (s.plan_date < ad) return;
+        const touched = Math.max(new Date(s.created_at || 0).getTime(),
+                                 new Date(s.updated_at || 0).getTime());
+        if (touched < at) return;
+        if (!hit || s.plan_date < hit.plan_date
+            || (s.plan_date === hit.plan_date && String(s.start_time) < String(hit.start_time))) hit = s;
+      });
+      if (!hit || hit.plan_date < from) return;   // 첫 수업이 이미 지났으면 안 띄움
+      // 글에 「→」 앞뒤로 요일이 둘 다 있으면 요일 변경
+      const b = String(a.body || '');
+      const two = (b.match(/요일/g) || []).length >= 2;
+      push(two ? '요일변경' : '시간변경', cid,
+           hit.plan_date, hit.start_time, hit.therapist_id, b);
     });
-    if (!hit) return;
-    // 글에 「→」 앞뒤로 요일이 둘 다 있으면 요일 변경
-    const b = String(a.body || '');
-    const two = (b.match(/요일/g) || []).length >= 2;
-    push(two ? '요일변경' : '시간변경', cid,
-         hit.plan_date, hit.start_time, hit.therapist_id, b);
-  });
+  }
 
   // 같은 것이 두 번 들어가지 않게
   const seen = {};
@@ -336,7 +386,7 @@ function draw() {
     html += '<div class="card"' + (done ? ' style="opacity:.5;"' : '') + '>'
       + '<div class="c1">'
       +   '<span class="kind k-' + it.kind + '">'
-      +     (it.kind === '상담' ? '평가 상담' : it.kind) + '</span>'
+      +     esc(kindLabel(it)) + '</span>'
       +   '<span class="nm">' + it.cid + '번 ' + esc(it.name) + '</span>'
       +   '<span class="ph">' + (phs.length ? phs.join(' · ') : '번호 없음') + '</span>'
       +   (done ? '<span class="ph">✅ 보냄</span>' : '')
