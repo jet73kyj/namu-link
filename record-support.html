@@ -667,8 +667,6 @@ async function saveRecord() {
     if (e1) throw e1;
     LOGID = lg.id;
 
-    const del = await sb.from('nl_session_items').delete().eq('log_id', LOGID);
-    if (del.error) throw del.error;
 
     const trs = document.querySelectorAll('#seqBody tr');
     const items = [];
@@ -690,8 +688,19 @@ async function saveRecord() {
         status: '출석'
       });
     });
+    // 회차 줄은 다 만든 뒤에 바꾼다 (2026-09-21)
+    //   전에는 먼저 지우고 나서 만들어 넣었는데, 넣다가 실패하면(시간 글자 잘못 등)
+    //   적어 둔 내용이 모두 사라졌다 → 옛 줄을 들고 있다가 실패하면 되돌린다
+    const old = await sb.from('nl_session_items').select('*').eq('log_id', LOGID);
+    if (old.error) throw old.error;
+    const del = await sb.from('nl_session_items').delete().eq('log_id', LOGID);
+    if (del.error) throw del.error;
     const ins = await sb.from('nl_session_items').insert(items);
-    if (ins.error) throw ins.error;
+    if (ins.error) {
+      const back = (old.data || []).map(r => { const c = Object.assign({}, r); delete c.id; return c; });
+      if (back.length) await sb.from('nl_session_items').insert(back);
+      throw new Error('저장하지 못해 전에 적은 내용으로 되돌렸습니다.\n' + ins.error.message);
+    }
 
     // 학교·학년을 아동 표에도 남긴다 (다음부터 자동으로 채워짐)
     const sc = $('f_school').value.trim(), gy = $('f_grade').value.trim();
