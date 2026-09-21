@@ -722,7 +722,9 @@ async function afterLogin() {
   // 이름표 미리 담아둔다
   const { data: tt } = await sb.from('nl_therapy_types').select('id, name');
   (tt || []).forEach(r => { TYPES[r.id] = r.name; });
-  const { data: th } = await sb.from('nl_therapists').select('id, name');
+  // 선생님 이름은 창구에서 번호·이름만 받는다 (2026-09-21)
+  //   직원 표를 바로 읽으면 연락처·생년월일 같은 칸까지 내려오므로 쓰지 않는다
+  const { data: th } = await sb.rpc('nl_th_names');
   (th || []).forEach(r => { THRS[r.id] = r.name; });
 
   drawKids();
