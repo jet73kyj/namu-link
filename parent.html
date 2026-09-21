@@ -1920,7 +1920,7 @@ async function loadPay() {
   // 이 달 회기 — 무슨 수업을 몇 번 받았는지 세려고
   let { data: ses } = await sb
     .from('nl_sessions')
-    .select('child_id, support_type_id, therapist_id, therapy_id, plan_date, status, minutes, no_makeup')
+    .select('child_id, support_type_id, therapist_id, therapy_id, plan_date, status, minutes, no_makeup, makeup_for, want_makeup')
     .in('child_id', ids).eq('month_key', CURMK);
   // 「보강 없음」으로 뺀 날은 교육비 회수에서도 뺀다 (2026-09-09)
   if (ses) ses = ses.filter(r => !r.no_makeup);
@@ -1970,10 +1970,15 @@ async function loadPay() {
   function detailOf(childId, stId) {
     // 발달재활은 무조건 월 4회. 쉬는 날도 보강해서 채우므로 그대로 4회로 적는다
     const isDev = Number(stId) === 2;
+    // 청구 회수와 같은 규칙으로 센다 (2026-09-21 — 납부 계산 단추와 같게)
+    //   원래 수업 줄만 센다. 보강·조각 줄은 원래 줄이 이미 한 회라 또 세지 않는다
+    //   (전에는 결석+보강이 두 회로, 조각이 덧붙어 「5회」처럼 보였다)
+    //   쉬는 날(휴무)은 「보강 받음」을 켠 날만 한 회로 센다
     const rows = (ses || []).filter(r =>
       r.child_id === childId && Number(r.support_type_id) === Number(stId)
+      && !r.makeup_for && String(r.status || '') !== '취소'
       && (isDev || (String(r.status || '') !== '쉼'
-                    && String(r.status || '') !== '휴무')));
+                    && (String(r.status || '') !== '휴무' || r.want_makeup))));
     const bag = {};
     rows.forEach(r => {
       const tn  = TYPES[T2[r.therapy_id]] || '수업';
@@ -1986,6 +1991,7 @@ async function loadPay() {
     // 쉬어서 빠진 회기 — 왜 회수가 적은지 알려 주려고
     const off = (ses || []).filter(r =>
       r.child_id === childId && Number(r.support_type_id) === Number(stId)
+      && !r.makeup_for && !r.want_makeup
       && (String(r.status || '') === '쉼' || String(r.status || '') === '휴무'));
     const why = {};
     off.forEach(r => {
