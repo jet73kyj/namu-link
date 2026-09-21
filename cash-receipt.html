@@ -203,6 +203,10 @@ const sb = window.supabase.createClient(URL_, KEY_, {
 const $ = id => document.getElementById(id);
 
 let NAMES = {}, TYPES = {}, PAYS = [], RECS = {};
+// 적어 두고 아직 저장 안 한 발행 칸 — 화면을 다시 그려도 채워 둔다 (2026-09-21)
+//   아동번호 -> { id, day, no }
+let DRAFT = {};
+function draftN() { return Object.keys(DRAFT).length; }
 
 function show(el, t, ok) { el.textContent = t; el.className = 'out ' + (ok ? 'ok' : 'err'); }
 function esc(s) {
@@ -246,7 +250,15 @@ async function afterLogin(user) {
     .from('nl_therapists').select('id, name, role')
     .eq('login_email', user.email.toLowerCase()).maybeSingle();
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
-  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
+  if (!me) {
+    // 직원이 아닌 계정은 로그인을 남기지 않는다 (2026-09-21)
+    try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+    show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return;
+  }
+  // 관리자·행정(8·9번)만 — 표 잠금도 8·9번만 (2026-09-21)
+  if ([8, 9].indexOf(Number(me.id)) < 0) {
+    show($('msg'), '⚠️ 이 화면은 관리자·행정만 볼 수 있습니다.', false); return;
+  }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
 
   const [c, st] = await Promise.all([
@@ -293,6 +305,7 @@ async function load() {
 
     PAYS = rows;
     RECS = {};
+    DRAFT = {};
     (r.data || []).forEach(x => RECS[x.child_id] = x);
     render();
   } catch (e) {
@@ -319,7 +332,9 @@ function render() {
   });
 
   let ids = Object.keys(by);
+  // 숫자만 넣으면 아동 번호로 찾는다 (2026-09-21)
   if (q) ids = ids.filter(id => {
+    if (/^[0-9]+$/.test(q)) return String(id) === q;
     const c = NAMES[id]; return c && c.name && c.name.indexOf(q) >= 0;
   });
   if (filt === 'todo') ids = ids.filter(id => !(RECS[id] && RECS[id].issued_on));
@@ -354,6 +369,10 @@ function render() {
     const g = by[id];
     const rec = RECS[id] || {};
     const issued = !!rec.issued_on;
+    const dr = DRAFT[id];
+    const vId  = dr ? dr.id  : (rec.id_no || '');
+    const vDay = dr ? dr.day : (rec.issued_on || '');
+    const vNo  = dr ? dr.no  : (rec.receipt_no || '');
 
     const askRows = g.ask.slice()
       .sort((a,b) => String(a.paid_on).localeCompare(String(b.paid_on)))
@@ -408,10 +427,10 @@ function render() {
           : '')
       + '<div class="kfoot">'
       +   '<input class="w-id fid" type="text" placeholder="사업자번호 / 휴대폰번호" value="'
-          + esc(rec.id_no || '') + '">'
-      +   '<input class="w-day fday" type="date" value="' + esc(rec.issued_on || '') + '">'
+          + esc(vId) + '">'
+      +   '<input class="w-day fday" type="date" value="' + esc(vDay) + '">'
       +   '<input class="w-no fno" type="text" placeholder="발행번호" value="'
-          + esc(rec.receipt_no || '') + '">'
+          + esc(vNo) + '">'
       +   '<button class="savebtn">저장</button>'
       + '</div>'
       + '</div>';
@@ -482,6 +501,7 @@ async function saveKid(box) {
       .select().maybeSingle();
     if (error) throw error;
     if (data) RECS[cid] = data;
+    delete DRAFT[cid];
     show($('msg2'), '✅ 저장했습니다.', true);
     render();
   } catch (e) {
@@ -496,8 +516,37 @@ document.addEventListener('wheel', () => {
   if (a && a.tagName === 'INPUT') a.blur();
 }, true);
 
-$('load').onclick = load;
-$('year').onchange = () => { if (PAYS.length) load(); };
+// 발행 칸을 적는 대로 기억한다 (2026-09-21)
+$('kids').addEventListener('input', ev => {
+  const box = ev.target.closest('.kid');
+  if (!box || !ev.target.matches('.fid, .fday, .fno')) return;
+  const cid = Number(box.dataset.child);
+  const rec = RECS[cid] || {};
+  const d = { id: box.querySelector('.fid').value, day: box.querySelector('.fday').value,
+              no: box.querySelector('.fno').value };
+  // 저장된 값과 같아지면 기억을 지운다
+  if (d.id === (rec.id_no || '') && d.day === (rec.issued_on || '') && d.no === (rec.receipt_no || ''))
+    delete DRAFT[cid];
+  else DRAFT[cid] = d;
+});
+function leaveOk() {
+  const n = draftN();
+  if (!n) return true;
+  return confirm('발행 칸을 적고 저장하지 않은 아동이 ' + n + '명 있습니다.\n'
+    + Object.keys(DRAFT).map(id => id + '번').join(' · ') + '\n\n저장하지 않고 넘어갈까요?');
+}
+window.addEventListener('beforeunload', ev => {
+  if (draftN()) { ev.preventDefault(); ev.returnValue = ''; }
+});
+
+$('load').onclick = () => { if (leaveOk()) load(); };
+let YEAR_NOW = null;
+$('year').addEventListener('focus', () => { YEAR_NOW = $('year').value; });
+$('year').onchange = () => {
+  if (!PAYS.length) return;
+  if (!leaveOk()) { if (YEAR_NOW) $('year').value = YEAR_NOW; return; }
+  load();
+};
 $('filt').onchange = () => { if (PAYS.length) render(); };
 $('q').addEventListener('input', () => { if (PAYS.length) render(); });
 
@@ -517,6 +566,8 @@ $('btn').onclick = async () => {
   }
 };
 $('out').onclick = async () => {
+  if (!leaveOk()) return;
+  DRAFT = {};
   nlKeepOff();
   try { await sb.auth.signOut(); } catch (e) {}
   try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
