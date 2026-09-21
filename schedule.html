@@ -1956,6 +1956,14 @@ function filledMin(id, pool){
 }
 // 아직 40분을 못 채웠는가 — 상자에 남길지 정한다
 function needMore(id, pool){ return filledMin(id, pool) < 40; }
+// 같은 원래 줄의 40분 보강이 두 번 결석하면 그 회는 끝(소멸) — 더 보강하지 않는다 (2026-09-21 은정님)
+//   청구는 그대로. 서버 셈(nl_need_rows)도 같은 규칙
+function mkAbsN(id, pool){
+  return (pool || SESS.concat(PREV)).filter(function(v){
+    return Number(v.makeup_for) === Number(id) && v.status === '결석' && Number(v.minutes || 40) >= 40;
+  }).reduce(function(a, v){ a[v.id] = 1; return a; }, {});
+}
+function mkDead(id, pool){ return Object.keys(mkAbsN(id, pool)).length >= 2; }
 // 상자 줄에 붙는 「+10 (30분 더 필요)」
 function fillNote(id, pool){
   const parts = (pool || SESS.concat(PREV))
@@ -2814,7 +2822,7 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   //   쉬는 날에 보강하려면 납부 계산에서 그 날 단추를 먼저 켠다 (월 4회 아동)
   //   40분 보강이 없고 조각도 40분이 안 됐을 때
   const done40 = (mk && Number(mk.minutes || 40) === 40 && pCount(mk)) || psum >= 40;
-  const plus = CAN_EDIT && on && !done40
+  const plus = CAN_EDIT && on && !done40 && !mkDead(x.id)
     && (x.status === '결석' || x.status === '휴무');
   const grey = !on || x.status === '결석';
   const cls = 'fb s' + sp + (grey ? ' off' : (x.status === '완료' ? ' fdn' : ''));
@@ -2845,7 +2853,7 @@ function fExtra(s){
   //   조각 묶음(fPartGroup)에만 있던 것을 여기에도 넣는다.
   //   전에는 이 단추에 ＋ 가 없어, 이월 보강 한 줄을 결석으로 바꾸면
   //   찾기 창에서 다시 잡을 길이 없었다 (102번 8월분 21일)
-  const miss = CAN_EDIT && s.makeup_for && !pCount(s) && needMore(s.makeup_for);
+  const miss = CAN_EDIT && s.makeup_for && !pCount(s) && needMore(s.makeup_for) && !mkDead(s.makeup_for);
   const mv = canMoveMk(s);
   return '<span class="fb fpv' + (s.status === '완료' ? ' fdn' : '') + '" data-sid="' + s.id + '">'
     + esc(lb + ' ' + mkDay(s)) + (sm ? '<small>' + esc(sm) + '</small>' : '')
@@ -2856,6 +2864,26 @@ function fExtra(s){
 // 같은 원래 줄을 메우는 쪼개기 조각을 단추 하나로 (2026-09-17 은정님)
 //   「8월분 - 4일(+20), 11일(+20) 결석 ＋」
 //   조각마다 누르면 그 조각 상태가 돈다 · 결석 조각 뒤 ＋ 는 원래 줄 보강 잡기 창
+// 같은 원래 줄을 메우던 40분 보강이 둘 이상이면 단추 하나로 (2026-09-21 은정님)
+//   「8월분 19일 결석 → 21일 결석」 · 날짜를 누르면 그 보강 상태가 돈다
+//   ＋ 는 끝에 하나만 — 아직 못 채웠고 두 번 결석이 아닐 때
+function fMkChain(list, origId){
+  list = list.slice().sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
+  const s0 = list[0];
+  const other = s0.month_key && String(s0.month_key) !== String(mon);
+  const lb = other ? monNo(s0.month_key) + '월분' : '보강';
+  const allDone = list.every(x => x.status === '완료');
+  const parts = list.map(x => {
+    const w = x.status === '결석' ? '결석' : x.status === '완료' ? '완료' : '예정';
+    return '<span class="fpart" data-psid="' + x.id + '" style="cursor:pointer">' + esc(mkDay(x)) + '</span>'
+      + '<small>' + w + '</small>'
+      + (canMoveMk(x) ? ' <b class="fmned" data-fmned="' + x.id + '" title="보강 날짜·시각 바꾸기">✎</b>' : '');
+  }).join(' → ');
+  const plus = CAN_EDIT && needMore(origId) && !mkDead(origId)
+    && list.every(x => !pCount(x));
+  return '<span class="fb fpv' + (allDone ? ' fdn' : '') + '">' + esc(lb) + ' ' + parts
+    + (plus ? ' <b class="fplus fpplus" data-orig="' + origId + '">＋</b>' : '') + '</span>';
+}
 function fPartGroup(list, origId){
   list = list.slice().sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
   const s0 = list[0];
@@ -2871,7 +2899,7 @@ function fPartGroup(list, origId){
       + (cut ? 'text-decoration:line-through;' : '') + '">'
       + esc(mkDay(x)) + '(+' + Number(x.minutes || 0) + ')</span>'
       + (cut ? '<small>결석</small>' : (x.status === '보강' ? '<small>예정</small>' : ''))
-      + ((cut && need && CAN_EDIT) ? '<b class="fplus fpplus" data-orig="' + origId + '">＋</b>' : '');
+      + ((cut && need && CAN_EDIT && !mkDead(origId)) ? '<b class="fplus fpplus" data-orig="' + origId + '">＋</b>' : '');
   }).join(', ');
   return '<span class="fb fpv' + (allDone ? ' fdn' : '') + '">'
     + esc(lb) + ' - ' + parts + '</span>';
@@ -3078,7 +3106,13 @@ function drawFind(){
       if (x.makeup_for && Number(x.minutes || 40) !== 40) (_grp[x.makeup_for] = _grp[x.makeup_for] || []).push(x);
       else _one.push(x);
     });
-    const ext = _one.map(fExtra).join('')
+    // 40분 보강도 같은 원래 줄이 둘 이상이면 한 단추로 (2026-09-21)
+    const _g40 = {}, _solo = [];
+    _one.forEach(x => { if (x.makeup_for) (_g40[x.makeup_for] = _g40[x.makeup_for] || []).push(x); else _solo.push(x); });
+    Object.keys(_g40).forEach(k => { if (_g40[k].length < 2) { _solo.push(_g40[k][0]); delete _g40[k]; } });
+    _solo.sort((a, b) => String(a.plan_date).localeCompare(String(b.plan_date)));
+    const ext = _solo.map(fExtra).join('')
+      + Object.keys(_g40).map(k => fMkChain(_g40[k], Number(k))).join('')
       + Object.keys(_grp).map(k => fPartGroup(_grp[k], Number(k))).join('');
     // 요일 밖 날짜의 원래 줄 (발추를 다른 날에 잡은 것 등) · 발추 나눠서 진행 자리표
     const oth = other.map(x => fBtn(x, mkOf, PARTS, HOSTADD)).join('')
