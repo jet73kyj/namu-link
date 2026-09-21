@@ -224,11 +224,21 @@ async function loadAll() {
 
     // 아동마다 맡은 수업 · 첫 수업
     const cls = {}, first = {};
+    // 선생님 화면 — 그 선생님이 이 아동을 처음 맡은 날 (담당을 넘겨받은 경우도 「새로 시작」) (2026-09-21)
+    const tfirst = {};
     const thById = {}; ths.forEach(t => thById[t.id] = t);
     scs.forEach(sc => {
       const t = thById[sc.therapy_id];
       if (!t) return;
-      if (t.ended_on || sc.to_date || (sc.to_month && sc.to_month < thisMon)) return;   // 끝난 수업은 뺀다
+      if (!ADMIN && Number(sc.therapist_id) === MEID) {
+        const s0 = String(sc.from_date || t.started_on || '');
+        if (s0 && (!tfirst[t.child_id] || s0 < tfirst[t.child_id])) tfirst[t.child_id] = s0;
+      }
+      // 끝난 수업은 뺀다 — 끝난날이 오늘보다 앞일 때만 (2026-09-21)
+      //   전에는 끝난날이 적히기만 하면 빼서, 이달 말 종결을 미리 적은 수업이 바로 사라졌다
+      if ((t.ended_on && String(t.ended_on) < today)
+          || (sc.to_date && String(sc.to_date) < today)
+          || (!sc.to_date && sc.to_month && sc.to_month < thisMon)) return;
       if (!ADMIN && Number(sc.therapist_id) !== MEID) return;                            // 선생님은 자기 수업만
       (cls[t.child_id] = cls[t.child_id] || []).push(
         (STYPE[t.support_type_id] || '') + ' · ' + (TT[t.therapy_type_id] || '') + ' '
@@ -237,15 +247,22 @@ async function loadAll() {
       if (st && (!first[t.child_id] || st < first[t.child_id])) first[t.child_id] = st;
     });
     const trial = {}, evl = {};
+    // 앞날 중 가장 가까운 날, 없으면 지난 날 중 가장 최근 날 (2026-09-21)
+    const pickNear = (map, cid, d) => {
+      d = String(d); const cur = map[cid] ? String(map[cid]) : '';
+      if (!cur) { map[cid] = d; return; }
+      if (d >= today) { if (cur < today || d < cur) map[cid] = d; }
+      else if (cur < today && d > cur) map[cid] = d;
+    };
     trs.forEach(r => {
       if (r.status === '취소' || !r.lesson_date) return;
       if (!ADMIN && Number(r.therapist_id) !== MEID) return;
-      if (String(r.lesson_date) >= today || !trial[r.child_id]) trial[r.child_id] = r.lesson_date;
+      pickNear(trial, r.child_id, r.lesson_date);
     });
     evs.forEach(r => {
       if (r.status === '취소' || !r.eval_date) return;
       if (!ADMIN && Number(r.therapist_id) !== MEID) return;
-      if (String(r.eval_date) >= today || !evl[r.child_id]) evl[r.child_id] = r.eval_date;
+      pickNear(evl, r.child_id, r.eval_date);
     });
     const dc = {};
     docs.forEach(d => {
@@ -258,7 +275,7 @@ async function loadAll() {
       // 선생님 — 서버가 준 아동 중 맡은 수업·체험·평가가 있는 아동
       return cls[k.id] || trial[k.id] || evl[k.id];
     }).map(k => {
-      const f = first[k.id] || '';
+      const f = (ADMIN ? first[k.id] : (tfirst[k.id] || first[k.id])) || '';
       return {
         id: k.id, name: k.name, birth: k.birth, status: k.status,
         memoAt: k.memo_at || '', hasMemo: !!String(k.memo || '').trim(),

@@ -224,7 +224,7 @@
         if (!r) return;
         if (isDoc(r)) {                                 // 한글·워드는 내려받는다
           const sg = await SB.storage.from(BUCKET).createSignedUrl(r.file_path, 600, { download: r.file_name });
-          if (sg.error || !sg.data) { say('❌ 파일을 내려받지 못했습니다.\\n' + (sg.error ? sg.error.message : ''), false); return; }
+          if (sg.error || !sg.data) { say('❌ 파일을 내려받지 못했습니다.\n' + (sg.error ? sg.error.message : ''), false); return; }
           const aTag = document.createElement('a');
           aTag.href = sg.data.signedUrl; aTag.download = r.file_name;
           document.body.appendChild(aTag); aTag.click(); aTag.remove();
@@ -274,11 +274,13 @@
         if (!confirm(a === 'del'
             ? '「' + L[0].file_name + '」 파일을 지웁니다. 되돌릴 수 없습니다.\n계속할까요?'
             : '「' + L[0].title + '」 묶음의 파일 ' + L.length + '개를 모두 지웁니다. 되돌릴 수 없습니다.\n계속할까요?')) return;
-        const { error: e1 } = await SB.storage.from(BUCKET).remove(L.map(r => r.file_path));
-        if (e1) { say('❌ 파일을 지우지 못했습니다.\n' + e1.message, false); return; }
+        // 목록 줄을 먼저 지우고 파일을 나중에 지운다 (2026-09-21)
+        //   반대로 하면 둘째가 실패할 때 「목록엔 있는데 안 열리는 줄」이 남는다
         const { error: e2 } = await SB.from('nl_eval_docs').delete().in('id', L.map(r => r.id));
         if (e2) { say('❌ 목록에서 지우지 못했습니다.\n' + e2.message, false); return; }
-        say('✅ ' + L.length + '개를 지웠습니다.', true);
+        const { error: e1 } = await SB.storage.from(BUCKET).remove(L.map(r => r.file_path));
+        if (e1) say('⚠️ 목록에서는 지웠으나 파일은 남았습니다.\n' + e1.message, false);
+        else say('✅ ' + L.length + '개를 지웠습니다.', true);
         await load();
         if (o.onChange) o.onChange();
       }
