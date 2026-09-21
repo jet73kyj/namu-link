@@ -777,10 +777,19 @@ function kidBirth6(cid) {
 // 평가보고서 — 평가 줄마다 센터 보고서 장 수 (2026-09-17)
 //   null 이면 못 읽음(데스크 계정 등)
 let EVDOCN = null;
+let WL_OLDSLOTS = [];   // 대기 시간 저장이 실패하면 되돌릴 옛 시간 (2026-09-21)
 let REPMISS = false;   // 「보고서 없음」만 보기
 async function loadDocs() {
   try {
-    const { data, error } = await sb.from('nl_eval_docs').select('eval_id, source');
+    // 1,000줄씩 나눠 끝까지 (2026-09-21) — 보고서는 쪽마다 한 줄이라 금방 1,000을 넘고,
+    //   넘으면 뒤가 잘려 올린 보고서도 「보고서 없음」으로 보였다
+    let data = [], error = null;
+    for (let f = 0; ; f += 1000) {
+      const r = await sb.from('nl_eval_docs').select('eval_id, source').order('id').range(f, f + 999);
+      if (r.error) { error = r.error; break; }
+      data = data.concat(r.data || []);
+      if ((r.data || []).length < 1000) break;
+    }
     if (error) { EVDOCN = null; return; }
     EVDOCN = {};
     (data || []).forEach(d => {
@@ -2226,8 +2235,14 @@ $('w_save').onclick = async () => {
     if (wid) {
       const { error } = await sb.from('nl_waitlist').update(row).eq('id', wid);
       if (error) throw error;
-      await sb.from('nl_waitlist_slots').delete().eq('waitlist_id', wid);
+      // 옛 시간을 들고 있다가, 새로 넣다 실패하면 되돌린다 (2026-09-21)
+      const oldS = await sb.from('nl_waitlist_slots').select('weekday, start_time').eq('waitlist_id', wid);
+      if (oldS.error) throw oldS.error;
+      WL_OLDSLOTS = oldS.data || [];
+      const dS = await sb.from('nl_waitlist_slots').delete().eq('waitlist_id', wid);
+      if (dS.error) throw dS.error;
     } else {
+      WL_OLDSLOTS = [];
       const { data, error } = await sb.from('nl_waitlist')
         .insert(row).select('id').single();
       if (error) throw error;
@@ -2235,7 +2250,11 @@ $('w_save').onclick = async () => {
     }
     const { error: e2 } = await sb.from('nl_waitlist_slots')
       .insert(slots.map(v => ({ waitlist_id: wid, weekday: v.weekday, start_time: v.start_time })));
-    if (e2) throw e2;
+    if (e2) {
+      if (WL_OLDSLOTS.length)
+        await sb.from('nl_waitlist_slots').insert(WL_OLDSLOTS.map(v => ({ waitlist_id: wid, weekday: v.weekday, start_time: v.start_time })));
+      throw new Error('희망 시간을 저장하지 못해 전 내용으로 되돌렸습니다.\n' + e2.message);
+    }
 
     await loadWl(); drawWl();
     wlmsg('✅ ' + esc(wlKid.name) + ' 아동을 ' + wlKind

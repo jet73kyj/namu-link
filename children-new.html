@@ -844,8 +844,13 @@ async function afterLogin(user) {
   if (CAN_TH) {
     // 표 잠금이 담당 아동 것만 내려준다
     try {
-      const dc = await sb.from('nl_eval_docs').select('child_id').range(0, 999);
-      (dc.data || []).forEach(r => { DOCN[r.child_id] = (DOCN[r.child_id] || 0) + 1; });
+      // 1,000줄씩 나눠 끝까지 (2026-09-21) — 보고서는 쪽마다 한 줄이라 금방 1,000을 넘는다
+      for (let f = 0; ; f += 1000) {
+        const dc = await sb.from('nl_eval_docs').select('child_id').order('id').range(f, f + 999);
+        if (dc.error || !dc.data) break;
+        dc.data.forEach(r => { DOCN[r.child_id] = (DOCN[r.child_id] || 0) + 1; });
+        if (dc.data.length < 1000) break;
+      }
     } catch (e) { DOCN = {}; }
   }
 
@@ -2081,11 +2086,19 @@ async function saveGuards(id){
       phone: String(g.phone).trim(),
       is_primary: i === 0
     }));
+  // 옛 줄을 들고 있다가, 새로 넣다 실패하면 되돌린다 (2026-09-21)
+  //   전에는 지운 뒤 넣다가 실패하면 보호자 번호가 모두 사라졌다
+  const old = await sb.from('nl_guardians').select('*').eq('child_id', id);
+  if (old.error) throw old.error;
   const del = await sb.from('nl_guardians').delete().eq('child_id', id);
   if (del.error) throw del.error;
   if (rows.length) {
     const ins = await sb.from('nl_guardians').insert(rows);
-    if (ins.error) throw ins.error;
+    if (ins.error) {
+      const back = (old.data || []).map(r => { const c = Object.assign({}, r); delete c.id; return c; });
+      if (back.length) await sb.from('nl_guardians').insert(back);
+      throw new Error('연락처를 저장하지 못해 전 내용으로 되돌렸습니다.\n' + ins.error.message);
+    }
   }
   GUARD[id] = rows;
   return rows;
