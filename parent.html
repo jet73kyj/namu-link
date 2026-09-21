@@ -521,8 +521,28 @@ const NLSTORE = (function(){
     return window.localStorage;
   } catch (e) { return window.sessionStorage; }
 })();
+// ★ 학부모 로그인은 직원 로그인과 다른 이름의 자리에 담는다 (2026-09-21)
+//   같은 자리를 쓰면, 직원이 로그인해 둔 컴퓨터에서 이 화면을 열 때
+//   직원 로그인 그대로 들어와 모든 아동이 보였다
+const NLKEY = 'nl-parent-auth';
+// 전(같은 자리)에 담긴 학부모 로그인은 새 자리로 옮겨 다시 로그인하지 않으시게 한다
+try {
+  if (!NLSTORE.getItem(NLKEY)) {
+    const ref = String(URL_).replace(/^https?:\/\//, '').split('.')[0];
+    const oldK = 'sb-' + ref + '-auth-token';
+    const old = NLSTORE.getItem(oldK);
+    if (old) {
+      const j = JSON.parse(old);
+      const em = String((j && j.user && j.user.email) || '');
+      if (/@parent\.namu$/i.test(em)) {
+        NLSTORE.setItem(NLKEY, old);
+        NLSTORE.removeItem(oldK);
+      }
+    }
+  }
+} catch (e) {}
 const sb = window.supabase.createClient(URL_, KEY_, {
-  auth: { storage: NLSTORE, persistSession: true, autoRefreshToken: true }
+  auth: { storage: NLSTORE, storageKey: NLKEY, persistSession: true, autoRefreshToken: true }
 });
 const $ = id => document.getElementById(id);
 
@@ -663,6 +683,17 @@ try {
 
 // ── 로그인 뒤 ───────────────────────────────────────────
 async function afterLogin() {
+  // 학부모 계정이 아니면 들어오지 못한다 (2026-09-21)
+  //   직원 계정이면 표 잠금이 모든 아동을 내려주므로 여기서 막는다
+  try {
+    const { data: u } = await sb.auth.getUser();
+    const em = String((u && u.user && u.user.email) || '');
+    if (!/@parent\.namu$/i.test(em)) {
+      await sb.auth.signOut({ scope: 'local' });
+      show($('msg'), '학부모 계정으로 로그인해 주세요.', false);
+      return;
+    }
+  } catch (e) { return; }
   // 내 자녀 — 표 잠금이 알아서 내 아이만 내려준다
   const { data: kids, error } = await sb
     .from('nl_children').select('id, name').order('id');
