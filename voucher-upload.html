@@ -600,7 +600,9 @@ function weekKey(ymd) {
   const mon = new Date(dt); mon.setDate(dt.getDate() - dow);
   const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
   const f = x => (x.getMonth()+1) + '/' + x.getDate();
-  return { key: mon.toISOString().slice(0,10), txt: f(mon) + '~' + f(sun) };
+  // 열쇠도 한국 날짜로 (2026-09-21) — toISOString 은 하루 앞(일요일)이 나왔다
+  const k = mon.getFullYear() + '-' + String(mon.getMonth()+1).padStart(2,'0') + '-' + String(mon.getDate()).padStart(2,'0');
+  return { key: k, txt: f(mon) + '~' + f(sun) };
 }
 
 // 전월 자료를 시스템에서 꺼내 온다 (파일을 안 올렸을 때)
