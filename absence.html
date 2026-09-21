@@ -62,6 +62,7 @@
   .t-wait { background:#FAEEDA; color:#854F0B; }
   .t-ok   { background:#EAF3DE; color:#3B6D11; }
   .t-no   { background:#F1EFE8; color:#5F5E5A; }
+  .t-cx   { background:#EEF1F4; color:#5A6B7B; }   /* 학부모 취소 (2026-09-21) */
   .rqline { font-size:13.5px; color:#5F5E5A; line-height:1.8; margin-top:9px; }
   .rqline b { color:var(--tx); font-weight:500; }
   .why { background:var(--camBg); border-radius:8px; padding:9px 12px;
@@ -147,6 +148,8 @@ function dm(d) {
        + DAYS[dd.getDay()] + ')';
 }
 function hm(t) { return t ? String(t).slice(0,5) : ''; }
+// 「○번 이름」 (2026-09-21)
+function kidName(cid) { return cid + '번' + (KIDS[cid] ? ' ' + KIDS[cid] : ''); }
 
 // ── 목록 그리기 ─────────────────────────────────────
 function draw() {
@@ -161,12 +164,14 @@ function draw() {
   list.forEach(r => {
     const s   = SESS[r.session_id] || {};
     const wait = r.state === '신청';
+    // 학부모가 「결석 취소」한 것은 상태가 「취소」 — 반려와 가른다 (2026-09-21)
     const tag = wait ? '<span class="tag t-wait">확인 필요</span>'
-              : (r.state === '확정' ? '<span class="tag t-ok">확정됨</span>'
-                                    : '<span class="tag t-no">반려</span>');
+              : r.state === '확정' ? '<span class="tag t-ok">확정됨</span>'
+              : r.state === '취소' ? '<span class="tag t-cx">학부모 취소</span>'
+              : '<span class="tag t-no">반려</span>';
 
     h += '<div class="rq' + (wait ? ' wait' : '') + '">'
-      + '<div class="rqhead"><span class="rqkid">' + esc(KIDS[r.child_id] || ('아동 ' + r.child_id))
+      + '<div class="rqhead"><span class="rqkid">' + esc(kidName(r.child_id))
       + '</span>' + tag + '</div>'
       + '<div class="rqline">못 오는 수업 · <b>' + dm(s.plan_date) + ' ' + hm(s.start_time) + '</b>'
       + (s.therapist_id ? ' · ' + esc(THRS[s.therapist_id] || '') + ' 선생님' : '') + '</div>'
@@ -212,9 +217,11 @@ async function loadAll() {
   // 딸린 수업을 가져온다
   SESS = {};
   const sids = [...new Set(REQS.map(r => r.session_id).filter(Boolean))];
-  if (sids.length) {
-    const { data: ss } = await sb.from('nl_sessions')
-      .select('id, plan_date, start_time, therapist_id, status').in('id', sids);
+  // 200개씩 나눠 묻는다 — 한 번에 묻으면 주소가 길어져 실패한다 (2026-09-21)
+  for (let i = 0; i < sids.length; i += 200) {
+    const { data: ss, error: se } = await sb.from('nl_sessions')
+      .select('id, plan_date, start_time, therapist_id, status').in('id', sids.slice(i, i + 200));
+    if (se) { show($('msg2'), '❌ 딸린 수업을 불러오지 못했습니다.\n' + se.message, false); break; }
     (ss || []).forEach(s => { SESS[s.id] = s; });
   }
   draw();
@@ -225,7 +232,7 @@ async function doConfirm(id) {
   const r = REQS.find(x => x.id === id);
   if (!r) return;
   const s = SESS[r.session_id] || {};
-  let m = KIDS[r.child_id] + '\n\n'
+  let m = kidName(r.child_id) + '\n\n'
         + '결석 · ' + dm(s.plan_date) + ' ' + hm(s.start_time) + '\n';
   m += r.makeup_date
      ? '보강 · ' + dm(r.makeup_date) + ' ' + hm(r.makeup_time) + '\n\n시간표에 반영할까요?'
@@ -265,11 +272,21 @@ async function doReject(id) {
   const btn = document.querySelector('button[data-no="' + id + '"]');
   if (btn) { btn.disabled = true; btn.textContent = '반려 중…'; }
   try {
-    const { error } = await sb.from('nl_absence_requests')
+    // 「신청」 상태일 때만 반려한다 — 이미 확정·취소된 것을 덮지 않게 (2026-09-21)
+    // 누른 사람도 남긴다
+    const { data: upd, error } = await sb.from('nl_absence_requests')
       .update({ state: '반려', staff_memo: why || null,
+                decided_by: ME ? ME.id : null,
                 decided_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id).eq('state', '신청')
+      .select('id');
     if (error) throw error;
+    if (!upd || !upd.length) {
+      show($('msg2'), '⚠️ 이미 처리된 신청입니다. 목록을 새로 불러왔습니다.', false);
+      alert('이미 처리된 신청입니다.\n(학부모 취소 또는 다른 분이 확정·반려)');
+      await loadAll();
+      return;
+    }
     show($('msg2'), '반려했습니다.', true);
     await loadAll();
   } catch (e) {
@@ -287,7 +304,11 @@ async function afterLogin(user) {
     .maybeSingle();
 
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
-  if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return; }
+  if (!me) {
+    // 직원이 아닌 계정은 로그인을 남기지 않는다 (2026-09-21)
+    try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
+    show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return;
+  }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
 
   const can = [8, 9].includes(Number(me.id)) || /관리자|행정/.test(me.role || '');
