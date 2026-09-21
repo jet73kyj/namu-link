@@ -1872,6 +1872,20 @@ function mnLabel(x){
 function isMk(x){ return !!(x && x.makeup_for); }
 // 오늘보다 뒤의 날인가 (2026-09-14)
 // 오늘이거나 앞날인가 — 아직 하지 않은 보강은 날짜를 옮길 수 있다 (2026-09-19)
+// 한 달 몫 회기를 1,000줄씩 나눠 끝까지 가져온다 (2026-09-21)
+//   한 번에는 1,000줄까지만 오고 뒤는 조용히 잘린다
+async function sessOfMonth(mk){
+  let all = [];
+  for (let f = 0; ; f += 1000) {
+    const r = await sb.from('nl_sessions')
+      .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, want_makeup, minutes')
+      .eq('month_key', mk).order('id').range(f, f + 999);
+    if (r.error) return { data: null, error: r.error };
+    all = all.concat(r.data || []);
+    if ((r.data || []).length < 1000) break;
+  }
+  return { data: all, error: null };
+}
 function isTodayOrLater(d){
   const t = new Date();
   const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0')
@@ -8743,9 +8757,8 @@ async function loadMonth(){
     }
   });
 
-  const { data, error } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, want_makeup, minutes')
-    .eq('month_key', mon);
+  const { data, error } = await sessOfMonth(mon);
+  if (error) alert('그 달 회기를 읽지 못했습니다. 새로고침(F5) 해 주세요.\n' + error.message);
   SESS = error ? [] : (data || []);
   // 치료사 화면은 자기 회기만 보여준다.
   //   다만 「연달아 가능한 자리 찾기」는 그 아동이 그날 잇달아 받는
@@ -8801,9 +8814,7 @@ async function loadMonth(){
 
   // 지난 달 회기도 불러온다 (이월 보강 때문)
   const pm = prevMon(mon);
-  const { data: pv } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, want_makeup, minutes')
-    .eq('month_key', pm);
+  const { data: pv } = await sessOfMonth(pm);
   PREV = pv || [];
   // 치료사 — 자기가 맡은 아동의 다른 수업분 결석도 함께 본다 (보강 조율용)
   if (MY_TH) {
@@ -8826,9 +8837,7 @@ async function loadMonth(){
 
   // 다음 달 몫인데 이번 달에 미리 한 줄(선보강)도 이번 달 시간표에 띄운다
   const nm2 = nextMon(mon);
-  const { data: nx } = await sb.from('nl_sessions')
-    .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, want_makeup, minutes')
-    .eq('month_key', nm2);
+  const { data: nx } = await sessOfMonth(nm2);
   NEXTM = nx || [];
   if (MY_TH) NEXTM = NEXTM.filter(s => s.therapist_id === MY_TH);
   NEXTM.forEach(s => {
