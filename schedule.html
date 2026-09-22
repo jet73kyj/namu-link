@@ -1750,6 +1750,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
 <script src="nl-evaldocs.js"></script>
+<script src="nl-live-alert.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
@@ -8997,6 +8998,11 @@ async function afterLogin(user){
   MY_TH = (me.id >= 1 && me.id <= 7) ? me.id : null;  // 치료사는 자기 것만
   IS_BOSS = (me.id === 8);
   ME_ID = Number(me.id);
+  // 학부모 결석 요청을 실시간으로 띄운다 (2026-09-22)
+  if (window.NLLive) NLLive.start(sb, me.id, {
+    onRead: () => loadAlerts(false),
+    onNew:  () => loadAlerts(false)
+  });
 
   // 하루 한 번 시간표 자료를 통째로 백업한다 (2026-09-08)
   //   같은 날 여러 번 열어도 한 번만 담긴다. 14일 지난 것은 저절로 지워진다

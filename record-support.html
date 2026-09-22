@@ -258,6 +258,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="nl-login.js"></script>
+<script src="nl-live-alert.js"></script>
 <script src="nl-evaldocs.js"></script>
 <script>
 const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
@@ -369,6 +370,8 @@ async function afterLogin(user) {
   if (e1)  { show($('msg'), '❌ 직원 조회 실패\n' + e1.message, false); return; }
   if (!me) { show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.', false); return; }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
+  // 학부모 결석 요청을 실시간으로 띄운다 (2026-09-22)
+  if (window.NLLive) NLLive.start(sb, me.id, {});
   if (window.NLDocs) NLDocs.init(sb, me.id);   // 상담·보고서 보기 창 (보기 전용)
   loadStamp();     // 직인 받아오기 (로그인한 직원만 받을 수 있다)
   ME = me;
