@@ -418,9 +418,19 @@ async function calcCheck(meId){
     + esc(grp[t].length ? grp[t].join(' · ') : cnt[t] + '건') + '</div>').join('');
 }
 
+// 하루에 한 번만 (컴퓨터마다) — 열 때마다 뜨던 것 (2026-09-22 은정님)
+function chkToday(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-'
+       + String(d.getDate()).padStart(2,'0');
+}
 function showChk(){
   if (!CHKHTML || CHK_SHOWN) return;
   CHK_SHOWN = true;
+  try {
+    if (localStorage.getItem('nl_chk_day') === chkToday()) return;
+    localStorage.setItem('nl_chk_day', chkToday());
+  } catch (e) {}
   $('chkTitle').textContent = '⚠️ 이번 달 — 살펴볼 것이 ' + CHKN + '건';
   $('chkList').innerHTML = CHKHTML;
   $('chkbg').style.display = 'flex';
