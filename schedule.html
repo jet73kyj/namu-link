@@ -7889,6 +7889,9 @@ async function findTap(sid, isPlus){
   }
   const own = CAN_EDIT || (MY_TH && Number(s.therapist_id) === Number(MY_TH));
   if (!own) return;
+  // 누르기 전 화면 자리를 기억했다가 다시 그린 뒤 돌려놓는다 (2026-09-23)
+  //   draw() 가 시간표 안쪽 자리만 지키고 화면 전체 자리는 안 지켜, 누를 때마다 살짝 내려갔다
+  const _py = window.scrollY, _px = window.scrollX;
   const nx = cycNext(s);
   if (!(await askDropMakeup(s, nx))) return;
   const { error } = await sb.from('nl_sessions')
@@ -7900,6 +7903,8 @@ async function findTap(sid, isPlus){
   drawFind();
   const b = $('findRows').querySelector('.fb[data-sid="' + sid + '"]');
   if (b) b.classList.add('fhit');
+  window.scrollTo(_px, _py);
+  setTimeout(function(){ window.scrollTo(_px, _py); }, 0);
 }
 
 // 그 날 창 열기 — 찾기 창 ＋ 에서 부른다 (보강 잡기)
