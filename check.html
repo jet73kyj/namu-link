@@ -41,6 +41,16 @@
   .grp-n { display:inline-block; background:var(--coralL); color:var(--coralT);
            border-radius:10px; padding:1px 9px; font-size:12px;
            margin-left:6px; vertical-align:1px; font-weight:500; }
+  /* 기록지 좌우 — 왼쪽 지난달 미작성 · 오른쪽 이번 달 진행 (2026-09-22) */
+  .lgcols { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .lgR { border-left:1px solid #ECE8E3; padding-left:16px; }
+  .lgband { margin:0 0 12px; padding:8px 12px; font-size:13px; }
+  .lgrow { display:flex; justify-content:space-between; padding:6px 0;
+           border-bottom:1px solid #ECE8E3; font-size:13.5px; }
+  @media (max-width:700px) {
+    .lgcols { grid-template-columns:1fr; }
+    .lgR { border-left:none; padding-left:0; border-top:1px solid #ECE8E3; padding-top:12px; }
+  }
   .grp-why { font-size:12.5px; color:var(--dim); margin-bottom:9px;
              line-height:1.6; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -165,8 +175,8 @@ function logByTh(list){
   let h = '';
   if (/^\d{4}-\d{2}$/.test(pm)) {
     const dl = monNo(pm) % 12 + 1;
-    h += '<div style="margin:0 0 12px;padding:8px 12px;background:var(--coralL);color:var(--coralT);font-size:13px;">'
-       + esc(monNo(pm) + '월 기록지 · 기한 ' + dl + '월 10일' + (st ? ' · ' + st : ''))
+    h += '<div class="lgband" style="background:var(--coralL);color:var(--coralT);">'
+       + esc('기한 ' + dl + '월 10일' + (st ? ' · ' + st : ''))
        + '</div>';
   }
   ord.forEach(function(nm){
@@ -213,8 +223,10 @@ async function run(){
   }
   const rows = data || [];
   if (!rows.length) {
+    await loadProg(k);
     $('body').innerHTML = '<div class="ok">' + monNo(k) + '월 — 어긋난 것이 없습니다'
-      + '<div class="sub">모든 항목을 살펴봤습니다. 가벼운 마음으로 시작하세요.</div></div>';
+      + '<div class="sub">모든 항목을 살펴봤습니다. 가벼운 마음으로 시작하세요.</div></div>'
+      + '<div class="card" style="margin-top:14px;">' + logBox(k, null) + '</div>';
     return;
   }
 
@@ -224,6 +236,8 @@ async function run(){
     const { data: th } = await sb.from('nl_therapists').select('id, name');
     (th || []).forEach(function(t){ if (t.name) THNO[t.name] = t.id; });
   } catch (e) {}
+
+  await loadProg(k);
 
   // 아동 이름을 함께 보여 준다 (2026-09-13)
   await loadNames(Array.from(new Set(rows.map(function(r){ return Number(r['아동']); })
@@ -240,21 +254,17 @@ async function run(){
   let h = '<div class="card">';
   h += '<div class="sum"><b>' + monNo(k) + '월</b> — 살펴볼 것이 '
      + rows.length + '건 있습니다.</div>';
+  let lgDone = false;
   ord.forEach(function(t){
     const list = grp[t];
     const no = String(t).split(' ')[0];
+    if (no === '22') { h += logBox(k, list); lgDone = true; return; }
     h += '<div class="grp">'
       + '<div class="grp-t">' + esc(t.replace(/^\d+\s*/, ''))
       + '<span class="grp-n">' + list.length + '건</span></div>'
       + '<div class="grp-why">' + esc(WHY[no] || '') + '</div>'
-      + (no === '22'
-          ? '<div style="margin:0 0 12px;">'
-            + '<button id="sendLog" style="width:auto;margin:0;">선생님께 알림 보내기</button>'
-            + '<span id="sendLogMsg" style="font-size:12px;color:var(--dim);margin-left:8px;">'
-            + '같은 달은 한 번만 갑니다</span></div>'
-          : '')
       ;
-    if (no === '22') { h += logByTh(list) + '</div>'; return; }
+
     h += '<table><tr><th style="width:150px;">아동</th><th>내용</th></tr>';
     list.forEach(function(r){
       h += '<tr><td class="cid">' + esc(kidTxt(r['아동'])) + '</td>'
@@ -262,6 +272,7 @@ async function run(){
     });
     h += '</table></div>';
   });
+  if (!lgDone) h += logBox(k, null);
   h += '<div class="note">※ 아동 이름이 나오므로 캡처해서 올리실 때는 이름을 가려 주세요.<br>'
      + '※ 고치는 방법을 모르시겠으면 이 화면을 캡처해 물어보세요.</div>';
   h += '</div>';
@@ -285,6 +296,57 @@ async function run(){
       alert('보내지 못했습니다.\n' + e.message);
     }
   };
+}
+
+// 기록지 좌우 상자 (2026-09-22 은정님)
+//   왼쪽 — 지난달 기록지 미작성 (22번, 아동별)
+//   오른쪽 — 보는 달 기록지 진행 (nl_log_progress, 선생님별 숫자)
+let PROG = null;
+async function loadProg(k){
+  PROG = null;
+  try {
+    const { data, error } = await sb.rpc('nl_log_progress', { p_month: k });
+    if (!error) PROG = data || [];
+  } catch (e) {}
+}
+function logBox(k, list){
+  const pm = prevMk(k);
+  let L = '';
+  if (list && list.length) {
+    L += '<div class="grp-t">' + monNo(pm) + '월 기록지 미작성'
+       + '<span class="grp-n">' + list.length + '건</span></div>'
+       + '<div class="grp-why">' + esc(WHY['22'] || '') + '</div>'
+       + '<div style="margin:0 0 12px;">'
+       + '<button id="sendLog" style="width:auto;margin:0;">선생님께 알림 보내기</button>'
+       + '<span id="sendLogMsg" style="font-size:12px;color:var(--dim);margin-left:8px;">'
+       + '같은 달은 한 번만 갑니다</span></div>'
+       + logByTh(list);
+  } else {
+    L += '<div class="grp-t">' + monNo(pm) + '월 기록지</div>'
+       + '<div class="grp-why">기한이 지난 것 가운데 덜 적힌 기록지가 없습니다.</div>';
+  }
+  // 오른쪽 — 기한은 다음 달 10일
+  const y = Number(String(k).slice(0,4)), m = monNo(k);
+  const due = new Date(y, m, 10);
+  const st = (new Date() < due) ? '작성 중' : '기한 지남';
+  let R = '<div class="grp-t">' + m + '월 기록지 진행</div>'
+        + '<div class="lgband" style="background:#F1F7F2;color:#3E6B4B;">'
+        + esc('기한 ' + (due.getMonth() + 1) + '월 10일 · ' + st) + '</div>';
+  if (PROG === null) {
+    R += '<div class="grp-why">진행 숫자를 가져오지 못했습니다.</div>';
+  } else {
+    const pr = PROG.filter(function(r){ return Number(r.need_cnt) > 0; });
+    if (!pr.length) R += '<div class="grp-why">이 달에 끝난 수업이 아직 없습니다.</div>';
+    pr.forEach(function(r){
+      R += '<div class="lgrow"><span>' + esc(r.therapist_id + '번 ' + (r.th_name || '') + ' 선생님')
+         + ' <span style="color:var(--dim);font-size:12px;">' + r.kids + '명</span></span>'
+         + '<span>적힌 <b>' + r.put_cnt + '</b> / ' + r.need_cnt + '회</span></div>';
+    });
+    R += '<div style="font-size:12px;color:var(--dim);margin-top:8px;">'
+       + '오늘까지 끝난 수업 가운데 기록지가 적힌 회수입니다.</div>';
+  }
+  return '<div class="grp"><div class="lgcols"><div class="lgL">' + L + '</div>'
+       + '<div class="lgR">' + R + '</div></div></div>';
 }
 
 // 고른 달의 지난달 ('2026-09' → '2026-08')
