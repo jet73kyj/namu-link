@@ -1786,12 +1786,15 @@ async function cancelAsk(id) {
   } catch (e) {}
   if (!confirm(pk ? '같은 날 두 수업 요청이 함께 취소됩니다.\n취소할까요?' : '보낸 요청을 취소할까요?')) return;
   try {
-    const { error } = pk
-      ? await sb.from('nl_absence_requests').delete().eq('pair_key', pk).eq('state', '신청')
-      : await sb.from('nl_absence_requests').delete().eq('id', id);
+    // 지워진 줄을 돌려받아, 실제로 지워졌는지 확인한다 (2026-09-22)
+    const { data: gone, error } = pk
+      ? await sb.from('nl_absence_requests').delete().eq('pair_key', pk).eq('state', '신청').select('id')
+      : await sb.from('nl_absence_requests').delete().eq('id', id).select('id');
     if (error) throw error;
+    if (!gone || !gone.length) throw new Error('지워진 요청이 없습니다');
     await loadMonth();
   } catch (e) {
+    console.error('보강 요청 취소 실패', e);
     alert('취소하지 못했습니다.\n센터로 연락해 주세요.');
   }
 }
@@ -2023,12 +2026,16 @@ async function openAsk(d) {
       } else {
         rowsIns = [one(d.ask, d.thr, pick)];
       }
-      const { error } = await sb.from('nl_absence_requests').insert(rowsIns);
+      // 들어간 줄을 돌려받아, 실제로 들어갔는지 확인한다 (2026-09-22)
+      const { data: added, error } = await sb.from('nl_absence_requests').insert(rowsIns).select('id');
+      if (!error && (!added || added.length !== rowsIns.length))
+        throw new Error('요청이 표에 들어가지 않았습니다');
       if (error) throw error;
       w.remove();
       alert('요청을 보냈습니다.\n\n요청하신 일정은 행정샘 확인 후 보강 확정해 드릴게요.');
       await loadMonth();
     } catch (e) {
+      console.error('보강 요청 보내기 실패', e);
       go.disabled = false; go.textContent = '요청하기';
       const m = String(e.message || e);
       alert(m.indexOf('duplicate') >= 0
