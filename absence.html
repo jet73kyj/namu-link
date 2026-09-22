@@ -63,6 +63,8 @@
   .t-ok   { background:#EAF3DE; color:#3B6D11; }
   .t-no   { background:#F1EFE8; color:#5F5E5A; }
   .t-cx   { background:#EEF1F4; color:#5A6B7B; }   /* 학부모 취소 (2026-09-21) */
+  .t-pair { background:#EEEDFE; color:#3C3489; margin-left:6px; }   /* 두 수업 묶음 (2026-09-22) */
+  .pairsep { border-top:1px dashed #E3DDD5; margin:6px 0; }
   .rqline { font-size:13.5px; color:#5F5E5A; line-height:1.8; margin-top:9px; }
   .rqline b { color:var(--tx); font-weight:500; }
   .why { background:var(--camBg); border-radius:8px; padding:9px 12px;
@@ -161,7 +163,15 @@ function draw() {
     return;
   }
   let h = '';
+  const drawn = {};   // 이미 그린 묶음 (2026-09-22)
   list.forEach(r => {
+    // 두 수업 묶음(pair_key)은 한 칸에 함께 그린다 (원칙 11 · 2026-09-22)
+    if (r.pair_key) {
+      if (drawn[r.pair_key]) return;
+      drawn[r.pair_key] = 1;
+      h += drawPair(REQS.filter(x => x.pair_key === r.pair_key));
+      return;
+    }
     const s   = SESS[r.session_id] || {};
     const wait = r.state === '신청';
     // 학부모가 「결석 취소」한 것은 상태가 「취소」 — 반려와 가른다 (2026-09-21)
@@ -203,13 +213,64 @@ function draw() {
   });
 }
 
+// 두 수업 묶음 한 칸 (원칙 11 · 2026-09-22)
+//   확정·반려는 묶음 전체에 한 번. 서버가 둘 다 되거나 둘 다 안 되게 한다
+function pairItems(rs) {
+  return rs.slice().sort((a, b) => {
+    const sa = SESS[a.session_id] || {}, sb2 = SESS[b.session_id] || {};
+    return String(sa.plan_date || '').localeCompare(String(sb2.plan_date || ''))
+        || String(sa.start_time || '').localeCompare(String(sb2.start_time || ''))
+        || a.id - b.id;
+  });
+}
+function reqTag(st) {
+  return st === '신청' ? '<span class="tag t-wait">확인 필요</span>'
+       : st === '확정' ? '<span class="tag t-ok">확정됨</span>'
+       : st === '취소' ? '<span class="tag t-cx">학부모 취소</span>'
+       : '<span class="tag t-no">반려</span>';
+}
+function drawPair(rs) {
+  rs = pairItems(rs);
+  const wait = rs.some(r => r.state === '신청');
+  const states = [...new Set(rs.map(r => r.state))];
+  let h = '<div class="rq' + (wait ? ' wait' : '') + '">'
+    + '<div class="rqhead"><span class="rqkid">' + esc(kidName(rs[0].child_id)) + '</span>'
+    + states.map(reqTag).join(' ')
+    + '<span class="tag t-pair">두 수업 묶음</span></div>';
+  rs.forEach((r, i) => {
+    const s = SESS[r.session_id] || {};
+    if (i) h += '<div class="pairsep"></div>';
+    h += '<div class="rqline">못 오는 수업 · <b>' + dm(s.plan_date) + ' ' + hm(s.start_time) + '</b>'
+      + (s.therapist_id ? ' · ' + esc(THRS[s.therapist_id] || '') + ' 선생님' : '')
+      + (states.length > 1 ? ' ' + reqTag(r.state) : '') + '</div>'
+      + '<div class="rqline">보강 · '
+      + (r.makeup_date
+          ? '<b>' + dm(r.makeup_date) + ' ' + hm(r.makeup_time) + '</b>'
+            + (r.makeup_therapist_id ? ' · ' + esc(THRS[r.makeup_therapist_id] || '') + ' 선생님' : '')
+          : '<span class="none2">아직 안 정함</span>')
+      + '</div>';
+  });
+  h += '<div class="why">' + esc(rs[0].reason || '') + '</div>';
+  const w1 = rs.find(r => r.state === '신청');
+  if (w1) {
+    h += '<div class="rqbtns">'
+      + '<button data-ok="' + w1.id + '">두 건 함께 확정</button>'
+      + '<button class="btn-no" data-no="' + w1.id + '">두 건 함께 반려</button>'
+      + '</div>';
+  } else {
+    const memo = rs.map(r => r.staff_memo).filter(Boolean)[0];
+    if (memo) h += '<div class="rqline" style="color:#888;font-size:13px;">센터 메모 · ' + esc(memo) + '</div>';
+  }
+  return h + '</div>';
+}
+
 // ── 불러오기 ────────────────────────────────────────
 async function loadAll() {
   hide($('msg2'));
   const { data, error } = await sb
     .from('nl_absence_requests')
     .select('id, child_id, session_id, reason, makeup_date, makeup_time,'
-          + ' makeup_therapist_id, state, staff_memo')
+          + ' makeup_therapist_id, state, staff_memo, pair_key')
     .order('id', { ascending: false });
   if (error) { show($('msg2'), '❌ 신청을 불러오지 못했습니다.\n' + error.message, false); return; }
   REQS = data || [];
@@ -232,11 +293,23 @@ async function doConfirm(id) {
   const r = REQS.find(x => x.id === id);
   if (!r) return;
   const s = SESS[r.session_id] || {};
-  let m = kidName(r.child_id) + '\n\n'
-        + '결석 · ' + dm(s.plan_date) + ' ' + hm(s.start_time) + '\n';
-  m += r.makeup_date
-     ? '보강 · ' + dm(r.makeup_date) + ' ' + hm(r.makeup_time) + '\n\n시간표에 반영할까요?'
-     : '보강 · 아직 안 정함\n\n결석만 반영할까요?';
+  let m = kidName(r.child_id) + '\n\n';
+  if (r.pair_key) {
+    // 두 수업 묶음 — 둘 다 보여 주고 함께 확정 (2026-09-22)
+    const rs = pairItems(REQS.filter(x => x.pair_key === r.pair_key && x.state === '신청'));
+    m += '두 수업 묶음 · 둘 다 되거나 둘 다 안 됩니다\n\n';
+    rs.forEach(x => {
+      const sx = SESS[x.session_id] || {};
+      m += '결석 · ' + dm(sx.plan_date) + ' ' + hm(sx.start_time)
+         + '  →  보강 · ' + (x.makeup_date ? dm(x.makeup_date) + ' ' + hm(x.makeup_time) : '아직 안 정함') + '\n';
+    });
+    m += '\n시간표에 반영할까요?';
+  } else {
+    m += '결석 · ' + dm(s.plan_date) + ' ' + hm(s.start_time) + '\n';
+    m += r.makeup_date
+       ? '보강 · ' + dm(r.makeup_date) + ' ' + hm(r.makeup_time) + '\n\n시간표에 반영할까요?'
+       : '보강 · 아직 안 정함\n\n결석만 반영할까요?';
+  }
   if (!confirm(m)) return;
 
   // 누르는 동안 단추를 잠가 두 번 눌러지지 않게 한다 (2026-09-16)
@@ -261,13 +334,15 @@ async function doConfirm(id) {
     await loadAll();
   } catch (e) {
     show($('msg2'), '❌ 확정하지 못했습니다.\n' + (e.message || e), false);
-    if (btn) { btn.disabled = false; btn.textContent = '확정하기'; }
+    if (btn) { btn.disabled = false; btn.textContent = r.pair_key ? '두 건 함께 확정' : '확정하기'; }
   }
 }
 
 // ── 반려 ───────────────────────────────────────────
 async function doReject(id) {
-  const why = prompt('왜 반려하시는지 적어주세요.\n(학부모께는 따로 연락해 주셔야 합니다)');
+  const rr = REQS.find(x => x.id === id) || {};
+  const pk = rr.pair_key || null;   // 두 수업 묶음이면 함께 반려 (2026-09-22)
+  const why = prompt((pk ? '두 수업 묶음을 함께 반려합니다.\n' : '') + '왜 반려하시는지 적어주세요.\n(학부모께는 따로 연락해 주셔야 합니다)');
   if (why === null) return;
   const btn = document.querySelector('button[data-no="' + id + '"]');
   if (btn) { btn.disabled = true; btn.textContent = '반려 중…'; }
@@ -278,7 +353,7 @@ async function doReject(id) {
       .update({ state: '반려', staff_memo: why || null,
                 decided_by: ME ? ME.id : null,
                 decided_at: new Date().toISOString() })
-      .eq('id', id).eq('state', '신청')
+      .eq(pk ? 'pair_key' : 'id', pk || id).eq('state', '신청')
       .select('id');
     if (error) throw error;
     if (!upd || !upd.length) {
@@ -291,7 +366,7 @@ async function doReject(id) {
     await loadAll();
   } catch (e) {
     show($('msg2'), '❌ 반려하지 못했습니다.\n' + (e.message || e), false);
-    if (btn) { btn.disabled = false; btn.textContent = '반려'; }
+    if (btn) { btn.disabled = false; btn.textContent = pk ? '두 건 함께 반려' : '반려'; }
   }
 }
 

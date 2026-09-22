@@ -357,6 +357,15 @@
   #askWhy, .slot { border-color:#E4E0DA; }
   .slot { color:var(--ink2); }
   .slot.on { background:var(--acc); border-color:var(--acc); }
+  /* 두 수업 함께 알리기 (원칙 11 · 2026-09-22) */
+  .pairchk { display:flex; gap:8px; align-items:flex-start; margin:12px 0 2px; padding:9px 11px;
+             border:1px solid #D3DDE9; background:#F2F6FA; border-radius:8px;
+             font-size:13px; color:#2F4A66; cursor:pointer; line-height:1.45; }
+  .pairchk input { margin-top:2px; width:auto; }
+  .slot.wide { width:100%; text-align:left; white-space:normal; }
+  .askwarn { font-size:12.5px; color:#8A5A12; background:#FBF1DE; border-radius:7px;
+             padding:8px 10px; width:100%; box-sizing:border-box; line-height:1.5; }
+  .asksub { font-size:12px; color:var(--ink2); width:100%; margin:8px 0 2px; }
   .plgrp { border-color:var(--line); }
   .plst, .pltot { color:var(--ink); }
   .plam { color:#7E5530; }
@@ -1447,7 +1456,7 @@ async function loadMonth() {
   REQS = {};
   try {
     const { data: rq } = await sb.from('nl_absence_requests')
-      .select('id, session_id, state, makeup_date, makeup_time')
+      .select('id, session_id, state, makeup_date, makeup_time, pair_key')
       .eq('child_id', CURKID);
     (rq || []).forEach(r => {
       if (r.state === '취소' || r.state === '반려') return;   // 되돌린 것은 다시 신청할 수 있게
@@ -1469,6 +1478,7 @@ async function loadMonth() {
   // 날짜별로 묶는다
   const byDay = {};
   data.forEach(r => { (byDay[r.plan_date] = byDay[r.plan_date] || []).push(r); });
+  DAYROWS = byDay; TT = T;   // 못 가요 창이 같은 날 다른 수업을 찾는 데 쓴다 (2026-09-22)
 
   // 회차 번호를 지원유형별로 다시 센다
   // 휴무·쉼·취소는 빼고, 보강도 번호에서 뺀다 (보강은 「○월 보강」으로 따로 적는다)
@@ -1723,6 +1733,8 @@ const SN_LABEL = { 1:'센터비용', 2:'발달재활서비스', 3:'치료지원(
 
 // ── 결석·보강 신청 ─────────────────────────────────────
 let REQS = {};      // 수업번호 -> 이미 낸 신청
+let DAYROWS = {};   // 날짜 -> 그날 수업 줄 (2026-09-22)
+let TT = {};        // 치료번호 -> 치료 종류 (2026-09-22)
 
 // 지금 신청할 수 있는 수업인가
 // 오후 수업(정오 뒤)은 그날 정오까지, 오전 수업은 전날까지
@@ -1766,9 +1778,17 @@ async function undoAbsence(id, btn) {
 
 // 낸 신청 취소하기
 async function cancelAsk(id) {
-  if (!confirm('보낸 요청을 취소할까요?')) return;
+  // 두 수업 묶음이면 함께 취소한다 (원칙 11 · 2026-09-22)
+  let pk = null;
   try {
-    const { error } = await sb.from('nl_absence_requests').delete().eq('id', id);
+    const { data: one } = await sb.from('nl_absence_requests').select('pair_key').eq('id', id).maybeSingle();
+    pk = one && one.pair_key || null;
+  } catch (e) {}
+  if (!confirm(pk ? '같은 날 두 수업 요청이 함께 취소됩니다.\n취소할까요?' : '보낸 요청을 취소할까요?')) return;
+  try {
+    const { error } = pk
+      ? await sb.from('nl_absence_requests').delete().eq('pair_key', pk).eq('state', '신청')
+      : await sb.from('nl_absence_requests').delete().eq('id', id);
     if (error) throw error;
     await loadMonth();
   } catch (e) {
@@ -1777,8 +1797,55 @@ async function cancelAsk(id) {
 }
 
 // 신청 창 열기
+// 같은 날 함께 알릴 수 있는 다른 수업 (원칙 11 · 2026-09-22)
+//   그 아동의 같은 날 「예정」 원래 수업 · 아직 요청 안 함 · 지금 알릴 수 있는 시각
+//   여럿이면 시각이 가장 가까운 것 하나
+function findPartner(d) {
+  const me = Number(d.ask);
+  const t0 = hmMin(d.t);
+  const c = (DAYROWS[d.d] || []).filter(r =>
+    Number(r.id) !== me && String(r.status || '') === '예정' && !r.makeup_for
+    && !REQS[r.id] && r.therapist_id && canAsk(d.d, r.start_time));
+  if (!c.length) return null;
+  c.sort((a, b) => Math.abs(hmMin(a.start_time) - t0) - Math.abs(hmMin(b.start_time) - t0));
+  const r = c[0];
+  return { id: Number(r.id), thr: Number(r.therapist_id), st: Number(r.support_type_id || 0),
+           t: hhmm(r.start_time), nm: TYPES[TT[r.therapy_id]] || '수업' };
+}
+function hmMin(t) {
+  const a = String(t || '00:00').slice(0, 5).split(':');
+  return (+a[0]) * 60 + (+a[1] || 0);
+}
+function minHm(n) {
+  return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0');
+}
+function monthEnd(dstr) {
+  const y = +dstr.slice(0, 4), m = +dstr.slice(5, 7);
+  return dstr.slice(0, 7) + '-' + String(new Date(y, m, 0).getDate()).padStart(2, '0');
+}
+function slotDay(sd) {
+  const dd = new Date(sd + 'T00:00:00');
+  return (+sd.slice(5, 7)) + '/' + (+sd.slice(8, 10)) + '(' + DAYS[dd.getDay()] + ')';
+}
+async function freeSlots(thr, last) {
+  try {
+    const { data: fs } = await sb.rpc('nl_free_slots', {
+      p_therapist_id: Number(thr), p_last: last, p_child: CURKID
+    });
+    return fs || [];
+  } catch (e) { return []; }
+}
+function newPairKey() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  const b = new Uint8Array(16); crypto.getRandomValues(b);
+  b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+}
+
 async function openAsk(d) {
   const done = d.done === '1';    // 이미 못 한 회 — 사유를 다시 묻지 않는다
+  const partner = done ? null : findPartner(d);   // 같은 날 다른 수업 (2026-09-22)
   const w = document.createElement('div');
   w.className = 'popwrap';
   w.innerHTML =
@@ -1789,6 +1856,11 @@ async function openAsk(d) {
     + (done ? ''
        : '<label class="asklb">왜 못 오시는지 짧게 적어주세요</label>'
          + '<input id="askWhy" type="text" placeholder="예) 감기로 병원에 갑니다" maxlength="60">')
+    + (partner
+       ? '<label class="pairchk"><input type="checkbox" id="askPair" checked>'
+         + '<span>같은 날 ' + esc(partner.t) + ' ' + esc(partner.nm) + ' 수업'
+         + (THRS[partner.thr] ? '(' + esc(THRS[partner.thr]) + ' 선생님)' : '') + '도 못 가요</span></label>'
+       : '')
     + '<label class="asklb">보강을 원하시는 시간을 골라 주세요</label>'
     + '<div id="askSlots" class="slots">빈 자리를 찾는 중...</div>'
     + '<div class="askbtns">'
@@ -1799,54 +1871,129 @@ async function openAsk(d) {
     + '</div>';
   document.body.appendChild(w);
 
-  let pick = null;   // 고른 자리
+  let pick = null;   // 고른 자리 (한 수업)
+  let pickP = null;  // 두 수업 잇달아 고른 자리 {a:{d,t}, b:{d,t}}
+  let pickA = null, pickB = null;   // 따로 고른 자리
+  let pairMode = 'none';            // 'pair' 잇달아 / 'split' 따로
   w.querySelector('#askNo').onclick = () => w.remove();
 
   // 빈 자리 가져오기
   // 발달재활서비스(2번)는 월 4회를 그 달 안에 채워야 하므로 그 달 말까지만 보여준다
   const isDev = Number(d.st) === 2;
-  let last = null;
-  if (isDev) {
-    const y = +d.d.slice(0, 4), m = +d.d.slice(5, 7);
-    const e = new Date(y, m, 0);
-    last = y + '-' + String(m).padStart(2, '0') + '-'
-         + String(e.getDate()).padStart(2, '0');
-  }
-
-  let slots = [];
-  try {
-    const { data: fs } = await sb.rpc('nl_free_slots', {
-      p_therapist_id: Number(d.thr), p_last: last, p_child: CURKID
-    });
-    slots = fs || [];
-  } catch (e) {}
-
-  let sh = done ? ''
-    : '<button class="slot on" data-later="1">보강은 나중에 정할게요</button>';
-  slots.slice(0, 60).forEach(s => {
-    const dd = new Date(s.slot_date + 'T00:00:00');
-    sh += '<button class="slot" data-sd="' + s.slot_date + '" data-st="' + s.slot_time + '">'
-        + (+s.slot_date.slice(5, 7)) + '/' + (+s.slot_date.slice(8, 10))
-        + '(' + DAYS[dd.getDay()] + ') ' + String(s.slot_time).slice(0, 5)
-        + '</button>';
-  });
-  if (!slots.length) {
-    sh += '<div class="askhint">'
-        + (isDev ? '이 달 안에 빈 자리가 없습니다. 센터로 말씀해 주세요.'
-                 : '빈 자리가 없습니다. 센터로 말씀해 주세요.')
-        + '</div>';
-  } else if (isDev) {
-    sh += '<div class="askhint">발달재활서비스는 이 달 안에 보강해야 합니다.</div>';
-  }
+  const last  = isDev ? monthEnd(d.d) : null;
   const box = w.querySelector('#askSlots');
-  box.innerHTML = sh;
-  box.querySelectorAll('.slot').forEach(b => {
-    b.onclick = () => {
-      box.querySelectorAll('.slot').forEach(x => x.classList.remove('on'));
-      b.classList.add('on');
-      pick = b.dataset.later ? null : { d: b.dataset.sd, t: b.dataset.st };
+
+  const slotsA = await freeSlots(d.thr, last);
+  let slotsB = [], lastB = null, isDevB = false;
+  if (partner) {
+    isDevB = partner.st === 2;
+    lastB = isDevB ? monthEnd(d.d) : null;
+    slotsB = await freeSlots(partner.thr, lastB);
+  }
+
+  function bindPick(sel, fn) {
+    box.querySelectorAll(sel).forEach(b => {
+      b.onclick = () => {
+        box.querySelectorAll(sel).forEach(x => x.classList.remove('on'));
+        b.classList.add('on');
+        fn(b.dataset);
+      };
+    });
+  }
+
+  // 한 수업 — 예전 그대로
+  function drawSingle() {
+    pairMode = 'none';
+    let sh = done ? ''
+      : '<button class="slot on" data-later="1">보강은 나중에 정할게요</button>';
+    slotsA.slice(0, 60).forEach(s => {
+      sh += '<button class="slot" data-sd="' + s.slot_date + '" data-st="' + s.slot_time + '">'
+          + slotDay(s.slot_date) + ' ' + String(s.slot_time).slice(0, 5) + '</button>';
+    });
+    if (!slotsA.length) {
+      sh += '<div class="askhint">'
+          + (isDev ? '이 달 안에 빈 자리가 없습니다. 센터로 말씀해 주세요.'
+                   : '빈 자리가 없습니다. 센터로 말씀해 주세요.')
+          + '</div>';
+    } else if (isDev) {
+      sh += '<div class="askhint">발달재활서비스는 이 달 안에 보강해야 합니다.</div>';
+    }
+    box.innerHTML = sh;
+    pick = null;
+    bindPick('.slot', ds => { pick = ds.later ? null : { d: ds.sd, t: ds.st }; });
+  }
+
+  // 두 수업 — 두 선생님이 잇달아 비는 시간 먼저 (원칙 11 · 2026-09-22)
+  //   순서는 두 가지 모두 · 기한은 짧은 쪽 (발달재활이 섞이면 그 달 끝까지)
+  function drawPair() {
+    pickP = null; pickA = null; pickB = null;
+    const lim = (isDev || isDevB) ? monthEnd(d.d) : null;
+    const ok = x => !lim || String(x.slot_date) <= lim;
+    const A = slotsA.filter(ok), B = slotsB.filter(ok);
+    const has = (arr, sd, t) => arr.some(x => x.slot_date === sd && String(x.slot_time).slice(0, 5) === t);
+    const pairs = [];
+    A.forEach(a => {
+      const t2 = minHm(hmMin(a.slot_time) + 50);
+      if (has(B, a.slot_date, t2))
+        pairs.push({ sd: a.slot_date, ta: String(a.slot_time).slice(0, 5), tb: t2, first: 'a' });
+    });
+    if (Number(partner.thr) !== Number(d.thr)) {
+      B.forEach(b => {
+        const t2 = minHm(hmMin(b.slot_time) + 50);
+        if (has(A, b.slot_date, t2))
+          pairs.push({ sd: b.slot_date, ta: t2, tb: String(b.slot_time).slice(0, 5), first: 'b' });
+      });
+    }
+    pairs.sort((x, y) => (x.sd + (x.first === 'a' ? x.ta : x.tb))
+                         .localeCompare(y.sd + (y.first === 'a' ? y.ta : y.tb)));
+
+    if (pairs.length) {
+      pairMode = 'pair';
+      let sh = '<button class="slot wide on" data-later="1">보강은 나중에 정할게요</button>';
+      pairs.slice(0, 40).forEach((p, i) => {
+        const txt = p.first === 'a'
+          ? p.ta + ' ' + d.nm + ' → ' + p.tb + ' ' + partner.nm
+          : p.tb + ' ' + partner.nm + ' → ' + p.ta + ' ' + d.nm;
+        sh += '<button class="slot wide" data-i="' + i + '">' + slotDay(p.sd) + ' ' + esc(txt) + '</button>';
+      });
+      if (lim) sh += '<div class="askhint">발달재활서비스가 있어 이 달 안의 시간만 보여 드립니다.</div>';
+      box.innerHTML = sh;
+      bindPick('.slot', ds => {
+        if (ds.later) { pickP = null; return; }
+        const p = pairs[+ds.i];
+        pickP = { a: { d: p.sd, t: p.ta }, b: { d: p.sd, t: p.tb } };
+      });
+      return;
+    }
+
+    // 잇달아 비는 시간이 없으면 수업마다 따로 (두 번 오셔야 함)
+    pairMode = 'split';
+    const lst = (arr, key, dev) => {
+      let h = '<button class="slot on" data-k="' + key + '" data-later="1">나중에 정할게요</button>';
+      arr.slice(0, 40).forEach(s => {
+        h += '<button class="slot" data-k="' + key + '" data-sd="' + s.slot_date + '" data-st="' + s.slot_time + '">'
+           + slotDay(s.slot_date) + ' ' + String(s.slot_time).slice(0, 5) + '</button>';
+      });
+      if (!arr.length) h += '<div class="askhint">' + (dev ? '이 달 안에 ' : '') + '빈 자리가 없습니다. 센터로 말씀해 주세요.</div>';
+      return h;
     };
-  });
+    box.innerHTML = '<div class="askwarn">두 수업을 잇달아 받을 시간이 없어요. 수업마다 따로 골라 주세요 (두 번 오셔야 해요).</div>'
+      + '<div class="asksub">' + esc(d.t + ' ' + d.nm) + (isDev ? ' · 이 달 안에' : '') + '</div>'
+      + lst(slotsA, 'a', isDev)
+      + '<div class="asksub">' + esc(partner.t + ' ' + partner.nm) + (isDevB ? ' · 이 달 안에' : '') + '</div>'
+      + lst(slotsB, 'b', isDevB);
+    ['a', 'b'].forEach(k => {
+      bindPick('.slot[data-k="' + k + '"]', ds => {
+        const v = ds.later ? null : { d: ds.sd, t: ds.st };
+        if (k === 'a') pickA = v; else pickB = v;
+      });
+    });
+  }
+
+  const pairOn = () => !!(partner && w.querySelector('#askPair') && w.querySelector('#askPair').checked);
+  const redraw = () => { if (pairOn()) drawPair(); else drawSingle(); };
+  if (partner) w.querySelector('#askPair').onchange = redraw;
+  redraw();
 
   w.querySelector('#askGo').onclick = async () => {
     let why;
@@ -1860,16 +2007,23 @@ async function openAsk(d) {
     const go = w.querySelector('#askGo');
     go.disabled = true; go.textContent = '보내는 중...';
     try {
-      const { error } = await sb.from('nl_absence_requests').insert({
-        child_id: CURKID,
-        session_id: Number(d.ask),
-        account_id: ACCID,
-        reason: why,
-        makeup_date: pick ? pick.d : null,
-        makeup_time: pick ? pick.t : null,
-        makeup_therapist_id: pick ? Number(d.thr) : null,
-        state: '신청'
+      const one = (sid, thr, pk) => ({
+        child_id: CURKID, session_id: Number(sid), account_id: ACCID, reason: why,
+        makeup_date: pk ? pk.d : null, makeup_time: pk ? pk.t : null,
+        makeup_therapist_id: pk ? Number(thr) : null, state: '신청'
       });
+      let rowsIns;
+      if (pairOn()) {
+        // 두 수업 한 묶음 — 같은 pair_key 로 함께 넣는다 (원칙 11 · 2026-09-22)
+        const key = newPairKey();
+        const pa = pairMode === 'pair' ? (pickP ? pickP.a : null) : pickA;
+        const pb = pairMode === 'pair' ? (pickP ? pickP.b : null) : pickB;
+        rowsIns = [Object.assign(one(d.ask, d.thr, pa), { pair_key: key }),
+                   Object.assign(one(partner.id, partner.thr, pb), { pair_key: key })];
+      } else {
+        rowsIns = [one(d.ask, d.thr, pick)];
+      }
+      const { error } = await sb.from('nl_absence_requests').insert(rowsIns);
       if (error) throw error;
       w.remove();
       alert('요청을 보냈습니다.\n\n요청하신 일정은 행정샘 확인 후 보강 확정해 드릴게요.');
