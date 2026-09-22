@@ -1944,11 +1944,18 @@ async function drawAcc(cid) {
   try {
     const { data: pc } = await sb.from('nl_parent_children')
       .select('account_id').eq('child_id', cid);
-    if (!pc || !pc.length) { box.innerHTML = '이 아동에게 이어진 계정이 없습니다.'; return; }
+    if (!pc || !pc.length) { drawNoAcc(box, cid); return; }
     const ids = pc.map(x => x.account_id);
     const { data: acc } = await sb.from('nl_parent_accounts')
-      .select('id, login_id, last_login, active').in('id', ids);
-    if (!acc || !acc.length) { box.innerHTML = '이 아동에게 이어진 계정이 없습니다.'; return; }
+      .select('id, login_id, last_login, active, must_change').in('id', ids);
+    if (!acc || !acc.length) { drawNoAcc(box, cid); return; }
+    // 임시 비번 — 8·9번만 보인다 (표 잠금). 학부모가 바꾸면 저절로 지워짐 (2026-09-22)
+    const TPW = {};
+    try {
+      const { data: tp } = await sb.from('nl_parent_temp_pw')
+        .select('account_id, temp_pw').in('account_id', ids);
+      (tp || []).forEach(r => { TPW[r.account_id] = r.temp_pw; });
+    } catch (e) {}
     box.innerHTML = acc.map(a =>
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'
       + '<b style="font-size:17px;color:#2e3d2c;letter-spacing:0.5px;">'
@@ -1963,14 +1970,87 @@ async function drawAcc(cid) {
       + ' style="width:auto;margin:0;padding:8px 16px;background:#2c5c37;'
       + 'color:#fff;font-size:13px;font-weight:700;border:none;border-radius:8px;'
       + 'cursor:pointer;">번호 바꾸기</button>'
-      + '</div>').join('')
+      + '</div>'
+      + tpwLine(a, TPW[a.id])).join('')
       + '<div style="font-size:12px;color:#9aa19c;">'
       + '한 계정으로 형제·자매를 함께 봅니다. 번호를 바꾸면 그 집 전체에 적용됩니다.<br>'
       + '비밀번호는 그대로입니다. 새 번호와 쓰시던 비밀번호로 들어오십니다.</div>';
     box.querySelectorAll('.accchg').forEach(b => { b.onclick = () => changeAcc(b); });
+    box.querySelectorAll('.acccopy').forEach(b => { b.onclick = () => copyAccGuide(b); });
   } catch (e) {
     box.innerHTML = '계정을 가져오지 못했습니다.';
   }
+}
+
+// 임시 비번 줄 (2026-09-22)
+function tpwLine(a, pw) {
+  if (![8, 9].includes(Number(MEID))) return '';
+  let h = '<div style="margin:0 0 8px;font-size:13px;color:#5a6156;">';
+  if (a.must_change === false) {
+    h += '학부모가 비밀번호를 바꾸셨습니다.';
+  } else if (pw) {
+    h += '임시 비밀번호 <b style="font-size:16px;color:#2e3d2c;letter-spacing:1px;">'
+       + esc(pw) + '</b>'
+       + ' <button type="button" class="acccopy" data-lid="' + esc(a.login_id) + '"'
+       + ' data-pw="' + esc(pw) + '"'
+       + ' style="width:auto;margin:0 0 0 8px;padding:6px 12px;background:#fff;'
+       + 'color:#2c5c37;border:1px solid #cfd8cc;border-radius:8px;font-size:12.5px;'
+       + 'cursor:pointer;">안내 문구 복사</button>';
+  } else {
+    h += '임시 비밀번호 — 이 화면에 없음 (네이버 클라우드 목록을 보세요)';
+  }
+  return h + '</div>';
+}
+
+// 문자에 붙일 안내 글 (2026-09-22)
+async function copyAccGuide(btn) {
+  const t = '자라는나무 학부모 앱 안내\n'
+    + '주소 https://jet73kyj.github.io/namu-link/parent.html\n'
+    + '아이디 ' + btn.dataset.lid + ' / 비밀번호 ' + btn.dataset.pw + '\n'
+    + '처음 들어오시면 비밀번호를 새로 정해 주세요.';
+  try {
+    await navigator.clipboard.writeText(t);
+    btn.textContent = '✓ 복사됨';
+    setTimeout(() => { btn.textContent = '안내 문구 복사'; }, 2000);
+  } catch (e) {
+    prompt('아래 글을 복사하세요 (Ctrl+C)', t);
+  }
+}
+
+// 계정이 없는 아동 — 빈 계정 붙이기 (8·9번만 · 2026-09-22)
+async function drawNoAcc(box, cid) {
+  let h = '이 아동에게 이어진 계정이 없습니다.';
+  if ([8, 9].includes(Number(MEID))) {
+    h += '<div style="margin-top:8px;"><button type="button" id="accAttach"'
+       + ' style="width:auto;margin:0;padding:8px 16px;background:#2c5c37;color:#fff;'
+       + 'font-size:13px;font-weight:700;border:none;border-radius:8px;cursor:pointer;">'
+       + '빈 계정 붙이기</button>'
+       + '<span style="font-size:12px;color:#9aa19c;margin-left:8px;">'
+       + '형제·자매가 이미 다니면 그 집 번호를 넣으세요 — 같은 계정에 이어집니다</span></div>';
+  }
+  box.innerHTML = h;
+  const b = $('accAttach');
+  if (b) b.onclick = () => attachAcc(cid);
+}
+
+async function attachAcc(cid) {
+  let guess = '';
+  try {
+    const { data: c } = await sb.from('nl_children').select('phone').eq('id', cid).maybeSingle();
+    guess = String((c && c.phone) || '').replace(/[^0-9]/g, '').slice(0, 11);
+  } catch (e) {}
+  const v = prompt('보호자 휴대폰 번호를 넣으세요 (숫자만)\n학부모 앱 아이디가 됩니다.', guess);
+  if (v === null) return;
+  const ph = String(v).replace(/[^0-9]/g, '');
+  if (ph.length < 10 || ph.length > 11) { alert('휴대폰 번호를 다시 넣어주세요.'); return; }
+  if (!confirm(ph + ' 번호로 학부모 계정을 이을까요?')) return;
+  const { data, error } = await sb.rpc('nl_parent_attach', { p_child: Number(cid), p_phone: ph });
+  if (error) { alert('잇지 못했습니다.\n' + error.message); return; }
+  const msgTxt = String(data || '');
+  alert(msgTxt);
+  if (/^멈춤/.test(msgTxt)) return;
+  drawAcc(cid);
+  if (typeof drawMobile === 'function') drawMobile(cid);
 }
 
 async function changeAcc(btn) {
