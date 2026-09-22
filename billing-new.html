@@ -2072,6 +2072,8 @@ function drawKid(c) {
     const ds = sv[2];
     // 이번 달 금액 — 이번 달 저장분에서만 가져온다. 다음 달로 안 넘어간다 (2026-09-15)
     const sov = selfOvOf(ds);
+    // 전월 이월 · 환불 메모 — 이번 달 저장분에서만. 다음 달로 안 넘어간다 (2026-09-22)
+    const sco = selfCoOf(ds), srf = refundOf(ds);
     b += '<div class="sect bank">계좌입금 · 발달재활서비스 본인부담금</div>'
       + '<div class="bankbody">'
       + '<div class="r gsum' + (sov ? ' hasov' : '') + '" data-st="2" data-fixed="' + (pv == null ? '' : pv) + '">'
@@ -2090,6 +2092,10 @@ function drawKid(c) {
           ? '<input class="spov" type="text" inputmode="numeric" title="이번 달만 다른 금액을 받을 때 적습니다. 비우면 등급 금액"'
             + ' placeholder="이번 달 금액" value="' + (sov ? sov.toLocaleString() : '') + '">'
           : '') + '</span>'
+      + '<span class="up" style="flex:0 0 100px;">' + (gr && Number(pv) !== 0
+          ? '<input class="spov spco" type="text" inputmode="numeric" title="전월에 입원 등으로 못 한 만큼 이번 달 금액에서 뺍니다"'
+            + ' placeholder="전월 이월" value="' + (sco ? sco.toLocaleString() : '') + '">'
+          : '') + '</span>'
       + '<span class="am gamt">0</span></div>'
       // 본인부담금이 0원이면(다형 등) 낼 것이 없으므로
       // 낸날·입금자명 칸을 내놓지 않는다. 줄 자체는 그대로 보인다.
@@ -2099,7 +2105,10 @@ function drawKid(c) {
            + '<input class="tx bmemo" type="text" placeholder="입금자명" value="'
            + esc(payerOf(c.id)) + '">'
            + '<button class="ksave2' + (sideSaved(c.id, 'bank') ? ' done' : '') + '" type="button" data-only="bank"'
-           + ' data-ttl="계좌 저장 전">' + (sideSaved(c.id, 'bank') ? '\u2713 저장됨' : '계좌 저장 전') + '</button></div>')
+           + ' data-ttl="계좌 저장 전">' + (sideSaved(c.id, 'bank') ? '\u2713 저장됨' : '계좌 저장 전') + '</button></div>'
+           + '<div class="pay"><input class="tx brf" type="text" style="flex:1 1 auto;"'
+           + ' placeholder="환불 메모 — 은행 · 예금주 · 끝 4자리 · 금액 · 날짜 (적으면 이번 달 0원)"'
+           + ' value="' + esc(srf) + '"></div>')
       + '</div>';
   }
 
@@ -2132,6 +2141,8 @@ function memoOf(p, isBank) {
        .replace(/\s*\[발추치료사\d+\]/g, '')
        .replace(/\s*\[발추방식[123]\]/g, '')
        .replace(/\s*\[본인부담\d+\]/g, '')
+       .replace(/\s*\[본인이월\d+\]/g, '')
+       .replace(/\s*\[환불 [^\]]*\]/g, '')
        .replace(/\s*\[평가유형\d+\]/g, '').trim();
   if (m === '카드결제' || m === '자동계산' || m === '화면입력' || m === '계좌입금') return '';
   return m;
@@ -2200,6 +2211,15 @@ function extraTherapistOf(p) {
 }
 
 // 저장된 메모에서 본인부담금 이번 달 금액을 꺼낸다  [본인부담45000]  (2026-09-15)
+// 본인부담금 전월 이월  [본인이월30000]  · 환불 메모  [환불 …]  (2026-09-22)
+function selfCoOf(p) {
+  const m = String((p && p.memo) || '').match(/\[본인이월(\d+)\]/);
+  return m ? Number(m[1]) : 0;
+}
+function refundOf(p) {
+  const m = String((p && p.memo) || '').match(/\[환불 ([^\]]*)\]/);
+  return m ? m[1] : '';
+}
 function selfOvOf(p) {
   const m = String((p && p.memo) || '').match(/\[본인부담(\d+)\]/);
   return m ? Number(m[1]) : 0;
@@ -2367,12 +2387,18 @@ function calcKid(childId) {
     if (tr.dataset.fixed !== undefined) {
       amt = tr.dataset.fixed === '' ? 0 : Number(tr.dataset.fixed);
       // 이번 달 금액을 적었으면 그 금액이 우선 (2026-09-15)
-      const ov = tr.querySelector('.spov');
+      const ov = tr.querySelector('.spov:not(.spco)');
       const ovn = ov ? numOf(ov.value) : 0;
       // 오른쪽 칸은 늘 등급 금액(고정으로 받는 금액)을 보인다 — 은정님 정함
       if (ov) shown = amt;
       if (ovn > 0) amt = ovn;
-      tr.classList.toggle('hasov', ovn > 0);
+      // 전월 이월은 빼고, 환불 메모가 있으면 이번 달 0원 (2026-09-22)
+      const coEl2 = tr.querySelector('.spco');
+      const con = coEl2 ? numOf(coEl2.value) : 0;
+      if (con > 0) amt = Math.max(0, amt - con);
+      const rfEl = tr.closest('.kid') ? tr.closest('.kid').querySelector('.brf') : null;
+      if (rfEl && rfEl.value.trim()) amt = 0;
+      tr.classList.toggle('hasov', ovn > 0 || con > 0 || !!(rfEl && rfEl.value.trim()));
     } else if (tr.querySelector('.xthr')) {
       const tid = Number(tr.querySelector('.xthr').value);
       const unit = feeExtra(tid);
@@ -2634,7 +2660,7 @@ async function saveKid(childId, btn, only) {
     // 승인번호 칸에 이미 붙어 있는 표시는 지우고 새로 붙인다
     // (안 그러면 저장할 때마다 [리뷰4]가 계속 쌓인다)
     let memo2 = String(memo)
-      .replace(/\s*\[(리뷰|회기|적용단가|발추치료사|발추방식|평가유형|본인부담)[^\]]*\]/g, '')
+      .replace(/\s*\[(리뷰|회기|적용단가|발추치료사|발추방식|평가유형|본인부담|본인이월|환불)[^\]]*\]/g, '')
       .trim();
     {
       const rv0 = box.querySelector('.rv');
@@ -2642,9 +2668,15 @@ async function saveKid(childId, btn, only) {
       if (rvn > 0) memo2 += ' [리뷰' + rvn + ']';
     }
     if (p.st === 2) {
-      const ov = box.querySelector('.gsum[data-st="2"] .spov');
+      const ov = box.querySelector('.gsum[data-st="2"] .spov:not(.spco)');
       const ovn = ov ? numOf(ov.value) : 0;
       if (ovn > 0) memo2 += ' [본인부담' + ovn + ']';
+      const co2 = box.querySelector('.gsum[data-st="2"] .spco');
+      const con2 = co2 ? numOf(co2.value) : 0;
+      if (con2 > 0) memo2 += ' [본인이월' + con2 + ']';
+      const rf2 = box.querySelector('.brf');
+      const rft = rf2 ? rf2.value.replace(/[\[\]]/g, '').trim() : '';
+      if (rft) memo2 += ' [환불 ' + rft + ']';
     }
     if (p.st === 8) {
       const el = box.querySelector('.gsum[data-st="8"] .xthr');
@@ -2699,6 +2731,15 @@ async function saveKid(childId, btn, only) {
     if (!confirm(names + ' 이(가) 0원이 되었습니다.\n\n'
       + '저장된 줄 ' + deadSt.length + '건을 지웁니다.\n'
       + '지운 뒤에는 되돌릴 수 없습니다.\n\n계속할까요?')) return;
+  }
+
+  // 환불 메모에 계좌번호 전체를 적지 않게 (2026-09-22 은정님 — 끝 4자리만)
+  {
+    const rf0 = box.querySelector('.brf');
+    if (rf0 && (!only || only === 'bank') && /\d{7,}|\d+-\d+-\d+/.test(rf0.value)) {
+      alert('환불 메모에 계좌번호 전체가 있는 것 같습니다.\n\n은행 · 예금주 · 끝 4자리만 적어 주세요.');
+      rf0.focus(); return;
+    }
   }
 
   SAVING = true;
@@ -2858,6 +2899,11 @@ function monEndDay(mk){
 // 숫자 고치면 바로 다시 계산
 $('kids').addEventListener('input', e => {
   const t = e.target;
+  if (t.classList.contains('brf')) {
+    calcKid(Number(t.closest('.kid').dataset.child));
+    sumAll();
+    return;
+  }
   if (t.classList.contains('cnt') || t.classList.contains('evamt')
       || t.classList.contains('apu') || t.classList.contains('spov')) {
     const box = t.closest('.kid');
@@ -3326,7 +3372,8 @@ function unDone(el){
   const kid = el.closest ? el.closest('.kid') : null;
   if (!kid) return;
   const stEl = el.closest('[data-st]');
-  const bank = (el.classList && (el.classList.contains('bday') || el.classList.contains('bmemo')))
+  const bank = (el.classList && (el.classList.contains('bday') || el.classList.contains('bmemo')
+                                 || el.classList.contains('brf')))
             || (stEl && stEl.dataset.st === '2');
   const ch = CHANGED[kid.dataset.child] = CHANGED[kid.dataset.child] || {};
   ch[bank ? 'bank' : 'card'] = true;
