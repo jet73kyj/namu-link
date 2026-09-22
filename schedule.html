@@ -1548,19 +1548,26 @@
         <label for="ed_apply">변경 시작일 <span style="color:#9aa294;">(비우면 이 달 처음부터)</span></label>
         <input id="ed_apply" type="date">
       </div>
+      <!-- 시작·종료 시간 — 9:00 부터 10분 단위 (2026-09-22 은정님)
+           요일마다 교시가 달라 헷갈리던 것을 없앴다. 종료 시간이 소요시간(40·50·60분)을 정한다
+           옛 교시·직접 시각·소요시간 칸은 숨겨 두고, 저장할 때 edSyncTime() 이 채운다 -->
       <div>
-        <label for="ed_slot">변경 시간</label>
-        <select id="ed_slot"></select>
+        <label for="ed_t1">시작 시간</label>
+        <select id="ed_t1"></select>
       </div>
       <div>
-        <label for="ed_hm">직접 시각 <span style="color:#9aa294;">(비우면 왼쪽 시간)</span></label>
-        <input id="ed_hm" type="text" placeholder="예: 14:00" autocomplete="off">
+        <label for="ed_t2">종료 시간</label>
+        <select id="ed_t2"></select>
+      </div>
+      <div style="display:none;">
+        <select id="ed_slot"></select>
+        <input id="ed_hm" type="text" autocomplete="off">
       </div>
       <div>
         <label for="ed_wd">요일</label>
         <select id="ed_wd"></select>
       </div>
-      <div>
+      <div style="display:none;">
         <label for="ed_dur">수업 소요시간</label>
         <select id="ed_dur">
           <option value="40">40분</option>
@@ -5380,6 +5387,9 @@ function openEd(scId){
   })();
   $('ed_th').value   = String(r.therapist_id);
   $('ed_dur').value  = String(r.duration || 40);
+  // 시작·종료 (2026-09-22)
+  edFillStart(String(r.start_time || '').slice(0,5));
+  edFillEnd(Number(r.duration || 40));
   $('ed_tt').value   = String(r._tt || 1);
   $('ed_st2').value  = String(r.support_type_id || 1);
   $('ed_cnt').value  = r._mode || '4회만';
@@ -5616,6 +5626,7 @@ $('edRest').onclick = async () => {
 
 $('edSave').onclick = async () => {
   if (!edRow) return;
+  edSyncTime();   // 시작·종료 칸 → 숨겨 둔 칸 (2026-09-22)
   const slot = SLOTS.find(x => x.no === Number($('ed_slot').value));
   const nw   = $('ed_wd').value;
   const th   = Number($('ed_th').value);
@@ -6108,6 +6119,7 @@ async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
 
 $('edFrom').onclick = async () => {
   if (!edRow) return;
+  edSyncTime();   // 시작·종료 칸 → 숨겨 둔 칸 (2026-09-22)
   const slot = SLOTS.find(x => x.no === Number($('ed_slot').value));
   const nw   = $('ed_wd').value;
   const th   = Number($('ed_th').value);
@@ -6115,11 +6127,12 @@ $('edFrom').onclick = async () => {
   const y = Number(mon.slice(0,4)), m = Number(mon.slice(5,7));
   const pd = new Date(y, m - 2, 1);
   const prev = pd.getFullYear() + '-' + String(pd.getMonth()+1).padStart(2,'0');
-  if (!confirm(monNo(mon) + '월부터 ' + nw + '요일 ' + slot.t + ' 로 바꿀까요?\n\n'
+  const _hm2 = $('ed_hm').value || slotHm(slot, th, nw);
+  if (!confirm(monNo(mon) + '월부터 ' + nw + '요일 ' + h12(_hm2) + ' 로 바꿀까요?\n\n'
     + '· ' + monNo(prev) + '월까지는 지금 요일 그대로 남습니다\n'
     + '· ' + monNo(mon) + '월 예정 회기는 새 요일로 다시 깔립니다\n'
     + '· 완료·결석·휴무·보강 표시는 그대로 둡니다')) return;
-  await changeFromThisMonth(nw, slot, th, du);
+  await changeFromThisMonth(nw, slot, th, du, _hm2);
 };
 
 // ===== 요일별 시간표를 엑셀로 저장 =====
@@ -6413,6 +6426,43 @@ function dayAdd(s, n){
 
 // 종결일을 적으면 「저장」을 잠근다.
 //   날짜를 적고 습관적으로 「저장」을 눌러 종결이 어긋나던 일을 막는다.
+// ===== 수정 창 시작·종료 시간 (2026-09-22) =====
+//   시작 9:00 ~ 7:40 · 10분 단위 · 요일 구분 없음
+//   종료 = 시작 + 40 · 50 · 60분 (학부모 수업료 표가 이 세 가지 칸뿐이라)
+const ED_DURS = [40, 50, 60];
+function edHm(n){ return String(Math.floor(n / 60)).padStart(2,'0') + ':' + String(n % 60).padStart(2,'0'); }
+function edFillStart(cur){
+  const opts = [];
+  for (let n = 9 * 60; n <= 19 * 60 + 40; n += 10) opts.push(edHm(n));
+  if (cur && opts.indexOf(cur) < 0) { opts.push(cur); opts.sort(); }   // 10분 단위가 아닌 옛 시각도 그대로 보이게
+  $('ed_t1').innerHTML = opts.map(function(v){
+    return '<option value="' + v + '">' + h12(v) + '</option>'; }).join('');
+  if (cur) $('ed_t1').value = cur;
+}
+function edFillEnd(dur){
+  const st = toMin($('ed_t1').value);
+  if (st == null) { $('ed_t2').innerHTML = ''; return; }
+  const ds = ED_DURS.slice();
+  if (dur && ds.indexOf(Number(dur)) < 0) { ds.push(Number(dur)); ds.sort(function(a,b){ return a-b; }); }
+  $('ed_t2').innerHTML = ds.map(function(d){
+    return '<option value="' + d + '">' + h12(edHm(st + d)) + ' (' + d + '분)</option>'; }).join('');
+  $('ed_t2').value = String(dur && ds.indexOf(Number(dur)) >= 0 ? Number(dur) : 40);
+}
+$('ed_t1').addEventListener('change', function(){ edFillEnd(Number($('ed_t2').value) || 40); });
+// 저장하기 바로 전에 숨겨 둔 칸을 채운다 — 저장 셈은 예전 그대로 쓴다
+function edSyncTime(){
+  const hm = $('ed_t1').value;
+  const du = Number($('ed_t2').value) || 40;
+  if (!hm) return;
+  $('ed_hm').value = hm;
+  $('ed_slot').value = String(nearest(toMin(hm)).no);
+  if (!$('ed_dur').querySelector('option[value="' + du + '"]')) {
+    const o = document.createElement('option'); o.value = String(du); o.textContent = du + '분';
+    $('ed_dur').appendChild(o);
+  }
+  $('ed_dur').value = String(du);
+}
+
 function edLockSave() {
   const has = !!$('ed_end').value;
   const b = $('edSave');
