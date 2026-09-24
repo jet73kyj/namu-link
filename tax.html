@@ -525,12 +525,16 @@ function drawSlip(kind){
 // 지출결의서 적요 표 — 제목 1줄 + 내역 8줄 + 합계 1줄 (2026-09-24)
 //   8줄이 넘으면 7줄까지 쓰고 8번째 줄에 「나머지 ○건 — 별지」와 그 합계
 const FIX_N = 8;
+// 한 장에 담는 최대 내역 줄 (2026-09-24) — 8줄이 넘으면 표가 비고란 앞까지 늘어난다
+//   A4 안쪽 249mm − 제목·위 표·비고·로고 약 95mm → 적요 표 약 150mm (한 줄 8mm)
+//   제목·합계 두 줄을 빼고 여유를 두어 15줄. 이보다 많을 때만 별지
+const FIX_MAX = 15;
 function fixTable(title, list, total){
   let b = '<colgroup><col><col style="width:38mm;"></colgroup>'
     + '<tr class="ftit"><td colspan="2">' + esc(title || '') + '</td></tr>';
   // 적힌 내역 → 바로 합계 → 남은 자리는 선 없는 빈 줄 (2026-09-24)
   //   합계는 내역에 붙고, 표 전체 높이는 그대로라 비고 위치는 늘 같다
-  const got = list.slice(0, FIX_N);
+  const got = list.slice(0, FIX_MAX);
   got.forEach(r => {
     b += '<tr><td>' + esc(r.item || '') + '</td><td class="num">'
       + (r.amount === '' ? '' : won(r.amount)) + '</td></tr>';
@@ -606,9 +610,9 @@ function paperOut(s){
   const dd = d.slice(0,4) + '. ' + d.slice(5,7) + '. ' + d.slice(8,10);
   const all = rows.length ? rows : [{ item: s.title || '', amount: s.amount }];
   let first = all, rest = [];
-  if (all.length > FIX_N) {
-    first = all.slice(0, FIX_N - 1);
-    rest  = all.slice(FIX_N - 1);
+  if (all.length > FIX_MAX) {
+    first = all.slice(0, FIX_MAX - 1);
+    rest  = all.slice(FIX_MAX - 1);
     const restSum = rest.reduce((a, r) => a + Number(r.amount || 0), 0);
     first = first.concat([{ item: '나머지 ' + rest.length + '건 — 별지', amount: restSum }]);
   }
@@ -654,7 +658,7 @@ function paperOut(s){
     const part = rest.slice(i, i + PER);
     let b = '<colgroup><col style="width:14mm;"><col><col style="width:38mm;"></colgroup>';
     part.forEach((r, j) => {
-      b += '<tr><td class="ctr">' + (FIX_N + i + j) + '</td><td>' + esc(r.item || '') + '</td>'
+      b += '<tr><td class="ctr">' + (FIX_MAX + i + j) + '</td><td>' + esc(r.item || '') + '</td>'
         + '<td class="num">' + won(r.amount) + '</td></tr>';
     });
     if (i + PER >= rest.length) {
