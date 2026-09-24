@@ -282,6 +282,13 @@ const $ = id => document.getElementById(id);
 // 이 화면을 볼 수 있는 사람 — 대표(8번)만
 const CAN_SEE = [8];
 const ACCOUNT = '749601-01-348803 · 749601-01-348791';
+// 결의서 비고란 — 계좌번호를 두 줄로 (2026-09-24)
+function accHtml(){
+  const list = ACCOUNT.split('·').map(x => x.trim()).filter(Boolean);
+  return '<span style="white-space:nowrap;">계좌번호 : </span>'
+    + '<span style="display:inline-block;text-align:left;vertical-align:top;white-space:nowrap;">'
+    + list.map(esc).join('<br>') + '</span>';
+}
 
 let CODES = [];      // 관·항·목
 let SLIPS = [];      // 그 해 결의서 전부
@@ -521,14 +528,17 @@ const FIX_N = 8;
 function fixTable(title, list, total){
   let b = '<colgroup><col><col style="width:38mm;"></colgroup>'
     + '<tr class="ftit"><td colspan="2">' + esc(title || '') + '</td></tr>';
-  for (let i = 0; i < FIX_N; i++) {
-    const r = list[i];
-    b += r
-      ? '<tr><td>' + esc(r.item || '') + '</td><td class="num">'
-          + (r.amount === '' ? '' : won(r.amount)) + '</td></tr>'
-      : '<tr class="fblank"><td>&nbsp;</td><td></td></tr>';
-  }
+  // 적힌 내역 → 바로 합계 → 남은 자리는 선 없는 빈 줄 (2026-09-24)
+  //   합계는 내역에 붙고, 표 전체 높이는 그대로라 비고 위치는 늘 같다
+  const got = list.slice(0, FIX_N);
+  got.forEach(r => {
+    b += '<tr><td>' + esc(r.item || '') + '</td><td class="num">'
+      + (r.amount === '' ? '' : won(r.amount)) + '</td></tr>';
+  });
   b += '<tr class="fsum"><td class="ctr">합　계</td><td class="num">' + won(total) + '</td></tr>';
+  for (let i = got.length; i < FIX_N; i++) {
+    b += '<tr class="fblank"><td>&nbsp;</td><td></td></tr>';
+  }
   return '<table class="ptab fix">' + b + '</table>';
 }
 function paperHtml(s, kind){
@@ -580,7 +590,7 @@ function paperHtml(s, kind){
     + '<table class="ptab" style="margin-top:14px;">'
     + '<tr><th class="ctr" style="width:90px;">비　고</th>'
     + '<td style="width:220px;">첨부 : ' + esc(s.attach || '') + '</td>'
-    + '<td class="ctr">계좌번호 : ' + esc(ACCOUNT) + '</td></tr>'
+    + '<td class="ctr">' + accHtml() + '</td></tr>'
     + '</table>'
     + '<div class="logo" style="margin-top:16px;">'
     + '<img src="img/nl-logo.png" alt=""></div>'
@@ -632,7 +642,7 @@ function paperOut(s){
     + '<table class="ptab" style="margin-top:14px;">'
     + '<tr><th class="ctr" style="width:90px;">비　고</th>'
     + '<td style="width:220px;">첨부 : ' + esc(s.attach || '') + '</td>'
-    + '<td class="ctr">계좌번호 : ' + esc(ACCOUNT) + '</td></tr>'
+    + '<td class="ctr">' + accHtml() + '</td></tr>'
     + '</table>'
     + '<div class="logo" style="margin-top:16px;">'
     + '<img src="img/nl-logo.png" alt=""></div>'
