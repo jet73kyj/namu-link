@@ -276,6 +276,7 @@ let ROWS  = {};      // 결의서 번호 -> 줄 목록
 let OPEN  = 0;       // 그 해 첫 이월액
 let PAPER_IDS = [];  // 인쇄 종이가 그려진 차례 (결의서 번호)
 let FAVS = [];       // 자주 쓰는 적요
+let FAVROWS = {};    // 자주 쓰는 것 번호 -> 내역 줄 (2026-09-24)
 // 보던 갈래·연도·월을 기억해 둔다 (새로고침해도 그 자리로 돌아온다)
 function memGet(k, dflt){
   try { const v = sessionStorage.getItem('nltax_' + k); return v || dflt; }
@@ -331,6 +332,16 @@ function hanNum(n){
 }
 
 // ===== 자료 가져오기 =====
+// 자주 쓰는 것에 딸린 내역 줄 (2026-09-24)
+async function loadFavRows(){
+  FAVROWS = {};
+  const ids = FAVS.map(f => f.id);
+  if (!ids.length) return;
+  const { data: fr, error } = await sb.from('nl_tax_fav_rows')
+    .select('*').in('fav_id', ids).order('row_no');
+  if (error) { console.warn('자주 쓰는 것 내역을 못 읽음', error); return; }
+  (fr || []).forEach(r => { (FAVROWS[r.fav_id] = FAVROWS[r.fav_id] || []).push(r); });
+}
 async function loadAll(){
   const { data: cs } = await sb.from('nl_tax_codes')
     .select('*').eq('active', true).order('sort_no');
@@ -339,6 +350,7 @@ async function loadAll(){
   const { data: fv } = await sb.from('nl_tax_favs')
     .select('*').eq('active', true).order('sort_no');
   FAVS = fv || [];
+  await loadFavRows();
 
   const { data: op } = await sb.from('nl_tax_open')
     .select('amount').eq('year_key', YY).maybeSingle();
@@ -417,16 +429,9 @@ function drawSlip(kind){
     + '<button id="prevBtn" class="ghost">↩ 지난달 것 가져오기</button>'
     + '<button id="newSlip">＋ 새로 쓰기</button></div></div>';
 
-  // 자주 쓰는 것 — 목 단추를 누르면 적요가 펼쳐진다
-  const favCs = cs.filter(c => FAVS.some(f => f.code_id === c.id));
+  // 자주 쓰는 것 — 목 단추를 누르면 적요가 펼쳐진다 (속은 fillFavBox 가 채움)
   h += '<div id="favBox" style="display:none;margin-top:10px;'
-    + 'border:1px solid #ECE8E3;border-radius:8px;padding:12px;">'
-    + '<div style="font-size:13px;color:#666;margin-bottom:8px;">'
-    + '목을 누르면 자주 쓰는 적요가 나옵니다.</div>'
-    + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-    + favCs.map(c => '<button class="tab favmok" data-c="' + c.id + '">'
-        + esc(c.mok) + '</button>').join('')
-    + '</div><div id="favList" style="margin-top:10px;"></div></div>';
+    + 'border:1px solid #ECE8E3;border-radius:8px;padding:12px;"></div>';
 
   // 지난달 것
   h += '<div id="prevBox" style="display:none;margin-top:10px;'
@@ -482,6 +487,7 @@ function drawSlip(kind){
     + '<button id="saveSlip" class="slipsave">💾 저장 전</button>'
     + '<button id="delSlip" class="ghost" style="color:#b71c1c;">지우기</button>'
     + '<button id="closeSlip" class="ghost">닫기</button>'
+    + '<button id="favSave" class="ghost" style="color:#B07A4A;border-color:#B07A4A;">⭐ 자주 쓰는 것으로 저장</button>'
     + '</div></div></div>';
 
   // 인쇄 종이
@@ -628,6 +634,135 @@ window.addEventListener('beforeunload', e => {
   e.returnValue = '';
 });
 
+// ── 자주 쓰는 것 상자 채우기 (2026-09-24) ──
+//   목 단추 → 적요 단추. 내역이 담긴 것은 「· 내역 ○줄」
+//   고르면 내역 줄을 금액까지 그대로 채운다. 내역이 없는 옛 항목은 한 줄
+function fillFavBox(kind, openCid){
+  const box = $('favBox');
+  if (!box) return;
+  const cs = CODES.filter(c => c.kind === (kind === '수입' ? '세입' : '세출'));
+  const favCs = cs.filter(c => FAVS.some(f => f.code_id === c.id));
+  box.innerHTML = '<div style="font-size:13px;color:#666;margin-bottom:8px;">'
+    + '목을 누르면 자주 쓰는 적요가 나옵니다.</div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    + favCs.map(c => '<button class="tab favmok" data-c="' + c.id + '">'
+        + esc(c.mok) + '</button>').join('')
+    + '</div><div id="favList" style="margin-top:10px;"></div>';
+  const showList = (cid) => {
+    const list = FAVS.filter(f => f.code_id === cid);
+    $('favList').innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      + list.map(f => {
+          const n = (FAVROWS[f.id] || []).length;
+          return '<button class="ghost favpick" data-f="' + f.id + '"'
+            + ' style="padding:8px 12px;' + (n ? 'border-color:#B07A4A;' : '') + '">'
+            + esc(f.item)
+            + (n ? ' <span style="font-size:12px;color:#A39C95;">· 내역 ' + n + '줄</span>' : '')
+            + '</button>';
+        }).join('')
+      + '</div>';
+    $('favList').querySelectorAll('.favpick').forEach(b2 => {
+      b2.onclick = () => {
+        const f = FAVS.find(x => x.id === Number(b2.dataset.f));
+        if (!f) return;
+        const fr = FAVROWS[f.id] || [];
+        const rows = fr.length
+          ? fr.map(r => ({ item: r.item, amount: r.amount }))
+          : [{ item: f.item, amount: f.amount || '' }];
+        openForm(kind, { code_id: f.code_id, title: f.item, attach: f.attach, rows: rows });
+      };
+    });
+  };
+  box.querySelectorAll('.favmok').forEach(el => {
+    el.onclick = () => {
+      box.querySelectorAll('.favmok').forEach(x => x.classList.remove('on'));
+      el.classList.add('on');
+      showList(Number(el.dataset.c));
+    };
+  });
+  if (openCid) {
+    const el = box.querySelector('.favmok[data-c="' + openCid + '"]');
+    if (el) el.click();
+  }
+}
+
+// ── 쓰기 창의 목·적요·첨부·내역을 자주 쓰는 것으로 저장 (2026-09-24) ──
+//   같은 목 + 같은 적요가 있으면 물어보고 내역을 바꾼다 (지우고 넣다 실패하면 되돌림)
+//   결의서 저장과는 따로 — 결의서 「저장 전/저장됨」 상태는 건드리지 않는다
+let FAV_SAVING = false;
+async function saveFav(kind){
+  if (FAV_SAVING) return;
+  const codeId = Number($('f_code').value) || null;
+  const items = Array.from($('f_rows').querySelectorAll('.rowline')).map((el, i) => ({
+    row_no: i + 1,
+    item: el.querySelector('.r_item').value.trim(),
+    amount: numOf(el.querySelector('.r_amt').value)
+  })).filter(r => r.item || r.amount);
+  if (!codeId) { tmsg('목을 고르세요.', false); return; }
+  if (!items.length) { tmsg('내역을 한 줄 이상 적어 주세요.', false); return; }
+  const title = $('f_title').value.trim() || items[0].item;
+  if (!title) { tmsg('적요(제목)를 적어 주세요.', false); return; }
+  const total = items.reduce((a, b) => a + b.amount, 0);
+  const attach = $('f_attach').value.trim() || null;
+  const same = FAVS.find(f => f.code_id === codeId && String(f.item || '').trim() === title);
+  const c = codeOf(codeId);
+
+  if (same) {
+    if (!confirm('자주 쓰는 것에 「' + (c ? c.mok : '') + ' · ' + title + '」이(가) 이미 있습니다.\n\n'
+      + '내역을 지금 것(' + items.length + '줄 · 합계 ' + won(total) + '원)으로 바꿀까요?')) return;
+  } else {
+    if (!confirm('「' + (c ? c.mok : '') + ' · ' + title + '」을(를) 자주 쓰는 것으로 저장할까요?\n'
+      + '내역 ' + items.length + '줄 · 합계 ' + won(total) + '원')) return;
+  }
+
+  FAV_SAVING = true;
+  const btn = $('favSave');
+  const oldTxt = btn.textContent;
+  btn.disabled = true; btn.textContent = '저장 중…';
+  try {
+    let fid, oldRows = [];
+    if (same) {
+      fid = same.id;
+      const { error } = await sb.from('nl_tax_favs')
+        .update({ amount: total, attach: attach }).eq('id', fid);
+      if (error) throw error;
+      const oq = await sb.from('nl_tax_fav_rows').select('*').eq('fav_id', fid);
+      if (oq.error) throw oq.error;
+      oldRows = oq.data || [];
+      const dq = await sb.from('nl_tax_fav_rows').delete().eq('fav_id', fid);
+      if (dq.error) throw dq.error;
+    } else {
+      const sorts = FAVS.filter(f => f.code_id === codeId).map(f => Number(f.sort_no) || 0);
+      const next = (sorts.length ? Math.max.apply(null, sorts) : 0) + 10;
+      const { data, error } = await sb.from('nl_tax_favs')
+        .insert({ code_id: codeId, item: title, amount: total, attach: attach,
+                  sort_no: next, active: true })
+        .select().single();
+      if (error) throw error;
+      fid = data.id;
+    }
+    const { data: put, error: e2 } = await sb.from('nl_tax_fav_rows')
+      .insert(items.map(r => Object.assign({ fav_id: fid }, r))).select('id');
+    if (e2 || !put || put.length !== items.length) {
+      if (oldRows.length) {
+        const back = oldRows.map(r => { const x = Object.assign({}, r); delete x.id; return x; });
+        await sb.from('nl_tax_fav_rows').insert(back);
+      }
+      throw new Error('내역을 저장하지 못해 전 내용으로 되돌렸습니다.\n' + (e2 ? e2.message : ''));
+    }
+    const { data: fv } = await sb.from('nl_tax_favs')
+      .select('*').eq('active', true).order('sort_no');
+    FAVS = fv || [];
+    await loadFavRows();
+    fillFavBox(kind, codeId);
+    tmsg('✅ 자주 쓰는 것에 저장했습니다. 내역 ' + items.length + '줄', true);
+  } catch (e) {
+    tmsg('❌ 자주 쓰는 것에 저장하지 못했습니다.\n' + (e.message || e), false);
+  } finally {
+    FAV_SAVING = false;
+    btn.disabled = false; btn.textContent = oldTxt;
+  }
+}
+
 function bindSlip(kind){
   // 자주 쓰는 것
   $('favBtn').onclick = () => {
@@ -635,26 +770,8 @@ function bindSlip(kind){
     b.style.display = (b.style.display === 'none') ? 'block' : 'none';
     $('prevBox').style.display = 'none';
   };
-  document.querySelectorAll('.favmok').forEach(el => {
-    el.onclick = () => {
-      document.querySelectorAll('.favmok').forEach(x => x.classList.remove('on'));
-      el.classList.add('on');
-      const cid = Number(el.dataset.c);
-      const list = FAVS.filter(f => f.code_id === cid);
-      $('favList').innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-        + list.map(f => '<button class="ghost favpick" data-f="' + f.id + '"'
-            + ' style="padding:8px 12px;">' + esc(f.item) + '</button>').join('')
-        + '</div>';
-      $('favList').querySelectorAll('.favpick').forEach(b2 => {
-        b2.onclick = () => {
-          const f = FAVS.find(x => x.id === Number(b2.dataset.f));
-          if (!f) return;
-          openForm(kind, { code_id: f.code_id, title: f.item, attach: f.attach,
-                           rows: [{ item: f.item, amount: f.amount || '' }] });
-        };
-      });
-    };
-  });
+  fillFavBox(kind);
+  $('favSave').onclick = () => saveFav(kind);
 
   // 지난달 것 가져오기
   $('prevBtn').onclick = () => {
