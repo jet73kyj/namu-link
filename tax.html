@@ -481,6 +481,8 @@ function drawSlip(kind){
   // 쓰기 창
   h += '<div id="form" style="display:none;" class="noprint">'
     + '<div style="border:1px solid #ECE8E3;border-radius:8px;padding:14px;margin-top:14px;">'
+    + '<div id="f_editbar" style="display:none;background:#FFF6D6;border-left:3px solid #D29A3C;'
+    + 'padding:8px 10px;margin-bottom:10px;font-size:13px;color:#633806;"></div>'
     + '<div class="grid3">'
     + '<div><label>증빙서번호</label><input id="f_no" readonly></div>'
     + '<div><label>결의일</label><input id="f_date" type="date"></div>'
@@ -498,6 +500,7 @@ function drawSlip(kind){
     + '</div>'
     + '<div style="display:flex;gap:8px;margin-top:16px;">'
     + '<button id="saveSlip" class="slipsave">💾 저장 전</button>'
+    + '<button id="saveAsNew" class="ghost" style="display:none;">＋ 새 결의서로 저장</button>'
     + '<button id="delSlip" class="ghost" style="color:#b71c1c;">지우기</button>'
     + '<button id="closeSlip" class="ghost">닫기</button>'
     + '<button id="favSave" class="ghost" style="color:#B07A4A;border-color:#B07A4A;">⭐ 자주 쓰는 것으로 저장</button>'
@@ -695,6 +698,7 @@ function openForm(kind, v){
   $('form').scrollIntoView({ behavior:'smooth', block:'nearest' });
   // 골라 채운 것은 아직 저장 전이다
   SLIP_DIRTY = true;
+  setEditMode();
   setSlipBtn('before');
 }
 
@@ -710,7 +714,27 @@ function setSlipBtn(st) {
   b.disabled = (st === 'saving');
   b.textContent = st === 'saving' ? '저장 중…'
                 : st === 'done'   ? '\u2713 저장됨'
-                : '💾 저장 전';
+                : (EDIT ? '💾 고쳐 저장' : '💾 저장 전');
+}
+// ── 고치는 중 / 새로 쓰는 중 표시 (2026-09-24) ──
+//   열기로 연 결의서는 노란 띠 + 「새 결의서로 저장」 단추
+//   (486번이 새로 쓰려던 내용으로 덮어써진 일이 계기)
+function setEditMode(){
+  const bar = $('f_editbar'), nb = $('saveAsNew');
+  if (!bar || !nb) return;
+  if (EDIT) {
+    const c = codeOf(EDIT.code_id);
+    const d = String(EDIT.slip_date || '');
+    bar.innerHTML = '<b>' + EDIT.id + '번 결의서</b> (' + esc(d.slice(5,7) + '/' + d.slice(8,10))
+      + ' · ' + esc(c ? c.mok : '') + ' · ' + won(EDIT.amount) + '원)를 <b>고치는 중</b>입니다.'
+      + '<br>같은 목으로 한 장 더 쓰시려면 「＋ 새 결의서로 저장」을 누르세요. ' + EDIT.id + '번은 그대로 남습니다.';
+    bar.style.display = 'block';
+    nb.style.display = '';
+  } else {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    nb.style.display = 'none';
+  }
 }
 function slipMarkDirty() {
   if (SLIP_SAVING) return;
@@ -950,6 +974,7 @@ function bindSlip(kind){
     $('delSlip').style.display = 'none';
     // 빈 창은 아직 적은 것이 없어 묻지 않는다
     SLIP_DIRTY = false;
+    setEditMode();
     setSlipBtn('before');
   };
   document.querySelectorAll('.pick').forEach(el => {
@@ -968,6 +993,7 @@ function bindSlip(kind){
       drawRows(ROWS[s.id] || []);
       $('delSlip').style.display = '';
       SLIP_DIRTY = false;
+      setEditMode();
       setSlipBtn('done');
     };
   });
@@ -988,7 +1014,15 @@ function bindSlip(kind){
     $('form').style.display = 'none'; EDIT = null;
   };
 
-  $('saveSlip').onclick = async () => {
+  $('saveSlip').onclick = () => doSaveSlip(false);
+  $('saveAsNew').onclick = () => {
+    if (!EDIT) return doSaveSlip(false);
+    if (!confirm('새 결의서로 한 장 더 저장합니다.\n' + EDIT.id + '번 결의서는 그대로 남습니다.\n\n저장할까요?')) return;
+    doSaveSlip(true);
+  };
+  const doSaveSlip = async (asNew) => {
+    if (SLIP_SAVING) return;
+    const TARGET = asNew ? null : EDIT;
     const items = Array.from($('f_rows').querySelectorAll('.rowline')).map((el, i) => ({
       row_no: i + 1,
       item: el.querySelector('.r_item').value.trim(),
@@ -1015,10 +1049,10 @@ function bindSlip(kind){
     setSlipBtn('saving');
     try {
       let sid, oldRows = [];
-      if (EDIT) {
-        const { error } = await sb.from('nl_tax_slips').update(row).eq('id', EDIT.id);
+      if (TARGET) {
+        const { error } = await sb.from('nl_tax_slips').update(row).eq('id', TARGET.id);
         if (error) throw error;
-        sid = EDIT.id;
+        sid = TARGET.id;
         // 옛 줄을 들고 있다가, 새로 넣다 실패하면 되돌린다 (2026-09-21)
         //   전에는 지우기 실패도 안 보고, 넣다 실패하면 적요·금액 줄이 모두 사라졌다
         const oq = await sb.from('nl_tax_slip_rows').select('*').eq('slip_id', sid);
