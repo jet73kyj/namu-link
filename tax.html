@@ -145,7 +145,20 @@
     .ptab tr > th:nth-child(4), .ptab tr > td:nth-child(4) {
       white-space:nowrap; width:1%; }
     .onehide { display:none !important; }
+    /* 지출결의서 적요 표 — 줄 높이·금액 칸 폭을 못 박는다 (2026-09-24)
+       위 「적요 칸을 넓힌다」(2번째 칸 width:auto)를 이 표에서만 되돌린다 */
+    .ptab.fix td { height:8mm !important; padding:0 6px !important; }
+    .ptab.fix tr > td:nth-child(2) { width:38mm !important; min-width:0 !important; }
+    .ptab.fix3 tr > td:nth-child(2) { width:auto !important; }
   }
+  /* 지출결의서 적요 표 — 제목 1줄 + 내역 8줄 + 합계 1줄 · 폭 전체 (2026-09-24) */
+  .ptab.fix { width:100%; table-layout:fixed; }
+  .ptab.fix td { height:8mm; padding:0 6px; vertical-align:middle;
+                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ptab.fix tr.ftit td { background:#f2f6f0; font-weight:500; }
+  .ptab.fix tr.fsum td { font-weight:500; }
+  /* 빈 줄은 선 없이 자리만 (2026-09-24) — 합계 줄 위치는 늘 같다 */
+  .ptab.fix tr.fblank td { border:none !important; background:transparent; }
   /* 결의서 저장 단추 — 저장 전(연한 초록) / 저장 중(회색) / 저장됨(진한 초록) (2026-09-16) */
   button.slipsave { background:#e8f3ea; color:#2e7d32; border:1px solid #a9d6b3; }
   button.slipsave.done { background:#2e7d32; color:#fff; border-color:#2e7d32; }
@@ -499,7 +512,24 @@ function drawSlip(kind){
 }
 
 // 결의서 한 장 (인쇄용)
+// 지출결의서 적요 표 — 제목 1줄 + 내역 8줄 + 합계 1줄 (2026-09-24)
+//   8줄이 넘으면 7줄까지 쓰고 8번째 줄에 「나머지 ○건 — 별지」와 그 합계
+const FIX_N = 8;
+function fixTable(title, list, total){
+  let b = '<colgroup><col><col style="width:38mm;"></colgroup>'
+    + '<tr class="ftit"><td colspan="2">' + esc(title || '') + '</td></tr>';
+  for (let i = 0; i < FIX_N; i++) {
+    const r = list[i];
+    b += r
+      ? '<tr><td>' + esc(r.item || '') + '</td><td class="num">'
+          + (r.amount === '' ? '' : won(r.amount)) + '</td></tr>'
+      : '<tr class="fblank"><td>&nbsp;</td><td></td></tr>';
+  }
+  b += '<tr class="fsum"><td class="ctr">합　계</td><td class="num">' + won(total) + '</td></tr>';
+  return '<table class="ptab fix">' + b + '</table>';
+}
 function paperHtml(s, kind){
+  if (kind === '지출') return paperOut(s);
   const c = codeOf(s.code_id);
   const rows = ROWS[s.id] || [];
   const d = String(s.slip_date);
@@ -518,7 +548,7 @@ function paperHtml(s, kind){
   body += '<tr><td>&nbsp;</td><td></td></tr>'
     + '<tr><td></td><td class="num"><b>' + won(s.amount) + '</b></td></tr>';
 
-  return '<div class="paper"><div class="pin">'
+  return '<div class="paper" data-sid="' + s.id + '"><div class="pin">'
     + '<div class="ptitle" style="letter-spacing:6px;">' + kind + '결의서</div>'
     + '<table class="ptab">'
     + '<tr>'
@@ -552,6 +582,83 @@ function paperHtml(s, kind){
     + '<div class="logo" style="margin-top:16px;">'
     + '<img src="img/nl-logo.png" alt=""></div>'
     + '</div></div>';
+}
+
+// 지출결의서 한 장 (+ 8줄이 넘으면 별지) (2026-09-24)
+function paperOut(s){
+  const kind = '지출';
+  const c = codeOf(s.code_id);
+  const rows = ROWS[s.id] || [];
+  const d = String(s.slip_date);
+  const dd = d.slice(0,4) + '. ' + d.slice(5,7) + '. ' + d.slice(8,10);
+  const all = rows.length ? rows : [{ item: s.title || '', amount: s.amount }];
+  let first = all, rest = [];
+  if (all.length > FIX_N) {
+    first = all.slice(0, FIX_N - 1);
+    rest  = all.slice(FIX_N - 1);
+    const restSum = rest.reduce((a, r) => a + Number(r.amount || 0), 0);
+    first = first.concat([{ item: '나머지 ' + rest.length + '건 — 별지', amount: restSum }]);
+  }
+
+  let h = '<div class="paper" data-sid="' + s.id + '"><div class="pin">'
+    + '<div class="ptitle" style="letter-spacing:6px;">' + kind + '결의서</div>'
+    + '<table class="ptab">'
+    + '<tr>'
+    + '<th style="width:90px;">증빙서번호</th>'
+    + '<td rowspan="2" class="ctr" style="width:220px;">'
+    + '<div>' + YY + '년도</div>'
+    + '<div style="margin-top:6px;">발달재활서비스 회계</div>'
+    + '<div>아래와 같이 지출함</div></td>'
+    + '<th class="ctr" style="width:110px;">담당자</th>'
+    + '<th class="ctr" style="width:110px;">기관장</th></tr>'
+    + '<tr><td class="ctr">' + esc(s.slip_no || '') + '</td>'
+    + '<td style="height:52px;"></td><td></td></tr>'
+    + '<tr><th class="ctr">관</th><td class="ctr">발달재활서비스</td>'
+    + '<th class="ctr">현금출납부등기</th><td class="ctr">' + dd + '</td></tr>'
+    + '<tr><th class="ctr">항</th><td class="ctr">' + esc(c ? c.hang : '') + '</td>'
+    + '<td colspan="2"></td></tr>'
+    + '<tr><th class="ctr">목</th><td class="ctr" colspan="3">'
+    + esc(c ? c.mok : '') + '</td></tr>'
+    + '<tr><td class="ctr" colspan="4">'
+    + '<div>금 ' + hanNum(s.amount) + '원정</div>'
+    + '<div>( ' + won(s.amount) + ' )</div></td></tr>'
+    + '</table>'
+    + '<div style="font-size:13px;margin:10px 0 4px;">〈 적 요 〉</div>'
+    + fixTable(s.title, first, s.amount)
+    + '<div class="pgap"></div>'
+    + '<table class="ptab" style="margin-top:14px;">'
+    + '<tr><th class="ctr" style="width:90px;">비　고</th>'
+    + '<td style="width:220px;">첨부 : ' + esc(s.attach || '') + '</td>'
+    + '<td class="ctr">계좌번호 : ' + esc(ACCOUNT) + '</td></tr>'
+    + '</table>'
+    + '<div class="logo" style="margin-top:16px;">'
+    + '<img src="img/nl-logo.png" alt=""></div>'
+    + '</div></div>';
+
+  // 별지 — 나머지 내역을 한 장에 30줄씩
+  const PER = 30;
+  for (let i = 0; i < rest.length; i += PER) {
+    const part = rest.slice(i, i + PER);
+    let b = '<colgroup><col style="width:14mm;"><col><col style="width:38mm;"></colgroup>';
+    part.forEach((r, j) => {
+      b += '<tr><td class="ctr">' + (FIX_N + i + j) + '</td><td>' + esc(r.item || '') + '</td>'
+        + '<td class="num">' + won(r.amount) + '</td></tr>';
+    });
+    if (i + PER >= rest.length) {
+      const restSum = rest.reduce((a, r) => a + Number(r.amount || 0), 0);
+      b += '<tr class="fsum"><td></td><td class="ctr">별지 합계</td>'
+        + '<td class="num">' + won(restSum) + '</td></tr>';
+    }
+    h += '<div class="paper" data-sid="' + s.id + '"><div class="pin">'
+      + '<div class="ptitle" style="letter-spacing:4px;">지출결의서 별지</div>'
+      + '<div style="font-size:12px;margin:6px 0 8px;">증빙서번호 ' + esc(s.slip_no || '')
+      + ' · ' + dd + ' · ' + esc(c ? c.mok : '') + ' · ' + esc(s.title || '') + '</div>'
+      + '<table class="ptab fix fix3">' + b + '</table>'
+      + '<div class="logo" style="margin-top:16px;">'
+      + '<img src="img/nl-logo.png" alt=""></div>'
+      + '</div></div>';
+  }
+  return h;
 }
 
 // 내역 줄 그리기
@@ -818,7 +925,8 @@ function bindSlip(kind){
       if (!box) return;
       const kids = Array.from(box.children);
       kids.forEach((c, i) => {
-        c.dataset.hide = (String(PAPER_IDS[i]) === id) ? '' : '1';
+        const sid = c.dataset.sid || String(PAPER_IDS[i]);
+        c.dataset.hide = (sid === id) ? '' : '1';
         if (c.dataset.hide) c.classList.add('onehide');
         else c.classList.remove('onehide');
       });
