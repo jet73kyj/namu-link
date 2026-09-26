@@ -1969,7 +1969,7 @@ async function drawAcc(cid) {
       + ' data-lid="' + esc(a.login_id) + '"'
       + ' style="width:auto;margin:0;padding:8px 16px;background:#2c5c37;'
       + 'color:#fff;font-size:13px;font-weight:700;border:none;border-radius:8px;'
-      + 'cursor:pointer;">번호 바꾸기</button>'
+      + 'cursor:pointer;">' + (/^p[0-9]{4}$/.test(String(a.login_id)) ? '휴대폰 번호로 바꾸기' : '번호 바꾸기') + '</button>'
       + '</div>'
       + tpwLine(a, TPW[a.id])).join('')
       + '<div style="font-size:12px;color:#9aa19c;">'
@@ -2017,20 +2017,35 @@ async function copyAccGuide(btn) {
   }
 }
 
-// 계정이 없는 아동 — 빈 계정 붙이기 (8·9번만 · 2026-09-22)
+// 계정이 없는 아동 — 계정 만들기 (8·9번만 · 2026-09-26)
+//   서버 함수 parent-create 가 아이디(p 번호)·임시 비번을 만든다
+//   같은 보호자 번호 계정이 있으면 형제로 묶을지 묻는다
 async function drawNoAcc(box, cid) {
   let h = '이 아동에게 이어진 계정이 없습니다.';
   if ([8, 9].includes(Number(MEID))) {
     h += '<div style="margin-top:8px;"><button type="button" id="accAttach"'
        + ' style="width:auto;margin:0;padding:8px 16px;background:#2c5c37;color:#fff;'
        + 'font-size:13px;font-weight:700;border:none;border-radius:8px;cursor:pointer;">'
-       + '빈 계정 붙이기</button>'
+       + '계정 만들기</button>'
        + '<span style="font-size:12px;color:#9aa19c;margin-left:8px;">'
-       + '형제·자매가 이미 다니면 그 집 번호를 넣으세요 — 같은 계정에 이어집니다</span></div>';
+       + '아이디(p 번호)와 임시 비밀번호가 저절로 생깁니다 · 같은 번호의 형제·자매가 있으면 여쭙니다</span></div>';
   }
   box.innerHTML = h;
   const b = $('accAttach');
   if (b) b.onclick = () => attachAcc(cid);
+}
+
+async function callParentFn(body) {
+  const { data: s } = await sb.auth.getSession();
+  const tok = (s && s.session) ? s.session.access_token : '';
+  const r = await fetch(URL_ + '/functions/v1/parent-create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok, 'apikey': KEY_ },
+    body: JSON.stringify(body)
+  });
+  let j = {};
+  try { j = await r.json(); } catch (e) {}
+  return { ok: r.ok, status: r.status, data: j || {} };
 }
 
 async function attachAcc(cid) {
@@ -2039,23 +2054,58 @@ async function attachAcc(cid) {
     const { data: c } = await sb.from('nl_children').select('phone').eq('id', cid).maybeSingle();
     guess = String((c && c.phone) || '').replace(/[^0-9]/g, '').slice(0, 11);
   } catch (e) {}
-  const v = prompt('보호자 휴대폰 번호를 넣으세요 (숫자만)\n학부모 앱 아이디가 됩니다.', guess);
+  const v = prompt('보호자 휴대폰 번호를 넣으세요 (숫자만)\n'
+    + '모르면 비워 두고 확인 — 아이디는 p 번호로 저절로 생깁니다.\n'
+    + '같은 번호의 형제·자매 계정이 있으면 묶을지 여쭙니다.', guess);
   if (v === null) return;
   const ph = String(v).replace(/[^0-9]/g, '');
-  if (ph.length < 10 || ph.length > 11) { alert('휴대폰 번호를 다시 넣어주세요.'); return; }
-  if (!confirm(ph + ' 번호로 학부모 계정을 이을까요?')) return;
-  const { data, error } = await sb.rpc('nl_parent_attach', { p_child: Number(cid), p_phone: ph });
-  if (error) { alert('잇지 못했습니다.\n' + error.message); return; }
-  const msgTxt = String(data || '');
-  alert(msgTxt);
-  if (/^멈춤/.test(msgTxt)) return;
-  drawAcc(cid);
-  if (typeof drawMobile === 'function') drawMobile(cid);
+  if (ph && (ph.length < 10 || ph.length > 11)) { alert('휴대폰 번호를 다시 넣어주세요.'); return; }
+
+  const btn = $('accAttach');
+  if (btn) { btn.disabled = true; btn.textContent = '만드는 중...'; }
+  try {
+    let res = await callParentFn({ child_id: Number(cid), phone: ph, mode: 'check' });
+    if (res.ok && res.data.need_confirm) {
+      const kids = (res.data.kids || []).join(', ');
+      if (confirm('이 번호로 이미 학부모 계정이 있습니다.\n'
+          + '아이디 ' + res.data.login_id + ' · 자녀 ' + kids + '번\n\n'
+          + '형제·자매로 한 계정에 묶을까요?\n[확인] 묶기   [취소] 묶지 않기')) {
+        res = await callParentFn({ child_id: Number(cid), mode: 'join', account_id: res.data.account_id });
+      } else {
+        if (!confirm('묶지 않고 이 아동만의 새 계정을 따로 만들까요?')) return;
+        res = await callParentFn({ child_id: Number(cid), phone: ph, mode: 'new' });
+      }
+    }
+    if (!res.ok) {
+      alert('만들지 못했습니다.\n' + (res.data.message || ('오류 ' + res.status)));
+      return;
+    }
+    if (res.data.joined) {
+      alert('형제·자매 계정(' + res.data.login_id + ')에 묶었습니다.\n'
+        + '쓰시던 아이디·비밀번호 그대로 이 아동도 보입니다.');
+    } else {
+      alert('학부모 계정을 만들었습니다.\n\n'
+        + '아이디 ' + res.data.login_id + '\n'
+        + '임시 비밀번호 ' + res.data.temp_pin + '\n\n'
+        + '「안내 문구 복사」로 보내 드리세요.');
+    }
+    drawAcc(cid);
+    if (typeof drawMobile === 'function') drawMobile(cid);
+  } catch (e) {
+    alert('만들지 못했습니다.\n' + (e && e.message ? e.message : e));
+  } finally {
+    const b2 = $('accAttach');
+    if (b2) { b2.disabled = false; b2.textContent = '계정 만들기'; }
+  }
 }
 
 async function changeAcc(btn) {
   const old = String(btn.dataset.lid || '');
-  const v = prompt('새 휴대폰 번호를 넣으세요 (숫자만)\n\n지금 아이디 : ' + old, '');
+  const isP = /^p[0-9]{4}$/.test(old);
+  const v = prompt((isP
+      ? '학부모 휴대폰 번호를 넣으세요 (숫자만)\n이 번호가 새 아이디가 됩니다.'
+      : '새 휴대폰 번호를 넣으세요 (숫자만)')
+    + '\n\n지금 아이디 : ' + old, '');
   if (v === null) return;
   const nw = String(v).replace(/[^0-9]/g, '');
   if (nw.length < 10 || nw.length > 11) { alert('휴대폰 번호를 다시 넣어주세요.'); return; }
@@ -2071,9 +2121,17 @@ async function changeAcc(btn) {
     + '비밀번호는 그대로입니다.\n형제·자매가 있으면 함께 적용됩니다.')) return;
 
   const { error } = await sb.from('nl_parent_accounts')
-    .update({ login_id: nw }).eq('id', Number(btn.dataset.acc));
+    .update({ login_id: nw, phone: nw }).eq('id', Number(btn.dataset.acc));
   if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
-  alert('바꿨습니다.\n\n새 번호 ' + nw + ' 와 쓰시던 비밀번호로 들어오시면 됩니다.');
+  const note = '자라는나무 학부모 앱 아이디가 바뀌었습니다.\n'
+    + '새 아이디 ' + nw + ' (휴대폰 번호)\n'
+    + '비밀번호는 쓰시던 그대로입니다.\n'
+    + '주소 https://jet73kyj.github.io/namu-link/parent.html';
+  if (confirm('바꿨습니다.\n\n새 번호 ' + nw + ' 와 쓰시던 비밀번호로 들어오시면 됩니다.\n\n'
+      + '학부모께 보낼 안내 문구를 복사할까요?')) {
+    try { await navigator.clipboard.writeText(note); alert('복사했습니다. 문자에 붙여 보내 주세요.'); }
+    catch (e) { prompt('아래 글을 복사하세요 (Ctrl+C)', note); }
+  }
   drawAcc(edId);
 }
 

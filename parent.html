@@ -445,9 +445,9 @@
   <img src="img/nl-logo.png" alt="자라는나무" class="loginlogo" onerror="this.style.display='none'">
   <h1>자라는나무</h1>
   <div class="sub">아동발달치료센터 · 학부모</div>
-  <label for="ph">휴대폰 번호</label>
-  <input id="ph" type="tel" inputmode="numeric" autocomplete="username"
-         placeholder="01012345678">
+  <label for="ph">휴대폰 번호 또는 아이디</label>
+  <input id="ph" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"
+         placeholder="01012345678 또는 p0001">
   <label for="pw">비밀번호</label>
   <input id="pw" type="password" inputmode="numeric" autocomplete="current-password">
   <button id="btn">로그인</button>
@@ -583,9 +583,11 @@ function hhmm(t) { return t ? String(t).slice(0, 5) : ''; }
 
 // ── 로그인 ─────────────────────────────────────────────
 $('btn').onclick = async () => {
-  const phone = $('ph').value.replace(/[^0-9]/g, '');
+  // 아이디 — p + 숫자 네 자리는 그대로, 아니면 숫자만 (2026-09-26)
+  const raw   = $('ph').value.trim().toLowerCase();
+  const phone = /^p[0-9]{4}$/.test(raw) ? raw : raw.replace(/[^0-9]/g, '');
   const pw    = $('pw').value;
-  if (!phone || !pw) { show($('msg'), '휴대폰 번호와 비밀번호를 모두 넣어 주세요.', false); return; }
+  if (!phone || !pw) { show($('msg'), '휴대폰 번호(아이디)와 비밀번호를 모두 넣어 주세요.', false); return; }
   $('btn').disabled = true; $('btn').textContent = '로그인 중...';
   try {
     // 잠겨 있는지 먼저 본다
@@ -620,7 +622,7 @@ $('btn').onclick = async () => {
       const cnt = Number(n && n.data != null ? n.data : (n || 0));
       const left = 5 - cnt;
       show($('msg'), left > 0
-        ? '번호나 비밀번호가 맞지 않습니다.\n' + left + '번 더 틀리면 10분 잠깁니다.'
+        ? '아이디나 비밀번호가 맞지 않습니다.\n' + left + '번 더 틀리면 10분 잠깁니다.'
         : '5번 틀려서 10분 잠겼습니다.\n잠시 뒤에 다시 해 주세요.', false);
       return;
     }
