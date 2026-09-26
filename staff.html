@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>직원 계정 - 나무링크</title>
+<style>
+  /* 꾸밈 B */
+  :root { --ink:#2F2926; --ink2:#4A433F; --ink3:#A39C95; --line:#ECE8E3;
+          --bg:#F5F4F2; --acc:#B07A4A; --acc-bg:#F8F1E8; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:var(--bg);
+         margin:0; padding:24px 20px; color:var(--ink); }
+  .wrap { max-width:880px; margin:0 auto; }
+  .top { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line);
+         border-radius:12px; padding:14px 18px; margin-bottom:16px; }
+  .top img { height:34px; }
+  .top h1 { font-size:18px; font-weight:600; margin:0; flex:1; }
+  .top a { font-size:13px; color:var(--acc); text-decoration:none; border:1px solid #E4E0DA;
+           border-radius:8px; padding:7px 12px; background:#fff; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin:0 0 12px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input, select { font:inherit; font-size:14px; padding:8px 10px; border:1px solid var(--line);
+                  border-radius:8px; background:#fff; color:var(--ink); }
+  button { font:inherit; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;
+           background:#fff; color:var(--ink2); border:1px solid #E4E0DA; }
+  button.main { background:var(--acc); color:#fff; border:none; }
+  button:disabled { opacity:.5; cursor:default; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th { background:var(--acc-bg); text-align:left; padding:8px; border-bottom:2px solid #C9A27E; font-weight:600; }
+  td { padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tr.off td { color:var(--ink3); }
+  .tag { font-size:11.5px; padding:2px 7px; border-radius:6px; background:#F1F7F2; color:#3d6b4a; }
+  .tag.warn { background:#FCEFEA; color:#b1462b; }
+  .res { display:none; margin-top:12px; padding:12px 14px; border-radius:10px; background:#F1F7F2;
+         border-left:3px solid #5E9A6E; font-size:14px; line-height:1.8; white-space:pre-wrap; }
+  .res.err { background:#FCEFEA; border-left-color:#D8684A; }
+  .res b { font-size:16px; letter-spacing:.5px; }
+  .hint { font-size:12px; color:var(--ink3); margin-top:8px; line-height:1.7; }
+  #msg { padding:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <img src="img/nl-logo.png" alt="" onerror="this.style.display='none'">
+    <h1>직원 계정</h1>
+    <a href="index.html">처음으로</a>
+  </div>
+
+  <div id="msg" class="card">불러오는 중...</div>
+
+  <div id="main" style="display:none;">
+    <div class="card">
+      <h2>＋ 직원 추가</h2>
+      <div class="row">
+        <input id="nName" placeholder="이름" maxlength="30" style="width:160px;">
+        <select id="nRole">
+          <option value="치료사">치료사</option>
+          <option value="행정">행정</option>
+          <option value="데스크">데스크</option>
+          <option value="홍보">홍보</option>
+        </select>
+        <button id="nBtn" class="main">계정 만들기</button>
+      </div>
+      <div class="hint">아이디(namu + 직원 번호)와 임시 비밀번호가 저절로 생깁니다.
+        처음 로그인하면 비밀번호를 새로 정하게 됩니다.</div>
+      <div id="nRes" class="res"></div>
+    </div>
+
+    <div class="card">
+      <h2>직원 목록</h2>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>번호</th><th>이름</th><th>역할</th><th>로그인</th><th>상태</th><th></th></tr></thead>
+          <tbody id="list"></tbody>
+        </table>
+      </div>
+      <div id="rRes" class="res"></div>
+      <div class="hint">「비번 초기화」를 누르면 새 임시 비밀번호가 한 번 보입니다.
+        8번(대표) 비밀번호는 여기서 초기화하지 않습니다.</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
+<script>
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: nlStore, persistSession: true, autoRefreshToken: true }
+});
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const HOME = 'https://jet73kyj.github.io/namu-link/index.html';
+
+// 서버 함수 부르기 — 오류여도 글을 돌려받는다
+async function callFn(name, body) {
+  const { data: s } = await sb.auth.getSession();
+  const tok = (s && s.session) ? s.session.access_token : '';
+  const r = await fetch(URL_ + '/functions/v1/' + name, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok, 'apikey': KEY_ },
+    body: JSON.stringify(body)
+  });
+  let j = {};
+  try { j = await r.json(); } catch (e) {}
+  return { ok: r.ok, status: r.status, data: j || {} };
+}
+
+function guide(login, pw) {
+  return '자라는나무 나무링크 직원 계정 안내\n'
+    + '주소 ' + HOME + '\n'
+    + '아이디 ' + login + ' / 임시 비밀번호 ' + pw + '\n'
+    + '처음 들어오시면 비밀번호를 새로 정해 주세요.';
+}
+
+function showRes(el, html, ok) {
+  el.innerHTML = html;
+  el.className = 'res' + (ok ? '' : ' err');
+  el.style.display = 'block';
+}
+
+async function copyText(btn, t) {
+  try { await navigator.clipboard.writeText(t); btn.textContent = '✓ 복사됨'; }
+  catch (e) { prompt('아래 글을 복사하세요 (Ctrl+C)', t); }
+}
+
+async function load() {
+  const { data, error } = await sb.from('nl_therapists')
+    .select('id, name, role, active, login_id, login_email, must_change')
+    .order('id');
+  if (error) { $('list').innerHTML = '<tr><td colspan="6">목록을 못 가져왔습니다.</td></tr>'; return; }
+  $('list').innerHTML = (data || []).map(t =>
+    '<tr class="' + (t.active === false ? 'off' : '') + '">'
+    + '<td>' + t.id + '</td>'
+    + '<td>' + esc(t.name) + '</td>'
+    + '<td>' + esc(t.role) + '</td>'
+    + '<td>' + (t.login_id ? '<b>' + esc(t.login_id) + '</b>' : '메일로 로그인') + '</td>'
+    + '<td>' + (t.active === false ? '<span class="tag warn">퇴사</span>'
+              : (t.must_change ? '<span class="tag warn">비번 정하기 전</span>' : '<span class="tag">사용 중</span>')) + '</td>'
+    + '<td>' + (Number(t.id) === 8 || !t.login_email ? ''
+              : '<button class="rst" data-id="' + t.id + '" data-nm="' + esc(t.name) + '">비번 초기화</button>') + '</td>'
+    + '</tr>').join('');
+  document.querySelectorAll('.rst').forEach(b => { b.onclick = () => resetPw(b); });
+}
+
+$('nBtn').onclick = async () => {
+  const name = $('nName').value.trim();
+  const role = $('nRole').value;
+  if (!name) { alert('이름을 넣어 주세요.'); return; }
+  if (!confirm(name + ' (' + role + ') 계정을 만들까요?')) return;
+  $('nBtn').disabled = true; $('nBtn').textContent = '만드는 중...';
+  try {
+    const res = await callFn('staff-create', { name, role });
+    if (!res.ok) { showRes($('nRes'), '만들지 못했습니다.\n' + esc(res.data.message || ('오류 ' + res.status)), false); return; }
+    const d = res.data;
+    const t = guide(d.login_id, d.temp_password);
+    showRes($('nRes'),
+      esc(name) + ' 선생님 계정을 만들었습니다 (직원 ' + d.staff_id + '번)\n'
+      + '아이디 <b>' + esc(d.login_id) + '</b> · 임시 비밀번호 <b>' + esc(d.temp_password) + '</b>\n'
+      + '<button id="nCopy">안내 문구 복사</button>  이 비밀번호는 지금만 보입니다', true);
+    $('nCopy').onclick = () => copyText($('nCopy'), t);
+    $('nName').value = '';
+    load();
+  } catch (e) {
+    showRes($('nRes'), '만들지 못했습니다.\n' + esc(e && e.message ? e.message : e), false);
+  } finally {
+    $('nBtn').disabled = false; $('nBtn').textContent = '계정 만들기';
+  }
+};
+
+async function resetPw(btn) {
+  if (!confirm(btn.dataset.nm + ' 선생님 비밀번호를 초기화할까요?\n지금 쓰시는 비밀번호로는 더 이상 못 들어옵니다.')) return;
+  btn.disabled = true;
+  try {
+    const res = await callFn('staff-reset', { staff_id: Number(btn.dataset.id) });
+    if (!res.ok) { showRes($('rRes'), '초기화하지 못했습니다.\n' + esc(res.data.message || ('오류 ' + res.status)), false); return; }
+    const d = res.data;
+    const t = guide(d.login, d.temp_password);
+    showRes($('rRes'),
+      esc(btn.dataset.nm) + ' 선생님 비밀번호를 초기화했습니다\n'
+      + '로그인 <b>' + esc(d.login) + '</b> · 임시 비밀번호 <b>' + esc(d.temp_password) + '</b>\n'
+      + '<button id="rCopy">안내 문구 복사</button>  이 비밀번호는 지금만 보입니다', true);
+    $('rCopy').onclick = () => copyText($('rCopy'), t);
+    load();
+  } catch (e) {
+    showRes($('rRes'), '초기화하지 못했습니다.\n' + esc(e && e.message ? e.message : e), false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { location.replace('index.html'); return; }
+  const em = String(data.session.user.email || '').toLowerCase();
+  const { data: me } = await sb.from('nl_therapists').select('id, active').eq('login_email', em).maybeSingle();
+  if (!me || me.active === false || Number(me.id) !== 8) {
+    $('msg').textContent = '이 화면은 8번(대표)만 쓸 수 있습니다.';
+    return;
+  }
+  $('msg').style.display = 'none';
+  $('main').style.display = 'block';
+  load();
+})();
+</script>
+</body>
+</html>

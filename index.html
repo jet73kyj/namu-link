@@ -107,12 +107,26 @@
   <img src="img/nl-logo.png" alt="자라는나무" class="loginlogo" onerror="this.style.display='none'">
   <h1>나무링크</h1>
   <div class="sub">자라는나무 아동발달치료센터</div>
-  <label for="em">이메일</label>
-  <input id="em" type="email" autocomplete="username" placeholder="you@example.com">
+  <label for="em">이메일 또는 아이디</label>
+  <input id="em" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"
+         placeholder="you@example.com 또는 namu018">
   <label for="pw">비밀번호</label>
   <input id="pw" type="password" autocomplete="current-password">
   <button id="btn">로그인</button>
   <div id="msg" class="out"></div>
+</div>
+
+<!-- 첫 로그인 — 비밀번호 정하기 (2026-09-26) -->
+<div class="box" id="spwBox" style="display:none;">
+  <h1>비밀번호 정하기</h1>
+  <div class="sub">처음 들어오셨습니다. 쓰실 비밀번호를 정해 주세요.<br>
+    8자 이상 · 영문과 숫자를 섞어 주세요.</div>
+  <label for="snp1">새 비밀번호</label>
+  <input id="snp1" type="password" autocomplete="new-password">
+  <label for="snp2">한 번 더</label>
+  <input id="snp2" type="password" autocomplete="new-password">
+  <button id="snpBtn">이 비밀번호로 정하기</button>
+  <div id="snpMsg" class="out"></div>
 </div>
 
 <!-- 로그인 후 -->
@@ -237,6 +251,9 @@ const MENU = [
     { f:'salary.html', nm:'급여명세서',
       de:'행정·홍보 급여명세서 만들기',
       roles:['관리자'] },
+    { f:'staff.html', nm:'직원 계정',
+      de:'새 직원 아이디 · 임시 비밀번호 만들기<br>비밀번호 초기화',
+      roles:['관리자'] },
     { f:'tax.html', nm:'세무',
       de:'수입·지출결의서 쓰기<br>현금출납부·세입세출 결산표 자동',
       roles:['관리자'] }
@@ -287,7 +304,7 @@ async function nlMaintCheck(){
 
 async function afterLogin(user) {
   const { data: me, error } = await sb
-    .from('nl_therapists').select('id, name, role')
+    .from('nl_therapists').select('id, name, role, must_change')
     .eq('login_email', user.email.toLowerCase()).maybeSingle();
   if (error) { show($('msg'), '❌ 직원 조회 실패\n' + error.message, false); return; }
   if (!me)   {
@@ -296,6 +313,8 @@ async function afterLogin(user) {
     show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return;
   }
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
+  // 첫 로그인 · 초기화 뒤 — 비밀번호부터 정한다 (2026-09-26)
+  if (me.must_change) { showStaffPw(user); return; }
   // 학부모 결석 요청을 실시간으로 띄운다 (2026-09-22)
   if (window.NLLive) NLLive.start(sb, me.id, { onRead: () => loadAlerts(false), onNew: () => loadAlerts(false) });
 
@@ -508,11 +527,17 @@ $('alOk').onclick = async () => {
 $('albg').onclick = e => { if (e.target === $('albg')) { $('albg').style.display = 'none'; showChk(); } };
 
 $('btn').onclick = async () => {
-  const email = $('em').value.trim().toLowerCase();
+  let email = $('em').value.trim().toLowerCase();
   const pw    = $('pw').value;
-  if (!email || !pw) { show($('msg'), '이메일과 비밀번호를 모두 입력하세요.', false); return; }
+  if (!email || !pw) { show($('msg'), '이메일(아이디)과 비밀번호를 모두 입력하세요.', false); return; }
   $('btn').disabled = true; $('btn').textContent = '로그인 중...';
   try {
+    // 아이디(namu018)면 로그인 메일을 찾아 쓴다 (2026-09-26)
+    if (/^namu[0-9]{3}$/.test(email)) {
+      const { data: em2 } = await sb.rpc('nl_staff_email', { p_login: email });
+      if (!em2) throw new Error('없는 아이디이거나 사용이 중지된 계정입니다.');
+      email = String(em2);
+    }
     const { data, error } = await sb.auth.signInWithPassword({ email, password: pw });
     if (error) throw error;
     // 이메일만 기억해 둔다 (비밀번호는 저장하지 않는다)
@@ -533,6 +558,36 @@ $('out').onclick = async () => {
   location.replace('index.html');
 };
 $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn').click(); });
+
+// ── 첫 로그인 — 비밀번호 정하기 (2026-09-26) ──
+function showStaffPw(user) {
+  $('loginBox').style.display = 'none';
+  $('mainBox').style.display  = 'none';
+  $('spwBox').style.display   = 'block';
+  $('snp1').focus();
+  $('snpBtn').onclick = async () => {
+    const a = $('snp1').value, b = $('snp2').value;
+    if (a.length < 8 || !/[A-Za-z]/.test(a) || !/[0-9]/.test(a)) {
+      show($('snpMsg'), '8자 이상 · 영문과 숫자를 섞어 주세요.', false); return;
+    }
+    if (a !== b) { show($('snpMsg'), '두 칸이 서로 다릅니다.', false); return; }
+    $('snpBtn').disabled = true; $('snpBtn').textContent = '정하는 중...';
+    try {
+      const { error } = await sb.auth.updateUser({ password: a });
+      if (error) throw error;
+      const { error: e2 } = await sb.rpc('nl_staff_pw_done');
+      if (e2) throw e2;
+      $('spwBox').style.display = 'none';
+      await afterLogin(user);
+    } catch (e) {
+      show($('snpMsg'), '정하지 못했습니다.\n' + (e && e.message ? e.message : e)
+        + '\n(너무 흔한 비밀번호는 받지 않습니다 — 다른 것으로 해 주세요)', false);
+    } finally {
+      $('snpBtn').disabled = false; $('snpBtn').textContent = '이 비밀번호로 정하기';
+    }
+  };
+  $('snp2').onkeydown = e => { if (e.key === 'Enter') $('snpBtn').click(); };
+}
 
 // 화면을 열면 지난번 이메일을 채워둔다 (비밀번호는 매번 입력)
 try {
