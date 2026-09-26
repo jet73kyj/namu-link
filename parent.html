@@ -2382,7 +2382,17 @@ async function drawFixNote() {
 // 이미 로그인해 있으면 바로 들어간다
 (async () => {
   const { data } = await sb.auth.getSession();
-  if (data.session) await afterLogin();
+  if (data.session) {
+    // 첫 비밀번호를 아직 안 정했으면 그 화면부터 (창을 닫았다 다시 열어도) (2026-09-26)
+    let mc = false;
+    const em0 = String((data.session.user && data.session.user.email) || '');
+    if (/@parent\.namu$/i.test(em0)) try {
+      const { data: me } = await sb.from('nl_parent_accounts').select('must_change').limit(1);
+      mc = !!(me && me[0] && me[0].must_change);
+    } catch (e) {}
+    if (mc) { showChange(); return; }
+    await afterLogin();
+  }
 })();
 </script>
 </body>

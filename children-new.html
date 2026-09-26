@@ -1947,7 +1947,7 @@ async function drawAcc(cid) {
     if (!pc || !pc.length) { drawNoAcc(box, cid); return; }
     const ids = pc.map(x => x.account_id);
     const { data: acc } = await sb.from('nl_parent_accounts')
-      .select('id, login_id, last_login, active, must_change').in('id', ids);
+      .select('id, login_id, last_login, active, must_change, phone').in('id', ids);
     if (!acc || !acc.length) { drawNoAcc(box, cid); return; }
     // 임시 비번 — 8·9번만 보인다 (표 잠금). 학부모가 바꾸면 저절로 지워짐 (2026-09-22)
     const TPW = {};
@@ -1967,6 +1967,8 @@ async function drawAcc(cid) {
       + (a.active === false ? ' · 꺼짐' : '') + '</span>'
       + '<button type="button" class="accchg" data-acc="' + a.id + '"'
       + ' data-lid="' + esc(a.login_id) + '"'
+      + ' data-ph="' + esc(a.phone || '') + '"'
+      + ' data-mc="' + (a.must_change === false ? '0' : '1') + '"'
       + ' style="width:auto;margin:0;padding:8px 16px;background:#2c5c37;'
       + 'color:#fff;font-size:13px;font-weight:700;border:none;border-radius:8px;'
       + 'cursor:pointer;">' + (/^p[0-9]{4}$/.test(String(a.login_id)) ? '휴대폰 번호로 바꾸기' : '번호 바꾸기') + '</button>'
@@ -2087,6 +2089,7 @@ async function attachAcc(cid) {
       alert('학부모 계정을 만들었습니다.\n\n'
         + '아이디 ' + res.data.login_id + '\n'
         + '임시 비밀번호 ' + res.data.temp_pin + '\n\n'
+        + '다음 차례 — 「휴대폰 번호로 바꾸기」로 아이디를 학부모 번호로 바꾼 뒤\n'
         + '「안내 문구 복사」로 보내 드리세요.');
     }
     drawAcc(cid);
@@ -2105,7 +2108,7 @@ async function changeAcc(btn) {
   const v = prompt((isP
       ? '학부모 휴대폰 번호를 넣으세요 (숫자만)\n이 번호가 새 아이디가 됩니다.'
       : '새 휴대폰 번호를 넣으세요 (숫자만)')
-    + '\n\n지금 아이디 : ' + old, '');
+    + '\n\n지금 아이디 : ' + old, isP ? String(btn.dataset.ph || '') : '');
   if (v === null) return;
   const nw = String(v).replace(/[^0-9]/g, '');
   if (nw.length < 10 || nw.length > 11) { alert('휴대폰 번호를 다시 넣어주세요.'); return; }
@@ -2120,14 +2123,23 @@ async function changeAcc(btn) {
   if (!confirm('아이디를 ' + old + ' → ' + nw + ' 로 바꿀까요?\n\n'
     + '비밀번호는 그대로입니다.\n형제·자매가 있으면 함께 적용됩니다.')) return;
 
-  const { error } = await sb.from('nl_parent_accounts')
-    .update({ login_id: nw, phone: nw }).eq('id', Number(btn.dataset.acc));
+  // 돌려받은 줄 수로 실제로 바뀌었는지 본다 (0줄이면 오류가 없어도 실패)
+  const { data: upd, error } = await sb.from('nl_parent_accounts')
+    .update({ login_id: nw, phone: nw }).eq('id', Number(btn.dataset.acc)).select('id, login_id');
   if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
+  if (!upd || upd.length !== 1 || upd[0].login_id !== nw) {
+    alert('바꾸지 못했습니다.\n(바뀐 줄 ' + (upd ? upd.length : 0) + '개 · 계정 ' + btn.dataset.acc + ')');
+    return;
+  }
   const note = '자라는나무 학부모 앱 아이디가 바뀌었습니다.\n'
     + '새 아이디 ' + nw + ' (휴대폰 번호)\n'
     + '비밀번호는 쓰시던 그대로입니다.\n'
     + '주소 https://jet73kyj.github.io/namu-link/parent.html';
-  if (confirm('바꿨습니다.\n\n새 번호 ' + nw + ' 와 쓰시던 비밀번호로 들어오시면 됩니다.\n\n'
+  if (btn.dataset.mc === '1') {
+    alert('바꿨습니다. 새 아이디 ' + nw + '\n\n'
+      + '아직 첫 로그인 전입니다.\n'
+      + '아래 「안내 문구 복사」로 새 아이디와 임시 비밀번호를 보내 드리세요.');
+  } else if (confirm('바꿨습니다.\n\n새 번호 ' + nw + ' 와 쓰시던 비밀번호로 들어오시면 됩니다.\n\n'
       + '학부모께 보낼 안내 문구를 복사할까요?')) {
     try { await navigator.clipboard.writeText(note); alert('복사했습니다. 문자에 붙여 보내 주세요.'); }
     catch (e) { prompt('아래 글을 복사하세요 (Ctrl+C)', note); }
