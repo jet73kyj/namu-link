@@ -1950,11 +1950,11 @@ async function drawAcc(cid) {
       .select('id, login_id, last_login, active, must_change, phone').in('id', ids);
     if (!acc || !acc.length) { drawNoAcc(box, cid); return; }
     // 임시 비번 — 8·9번만 보인다 (표 잠금). 학부모가 바꾸면 저절로 지워짐 (2026-09-22)
-    const TPW = {};
+    const TPW = {}, TPWAT = {};
     try {
       const { data: tp } = await sb.from('nl_parent_temp_pw')
-        .select('account_id, temp_pw').in('account_id', ids);
-      (tp || []).forEach(r => { TPW[r.account_id] = r.temp_pw; });
+        .select('account_id, temp_pw, updated_by, updated_at').in('account_id', ids);
+      (tp || []).forEach(r => { TPW[r.account_id] = r.temp_pw; TPWAT[r.account_id] = r; });
     } catch (e) {}
     box.innerHTML = acc.map(a =>
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'
@@ -1972,12 +1972,25 @@ async function drawAcc(cid) {
       + ' style="width:auto;margin:0;padding:8px 16px;background:#2c5c37;'
       + 'color:#fff;font-size:13px;font-weight:700;border:none;border-radius:8px;'
       + 'cursor:pointer;">' + (/^p[0-9]{4}$/.test(String(a.login_id)) ? '휴대폰 번호로 바꾸기' : '번호 바꾸기') + '</button>'
+      + ([8, 9].includes(Number(MEID)) && a.active !== false
+          ? '<button type="button" class="accreset" data-acc="' + a.id + '"'
+            + ' data-cid="' + cid + '" data-lid="' + esc(a.login_id) + '"'
+            + ' style="width:auto;margin:0;padding:8px 16px;background:#fff;'
+            + 'color:#2c5c37;font-size:13px;font-weight:700;border:1px solid #cfd8cc;'
+            + 'border-radius:8px;cursor:pointer;">비밀번호 초기화</button>'
+          : '')
       + '</div>'
-      + tpwLine(a, TPW[a.id])).join('')
+      + tpwLine(a, TPW[a.id], TPWAT[a.id])).join('')
       + '<div style="font-size:12px;color:#9aa19c;">'
       + '한 계정으로 형제·자매를 함께 봅니다. 번호를 바꾸면 그 집 전체에 적용됩니다.<br>'
-      + '비밀번호는 그대로입니다. 새 번호와 쓰시던 비밀번호로 들어오십니다.</div>';
+      + '비밀번호는 그대로입니다. 새 번호와 쓰시던 비밀번호로 들어오십니다.'
+      + ([8, 9].includes(Number(MEID))
+          ? '<br>비밀번호를 잊으셨을 때 — 등록된 보호자 번호에서 온 연락인지 확인한 뒤 「비밀번호 초기화」.'
+            + ' 다른 번호로 요청하시면 등록된 번호로 다시 걸어 확인합니다.'
+          : '')
+      + '</div>';
     box.querySelectorAll('.accchg').forEach(b => { b.onclick = () => changeAcc(b); });
+    box.querySelectorAll('.accreset').forEach(b => { b.onclick = () => resetAcc(b); });
     box.querySelectorAll('.acccopy').forEach(b => { b.onclick = () => copyAccGuide(b); });
   } catch (e) {
     box.innerHTML = '계정을 가져오지 못했습니다.';
@@ -1985,7 +1998,7 @@ async function drawAcc(cid) {
 }
 
 // 임시 비번 줄 (2026-09-22)
-function tpwLine(a, pw) {
+function tpwLine(a, pw, at) {
   if (![8, 9].includes(Number(MEID))) return '';
   let h = '<div style="margin:0 0 8px;font-size:13px;color:#5a6156;">';
   if (a.must_change === false) {
@@ -1997,7 +2010,13 @@ function tpwLine(a, pw) {
        + ' data-pw="' + esc(pw) + '"'
        + ' style="width:auto;margin:0 0 0 8px;padding:6px 12px;background:#fff;'
        + 'color:#2c5c37;border:1px solid #cfd8cc;border-radius:8px;font-size:12.5px;'
-       + 'cursor:pointer;">안내 문구 복사</button>';
+       + 'cursor:pointer;">안내 문구 복사</button>'
+       + (at && at.updated_at
+           ? ' <span style="font-size:12px;color:#9aa19c;margin-left:6px;">('
+             + Number(String(at.updated_at).slice(5, 7)) + '월 '
+             + Number(String(at.updated_at).slice(8, 10)) + '일'
+             + (at.updated_by ? ' · ' + at.updated_by + '번' : '') + ')</span>'
+           : '');
   } else {
     h += '임시 비밀번호 — 이 화면에 없음 (네이버 클라우드 목록을 보세요)';
   }
@@ -2099,6 +2118,43 @@ async function attachAcc(cid) {
   } finally {
     const b2 = $('accAttach');
     if (b2) { b2.disabled = false; b2.textContent = '계정 만들기'; }
+  }
+}
+
+// 비밀번호 초기화 (8·9번만 · 2026-09-29)
+//   서버 함수 parent-reset — 새 임시 4자리 · 비번 바꿔야 함 · 잠금 풂 · 임시 비번 표에 적음
+//   화면은 그 상자의 계정 번호를 함께 보낸다 (한 아동에 계정이 둘일 때 엉뚱한 계정을 막음)
+async function resetAcc(btn) {
+  const lid = String(btn.dataset.lid || '');
+  if (!confirm('학부모 계정 ' + lid + ' 의 비밀번호를 초기화합니다.\n\n'
+      + '형제·자매가 함께 쓰는 계정이면 모두 같은 비밀번호가 바뀝니다.\n'
+      + '쓰시던 비밀번호로는 더 이상 들어오실 수 없습니다.\n\n'
+      + '등록된 보호자 번호로 본인 확인을 하셨나요?')) return;
+  btn.disabled = true; btn.textContent = '초기화 중...';
+  try {
+    const { data: s } = await sb.auth.getSession();
+    const tok = (s && s.session) ? s.session.access_token : '';
+    const r = await fetch(URL_ + '/functions/v1/parent-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok, 'apikey': KEY_ },
+      body: JSON.stringify({ child_id: Number(btn.dataset.cid), account_id: Number(btn.dataset.acc) })
+    });
+    let j = {};
+    try { j = await r.json(); } catch (e) {}
+    if (!r.ok || !j || !j.temp_pin) {
+      alert('초기화하지 못했습니다.\n' + ((j && j.message) || ('오류 ' + r.status)));
+      return;
+    }
+    alert('초기화했습니다. (아이디 ' + j.login_id + ')\n\n'
+      + '상자에 새 임시 비밀번호가 보입니다.\n'
+      + '「안내 문구 복사」로 등록된 번호에만 보내 주세요.\n'
+      + '학부모가 들어오시면 새 비밀번호를 정하는 창이 먼저 뜹니다.');
+    drawAcc(Number(btn.dataset.cid));
+    if (typeof drawMobile === 'function') drawMobile(Number(btn.dataset.cid));
+  } catch (e) {
+    alert('초기화하지 못했습니다.\n' + (e && e.message ? e.message : e));
+  } finally {
+    if (document.body.contains(btn)) { btn.disabled = false; btn.textContent = '비밀번호 초기화'; }
   }
 }
 
