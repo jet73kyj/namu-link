@@ -1616,6 +1616,15 @@
           (시간표에는 안 보이는 줄이 하나 만들어집니다).
         </div>
       </div>
+      <!-- 이 달 한 회를 10분씩 나눠서 (쪼개기) — 발추 · 센터 한 곳에서 (2026-09-30) -->
+      <div id="ed_sp2" style="grid-column:1 / -1;display:none;background:#F4EFFA;border:1px solid #E2D8F0;
+           border-left:3px solid #8E6CC4;border-radius:8px;padding:9px 11px;">
+        <div style="font-weight:700;font-size:13.5px;color:#5B3A8C;">이 달 한 회를 10분씩 나눠서 (쪼개기) <span id="ed_sp2mon" style="font-weight:400;"></span></div>
+        <div id="ed_sp2list" style="margin-top:6px;display:flex;flex-direction:column;gap:5px;"></div>
+        <div style="font-size:11.5px;color:#6b5a86;margin-top:6px;line-height:1.6;">
+          고르면 쪼개기 칸이 열립니다. 같은 선생님 · 같은 사업 수업 날에 앞 · 뒤로 붙이고, 40분을 한 번에 채워 저장합니다.
+        </div>
+      </div>
       <input id="ed_start" type="hidden">
       <div>
         <label for="ed_st2">지원유형</label>
@@ -5454,6 +5463,7 @@ function openEd(scId){
   if ($('ed_endwhy')) $('ed_endwhy').value = '';
   edLockSave();
   showSplitBox();
+  drawSp2(r);
   drawRestBtn();
   edmsg('', true); $('edMsg').className = 'out';
   $('addBox').style.display = 'none';
@@ -5473,6 +5483,69 @@ function showSplitBox() {
 $('ed_st2').addEventListener('change', showSplitBox);
 
 $('edClose').onclick = () => { $('edBox').style.display='none'; edRow=null; };
+
+// ── 이 달 한 회를 10분씩 나눠서 (2026-09-30) ─────────────────
+//   나눌 회 = 서버 셈(NEEDSRV)이 「자리가 필요하다」고 본 이 수업의 줄 (결석 · 청구하는 쉬는 날)
+//            + 발달재활 수업이면 「발추 자리 없음」
+//   고르면 지금 쓰는 쪼개기 칸(보강 잡기 창)을 그 회로 연다 — 칸을 따로 만들지 않는다
+function drawSp2(r){
+  const box = $('ed_sp2'), list = $('ed_sp2list');
+  if (!box || !list) return;
+  list.innerHTML = '';
+  if (!CAN_EDIT || !NEEDSRV || !r) { box.style.display = 'none'; return; }
+  $('ed_sp2mon').textContent = '— ' + Number(String(mon).slice(5)) + '월';
+  const items = [];
+  // 발추 자리 없음 (발달재활 수업에서만)
+  if (Number(r.support_type_id) === 2 && NEEDSRV.x8 && NEEDSRV.x8[r._cid]) {
+    items.push({ x8: true, txt: '발추 ' + Number(String(mon).slice(5)) + '월분 · 자리 없음 (미정)' });
+  }
+  // 이 수업의 결석 · 청구하는 쉬는 날 (발추 자리표 결석도 여기로)
+  SESS.filter(x => !isMk(x) && Number(x.child_id) === Number(r._cid)
+      && (Number(x.therapy_id) === Number(r.therapy_id) || Number(x.schedule_id) === Number(r.id))
+      && (NEEDSRV.miss[x.id] !== undefined || NEEDSRV.holi[x.id]))
+    .sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)))
+    .forEach(x => {
+      const nm = STYPE[x.support_type_id] || '';
+      const anc = String(x.memo || '').indexOf('[발추쪼개기]') >= 0;
+      items.push({ id: x.id, txt: (anc ? '발추 ' + Number(String(mon).slice(5)) + '월분 · 쪼개기 진행 중'
+        : nm + ' ' + (x.run_no ? Number(String(x.month_key || mon).slice(5)) + '-' + x.run_no + ' · ' : '')
+          + dLbl(x.plan_date) + ' ' + h12(x.start_time) + ' · ' + x.status)
+        + (partsSum(x.id) ? ' (' + partsSum(x.id) + '/40)' : '') });
+    });
+  if (!items.length) { box.style.display = 'none'; return; }
+  items.forEach(it => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.style.cssText = 'text-align:left;width:auto;margin:0;padding:6px 10px;border:1px solid #D9CCEE;'
+      + 'border-radius:7px;background:#fff;color:#4A2F78;font-size:13px;cursor:pointer;';
+    b.textContent = it.txt + '  → 쪼개기';
+    b.onclick = () => sp2Go(it, r, b);
+    list.appendChild(b);
+  });
+  box.style.display = '';
+}
+async function sp2Go(it, r, btn){
+  let sid = it.id;
+  if (it.x8) {
+    if (!confirm('발추 ' + Number(String(mon).slice(5)) + '월분을 10분씩 나눠서 진행할까요?\n'
+        + '따로 하는 발추 수업 대신, 발달재활 수업 앞 · 뒤에 조각으로 붙입니다.')) return;
+    btn.disabled = true;
+    try {
+      const { data, error } = await sb.rpc('nl_x8_split_anchor', { p_child: r._cid, p_mk: mon });
+      if (error) throw error;
+      sid = Number(data);
+    } catch (e) {
+      btn.disabled = false;
+      alert('발추 자리표를 만들지 못했습니다.\n' + (e.message || e));
+      return;
+    }
+    await loadMonth();
+  }
+  $('edBox').style.display = 'none'; edRow = null;
+  if (!findSess(sid)) { alert('그 회를 찾지 못했습니다. 화면을 새로 연 뒤 다시 해 주세요.'); return; }
+  openMk(sid);
+  setTimeout(() => { const w = $('mkSplitWrap'); if (w && w.scrollIntoView) w.scrollIntoView({ block: 'center' }); }, 80);
+}
 
 // 그 달 회기에 「발추 나눠 진행」 표시를 붙이거나 뗀다
 // ⚠️ 회기를 다시 깐 뒤에 불러야 한다. 그래야 새로 생긴 줄도 챙긴다

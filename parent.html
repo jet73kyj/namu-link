@@ -1427,7 +1427,7 @@ async function loadMonth() {
   let { data, error } = await sb
     .from('nl_sessions')
     .select('id, plan_date, start_time, status, therapist_id, therapy_id,'
-          + ' support_type_id, run_no, makeup_for, minutes, no_makeup, month_key')
+          + ' support_type_id, run_no, makeup_for, minutes, no_makeup, month_key, split_anchor')
     .eq('child_id', CURKID)
     .eq('month_key', CURMK)
     .order('plan_date').order('start_time');
@@ -1443,7 +1443,7 @@ async function loadMonth() {
     const last = CURMK + '-' + String(new Date(y, m, 0).getDate()).padStart(2, '0');
     const { data: ox } = await sb.from('nl_sessions')
       .select('id, plan_date, start_time, status, therapist_id, therapy_id,'
-            + ' support_type_id, run_no, makeup_for, minutes, no_makeup, month_key')
+            + ' support_type_id, run_no, makeup_for, minutes, no_makeup, month_key, split_anchor')
       .eq('child_id', CURKID)
       .neq('month_key', CURMK)
       .not('makeup_for', 'is', null)
@@ -1456,7 +1456,8 @@ async function loadMonth() {
     }
   } catch (e) {}
   // 「보강 없음」으로 뺀 날은 학부모 시간표에도 안 그린다 (2026-09-09)
-  if (data) data = data.filter(r => !r.no_makeup);
+  // 쪼개기 자리표(따로 하는 수업 없음)는 학부모께 안 보인다 — 조각(+10)만 보인다 (2026-09-30)
+  if (data) data = data.filter(r => !r.no_makeup && !r.split_anchor);
   // 체험 · 추가 수업 — 요일줄 없이 이 달만 하는 수업 (2026-09-30) · 금액 · 메모는 안 받음
   try {
     const { data: xs } = await sb.rpc('nl_parent_extras', { p_child: CURKID, p_mk: CURMK });
