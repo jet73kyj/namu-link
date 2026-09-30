@@ -436,6 +436,15 @@
       color:var(--ink); margin-top:4px; }
     .rctbl td:nth-child(5):empty { display:none; }
   }
+  /* 수업 줄 결석 · 보강 (2026-09-30) */
+  .mkinfo { margin-left:8px; font-size:12.5px; color:#4A76A0; white-space:nowrap; }
+  .mkinfo.wait { color:#9A6E20; }
+  .absnote { margin-left:8px; font-size:12px; color:#9a948d; white-space:nowrap; }
+  .nline { display:flex; align-items:center; justify-content:space-between; gap:8px;
+           background:#fff; border:1px solid #F2D3C8; border-left:3px solid #D8684A;
+           border-radius:10px; padding:8px 12px; margin:0 0 8px; font-size:13.5px; }
+  .nline button { padding:5px 11px; border:1px solid #E4E0DA; border-radius:7px; background:#fff; font-size:12.5px; white-space:nowrap; }
+  .topbtns { display:flex; gap:6px; }
 </style>
 </head>
 <body>
@@ -478,7 +487,10 @@
       <img src="img/nl-logo.png" alt="자라는나무" class="toplogo" onerror="this.style.display='none'">
       <h1>자라는나무</h1>
     </div>
-    <button id="out" class="ghost">로그아웃</button>
+    <div class="topbtns">
+      <button id="refresh" class="ghost">새로고침</button>
+      <button id="out" class="ghost">로그아웃</button>
+    </div>
   </div>
 
   <div class="tabs">
@@ -580,6 +592,18 @@ function shiftMonth(mk, n) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 function hhmm(t) { return t ? String(t).slice(0, 5) : ''; }
+function todayYmd() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// 새로고침 — 앱(홈 화면 아이콘)에는 브라우저 새로고침 단추가 없어서 (2026-09-30)
+let HIDDEN_AT = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { HIDDEN_AT = Date.now(); return; }
+  const mb = document.getElementById('mainBox');
+  if (HIDDEN_AT && Date.now() - HIDDEN_AT > 60000 && mb && mb.style.display !== 'none') reload();
+  HIDDEN_AT = 0;
+});
 
 // ── 로그인 ─────────────────────────────────────────────
 $('btn').onclick = async () => {
@@ -926,6 +950,10 @@ function keepParent(){
     localStorage.setItem('nl_parent_tab', TAB);
   } catch (e) {}
 }
+$('refresh').onclick = async () => {
+  const b = $('refresh'); b.disabled = true; b.textContent = '읽는 중…';
+  try { await reload(); } finally { b.disabled = false; b.textContent = '새로고침'; }
+};
 $('prev').onclick = async () => {
   // 기록지는 이 달과 지난 두 달까지만 (표 잠금도 그만큼만 내려준다)
   if (TAB === 'rec' && shiftMonth(CURMK, -1) < shiftMonth(thisMonth(), -2)) return;
@@ -1393,11 +1421,12 @@ function fillText(parts) {
 async function loadMonth() {
   $('mkLabel').textContent = CURMK.slice(0, 4) + '년 ' + (+CURMK.slice(5, 7)) + '월';
   $('list').innerHTML = '<div class="none">불러오는 중...</div>';
+  NEEDROWS = []; NEEDSET = new Set(); MKOF = {}; FIXED = false;
 
   let { data, error } = await sb
     .from('nl_sessions')
     .select('id, plan_date, start_time, status, therapist_id, therapy_id,'
-          + ' support_type_id, run_no, makeup_for, minutes, no_makeup')
+          + ' support_type_id, run_no, makeup_for, minutes, no_makeup, month_key')
     .eq('child_id', CURKID)
     .eq('month_key', CURMK)
     .order('plan_date').order('start_time');
@@ -1413,7 +1442,7 @@ async function loadMonth() {
     const last = CURMK + '-' + String(new Date(y, m, 0).getDate()).padStart(2, '0');
     const { data: ox } = await sb.from('nl_sessions')
       .select('id, plan_date, start_time, status, therapist_id, therapy_id,'
-            + ' support_type_id, run_no, makeup_for, minutes, no_makeup')
+            + ' support_type_id, run_no, makeup_for, minutes, no_makeup, month_key')
       .eq('child_id', CURKID)
       .neq('month_key', CURMK)
       .not('makeup_for', 'is', null)
@@ -1428,6 +1457,7 @@ async function loadMonth() {
   // 「보강 없음」으로 뺀 날은 학부모 시간표에도 안 그린다 (2026-09-09)
   if (data) data = data.filter(r => !r.no_makeup);
   if (!data || !data.length) {
+    await drawNeed();
     $('list').innerHTML = '<div class="none">이 달에는 수업이 없습니다.'
       + (CURMK < '2026-08'
          ? '<br><span style="font-size:12.5px;">시간표는 2026년 8월부터 기록되어 있습니다.</span>'
@@ -1465,6 +1495,33 @@ async function loadMonth() {
       REQS[r.session_id] = r;
     });
   } catch (e) {}
+
+  // 보강이 필요한 줄 — 셈은 서버 한 곳(nl_parent_need) · 화면은 줄에 단추만 붙인다 (2026-09-30)
+  try {
+    const { data: nd } = await sb.rpc('nl_parent_need', { p_child: CURKID, p_mk: CURMK });
+    NEEDROWS = nd || [];
+    NEEDROWS.forEach(x => { if (x.session_id) NEEDSET.add(Number(x.session_id)); });
+  } catch (e) {}
+  // 이 달 교육비 확정 — 확정 전에는 보강 요청을 열지 않는다 (지금 규칙 그대로)
+  try {
+    const { data: fx } = await sb.from('nl_pay_fix')
+      .select('fixed').eq('child_id', CURKID).eq('month_key', CURMK).maybeSingle();
+    FIXED = !!(fx && fx.fixed);
+  } catch (e) {}
+  // 결석 · 쉬는 날 줄에 딸린 보강 (다른 달에 잡힌 것까지)
+  {
+    const ids = data.filter(r => !r.makeup_for && ['결석', '휴무', '쉼'].includes(String(r.status || ''))).map(r => r.id);
+    if (ids.length) {
+      try {
+        const { data: mk } = await sb.from('nl_sessions')
+          .select('id, makeup_for, plan_date, start_time, status, minutes').in('makeup_for', ids);
+        (mk || []).forEach(v => {
+          if (v.status === '결석' || v.status === '취소') return;
+          (MKOF[v.makeup_for] = MKOF[v.makeup_for] || []).push(v);
+        });
+      } catch (e) {}
+    }
+  }
 
   // 보강 회기의 「원래 어느 날 것인지」를 가져온다 (전월 보강을 알려주려고)
   const ORIG = {};
@@ -1521,21 +1578,25 @@ async function loadMonth() {
         if (pz.length) fill = ' · 보강 ' + fillText(pz);
         else if (m40.length) fill = ' · ' + m40.map(v => (+String(v.plan_date).slice(5, 7)) + '/'
           + (+String(v.plan_date).slice(8, 10)) + ' 보강').join(', ');
-        return '<div class="row rest"><div class="nm">' + esc(txt + fill) + '</div></div>';
+        return '<div class="row rest"><div class="nm">' + esc(txt + fill) + '</div>'
+          + (mine.length ? '' : mkPart(r, d, REQS[r.id], tname)) + '</div>';
       }
 
       let cls = 'tag', txt = st;
       if (st === '결석')      { cls = 'tag ab'; }
       else if (st === '보강') { cls = 'tag mk'; }
 
-      // 결석 알림 단추 — 아직 안 낸 「예정」 수업에만
+      // 수업 줄 단추 (2026-09-30)
+      //   예정 → [못 가요] / 알린 뒤 확인 중 → [요청 취소]
+      //   결석 → [결석 취소] [보강 요청] · 보강 요청 뒤 → 「→ 날짜 보강 · 확인 중」 [요청 취소]
       let btn = '';
       const rq = REQS[r.id];
-      if (rq) {
+      if (st === '결석' && !r.makeup_for) {
+        btn = absPart(r, d, rq, tname);
+      } else if (rq) {
         btn = rq.state === '신청'
           ? '<button class="absbtn wait" data-cancel="' + rq.id + '">확인 중 · 요청 취소</button>'
-          : (rq.state === '반려' ? ''
-             : '<button class="absbtn undo" data-undo="' + rq.id + '">결석 취소</button>');
+          : '';
       } else if (st === '예정' && canAsk(d, r.start_time)) {
         btn = '<button class="absbtn" data-ask="' + r.id + '"'
             + ' data-thr="' + (r.therapist_id || '') + '"'
@@ -1598,129 +1659,93 @@ async function loadMonth() {
   await drawNeed();
 }
 
-// ── 보강이 필요한 수업 ─────────────────────────────────
-// 셈은 하지 않는다. 저장된 납부 회기와 회기 줄만 본다
+// ── 시간표 위 한 줄 알림 (2026-09-30) ─────────────────────
+//   「보강이 필요한 수업」 상자는 없앴다. 결석 취소 · 보강 요청은 수업 줄에 붙는다
+//   여기는 이 달 줄에 붙일 수 없는 것만 한 줄씩 — 다른 달 결석 · 모자란 회 · 확정 전 안내
+let NEEDROWS = [], NEEDSET = new Set(), MKOF = {}, FIXED = false;
 async function drawNeed() {
   const box = $('need');
   if (!box) return;
   box.innerHTML = ''; box.style.display = 'none';
   if (TAB !== 'sch') return;
+  const lines = [];
+  const mname = mk => (+mk.slice(5, 7)) + '월';
 
-  // ① 이 달에 수업이 있는가 (청구가 0원이면 납부 줄이 없을 수 있다)
-  let saved = 0;
-  try {
-    const { data: sv } = await sb.from('nl_sessions')
-      .select('id').eq('child_id', CURKID).eq('month_key', CURMK);
-    saved = (sv || []).length;
-  } catch (e) {}
-  if (!saved) return;
-
-  // ② 확정되었는가
-  let fixed = false;
-  try {
-    const { data: fx } = await sb.from('nl_pay_fix')
-      .select('fixed').eq('child_id', CURKID).eq('month_key', CURMK).maybeSingle();
-    fixed = !!(fx && fx.fixed);
-  } catch (e) {}
-
-  if (!fixed) {
-    box.innerHTML =
-        '<div class="needlock">이 달 교육비가 아직 <b>확정 전</b>입니다.<br>'
-      + '교육비 갈래에서 내용을 보시고 <b>「이대로 좋습니다」</b>를 눌러 주세요.<br>'
-      + '확정하시면 보강 요청이 열립니다.'
-      + '<button class="fixbtn" id="goFix">교육비 보러 가기</button></div>';
-    box.style.display = 'block';
-    const g = $('goFix');
-    if (g) g.onclick = () => { TAB = 'pay'; keepParent(); drawTabs(); reload(); };
-    return;
+  // 지난달에 보강이 필요한 결석 (이 달 창구가 함께 알려 줌)
+  const prev = NEEDROWS.filter(x => x.session_id && x.month_key && x.month_key < CURMK);
+  if (prev.length) {
+    const ms = [...new Set(prev.map(x => x.month_key))].sort();
+    lines.push({ t: ms.map(mname).join(' · ') + '에 보강이 필요한 수업이 ' + prev.length + '건 있습니다', go: ms[0] });
   }
-
-  // ③ 보강이 필요한 줄 — 셈은 서버 창구 한 곳에서만 한다 (2026-09-11)
-  //   시간표 「결석 보강」·「회기가 모자란 수업」·「넘어온 보강」과 같은 규칙
-  //   이 달 전부 + 지난달(발달재활은 뺌). 화면은 받은 줄을 그리기만 한다
-  let rows = [];
+  // 다른 달의 앞으로 결석
   try {
-    const { data: nd } = await sb.rpc('nl_parent_need', { p_child: CURKID, p_mk: CURMK });
-    rows = nd || [];
+    const { data: fu } = await sb.from('nl_sessions').select('month_key, plan_date')
+      .eq('child_id', CURKID).eq('status', '결석').is('makeup_for', null)
+      .gte('plan_date', todayYmd()).neq('month_key', CURMK);
+    const f2 = (fu || []).filter(x => x.month_key);
+    if (f2.length) {
+      const ms = [...new Set(f2.map(x => x.month_key))].sort();
+      lines.push({ t: ms.map(mname).join(' · ') + '에 결석이 ' + f2.length + '건 있습니다', go: ms[0] });
+    }
   } catch (e) {}
-  const miss   = rows.filter(r => r.session_id);   // 날짜가 있는 줄 → 「보강 잡기」
-  const shorts = rows.filter(r => !r.session_id);  // 자리 자체가 모자란 회 → 센터로 말씀
-
-  // ④ 이미 낸 신청
-  let reqs = [];
-  try {
-    const { data: rq } = await sb.from('nl_absence_requests')
-      .select('id, session_id, state, makeup_date, makeup_time')
-      .eq('child_id', CURKID);
-    reqs = rq || [];
-  } catch (e) {}
-  const RQ = {};
-  reqs.forEach(r => { if (r.state !== '반려' && r.state !== '취소') RQ[r.session_id] = r; });
-
-  if (!miss.length && !shorts.length) return;
-
-  // 치료 종류 이름
-  const tid3 = [...new Set(miss.map(r => r.therapy_id).filter(Boolean))];
-  const T3 = {};
-  if (tid3.length) {
-    try {
-      const { data: t3 } = await sb.from('nl_therapies')
-        .select('id, therapy_type_id').in('id', tid3);
-      (t3 || []).forEach(r => { T3[r.id] = r.therapy_type_id; });
-    } catch (e) {}
+  // 날짜가 없는 모자란 회
+  NEEDROWS.filter(x => !x.session_id).forEach(x => {
+    const nm = ST_LABEL[Number(x.support_type_id)] || '수업';
+    lines.push({ t: Number(x.support_type_id) === 8
+      ? '이 달 발달추가 수업 자리가 아직 없습니다. 센터로 말씀해 주세요.'
+      : nm + ' ' + Number(x.short) + '회가 모자랍니다. 센터로 말씀해 주세요.' });
+  });
+  // 확정 전 — 보강 요청이 아직 안 열림
+  if (!FIXED && NEEDSET.size) {
+    lines.push({ t: '이 달 교육비가 확정 전이라 보강 요청은 확정 후 열립니다', pay: true });
   }
-
-  let h = '<div class="needbox"><div class="needttl">보강이 필요한 수업 '
-        + (miss.length + shorts.length) + '</div>';
-
-  miss.forEach(r => {
-    const dd = new Date(r.plan_date + 'T00:00:00');
-    const day = (+r.plan_date.slice(5, 7)) + '월 ' + (+r.plan_date.slice(8, 10))
-              + '일 (' + DAYS[dd.getDay()] + ')';
-    const tn  = TYPES[T3[r.therapy_id]] || '수업';
-    const thn = THRS[r.therapist_id] || '';
-    let why = String(r.why || '');
-    if (r.kind === 'prev') why = '지난달에서 넘어온 것 · ' + why;
-    const q = RQ[r.session_id];
-    h += '<div class="needone">'
-       + '<div class="needd">' + esc(day) + ' · ' + esc(hhmm(r.start_time))
-       + ' · ' + esc(tn) + '</div>'
-       + '<div class="needw">' + esc(why) + (thn ? ' · ' + esc(thn) + ' 선생님' : '')
-       + (q ? ' · <b>행정샘 확인 중</b>'
-            + (q.makeup_date
-               ? ' (' + (+q.makeup_date.slice(5, 7)) + '/' + (+q.makeup_date.slice(8, 10))
-                 + ' ' + String(q.makeup_time || '').slice(0, 5) + '로 요청)'
-               : ' (보강일은 나중에)')
-          : '')
-       + '</div>'
-       + (q
-          ? (q.state === '신청'
-             ? '<button class="needbtn gray" data-cancel="' + q.id + '">요청 취소</button>'
-             : '<button class="needbtn gray" data-undo="' + q.id + '">결석 취소</button>')
-          : '<button class="needbtn" data-ask="' + r.session_id + '"'
-            + ' data-d="' + r.plan_date + '" data-t="' + hhmm(r.start_time) + '"'
-            + ' data-thr="' + (r.therapist_id || '') + '"'
-            + ' data-st="' + (r.support_type_id || '') + '"'
-            + ' data-nm="' + esc(tn) + '" data-done="1">보강 요청</button>')
-       + '</div>';
-  });
-
-  shorts.forEach(s => {
-    const nm = ST_LABEL[Number(s.support_type_id)] || '수업';
-    const x8 = Number(s.support_type_id) === 8;
-    h += '<div class="needone">'
-       + '<div class="needd">' + esc(nm) + ' · ' + Number(s.short) + '회 모자랍니다</div>'
-       + '<div class="needw">'
-       + (x8 ? '이 달 발달추가 수업 자리가 아직 없습니다.'
-             : '이 달에 받으실 회수보다 ' + Number(s.short) + '회 적게 잡혀 있습니다.')
-       + ' 센터로 말씀해 주세요.</div>'
-       + '</div>';
-  });
-
-  h += '</div>';
-  box.innerHTML = h;
+  if (!lines.length) return;
+  box.innerHTML = lines.map((x, i) => '<div class="nline"><span>' + esc(x.t) + '</span>'
+    + (x.go ? '<button data-gomk="' + x.go + '">보기</button>'
+       : x.pay ? '<button data-gopay="1">교육비 보기</button>' : '')
+    + '</div>').join('');
   box.style.display = 'block';
-  bindAsk();
+  box.querySelectorAll('button[data-gomk]').forEach(b => {
+    b.onclick = async () => { CURMK = b.dataset.gomk; keepParent(); drawTabs(); await reload(); };
+  });
+  box.querySelectorAll('button[data-gopay]').forEach(b => {
+    b.onclick = async () => { TAB = 'pay'; keepParent(); drawTabs(); await reload(); };
+  });
+}
+
+// 결석 줄의 오른쪽 — 딸린 보강 / 보강 요청 / 결석 취소
+function absPart(r, d, rq, tname) {
+  if (rq && rq.state === '신청')
+    return '<button class="absbtn wait" data-cancel="' + rq.id + '">확인 중 · 요청 취소</button>';
+  let h = mkPart(r, d, rq, tname);
+  const mks = MKOF[r.id] || [];
+  if (!mks.some(v => v.status === '완료') && d >= todayYmd()) {
+    h += canAsk(d, r.start_time)
+      ? '<button class="absbtn undo" data-undo2="' + r.id + '">결석 취소</button>'
+      : '<span class="absnote">결석 취소는 센터로</span>';
+  }
+  return h;
+}
+// 보강 부분 — 잡힌 보강 · 확인 중 · [보강 요청]
+function mkPart(r, d, rq, tname) {
+  const mks = MKOF[r.id] || [];
+  if (mks.length) {
+    return '<span class="mkinfo">→ ' + esc(mks.map(v => mmdd(v.plan_date) + ' ' + hhmm(v.start_time)
+      + (Number(v.minutes || 40) !== 40 ? ' +' + v.minutes + '분' : '')).join(', ')) + ' 보강</span>';
+  }
+  if (rq && rq.state === '보강신청' && rq.makeup_date) {
+    return '<span class="mkinfo wait">→ ' + esc(mmdd(rq.makeup_date) + ' ' + hhmm(rq.makeup_time)) + ' 보강 · 확인 중</span>'
+      + '<button class="absbtn wait" data-mkcancel="' + rq.id + '">요청 취소</button>';
+  }
+  if (NEEDSET.has(Number(r.id))) {
+    return '<button class="absbtn" data-mkask="' + r.id + '"'
+      + ' data-thr="' + (r.therapist_id || '') + '"'
+      + ' data-st="' + (r.support_type_id || '') + '"'
+      + ' data-mk="' + (r.month_key || CURMK) + '"'
+      + ' data-d="' + d + '" data-t="' + esc(hhmm(r.start_time)) + '"'
+      + ' data-nm="' + esc(tname) + '">보강 요청</button>';
+  }
+  return '';
 }
 
 // 지원유형 이름표 — 학부모께 보일 짧은 이름
@@ -1761,6 +1786,52 @@ function bindAsk() {
   document.querySelectorAll('button[data-undo]').forEach(b => {
     b.onclick = () => undoAbsence(Number(b.dataset.undo), b);
   });
+  document.querySelectorAll('button[data-undo2]').forEach(b => {
+    b.onclick = () => undoSession(Number(b.dataset.undo2), b);
+  });
+  document.querySelectorAll('button[data-mkask]').forEach(b => {
+    b.onclick = async () => {
+      if (!FIXED) {
+        if (confirm('이 달 교육비가 아직 확정 전입니다.\n교육비를 확인하시면 보강 요청이 열립니다.\n\n교육비 보러 갈까요?')) {
+          TAB = 'pay'; keepParent(); drawTabs(); await reload();
+        }
+        return;
+      }
+      openAsk(Object.assign({}, b.dataset, { ask: b.dataset.mkask, done: '1' }));
+    };
+  });
+  document.querySelectorAll('button[data-mkcancel]').forEach(b => {
+    b.onclick = () => mkCancel(Number(b.dataset.mkcancel), b);
+  });
+}
+
+// 결석 취소 — 센터가 결석 처리한 수업도 (요청 줄이 있으면 서버가 옛 창구를 그대로 부름)
+async function undoSession(sid, btn) {
+  if (!confirm('결석을 취소할까요?\n\n수업은 원래대로 진행되고,\n잡혀 있던 보강 일정은 지워집니다.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '취소 중...'; }
+  try {
+    const { data, error } = await sb.rpc('nl_parent_undo', { p_session: sid });
+    if (error) throw error;
+    alert(data || '취소했습니다.');
+    await loadMonth();
+  } catch (e) {
+    alert('취소하지 못했습니다.\n자라는나무 042-488-6011 로 연락해 주세요.');
+    if (btn) { btn.disabled = false; btn.textContent = '결석 취소'; }
+  }
+}
+// 보강 요청 거두기 — 결석은 그대로
+async function mkCancel(id, btn) {
+  if (!confirm('보강 요청을 거둘까요?\n결석은 그대로이고, 다른 시간으로 다시 요청하실 수 있습니다.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '거두는 중...'; }
+  try {
+    const { data, error } = await sb.rpc('nl_parent_makeup_cancel', { p_req_id: id });
+    if (error) throw error;
+    alert(data || '거두었습니다.');
+    await loadMonth();
+  } catch (e) {
+    alert('거두지 못했습니다.\n자라는나무 042-488-6011 로 연락해 주세요.');
+    if (btn) { btn.disabled = false; btn.textContent = '요청 취소'; }
+  }
 }
 
 // 확정된 결석 되돌리기 — 보강까지 함께 지운다
@@ -1885,7 +1956,10 @@ async function openAsk(d) {
   // 빈 자리 가져오기
   // 발달재활서비스(2번)는 월 4회를 그 달 안에 채워야 하므로 그 달 말까지만 보여준다
   const isDev = Number(d.st) === 2;
-  const last  = isDev ? monthEnd(d.d) : null;
+  // 결석한 뒤 보강 요청 — 기한은 몫인 달 기준 (발달재활 그 달 끝 · 그 밖 다음 달 끝)
+  const mk0 = d.mk || d.d.slice(0, 7);
+  const last  = done ? (isDev ? monthEnd(mk0 + '-01') : monthEnd(shiftMonth(mk0, 1) + '-01'))
+                     : (isDev ? monthEnd(d.d) : null);
   const box = w.querySelector('#askSlots');
 
   const slotsA = await freeSlots(d.thr, last);
@@ -2011,6 +2085,24 @@ async function openAsk(d) {
     }
     const go = w.querySelector('#askGo');
     go.disabled = true; go.textContent = '보내는 중...';
+    // 결석한 뒤 보강 요청 — 서버 창구 한 곳이 모두 확인한다 (2026-09-30)
+    if (done) {
+      try {
+        const { data: msg, error } = await sb.rpc('nl_parent_makeup_ask', {
+          p_session: Number(d.ask), p_date: pick.d, p_time: String(pick.t).slice(0, 5)
+        });
+        if (error) throw error;
+        const ok = String(msg || '').indexOf('보강을 요청했습니다') === 0;
+        alert(msg || '요청하지 못했습니다.');
+        if (ok) { w.remove(); await loadMonth(); }
+        else { go.disabled = false; go.textContent = '요청하기'; }
+      } catch (e) {
+        console.error('보강 요청 실패', e);
+        go.disabled = false; go.textContent = '요청하기';
+        alert('요청을 보내지 못했습니다.\n센터로 연락해 주세요.');
+      }
+      return;
+    }
     try {
       const one = (sid, thr, pk) => ({
         child_id: CURKID, session_id: Number(sid), account_id: ACCID, reason: why,
