@@ -139,7 +139,8 @@
           +   '<input type="text" class="t" style="width:230px;" placeholder="'
           +   (isCenter ? '언어평가 결과보고서' : '○○대학병원 발달평가') + '" value="' + esc(o.title || '') + '"></div>'
           + '<div><label>평가 받은 날</label><input type="date" class="d" value="' + esc(o.date || '') + '"></div>'
-          + '<div class="dz">⬆ 여기에 사진·PDF·한글 파일을 끌어다 놓으면 바로 올라갑니다'
+          + '<div class="dz">⬆ 여기에 사진·PDF·한글 파일을 끌어다 놓으세요'
+          +   '<small>이름과 평가 받은 날이 적혀 있으면 바로 올라갑니다 · 비어 있으면 적을 때까지 기다립니다</small>'
           +   '<small>여러 개를 한꺼번에 놓아도 됩니다 · 눌러서 고를 수도 있습니다</small>'
           +   '<small style="color:#b45309;">한글·워드 파일은 화면에서 열리지 않습니다. '
           +   '한글에서 「파일 → PDF로 저장하기」로 바꿔 올려 주세요</small></div>'
@@ -286,12 +287,14 @@
       }
     });
 
-    // 올리기 — 끌어다 놓거나 골라서 넣은 파일을 바로 올린다
-    //   이름을 안 적었으면 기다린다 → 이름을 적고 Enter(또는 칸을 벗어나면) 올라간다
+    // 올리기 — 끌어다 놓거나 골라서 넣은 파일을 올린다 (2026-09-30 고침)
+    //   이름 · 평가 받은 날이 둘 다 있을 때만 바로 올린다. 하나라도 비면 기다린다
+    //   전에는 이름 칸을 벗어나는 순간(날짜 칸을 누르는 순간) 올라가 날짜가 빠졌음
     const upBtn = wrap.querySelector('[data-a="up"]');
     const dz    = wrap.querySelector('.dz');
     const fin   = wrap.querySelector('.f');
     const tIn   = wrap.querySelector('.t');
+    const dIn   = wrap.querySelector('.d');
     let PENDING = [], BUSY = false;
     const nameLbl = isCenter ? '문서 이름' : '기관·문서 이름';
 
@@ -303,12 +306,13 @@
       const skip = (list ? list.length : 0) - files.length;
       if (!files.length) { say('⚠️ 사진 · PDF · 한글(hwp) · 워드 파일만 올릴 수 있습니다.', false); return; }
       PENDING = PENDING.concat(files);
-      if (!tIn.value.trim()) {
+      if (!tIn.value.trim() || !dIn.value) {
+        const need = [!tIn.value.trim() ? '「' + nameLbl + '」' : '', !dIn.value ? '「평가 받은 날」' : ''].filter(Boolean).join('과 ');
         upBtn.style.display = '';
         upBtn.textContent = '준비된 ' + PENDING.length + '개 올리기';
-        say('⚠️ 파일 ' + PENDING.length + '개가 준비되었습니다.\n위 「' + nameLbl + '」을 먼저 적어 주세요. 적고 Enter 를 누르면 올라갑니다.'
+        say('⚠️ 파일 ' + PENDING.length + '개가 준비되었습니다.\n위 ' + need + '을 적어 주세요. 다 적으면 저절로 올라갑니다.'
           + (skip ? '\n(올릴 수 없는 ' + skip + '개는 뺐습니다)' : ''), false);
-        tIn.focus();
+        (!tIn.value.trim() ? tIn : dIn).focus();
         return;
       }
       go();
@@ -329,17 +333,27 @@
       fin.onchange = () => { take(fin.files); fin.value = ''; };
       // 상자 밖에 잘못 놓아도 브라우저가 파일을 열어 버리지 않게
       ['dragover', 'drop'].forEach(n => wrap.addEventListener(n, ev => ev.preventDefault()));
-      tIn.addEventListener('keydown', ev => { if (ev.key === 'Enter' && PENDING.length) go(); });
-      tIn.addEventListener('change', () => { if (PENDING.length) go(); });
+      // 두 칸이 다 차면 올림 — 이름 칸을 벗어나는 것만으로는 올리지 않음
+      const ready = () => PENDING.length && tIn.value.trim() && dIn.value;
+      tIn.addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter' || !PENDING.length) return;
+        if (ready()) go(); else { say('⚠️ 「평가 받은 날」도 적어 주세요.', false); dIn.focus(); }
+      });
+      dIn.addEventListener('change', () => { if (ready()) go(); });
     }
 
-    async function go() {
+    async function go(byBtn) {
       if (BUSY) return;
       const title = tIn.value.trim();
-      const dd    = wrap.querySelector('.d').value || null;
+      const dd    = dIn.value || null;
       const files = PENDING.slice();
       if (!title)        { say('⚠️ ' + nameLbl + '을 적어 주세요.', false); return; }
       if (!files.length) { say('⚠️ 올릴 파일을 끌어다 놓아 주세요.', false); return; }
+      // 날짜를 모르는 보고서는 「올리기」 단추로만, 한 번 물은 뒤 올림
+      if (!dd) {
+        if (!byBtn) { say('⚠️ 「평가 받은 날」을 적어 주세요.', false); dIn.focus(); return; }
+        if (!confirm('평가 받은 날이 비어 있습니다. 날짜 없이 올릴까요?')) { dIn.focus(); return; }
+      }
       PENDING = [];
       BUSY = true;
       if (dz) { dz.classList.add('busy'); }
@@ -386,7 +400,7 @@
       await load();
       if (o.onChange) o.onChange();
     }
-    if (upBtn) upBtn.onclick = () => go();
+    if (upBtn) upBtn.onclick = () => go(true);
 
     await load();
   }
