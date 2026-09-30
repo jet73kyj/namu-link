@@ -445,6 +445,7 @@
            border-radius:10px; padding:8px 12px; margin:0 0 8px; font-size:13.5px; }
   .nline button { padding:5px 11px; border:1px solid #E4E0DA; border-radius:7px; background:#fff; font-size:12.5px; white-space:nowrap; }
   .topbtns { display:flex; gap:6px; }
+  .sup.xtra { background:#F1ECF8; color:#5B3E9B; }
 </style>
 </head>
 <body>
@@ -1456,6 +1457,16 @@ async function loadMonth() {
   } catch (e) {}
   // 「보강 없음」으로 뺀 날은 학부모 시간표에도 안 그린다 (2026-09-09)
   if (data) data = data.filter(r => !r.no_makeup);
+  // 체험 · 추가 수업 — 요일줄 없이 이 달만 하는 수업 (2026-09-30) · 금액 · 메모는 안 받음
+  try {
+    const { data: xs } = await sb.rpc('nl_parent_extras', { p_child: CURKID, p_mk: CURMK });
+    (xs || []).forEach((x, i) => {
+      data = (data || []).concat([{ id: 'X' + i + '_' + x.lesson_date, _x: x.kind || '체험',
+        plan_date: x.lesson_date, start_time: x.lesson_time, status: x.status || '예정',
+        therapist_id: x.therapist_id, therapy_type_id: x.therapy_type_id, minutes: x.duration_min }]);
+    });
+    if (xs && xs.length) data.sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
+  } catch (e) {}
   if (!data || !data.length) {
     await drawNeed();
     $('list').innerHTML = '<div class="none">이 달에는 수업이 없습니다.'
@@ -1549,6 +1560,7 @@ async function loadMonth() {
     ).forEach(r => {
       const st = String(r.status || '');
       if (st === '쉼' || st === '휴무' || st === '취소' || st === '보강') return;
+      if (r._x) return;   // 체험 · 추가 수업은 회차에서 뺀다
       if (r.makeup_for) return;
       const k = String(r.support_type_id || 0);
       cnt[k] = (cnt[k] || 0) + 1;
@@ -1564,6 +1576,17 @@ async function loadMonth() {
       const tname = TYPES[T[r.therapy_id]] || '수업';
       const thn   = THRS[r.therapist_id] || '';
       const st    = String(r.status || '');
+
+      // 체험 · 추가 수업 — 보기만 (못 가요는 센터로)
+      if (r._x) {
+        const xn = (TYPES[r.therapy_type_id] || '수업') + ' ' + (Number(r.minutes) || 40) + '분';
+        return '<div class="row">'
+          + '<div class="tm">' + esc(hhmm(r.start_time)) + '</div>'
+          + '<div class="nm"><span class="sup xtra">' + (r._x === '추가' ? '추가 수업' : '체험 수업') + '</span> '
+          + esc(xn) + (thn ? ' <span class="th">' + esc(thn) + ' 선생님</span>' : '') + '</div>'
+          + '<span class="tag' + (st === '완료' ? '' : '') + '">' + esc(st) + '</span>'
+          + '</div>';
+      }
 
       // 쉬는 날 — 시간을 보이지 않는다
       if (st === '쉼' || st === '휴무') {
@@ -1880,7 +1903,7 @@ function findPartner(d) {
   const me = Number(d.ask);
   const t0 = hmMin(d.t);
   const c = (DAYROWS[d.d] || []).filter(r =>
-    Number(r.id) !== me && String(r.status || '') === '예정' && !r.makeup_for
+    Number(r.id) !== me && String(r.status || '') === '예정' && !r.makeup_for && !r._x
     && !REQS[r.id] && r.therapist_id && canAsk(d.d, r.start_time));
   if (!c.length) return null;
   c.sort((a, b) => Math.abs(hmMin(a.start_time) - t0) - Math.abs(hmMin(b.start_time) - t0));

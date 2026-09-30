@@ -315,7 +315,7 @@ const INS = {
   accident: { emp:0,       own:0.0153 }
 };
 const TAX = 0.033;
-const STYPE = {1:'센',2:'발',3:'치',4:'치',5:'방',6:'방치',7:'방치',8:'발추',9:'평가',10:'체험'};
+const STYPE = {1:'센',2:'발',3:'치',4:'치',5:'방',6:'방치',7:'방치',8:'발추',9:'평가',10:'체험',11:'추가'};
 
 let RATES_ALL = [];   // 단가 기록 전부 (여러 시점)
 let RATES = {};   // 치료사 번호 -> 단가
@@ -389,9 +389,11 @@ function calc(){
                  && !(HASPART[s.id] > 0));
   // 완료된 체험 수업도 정규 1회처럼 센다 (2026-09-16) — 수업 시간은 _trialDur 로
   TRIALS.filter(t => t.therapist_id === thId).forEach(t => {
-    done.push({ id: 'T' + t.id, child_id: t.child_id, plan_date: t.lesson_date,
-                status: '완료', therapist_id: t.therapist_id, support_type_id: 10,
-                schedule_id: null, memo: '', _trialDur: Number(t.duration_min) || 40 });
+    // 추가 수업(갈래 「추가」 · 2026-09-30)도 같은 규칙 — 표기만 「(추가)」
+    const isX = t.kind === '추가';
+    done.push({ id: (isX ? 'X' : 'T') + t.id, child_id: t.child_id, plan_date: t.lesson_date,
+                status: '완료', therapist_id: t.therapist_id, support_type_id: isX ? 11 : 10,
+                schedule_id: null, memo: '', _trialDur: Number(t.duration_min) || 40, _isX: isX });
   });
 
   if (!SESS.length) {
@@ -429,7 +431,7 @@ function calc(){
     else               { k.m40 += part; fee = r.session_fee * part; }
     k.fee += Math.round(fee);
     k.days.push(dayNo(s.plan_date)
-      + (s._trialDur ? '(체험)' : '')
+      + (s._trialDur ? (s._isX ? '(추가)' : '(체험)') : '')
       + (rest ? '(완료 처리 ' + rest + '분)'
               : (part !== 1 ? '(+' + Number(s.minutes) + '분)' : ''))
       + (s.status==='보강'
@@ -624,7 +626,7 @@ async function loadEvals(){
   TRIALS = [];
   try {
     const { data: tl } = await sb.from('nl_trial_lessons')
-      .select('id, child_id, lesson_date, therapist_id, duration_min, status')
+      .select('id, child_id, lesson_date, therapist_id, duration_min, status, kind')
       .gte('lesson_date', mon + '-01').lte('lesson_date', monEnd(mon))
       .order('lesson_date');
     TRIALS = (tl || []).filter(t => t.status === '완료');
