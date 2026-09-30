@@ -3197,7 +3197,30 @@ function drawFind(){
       + '<div class="fbt">' + ext + main + oth + ghost
         + (dup ? '<span class="fdup">회기 줄 ' + dup + '개 더</span>' : '') + '</div>'
       + '</div>';
-  }).join('');
+  }).join('')
+  // 요일줄이 없는 이 달 일정 — 평가 · 체험 · 추가 수업 (2026-09-30)
+  //   전에는 어느 수업 줄에도 안 붙어 찾기 창에 안 보였다. 누르면 초기 상담 창 (시간표 칸과 같음)
+  + Array.from(new Set(hit.map(r => r._cid))).map(cid => {
+      const evs = SESS.filter(x => x._isEval && Number(x.child_id) === Number(cid))
+        .sort((a, b) => String(a.plan_date + a.start_time).localeCompare(String(b.plan_date + b.start_time)));
+      if (!evs.length) return '';
+      const nm = (hit.find(r => r._cid === cid) || {})._name || '';
+      return '<div class="findrow">'
+        + '<div class="fr-top">'
+          + '<span class="fr-nm">' + (cid ? '[' + cid + '] ' : '') + esc(nm) + '</span>'
+          + '<span class="fr-th">평가 · 체험 · 추가 수업 (이 달만)</span>'
+        + '</div>'
+        + '<div class="fbt">' + evs.map(x => {
+            const th = THS_ALL.find(t => t.id === x.therapist_id);
+            return '<span class="run r-eval' + (x.status === '완료' ? ' r-done' : '') + '" data-sid="' + x.id + '"'
+              + ' style="display:inline-flex;cursor:pointer;">'
+              + '<span class="spdif">' + (x._isExtra ? '추가' : x._isTrial ? '체험' : '평가') + '</span>'
+              + '<span class="dt">' + dtWithMon(x.plan_date) + ' ' + h12(String(x.start_time || '').slice(0, 5)) + '</span>'
+              + (th ? '<span class="st">' + th.id + '번</span>' : '')
+              + '<span class="st">' + esc(stWord(x)) + '</span></span>';
+          }).join('') + '</div>'
+        + '</div>';
+    }).join('');
 
   // 「이 미정 ＋」 — 발추 자리 잡는 창 (2026-09-11)
   $('findRows').querySelectorAll('.fx8[data-x8]').forEach(el => {
