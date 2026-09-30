@@ -3,10 +3,14 @@
 //     onRead  — 「확인했습니다」로 읽음 처리한 뒤 (🔔 숫자 다시 세기 등)
 //     onNew   — 새 알림이 들어왔을 때 (결석 확인 화면 목록 다시 부르기 등)
 //   받는 것: 알림 표(nl_alerts)의 「결석신청」 「요청취소」 가운데 자기 앞으로 온 것
+//     + 「보강요청」 「보강요청취소」 — 결석한 뒤 학부모가 보강을 요청 · 거둔 것 (2026-09-30)
 //     (표 잠금 nl_alerts_read 가 자기 것만 내려준다)
 //   실시간(Realtime)이 끊겨도 1분마다 한 번 다시 살핀다
 (function () {
-  const KINDS = ['결석신청', '요청취소'];
+  const KINDS = ['결석신청', '요청취소', '보강요청', '보강요청취소'];
+  const CXK   = ['요청취소', '보강요청취소'];           // 취소 쪽 (회색 딱지)
+  const LABEL = { '결석신청': '결석 신청', '요청취소': '요청 취소',
+                  '보강요청': '보강 요청', '보강요청취소': '보강 요청 취소' };
   let SB = null, ME = null, OPT = {}, START = null;
   let SHOWN = {}, QUEUE = [], TIMER = null, STARTED = false;
 
@@ -35,6 +39,7 @@
       + '.nlLiveTag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;'
       + 'border-radius:10px;margin-right:6px;background:#FDF3E6;color:#A9701C;}'
       + '.nlLiveTag.cx{background:#EEF1F4;color:#5A6B7B;}'
+      + '.nlLiveTag.mk{background:#E6F0FA;color:#2E5E8C;}'
       + '#nlLiveBtns{padding:10px 16px 14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}'
       + '#nlLiveBtns button{width:auto;margin:0;padding:8px 14px;border-radius:8px;font-size:13.5px;'
       + 'border:1px solid #E4E0DA;background:#fff;color:#2F2926;cursor:pointer;font-family:inherit;}'
@@ -111,17 +116,20 @@
     const bg = box();
     QUEUE.sort((a, b) => a.id - b.id);
     const nAbs = QUEUE.filter(a => a.kind === '결석신청').length;
-    const nCx  = QUEUE.length - nAbs;
+    const nMk  = QUEUE.filter(a => a.kind === '보강요청').length;
+    const nCx  = QUEUE.filter(a => CXK.indexOf(a.kind) >= 0).length;
     bg.querySelector('#nlLiveTt').textContent =
-      nAbs && nCx ? '새 결석 알림 ' + QUEUE.length + '건'
-      : nAbs      ? '새 결석 요청 ' + nAbs + '건'
-      :             '결석 요청 취소 ' + nCx + '건';
+      (nAbs && !nMk && !nCx) ? '새 결석 요청 ' + nAbs + '건'
+      : (nMk && !nAbs && !nCx) ? '새 보강 요청 ' + nMk + '건'
+      : (nCx && !nAbs && !nMk) ? '요청 취소 ' + nCx + '건'
+      : '새 결석 · 보강 알림 ' + QUEUE.length + '건';
     const d = new Date();
     bg.querySelector('#nlLiveTm').textContent =
       '방금 들어옴 · ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     bg.querySelector('#nlLiveRows').innerHTML = QUEUE.map(a =>
-      '<div class="nlLiveRow"><span class="nlLiveTag' + (a.kind === '요청취소' ? ' cx' : '') + '">'
-      + esc(a.kind) + '</span>' + esc(a.body) + '</div>').join('');
+      '<div class="nlLiveRow"><span class="nlLiveTag'
+      + (CXK.indexOf(a.kind) >= 0 ? ' cx' : a.kind === '보강요청' ? ' mk' : '') + '">'
+      + esc(LABEL[a.kind] || a.kind) + '</span>' + esc(a.body) + '</div>').join('');
     bg.style.display = 'flex';
     beep();
   }
