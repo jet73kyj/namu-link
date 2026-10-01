@@ -98,6 +98,13 @@
   .alkind.w { background:#fdf3e6; color:#a9701c; }
   .albtn { width:100%; margin-top:18px; padding:12px; }
   .alnone { padding:26px 0; text-align:center; color:var(--ink3); font-size:14px; }
+
+/* 확인 안 한 날 (2026-10-01) */
+.unconf{background:#FBEDE6;border:1px solid #E7B9A6;border-left:4px solid #C2553A;border-radius:12px;padding:12px 16px;margin:0 0 16px}
+.unconf b{display:block;color:#C2553A;font-size:15px;margin:0 0 2px}
+.unconf span{display:block;font-size:13px;color:#6E6660}
+.unconf .ucl{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.unconf .ucl a{display:inline-block;padding:4px 10px;border-radius:8px;background:#fff;border:1px solid #E7B9A6;color:#C2553A;text-decoration:none;font-size:13px}
 </style>
 </head>
 <body>
@@ -379,6 +386,25 @@ async function afterLogin(user) {
       + '담당이 아닌 아동이 보이지 않으면 관리자에게 문의하세요.</div>';
   }
   $('menu').innerHTML = html;
+  // 확인 안 한 날 (2026-10-01) — 선생님 계정 첫 화면 맨 위
+  if (role === '치료사') {
+    try {
+      const { data: un } = await sb.rpc('nl_my_unconfirmed');
+      if (un && un.length) {
+        const WDN = ['일', '월', '화', '수', '목', '금', '토'];
+        const box = document.createElement('div');
+        box.className = 'unconf';
+        box.innerHTML = '<b>확인 안 한 날이 있습니다</b>'
+          + '<span>하루 보기 맨 아래 「확인 완료」를 눌러야 그 날 수업이 완료로 바뀌고 수수료에 잡힙니다.</span>'
+          + '<div class="ucl">' + un.map(function (r) {
+              const d = new Date(r.day + 'T00:00:00');
+              return '<a href="schedule.html?day=' + r.day + '">' + Number(r.day.slice(5, 7)) + '/' + Number(r.day.slice(8, 10))
+                + '(' + WDN[d.getDay()] + ') · ' + r.cnt + '줄</a>';
+            }).join('') + '</div>';
+        $('menu').prepend(box);
+      }
+    } catch (e) {}
+  }
 
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';

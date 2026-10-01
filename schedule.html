@@ -9377,6 +9377,15 @@ async function afterLogin(user){
   // 첫 화면은 늘 이번 달로 연다 (2026-09-11 은정님)
   //   전에는 지난번에 보던 달로 열려, 8월을 보면서 9월로 착각하는 일이 있었다
   $('mon').value = mon;
+  // 주소 끝 ?day=YYYY-MM-DD 로 오면 그 날 하루 보기로 연다 (2026-10-01 · 홈 미확인 알림에서 옴)
+  let _qDay = '';
+  try { _qDay = new URLSearchParams(location.search).get('day') || ''; } catch (e) {}
+  if (/^\d{4}-\d{2}-\d{2}$/.test(_qDay) && [...$('mon').options].some(o => o.value === _qDay.slice(0, 7))) {
+    mon = _qDay.slice(0, 7); $('mon').value = mon;
+    try { sideMon = mon; } catch (e) {}
+    oneDate = _qDay; VIEW = 'one';
+    document.querySelectorAll('.vtab').forEach(x => x.classList.toggle('on', x.dataset.v === 'one'));
+  } else _qDay = '';
 
   $('mk_slot').innerHTML = SLOTS.map(s=>'<option value="'+s.no+'">'+s.t+'</option>').join('');
   $('mk_th').innerHTML   = THS.map(t=>'<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
@@ -9424,8 +9433,8 @@ async function afterLogin(user){
 
   await loadMonth();
 
-  // 이번 달에 회기가 없으면 다음 달로 옮겨 본다
-  if (!SESS.length) {
+  // 이번 달에 회기가 없으면 다음 달로 옮겨 본다 (주소로 날짜를 받은 때는 안 옮김)
+  if (!SESS.length && !_qDay) {
     const d2 = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const nk = d2.getFullYear()+'-'+String(d2.getMonth()+1).padStart(2,'0');
     const save = mon;
@@ -9440,6 +9449,7 @@ async function afterLogin(user){
   // 지난번에 보던 요일이 있으면 그 요일로
   const _keepW = keepGet('nl_sched_wd');
   if (_keepW && WDS.indexOf(_keepW) >= 0) wd = _keepW;
+  if (_qDay) { const _w = wdOf(_qDay); if (_w !== '일') wd = _w; oneDate = _qDay; VIEW = 'one'; }
   document.querySelectorAll('.tab[data-wd]').forEach(b=>b.classList.toggle('on', b.dataset.wd===wd));
 
   $('who').textContent = me.name+' ('+me.role+') 님으로 로그인됨'
