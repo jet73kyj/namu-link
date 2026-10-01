@@ -9313,6 +9313,36 @@ async function loadNeed(){
   } catch (e) { NEEDSRV = null; }
 }
 
+// ===== 다른 컴퓨터에서 바꾼 것 따라가기 (2026-10-01 은정님 1번) =====
+//   시간표는 달을 열 때 한 번 자료를 받아 둔다. 데스크에서 보강을 지워도
+//   다른 컴퓨터에 열려 있던 시간표는 새로고침 전까지 옛 모습이었다
+//   → 탭으로 돌아올 때 1분 넘게 비웠으면 그 달을 다시 읽는다
+//   보강 잡기 · 수정 같은 창이 열려 있으면 다시 읽지 않는다 (적던 칸 보호)
+(function(){
+  let hidAt = 0, busy = false;
+  function anyOpen(){
+    const ids = ['addBox', 'edBox', 'mkBox', 'mnBox', 'offBox', 'w5Box', 'gapBox', 'albg', 'pairWrap'];
+    return ids.some(function(id){
+      const el = document.getElementById(id);
+      return !!(el && el.style.display && el.style.display !== 'none');
+    });
+  }
+  document.addEventListener('visibilitychange', async function(){
+    if (document.hidden) { hidAt = Date.now(); return; }
+    const away = hidAt ? Date.now() - hidAt : 0;
+    hidAt = 0;
+    if (away < 60000 || busy) return;
+    const mb = document.getElementById('mainBox');
+    if (!mb || mb.style.display === 'none') return;   // 로그인 전
+    if (anyOpen()) return;
+    busy = true;
+    const sx = window.scrollX, sy = window.scrollY;
+    try { await loadMonth(); draw(); window.scrollTo(sx, sy); }
+    catch (e) { /* 못 읽으면 지금 화면 그대로 */ }
+    finally { busy = false; }
+  });
+})();
+
 // ===== 미납 교육비 (2026-09-11) =====
 // 보고 있는 달까지 「낸 날이 빈」 납부 줄을 아동별로 모은다. 금액 0원 줄은 미납이 아니다.
 // 납부 표는 8·9·11번만 읽을 수 있으므로 치료사 화면에는 아무것도 안 나온다.
