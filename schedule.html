@@ -5334,8 +5334,15 @@ $('adSave').onclick = async () => {
     sc._cid = cid; sc._tt = tt; sc.support_type_id = st;
     sc._name = kid ? kid.name : '';
     ROWS.push(sc);
-    admsg('✅ 넣었습니다. 아동 상태가 대기중이면 치료중으로 바꾸셔야 계속 보입니다.', true);
-    await makeRuns();
+    // 새 요일줄의 회기 깔기 (2026-10-01 고침)
+    //   전에는 「보고 있는 달」만 깔고 오류도 말없이 넘겨, 두 달에 걸친 주를 보다 넣으면
+    //   시작 달이 안 깔렸다 (148번 10월 시작 · 회기 없음)
+    //   → 그 요일줄만 시작 달부터 석 달을 깔고, 실패하면 알린다
+    const _lay = await layNewSchedule(sc.id, sc.from_date);
+    admsg(_lay.ok
+      ? '✅ 넣었습니다. 회기 ' + _lay.months.join(' · ') + ' 깔았습니다. 아동 상태가 대기중이면 치료중으로 바꾸셔야 계속 보입니다.'
+      : '⚠️ 수업은 넣었으나 회기를 다 깔지 못했습니다 (' + _lay.bad.join(', ') + ').\n그 달로 가서 수업 「수정」 → 저장을 한 번 눌러 주세요.', _lay.ok);
+    await loadMonth();
     draw();
   } catch (e) {
     admsg('❌ 넣지 못했습니다.\n' + e.message, false);
@@ -5345,9 +5352,34 @@ $('adSave').onclick = async () => {
 };
 
 // 그 달 회기를 다시 깔기 (없는 것만 채워짐)
+//   2026-10-01 — 서버가 오류를 돌려주면 알린다 (전에는 말없이 넘김)
 async function makeRuns(){
-  try { await sb.rpc('nl_make_sessions', { p_month: mon }); } catch(e) {}
+  try {
+    const { error } = await sb.rpc('nl_make_sessions', { p_month: mon });
+    if (error) alert('⚠️ 회기를 깔지 못했습니다 — ' + (error.message || '') + '\n화면을 새로 열어 다시 해 주세요.');
+  } catch(e) { alert('⚠️ 서버에 닿지 못해 회기를 깔지 못했습니다. 다시 해 주세요.'); }
   await loadMonth();
+}
+// 새로 넣은 요일줄 하나만 시작 달부터 석 달 깔기 (2026-10-01)
+//   보고 있는 달과 상관없이 · 다른 아동 줄은 건드리지 않음 (nl_remake_schedule_month)
+async function layNewSchedule(schedId, fromDate){
+  const first = String(fromDate || '').slice(0, 7) || mon;
+  const start = first;
+  const months = [];
+  let y = Number(start.slice(0, 4)), m = Number(start.slice(5, 7));
+  for (let i = 0; i < 3; i++) {
+    months.push(y + '-' + String(m).padStart(2, '0'));
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  if (!months.includes(mon) && mon > start) months.push(mon);
+  const bad = [];
+  for (const mk of months) {
+    try {
+      const { error } = await sb.rpc('nl_remake_schedule_month', { p_schedule_id: schedId, p_month: mk });
+      if (error) bad.push(mk + ' ' + (error.message || '오류'));
+    } catch (e) { bad.push(mk + ' 서버에 닿지 못함'); }
+  }
+  return { ok: !bad.length, months, bad };
 }
 
 // 한 수업의 그 달 회기를 새로 맞춘다
