@@ -4612,7 +4612,13 @@ function draw(){
   afterDraw();
 }
 
-function afterDraw(){ if ($('findName').value.trim()) markFind(); }
+// 찾기 창은 요일별 보기(drawDay)에서만 다시 그려져, 주간·하루 보기에서 보강을 지우면
+//   옛 단추(→2일 예정)가 남았다 (95번 10/2 · 2026-10-01) → 다른 보기에서도 다시 그린다
+function afterDraw(){
+  if (!$('findName').value.trim()) return;
+  if (VIEW !== 'day') drawFind();
+  markFind();
+}
 
 
 function drawDay(){
@@ -7024,6 +7030,8 @@ $('mnDel').onclick = async () => {
   mnEditId = null;
   mnmsg('✅ 보강을 취소했습니다.', true);
   $('mnBox').style.display = 'none';
+  // 상자 셋도 바로 다시 센다 (2026-10-01)
+  await loadNeed();
   draw();
 };
 
