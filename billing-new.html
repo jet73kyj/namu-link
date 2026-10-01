@@ -221,6 +221,7 @@
   .evinfo .evst.ok { background:#e8f3ea; color:#2e7d32; }
   .evinfo.trinfo { background:#eef6fb; color:#0c447c; }
   /* 추가 수업 (2026-09-30) */
+  .evinfo.stale { background:#fdeeea; color:#B5533C; }   /* 모두 취소됐는데 저장 금액이 남음 (2026-10-01) */
   .evinfo.xlinfo { background:#f4effa; color:#5b3a8c; }
   .evinfo .xldel { margin-left:auto; border:none; background:none; color:#B5533C; cursor:pointer; font-size:14px; padding:0 4px; }
   .xladd { margin:2px 0 6px 70px; padding:4px 12px; border:1px dashed #b9a6d8; border-radius:7px; background:#fff;
@@ -2052,14 +2053,18 @@ function drawKid(c) {
   const trRows = TRMON[c.id] || [];
   const tv = sv[10];
   if (tv || trRows.length) {
-    const trAmt = tv ? Number(tv.amount) : trialSumOf(c.id);
+    // 체험이 모두 취소됐는데 저장 금액이 남아 있으면 0으로 시작하고 알린다 (2026-10-01)
+    const trStale = !!(tv && !trRows.length && Number(tv.amount) > 0);
+    const trAmt = trStale ? 0 : (tv ? Number(tv.amount) : trialSumOf(c.id));
     b += '<div class="r gsum narrownm" data-st="10" data-manual="1">'
       + '<span class="nm">체험수업</span>'
       + '<span class="de">정규 전 1회</span>'
       + '<span class="ap"></span><span class="ct"></span><span class="up"></span>'
       + '<span class="am"><input class="mn evamt tramt" type="text" inputmode="numeric" value="'
       + (trAmt ? trAmt.toLocaleString() : '') + '" placeholder="0"></span></div>'
-      + trialInfoHtml(trRows);
+      + trialInfoHtml(trRows)
+      + (trStale ? staleHtml('체험 수업', Number(tv.amount)) : '');
+    if (trStale) CHANGED[c.id] = Object.assign(CHANGED[c.id] || {}, { card: true });
   }
 
   // 추가 수업 — 이 달만 한 번 더 하는 수업 (2026-09-30)
@@ -2068,14 +2073,18 @@ function drawKid(c) {
   const xlRows = XLMON[c.id] || [];
   const xv = sv[11];
   if (xv || xlRows.length) {
-    const xlAmt = xv ? Number(xv.amount) : extraSumOf(c.id);
+    // 추가 수업이 모두 취소됐는데 저장 금액이 남아 있으면 0으로 시작하고 알린다 (2026-10-01)
+    const xlStale = !!(xv && !xlRows.length && Number(xv.amount) > 0);
+    const xlAmt = xlStale ? 0 : (xv ? Number(xv.amount) : extraSumOf(c.id));
     b += '<div class="r gsum narrownm" data-st="11" data-manual="1">'
       + '<span class="nm">추가수업</span>'
       + '<span class="de">이 달만 1회</span>'
       + '<span class="ap"></span><span class="ct"></span><span class="up"></span>'
       + '<span class="am"><input class="mn evamt xlamt" type="text" inputmode="numeric" value="'
       + (xlAmt ? xlAmt.toLocaleString() : '') + '" placeholder="0"></span></div>'
-      + extraInfoHtml(xlRows, fixed);
+      + extraInfoHtml(xlRows, fixed)
+      + (xlStale ? staleHtml('추가 수업', Number(xv.amount)) : '');
+    if (xlStale) CHANGED[c.id] = Object.assign(CHANGED[c.id] || {}, { card: true });
   }
   if (!fixed) b += '<button type="button" class="xladd" data-xladd="' + c.id + '">＋ 1회 수업 추가</button>';
 
@@ -2345,6 +2354,11 @@ function trialSumOf(childId) {
   return (TRMON[childId] || []).reduce((a, v) => a + (Number(v.fee) || 0), 0);
 }
 // 추가 수업 — 그 달 금액 합계 (취소 뺌) (2026-09-30)
+// 모두 취소됐는데 저장 금액이 남은 줄 알림 (2026-10-01)
+function staleHtml(nm, amt) {
+  return '<div class="evinfo stale">⚠ ' + nm + '이 모두 취소되었습니다. '
+    + '「카드 저장」을 누르면 저장된 ' + Number(amt).toLocaleString() + '원 줄이 지워집니다.</div>';
+}
 function extraSumOf(childId) {
   return (XLMON[childId] || []).reduce((a, v) => a + (Number(v.fee) || 0), 0);
 }
