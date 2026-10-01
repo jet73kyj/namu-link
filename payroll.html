@@ -142,6 +142,10 @@
   .note, .small { color:#A39C95; }
   @media print { body { background:#fff; } .wide { padding:10px; }
                  .hd { display:none; } .panel { border:none; padding:0; } }
+
+/* 미확인 (2026-10-01) */
+.unconf{background:#FBEDE6;border:1px solid #E7B9A6;border-left:4px solid #C2553A;border-radius:10px;padding:10px 14px;margin:10px 0;font-size:13.5px;color:#6E6660;line-height:1.7}
+.unconf b{color:#C2553A}
 </style>
 </head>
 <body>
@@ -180,6 +184,7 @@
   </div>
 
   <div id="warnBox" class="warn" style="display:none;"></div>
+  <div id="unconfBox" class="unconf noprint" style="display:none;"></div>
 
   <!-- 지급 단가 넣기 -->
   <div class="evalbox noprint">
@@ -356,7 +361,35 @@ function monEnd(k){
 }
 
 // ===== 계산 =====
+// 선생님이 「확인 완료」를 안 누른 날 (2026-10-01) — 그 날 예정 줄은 완료로 안 바뀌어 수수료에 안 잡힘
+let UNCONF = {};
+async function loadUnconf(){
+  UNCONF = {};
+  try {
+    const { data, error } = await sb.rpc('nl_unconfirmed', { p_month: mon });
+    if (!error) (data || []).forEach(r => { UNCONF[r.therapist_id] = r.days || []; });
+  } catch (e) {}
+  // 고르는 칸에 미확인 날 수
+  Array.from($('th').options).forEach(o => {
+    const base = o.dataset.base || o.textContent;
+    o.dataset.base = base;
+    const n = (UNCONF[Number(o.value)] || []).length;
+    o.textContent = base + (n ? ' · 미확인 ' + n + '일' : '');
+  });
+}
+function drawUnconf(){
+  const b = $('unconfBox');
+  const days = UNCONF[thId] || [];
+  if (!days.length) { b.style.display = 'none'; return; }
+  const WDN = ['일','월','화','수','목','금','토'];
+  b.style.display = 'block';
+  b.innerHTML = '<b>미확인 ' + days.length + '일</b> — 선생님이 하루 보기 「확인 완료」를 안 누른 날입니다. '
+    + '그 날 예정 줄은 완료로 안 바뀌어 아래 수수료에 잡히지 않았습니다.<br>'
+    + days.map(d => Number(String(d).slice(5, 7)) + '/' + Number(String(d).slice(8, 10))
+                   + '(' + WDN[new Date(d + 'T00:00:00').getDay()] + ')').join(' · ');
+}
 function calc(){
+  drawUnconf();
   RATES = pickRates(mon);          // 그 달에 맞는 단가를 고른다
   const r = RATES[thId];
   $('monBig').textContent = monNo(mon) + '월';
@@ -731,13 +764,14 @@ async function afterLogin(user){
   $('who').textContent = me.name + ' (' + me.role + ') 님으로 로그인됨';
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
+  await loadUnconf();
   calc();
   drawWorkDays();
 }
 
 $('mon').onchange = async () => { mon = $('mon').value;
   try { localStorage.setItem('nl_payroll_mon', mon); } catch(e) {}
-  await loadMonth(); calc(); };
+  await loadMonth(); await loadUnconf(); calc(); };
 $('th').onchange  = () => { thId = Number($('th').value); calc(); drawWorkDays(); };
 
 // ── 출근 요일 · 수업 시각 (2026-09-11) ───────────────────────
