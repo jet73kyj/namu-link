@@ -2310,6 +2310,8 @@ async function changeSessTher(sid){
     .eq('id', s.id);
   if (error) { alert('바꾸지 못했습니다.\n' + error.message); return; }
   s.therapist_id = nid;
+  // 상자 셋 · 찾기 창도 다시 센다 (2026-10-01 전체 점검)
+  await loadNeed();
   const _sx = window.scrollX, _sy = window.scrollY;
   draw(); window.scrollTo(_sx, _sy);
 }
@@ -5131,6 +5133,8 @@ $('gbody').addEventListener('click', async e => {
     const { error } = await sb.from('nl_sessions').delete().eq('id', id);
     if (error) { alert('지우지 못했습니다.\n' + error.message); return; }
     SESS = SESS.filter(x => x.id !== id);
+    // 상자 셋 · 찾기 창도 다시 센다 (2026-10-01 전체 점검)
+    await loadNeed();
     draw();
     return;
   }
@@ -5894,6 +5898,8 @@ $('edSave').onclick = async () => {
     await changeFromThisMonth(nw, slot, th, du, newHm, applyD);
     if (Number(th) !== thOld0) await moveMakeupsTo(tpId0, thOld0, th, edFromDay(applyD));
     await applySplit(scId0, wantSp);
+    // 상자 셋 · 찾기 창도 다시 센다 (2026-10-01 전체 점검)
+    await loadNeed();
     draw();
     return;
   }
@@ -5905,6 +5911,8 @@ $('edSave').onclick = async () => {
     const scId1 = edRow.id;
     const ok = await changeTherapistFrom(th, du, applyD);
     if (ok === true) await applySplit(scId1, wantSp);
+    // 상자 셋 · 찾기 창도 다시 센다 (2026-10-01 전체 점검)
+    await loadNeed();
     draw();
     return;
   }
@@ -5971,6 +5979,8 @@ $('edSave').onclick = async () => {
       + (wantSp
           ? '\n＋' + wantSp + ' 딱지를 붙이고, 발추 1회기를 만들었습니다.'
           : '\n나눠 진행 표시는 꺼져 있습니다.'), true);
+    // 상자 셋 · 찾기 창도 다시 센다 (2026-10-01 전체 점검)
+    await loadNeed();
     draw();
   } catch (e) {
     edmsg('❌ 옮기지 못했습니다.\n' + e.message, false);
