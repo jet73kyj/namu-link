@@ -3194,7 +3194,13 @@ function drawFind(){
       // 서버 셈(nl_need_rows)이 있으면 그것만 따른다 (2026-09-17)
       //   발추 「적용 없음」·0원 달은 서버가 빼 주므로 「이 미정」이 안 뜬다
       const wantX8 = NEEDSRV ? !!NEEDSRV.x8[r._cid] : (needX8 && !hasX8);
-      if (wantX8) ghost = '<span class="fb s8 off' + (CAN_EDIT ? ' fx8' : '') + '"'
+      // 지난달 몫 발추 자리 없음 — 이 달에 잡을 수 있다 (발추 기한 = 다음 달 끝 · 2026-10-01)
+      const _px8 = (NEEDSRV && NEEDSRV.x8prev) ? NEEDSRV.x8prev[r._cid] : null;
+      if (_px8) ghost += '<span class="fb s8 off' + (CAN_EDIT ? ' fx8' : '') + '"'
+        + (CAN_EDIT ? ' data-x8="' + r.id + '" data-x8m="' + _px8 + '" title="' + monNo(_px8) + '월 몫 발추 자리 잡기"' : '')
+        + '>' + monNo(_px8) + '월 이 미정'
+        + (CAN_EDIT ? ' <b class="fplus">＋</b>' : '') + '</span>';
+      if (wantX8) ghost += '<span class="fb s8 off' + (CAN_EDIT ? ' fx8' : '') + '"'
         + (CAN_EDIT ? ' data-x8="' + r.id + '" title="발추 자리 잡기"' : '') + '>이 미정'
         + (CAN_EDIT ? ' <b class="fplus">＋</b>' : '') + '</span>';
     }
@@ -3245,7 +3251,7 @@ function drawFind(){
     el.onclick = (e) => {
       e.stopPropagation();
       lastClick = { clientX: e.clientX, clientY: e.clientY };
-      openPlan(Number(el.dataset.x8));
+      openPlan(Number(el.dataset.x8), el.dataset.x8m || null);
     };
   });
   // 찾기 창 날짜 단추 (2026-09-11 은정님 — 상태만 있는 그 날 창은 없앰)
@@ -3956,7 +3962,10 @@ function seqInPrev(s) {
 function drawPrev(){
   // 치료사도 본다 (2026-09-08) — 자기가 맡은 아동의 다른 수업분까지
   const need = prevNeed();
-  if (!need.length) {
+  // 지난달 발추 자리 없음 (줄이 없는 것) — 아동 번호만 (2026-10-01)
+  const px8 = (NEEDSRV && NEEDSRV.x8prev) ? Object.keys(NEEDSRV.x8prev).map(Number) : [];
+  const nAll = need.length + px8.length;
+  if (!nAll) {
     $('prevBox').style.display = 'none';
     $('prevHint').style.display = 'none';
     $('prevBox').innerHTML = '';
@@ -3967,7 +3976,7 @@ function drawPrev(){
   const pm = prevMon(mon);
 
   $('prevHint').style.display = 'block';
-  $('prevHint').innerHTML = '<span class="topt"><span class="bxl">' + monNo(prevMon(mon)) + '월에서 넘어온 보강</span><b class="bxn">' + need.length + '</b></span>'
+  $('prevHint').innerHTML = '<span class="topt"><span class="bxl">' + monNo(prevMon(mon)) + '월에서 넘어온 보강</span><b class="bxn">' + nAll + '</b></span>'
     + '<input class="topf" type="text" placeholder="아동 이름">'
     + '<span class="go arrow" data-for="prevBox"></span>';
   $('prevHint').onclick = (ev) => {
@@ -3978,7 +3987,7 @@ function drawPrev(){
 
   $('prevBox').style.display = 'block';
   $('prevBox').innerHTML = '<div class="prev-t">⏪ ' + monNo(pm)
-    + '월에서 넘어온 보강 ' + need.length + '건 — ' + monNo(mon) + '월에 잡을 수 있습니다</div>'
+    + '월에서 넘어온 보강 ' + nAll + '건 — ' + monNo(mon) + '월에 잡을 수 있습니다</div>'
     + '<div class="bxfw"><input class="bxf" type="text"'
     + ' placeholder="🔍 아동 이름으로 걸러보기"></div>'
     + need.map(s => {
@@ -4005,13 +4014,28 @@ function drawPrev(){
                 + ' title="보강 잡기">＋</button>' : '')
           + '</div>';
       }).join('')
+    + px8.map(cid => {
+        const dev = ROWS.find(x => Number(x._cid) === cid && Number(x.support_type_id) === 2);
+        const t2 = dev ? THS_ALL.find(x => x.id === dev.therapist_id) : null;
+        const nm = KIDNM[cid] || (dev && dev._name) || '';
+        return '<div class="prevone" data-kid="' + esc(nm) + '" data-cid="' + cid + '">'
+          + '<span class="pnm">[' + cid + '] ' + esc(nm) + '</span>'
+          + '<span class="psm">발추 · ' + monNo(pm) + '월 발추 자리 없음'
+            + (t2 ? ' · ' + esc(t2.name) : '') + '</span>'
+          + ((CAN_EDIT && dev)
+              ? '<button class="prevbtn" data-px8="' + dev.id + '" title="발추 자리 잡기">＋</button>' : '')
+          + '</div>';
+      }).join('')
     + '<div class="prevnote">※ 여기서 잡은 보강은 <b>납부는 ' + monNo(pm)
       + '월</b>, <b>급여는 ' + monNo(mon) + '월</b>로 셉니다.</div>';
 
   boxFind('prevBox');
   syncDock();
   $('prevBox').querySelectorAll('.prevbtn').forEach(el => {
-    el.onclick = () => {
+    el.onclick = (e) => {
+      if (el.dataset.px8) {
+        lastClick = { clientX: e.clientX, clientY: e.clientY };
+        openPlan(Number(el.dataset.px8), prevMon(mon)); return; }
       const why = el.dataset.no;
       if (why && !confirm('⚠️ 이 회기는 다음 달로 넘길 수 없습니다.\n\n'
           + why + '\n\n그래도 보강을 잡을까요?')) return;
@@ -6744,12 +6768,20 @@ document.addEventListener('keydown', e => {
 });
 
 // ===== 회기가 모자란 수업에 한 자리 더 잡기 =====
-async function openPlan(scId){
+async function openPlan(scId, mk){
   const r = ROWS_ALL.find(x => x.id === scId);
   if (!r) return;
   const slot = nearest(toMin(r.start_time));
   openMn(slot.no + '_' + r.therapist_id + '_' + r.weekday);
-  $('mnTitle').textContent = monNo(mon) + '월 ' + r.weekday + '요일 '
+  // 발추는 다음 달 끝까지 잡을 수 있다 (원칙 3) — 몫인 달 1일 ~ 다음 달 말일 (2026-10-01)
+  //   전에는 보고 있는 달 안만 골라져, 9월 찾기 창에서 10월 날짜를 못 골랐다 (48번)
+  PLAN_MK = mk || mon;
+  if (Number(r.support_type_id) === 2) {
+    $('mn_date').min = PLAN_MK + '-01';
+    $('mn_date').max = monEnd(nextMon(PLAN_MK));
+  }
+  $('mnTitle').textContent = (PLAN_MK !== mon ? monNo(PLAN_MK) + '월 몫 · ' : '')
+    + monNo(mon) + '월 ' + r.weekday + '요일 '
     + slotHm12(slot, r.therapist_id)
     + ' — 회기가 모자라 한 자리 더 잡기';
   if (!r._cid) return;
@@ -6779,6 +6811,7 @@ async function openPlan(scId){
 
 // ===== 보강 직접 넣기 =====
 let mnKey = null;      // { slot, th, wd }
+let PLAN_MK = null;    // 「이 미정 ＋」로 열었을 때 몫인 달 (지난달 몫 발추면 지난달 · 2026-10-01)
 let mnKid = null;      // 고른 아동
 
 function mnmsg(t, ok){ $('mnMsg').textContent=t; $('mnMsg').className='out '+(ok?'ok':'err'); }
@@ -6792,6 +6825,7 @@ function openMn(key){
   mnKey = { slot: slot, th: thId, wd: wdn };
   mnKid = null;
   mnEditId = null;
+  PLAN_MK = null;
 
   const t = THS_ALL.find(x => x.id === thId);
   $('mnTitle').textContent = monNo(mon) + '월 ' + wdn + '요일 ' + slot.t + ' · '
@@ -7050,6 +7084,9 @@ $('mnSave').onclick = async () => {
   const why = $('mn_memo').value.trim();
 
   const fixing = !!mnEditId;
+  // 몫인 달 — 「이 미정 ＋」로 연 지난달 몫이면 그 달, 고치기면 그 줄의 달 (2026-10-01)
+  const _x0 = fixing ? (SESS.find(v => v.id === mnEditId) || PREV.find(v => v.id === mnEditId)) : null;
+  const mkey = PLAN_MK || (_x0 && _x0.month_key) || mon;
 
   // 발추는 그 달 몫이 한 번뿐이다. 이미 있으면 또 넣지 않는다
   // ※ 회차 0인 줄은 지난달에서 넘어온 이월분이라 그 달 몫으로 안 센다
@@ -7064,8 +7101,8 @@ $('mnSave').onclick = async () => {
       if (!x8) {
         const dev = ROWS.find(r => Number(r._cid) === Number(mnKid.id)
           && Number(r.support_type_id) === 2 && r.therapist_id
-          && !(r.to_month && r.to_month < mon)
-          && !(r.from_month && r.from_month > mon));
+          && !(r.to_month && r.to_month < mkey)
+          && !(r.from_month && r.from_month > mkey));
         if (dev) x8 = Number(dev.therapist_id);
       }
       if (!x8) {
@@ -7080,10 +7117,10 @@ $('mnSave').onclick = async () => {
           + '(담당을 바꾸시려면 납부 계산 화면에서 고치셔야 합니다)', false);
         return;
       }
-      const had = SESS.filter(v =>
+      const had = allSessU().filter(v =>
            Number(v.child_id) === Number(mnKid.id)
         && v.support_type_id === 8
-        && String(v.month_key) === String(mon)
+        && String(v.month_key) === String(mkey)
         && Number(v.run_no || 0) !== 0
         && v.status !== '쉼' && v.status !== '휴무'
         && Number(v.id) !== Number(mnEditId || 0));
@@ -7091,7 +7128,7 @@ $('mnSave').onclick = async () => {
         const w = had.map(v =>
             monNo(String(v.plan_date).slice(0,7)) + '월 '
           + dayNo(v.plan_date) + '일 ' + t12(v.start_time)).join(', ');
-        mnmsg('❌ 이 아동은 ' + monNo(mon) + '월 몫 발추가 이미 있습니다.\n'
+        mnmsg('❌ 이 아동은 ' + monNo(mkey) + '월 몫 발추가 이미 있습니다.\n'
           + '  ' + w + '\n'
           + '발추는 한 달에 한 번입니다. 자리를 옮기시려면 그 줄을 고치세요.', false);
         return;
@@ -7109,7 +7146,8 @@ $('mnSave').onclick = async () => {
       return (a != null && nS2 != null
               && a < nS2 + 40 && nS2 < a + Number(v.minutes || 40));
     };
-    const busy = SESS.filter(v =>
+    // 다음 달 날짜도 고를 수 있으므로 다음 달 회기까지 함께 본다 (2026-10-01)
+    const busy = allSessU().filter(v =>
          String(v.plan_date) === String(d)
       && Number(v.therapist_id) === Number(mnKey.th)
       && Number(v.id) !== Number(mnEditId || 0)
@@ -7177,7 +7215,7 @@ $('mnSave').onclick = async () => {
       therapy_id: Number(tp[0]) || null,
       // 요일줄을 고르면 그 수업의 회기로 세어진다. 안 고르면 그냥 보강
       schedule_id: scdv ? Number(scdv) : null,
-      month_key: mon,
+      month_key: mkey,
       plan_date: d,
       therapist_id: mnKey.th,
       start_time: slotHm(slot2, mnKey.th, wd2) + ':00',
@@ -7218,7 +7256,9 @@ $('mnSave').onclick = async () => {
       + slotHm12(mnKey.slot, mnKey.th, wd2) + (fixing ? ' 로 고쳤습니다.' : ' 로 넣었습니다.'), true);
     $('mn_name').value=''; $('mn_pick').innerHTML='';
     $('mn_tp').innerHTML='<option value="">아동을 먼저 고르세요</option>';
-    $('mn_memo').value=''; mnKid=null; mnEditId=null;
+    $('mn_memo').value=''; mnKid=null; mnEditId=null; PLAN_MK=null;
+    // 상자 셋 · 찾기 창 「이 미정」도 바로 다시 센다 (2026-10-01)
+    await loadNeed();
     draw();
   } catch (e) {
     mnmsg('❌ 저장하지 못했습니다.\n' + e.message, false);
@@ -9246,11 +9286,13 @@ async function loadNeed(){
     const fn = MY_TH ? 'nl_th_need' : 'nl_staff_need_all';
     const { data: nd, error: ne } = await sb.rpc(fn, { p_mk: mon });
     if (!ne && nd) {
-      const o = { miss:{}, holi:{}, prev:{}, x8:{}, pay:{} };
+      const o = { miss:{}, holi:{}, prev:{}, x8:{}, pay:{}, x8prev:{} };
       nd.forEach(r => {
         if (r.kind === 'miss' && r.session_id) o.miss[r.session_id] = r.why || '';
         else if (r.kind === 'holi' && r.session_id) o.holi[r.session_id] = 1;
         else if (r.kind === 'prev' && r.session_id) o.prev[r.session_id] = r.why || '';
+        // 지난달 「발추 자리 없음」 — 회기 줄이 없어 아동 번호로 받는다 (2026-10-01 · 48번)
+        else if (r.kind === 'prev' && Number(r.support_type_id) === 8) o.x8prev[r.child_id] = r.month_key || prevMon(mon);
         else if (r.kind === 'short') {
           if (Number(r.support_type_id) === 8) o.x8[r.child_id] = 1;
           else o.pay[r.child_id + '|' + r.support_type_id] = Number(r.short) || 1;
