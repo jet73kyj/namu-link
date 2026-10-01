@@ -607,9 +607,15 @@ async function loadOne() {
     }
 
     ABS = {};
+    // 결석 · 보강은 「회차(seq_no) → 그 달 수업일」로 되찾는다 (2026-10-01 고침)
+    //   전에는 서비스 제공일자(service_date)로 되찾았는데, 결석 줄에 보강 날을 제공일자로 적으면
+    //   다음에 열 때 결석 표시가 보강 날로 옮겨 가고, 저장 · 열기마다 날짜가 바뀌었다
+    //   (저장은 처음부터 회차의 수업일 기준이었다)
+    const _days = [...(_getScheduledDaysCapped())].sort((a, b) => a - b);
     ITEMS.forEach(r => {
       if (r.status !== '결석' && !r.makeup_date) return;
-      const d = r.service_date ? parseInt(String(r.service_date).slice(8,10), 10) : null;
+      const d = _days[Number(r.seq_no) - 1]
+             || (r.service_date ? parseInt(String(r.service_date).slice(8,10), 10) : null);
       if (!d) return;
       ABS[d] = { absent: r.status === '결석', reason: r.absent_reason || '',
                  makeupDate: r.makeup_date || '', makeupTime: r.makeup_time || '',
