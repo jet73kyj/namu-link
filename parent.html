@@ -2335,6 +2335,32 @@ async function loadPay() {
     } catch (e) { RVC[k.id] = 0; }
   }
 
+  // 체험 · 추가 수업 설명 줄 — 회기가 아니라 따로 된 표라 학부모 창구에서 가져온다 (2026-10-01)
+  //   금액 · 메모는 안 내려온다. 날짜 · 치료 · 선생님 · 분만
+  const XD = {};
+  for (const k of KIDS) {
+    const need = (cur || []).some(r => r.child_id === k.id
+      && (Number(r.support_type_id) === 10 || Number(r.support_type_id) === 11) && Number(r.amount) > 0);
+    if (!need) continue;
+    try {
+      const { data: xs } = await sb.rpc('nl_parent_extras', { p_child: k.id, p_mk: CURMK });
+      XD[k.id] = (xs || []).filter(x => String(x.status || '') !== '취소');
+    } catch (e) { XD[k.id] = []; }
+  }
+  function extraDet(childId, stId) {
+    const want = Number(stId) === 11 ? '추가' : '체험';
+    return (XD[childId] || []).filter(x => (x.kind || '체험') === want)
+      .sort((a, b) => String(a.lesson_date + a.lesson_time).localeCompare(String(b.lesson_date + b.lesson_time)))
+      .map(x => {
+        const tn  = TYPES[x.therapy_type_id] || '수업';
+        const thn = THRS[x.therapist_id] || '';
+        const d   = new Date(x.lesson_date + 'T00:00:00');
+        return tn + (thn ? ' (' + thn + ')' : '') + ' '
+          + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + DAYS[d.getDay()] + '요일'
+          + ' · ' + (Number(x.duration_min) || 40) + '분';
+      });
+  }
+
   KIDS.forEach((k, ki) => {
     const mine = (cur || []).filter(r => r.child_id === k.id && Number(r.amount) > 0);
     if (!mine.length) return;
@@ -2372,6 +2398,8 @@ async function loadPay() {
           const wd  = devWeekday(k.id);
           det = [ '발달재활 추가' + (thn ? ' (' + thn + ')' : '')
                   + (wd ? ' ' + wd : '') ];
+        } else if (Number(r.support_type_id) === 10 || Number(r.support_type_id) === 11) {
+          det = extraDet(k.id, r.support_type_id);
         } else {
           det = detailOf(k.id, r.support_type_id);
         }
