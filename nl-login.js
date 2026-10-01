@@ -147,3 +147,50 @@
     } catch (e) {}
   };
 })(window);
+
+/* 새로고침 단추 (2026-10-01) — 이 파일을 쓰는 직원 화면 모두
+ *   「처음으로」 단추 왼쪽에 같은 모양으로 끼운다. 「처음으로」가 없으면 「로그아웃」 왼쪽
+ *   화면이 머리를 나중에 그려도 붙도록 지켜보다가, 없어지면 다시 붙인다
+ *   저장 안 한 칸이 있는 화면은 브라우저가 「나가시겠습니까?」를 묻는다 (화면마다 원래 규칙)
+ */
+(function (w) {
+  var busy = false;
+  function findRef() {
+    var els = document.querySelectorAll('button, a');
+    var home = null, out = null;
+    for (var i = 0; i < els.length; i++) {
+      var t = (els[i].textContent || '').trim();
+      if (!home && t === '처음으로') home = els[i];
+      if (!out && t === '로그아웃') out = els[i];
+      if (home) break;
+    }
+    return home || out;
+  }
+  function put() {
+    if (document.getElementById('nlReload')) return;
+    var ref = findRef();
+    if (!ref || !ref.parentNode) return;
+    var b = document.createElement(ref.tagName === 'A' ? 'a' : 'button');
+    b.id = 'nlReload';
+    b.className = ref.className;
+    if (b.tagName === 'A') { b.href = '#'; b.setAttribute('role', 'button'); } else { b.type = 'button'; }
+    b.textContent = '새로고침';
+    b.title = '화면을 새로 읽기';
+    b.style.marginRight = '6px';
+    b.onclick = function (ev) { ev.preventDefault(); w.location.reload(); };
+    ref.parentNode.insertBefore(b, ref);
+  }
+  function soon() {
+    if (busy || document.getElementById('nlReload')) return;
+    busy = true;
+    w.requestAnimationFrame(function () { busy = false; put(); });
+  }
+  function start() {
+    put();
+    try {
+      new MutationObserver(soon).observe(document.documentElement, { childList: true, subtree: true });
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})(window);
