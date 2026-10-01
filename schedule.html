@@ -1100,6 +1100,13 @@
   #mainBox .w5one { border-color:#E4E0DA; }
   #mainBox .w5one:hover { background:#B07A4A; border-color:#B07A4A; }
   /* ===== 꾸밈 B 끝 ===== */
+
+/* 하루 확인 (2026-10-01) — 치료사 계정 하루 보기 맨 아래 */
+.dayconf{display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:12px 4px 4px;font-size:14px}
+.dayconf .dcbtn{width:auto;margin:0;height:40px;padding:0 20px;border-radius:9px;border:1px solid #B07A4A;background:#B07A4A;color:#fff;font-weight:600;cursor:pointer}
+.dayconf .dcbtn:disabled{background:#fff;color:#A39C95;border-color:#ECE8E3;cursor:default}
+.dayconf .dcok{color:#3b7a4a;font-weight:600}
+.dayconf .dcmsg{color:#6E6660;font-size:13px}
 </style>
 </head>
 <body>
@@ -1727,6 +1734,7 @@
           <tbody id="gbody"></tbody>
         </table>
       </div>
+      <div id="dayConfirm" class="dayconf" style="display:none;"></div>
       <div id="findOnly" class="findonly" style="display:none;"></div>
     </div>
   </div>
@@ -4593,9 +4601,10 @@ function draw(){
   drawPrev();
   if (VIEW === 'one')  {
     // 옛 달력은 안 쓴다. 늘 하루 보기를 그린다 (2026-09-07)
-    showOne(); drawOne(); afterDraw();
+    showOne(); drawOne(); afterDraw(); drawConfirm();
     return;
   }
+  $('dayConfirm').style.display = 'none';
   if (VIEW === 'week') { drawWeek(); afterDraw(); return; }
   // 이름 줄도 함께 다시 그린다 — 치료사 체크를 바꾸면 아래 칸과 어긋나던 것 (2026-09-17)
   drawHead();
@@ -8782,6 +8791,69 @@ async function applyMonthFilter(){
 //   어제까지 · 오늘은 저녁 9시가 지났을 때만
 //   ※ 결석·휴무·쉼·보강은 안 건드린다. 예정인 것만
 let AUTODONE_DONE = false;
+// ===== 하루 확인 (2026-10-01) =====
+//   치료사 계정 하루 보기 맨 아래 「확인 완료」 — 확인한 날의 예정 줄만 밤 9시에 서버가 완료로 바꾼다
+//   확인 뒤에는 선생님이 그 날 줄을 못 바꾼다 (서버 장치 trg_x_day_lock)
+let CONF = {}, CONF_MON = '', CONF_BUSY = false;
+function todayKr(){
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+function nowHmKr(){
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return d.toISOString().slice(11, 16);
+}
+async function loadConf(){
+  if (!MY_TH) return;
+  const y = Number(mon.slice(0, 4)), m = Number(mon.slice(5, 7));
+  const last = mon + '-' + String(new Date(y, m, 0).getDate()).padStart(2, '0');
+  const { data, error } = await sb.from('nl_day_confirms').select('day, confirmed_at')
+    .eq('therapist_id', MY_TH).gte('day', mon + '-01').lte('day', last);
+  if (error) return;
+  CONF = {}; (data || []).forEach(function(r){ CONF[r.day] = r.confirmed_at; });
+  CONF_MON = mon;
+}
+function drawConfirm(){
+  const box = $('dayConfirm');
+  if (!MY_TH || !oneDate) { box.style.display = 'none'; return; }
+  if (CONF_MON !== mon) { loadConf().then(function(){ if (CONF_MON === mon) drawConfirm(); }); box.style.display = 'none'; return; }
+  const td = todayKr();
+  const mine = SESS.filter(function(x){
+    return Number(x.therapist_id) === Number(MY_TH) && x.plan_date === oneDate && x.status !== '취소';
+  });
+  if (oneDate > td || !mine.length) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  const at = CONF[oneDate];
+  if (at) {
+    const t = new Date(new Date(at).getTime() + 9 * 3600 * 1000).toISOString().slice(11, 16);
+    box.innerHTML = '<span class="dcok">✓ 확인 완료 ' + t + '</span>'
+      + '<span class="dcmsg">예정 줄은 밤 9시에 완료로 바뀝니다 · 이 날 줄은 바꿀 수 없습니다</span>';
+    return;
+  }
+  const lastHm = mine.map(function(x){ return String(x.start_time || '').slice(0, 5); }).sort().pop();
+  const early = oneDate === td && nowHmKr() < lastHm;
+  box.innerHTML = '<span class="dcmsg">' + (early
+      ? '마지막 수업(' + esc(h12(lastHm)) + ')이 시작된 뒤에 누를 수 있습니다'
+      : '결석 줄과 예정 줄이 맞는지 보신 뒤 눌러 주세요') + '</span>'
+    + '<button type="button" class="dcbtn" id="dcGo"' + (early ? ' disabled' : '') + '>확인 완료</button>';
+  if (!early) $('dcGo').onclick = doConfirm;
+}
+async function doConfirm(){
+  if (CONF_BUSY) return;
+  if (!confirm(dayNo(oneDate) + '일 수업을 확인할까요?\n확인하면 이 날 줄은 바꿀 수 없고, 예정 줄은 밤 9시에 완료로 바뀝니다.')) return;
+  CONF_BUSY = true;
+  const b = $('dcGo'); if (b) { b.disabled = true; b.textContent = '확인 중…'; }
+  try {
+    const { data, error } = await sb.rpc('nl_day_confirm', { p_day: oneDate });
+    if (error) { alert('⚠️ 확인하지 못했습니다 — ' + (error.message || '')); return; }
+    if (typeof data !== 'string' || !data) { alert('⚠️ 확인하지 못했습니다 (서버가 답을 돌려주지 않음)'); return; }
+  } catch (e) { alert('⚠️ 서버에 닿지 못했습니다. 다시 해 주세요'); return; }
+  finally { CONF_BUSY = false; }
+  CONF_MON = '';
+  await loadConf();
+  drawConfirm();
+}
+
 async function autoDone(){
   if (AUTODONE_DONE) return;      // 한 번만
   AUTODONE_DONE = true;
@@ -8799,14 +8871,10 @@ async function autoDone(){
       last = yd.getFullYear() + '-' + String(yd.getMonth()+1).padStart(2,'0')
            + '-' + String(yd.getDate()).padStart(2,'0');
     }
-    // 예정과 보강 둘 다 완료로 바꾼다
-    //   (보강 줄은 🔁 표시가 남으므로 완료가 되어도 알아볼 수 있다)
-    const { data, error } = await sb.from('nl_sessions')
-      .update({ status: '완료' })
-      .in('status', ['예정', '보강'])
-      .lte('plan_date', last)
-      .gte('plan_date', '2026-01-01')
-      .select('id');
+    // 2026-10-01 — 화면에서는 완료로 바꾸지 않는다
+    //   선생님이 「확인 완료」한 날만 서버가 밤 9시에 바꾼다 (nl_night_done · 예약 작업)
+    //   여기서는 서버가 바꾼 기록(nl_autodone)을 읽어 알림만 띄운다
+    const data = [], error = null;
     if (error) return;
 
     // 바꾼 줄을 담아 둔다 (2026-09-10)
@@ -8831,8 +8899,10 @@ async function autoDone(){
     if (seen === today) return;
 
     // 오늘 바뀐 줄을 표에서 읽는다 (다른 컴퓨터가 바꾼 것까지 함께 보인다)
+    const yd0 = new Date(now); yd0.setDate(now.getDate() - 1);
+    const ydStr = yd0.getFullYear() + '-' + String(yd0.getMonth()+1).padStart(2,'0') + '-' + String(yd0.getDate()).padStart(2,'0');
     const { data: logs } = await sb.from('nl_autodone')
-      .select('session_id').eq('done_date', today);
+      .select('session_id').in('done_date', [today, ydStr]);
     const ids = (logs || []).map(function(v){ return v.session_id; });
     if (!ids.length) return;
 
