@@ -588,7 +588,7 @@ async function loadOne() {
         .eq('child_id', cid).eq('support_type_id', 2),
       sb.from('nl_child_grades').select('*').eq('child_id', cid),
       sb.from('nl_voucher_rows').select('*').eq('child_id', cid).eq('month_key', mk)
-        .order('service_date'),
+        .order('service_date').order('paid_at'),
       sb.from('nl_session_logs').select('*').eq('child_id', cid)
         .eq('support_type_id', 2).eq('month_key', mk).maybeSingle(),
       // 일정표 시작시간 자동 — 그 날 실제 회기 시각 (보강 포함 · 앞뒤 한 달)
@@ -1002,12 +1002,23 @@ function _statusRows() {
   });
 }
 
+// 승인일자 — 날짜와 결제 시각(시:분:초)까지 (2026-10-02 은정님)
+//   바우처 「결제일시」는 엑셀 시각 그대로 담겨 있어 글자 그대로 잘라 쓴다 (시간대 바꾸지 않음)
+function _apprStamp(v) {
+  if (!v || !v.service_date) return '';
+  const d = String(v.service_date).slice(0, 10).replace(/-/g, '.');
+  const m = String(v.paid_at || '').match(/[T ](\d{2}:\d{2})(:\d{2})?/);
+  const t = m ? m[1] + (m[2] || ':00')
+        : (v.start_time ? String(v.start_time).slice(0, 8) : '');
+  return t ? d + ' ' + t : d;
+}
+
 // 바우처 결제내역에서 승인일자·승인번호 자동 채움
 function _prefillStatusFromVoucher() {
   const rows = VOUCHER.slice(0, SESSIONS).map(v => ({
     // 서비스 제공일자는 손으로 적는 칸이라 비워 둔다
     provDate: '',
-    apprDate: v.service_date ? String(v.service_date).replace(/-/g,'.') : '',
+    apprDate: _apprStamp(v),
     apprNo:   v.appr_no || '',
     cloth:'', sock:'', wear:'', face:'', health:'', result:'', note:''
   }));
@@ -1055,9 +1066,10 @@ async function saveRecord() {
         .forEach(el => a.push(el.getAttribute('data-val')));
       return a.join(',');
     };
+    // 날짜 부분만 읽는다 — 승인일자 칸에 시:분:초가 붙어 있어도 날짜만 (2026-10-02)
     const d2iso = s => {
-      const m = String(s || '').replace(/[^0-9]/g,'');
-      return m.length === 8 ? m.slice(0,4)+'-'+m.slice(4,6)+'-'+m.slice(6,8) : null;
+      const m = String(s || '').match(/^\D*(\d{4})\D*(\d{2})\D*(\d{2})/);
+      return m ? m[1] + '-' + m[2] + '-' + m[3] : null;
     };
 
     const items = [];
