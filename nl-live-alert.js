@@ -7,10 +7,12 @@
 //     (표 잠금 nl_alerts_read 가 자기 것만 내려준다)
 //   실시간(Realtime)이 끊겨도 1분마다 한 번 다시 살핀다
 (function () {
-  const KINDS = ['결석신청', '요청취소', '보강요청', '보강요청취소'];
-  const CXK   = ['요청취소', '보강요청취소'];           // 취소 쪽 (회색 딱지)
+  // + 「발추일정요청」 「발추요청취소」 — 발추 자리 없는 달 학부모 일정 요청 (2026-10-02)
+  const KINDS = ['결석신청', '요청취소', '보강요청', '보강요청취소', '발추일정요청', '발추요청취소'];
+  const CXK   = ['요청취소', '보강요청취소', '발추요청취소'];           // 취소 쪽 (회색 딱지)
   const LABEL = { '결석신청': '결석 신청', '요청취소': '요청 취소',
-                  '보강요청': '보강 요청', '보강요청취소': '보강 요청 취소' };
+                  '보강요청': '보강 요청', '보강요청취소': '보강 요청 취소',
+                  '발추일정요청': '발추 일정 요청', '발추요청취소': '발추 요청 취소' };
   let SB = null, ME = null, OPT = {}, START = null;
   let SHOWN = {}, QUEUE = [], TIMER = null, STARTED = false;
 
@@ -116,7 +118,7 @@
     const bg = box();
     QUEUE.sort((a, b) => a.id - b.id);
     const nAbs = QUEUE.filter(a => a.kind === '결석신청').length;
-    const nMk  = QUEUE.filter(a => a.kind === '보강요청').length;
+    const nMk  = QUEUE.filter(a => a.kind === '보강요청' || a.kind === '발추일정요청').length;
     const nCx  = QUEUE.filter(a => CXK.indexOf(a.kind) >= 0).length;
     bg.querySelector('#nlLiveTt').textContent =
       (nAbs && !nMk && !nCx) ? '새 결석 요청 ' + nAbs + '건'
@@ -128,7 +130,7 @@
       '방금 들어옴 · ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     bg.querySelector('#nlLiveRows').innerHTML = QUEUE.map(a =>
       '<div class="nlLiveRow"><span class="nlLiveTag'
-      + (CXK.indexOf(a.kind) >= 0 ? ' cx' : a.kind === '보강요청' ? ' mk' : '') + '">'
+      + (CXK.indexOf(a.kind) >= 0 ? ' cx' : (a.kind === '보강요청' || a.kind === '발추일정요청') ? ' mk' : '') + '">'
       + esc(LABEL[a.kind] || a.kind) + '</span>' + esc(a.body) + '</div>').join('');
     bg.style.display = 'flex';
     beep();
