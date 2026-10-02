@@ -984,6 +984,18 @@ function _syncProvDates() {
   _autoTimes();
 }
 
+// 일정표 제공날짜를 고치면 아래 「서비스 제공일자」도 같이 바뀐다 (2026-10-02)
+//   저장은 서비스 제공일자로 하므로, 전에는 일정표 쪽만 고치면 저장되지 않고
+//   다시 열 때 서비스 제공일자 값으로 덮였다 (선생님들 「저장이 안 된다」)
+document.addEventListener('input', e => {
+  const m = /^s1_provDate_(\d+)$/.exec((e.target && e.target.id) || '');
+  if (!m) return;
+  const src = document.querySelectorAll('#statusTbl .st_provDate');
+  const s = src[Number(m[1]) - 1];
+  if (s) s.value = e.target.value;
+  _autoTimes();
+});
+
 // 상태·결과 표에 넣을 줄 만들기
 //   치료 내용(반응·메모·상태)은 치료사가 적은 것을 그대로 둔다.
 //   승인번호·승인일자는 결제 자료에서 오는 것이라 늘 바우처 값으로 덮는다.
@@ -1119,8 +1131,9 @@ async function saveRecord() {
       items.push({
         log_id: LOGID, seq_no: i + 1,
         service_date: provIso || (day ? `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}` : null),
-        start_time: $('s1_startTime_' + (i+1)).value ? _hm($('s1_startTime_' + (i+1)).value) : null,
-        end_time:   $('s1_endTime_'   + (i+1)).value ? _hm($('s1_endTime_'   + (i+1)).value) : null,
+        // 화면은 12시간(4:00) — 저장은 1~8시를 오후로 (2026-10-02 · 9월 82회차가 04:00 으로 들어갔던 일)
+        start_time: $('s1_startTime_' + (i+1)).value ? _to24($('s1_startTime_' + (i+1)).value) : null,
+        end_time:   $('s1_endTime_'   + (i+1)).value ? _to24($('s1_endTime_'   + (i+1)).value) : null,
         therapist_id: day ? thOnIso(_ymd(day)) : thOnIso(null),
         reaction:   tr ? tr.querySelector('.st_result').value : null,
         staff_memo: tr ? tr.querySelector('.st_note').value : null,
@@ -1178,6 +1191,24 @@ function setSaveBtn(st) {
                 : st === 'done'   ? '\u2713 저장됨'
                 : '저장 전';
 }
+// 저장되지 않는 일정표 칸은 잠근다 (2026-10-02)
+//   열 때마다 아동 · 등급 · 담당에서 다시 채워지는 칸이라, 고쳐도 다음에 열면 돌아간다
+(function lockSheet1(){
+  const ids = ['s1_org','s1_area','s1_childName','s1_childBirth','s1_mgmtNo','s1_childName2',
+               's1_provider','s1_svcProviderName','s1_svcTel','s1_svcCharge',
+               's1_costType','s1_costUnit','s1_costCount','s1_costTotal','s1_costSelf'];
+  for (let i = 1; i <= 4; i++) ids.push('s1_therapistName_' + i, 's1_totalTime_' + i, 's1_totalCost_' + i);
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.readOnly = true; el.tabIndex = -1; el.classList.add('s1lock');
+    el.title = '자동으로 채워지는 칸입니다 (고쳐도 저장되지 않음)';
+  });
+  const st = document.createElement('style');
+  st.textContent = '.s1lock{background:#f2f1ee !important;color:#5F5E5A;cursor:default}'
+                 + '@media print{.s1lock{background:none !important;color:inherit}}';
+  document.head.appendChild(st);
+})();
 function markDirty() {
   if (!LOADED || SAVING) return;
   DIRTY = true;
