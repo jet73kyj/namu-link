@@ -871,14 +871,18 @@ function _getScheduledDaysCapped() {
   const dows = _getScheduleDows();
   if (!dows.length) return new Set();
   const last = new Date(year, month, 0).getDate();
-  const all = [];
+  // 공휴일은 뒤로 미루되, 공휴일을 빼면 회수가 모자란 달(4주뿐인 달)에는 공휴일도 수업일로 넣는다
+  //   (2026-10-02 은정님 — 4주 달에 공휴일이 끼면 3회만 나오던 것. 선생님이 보강한 날로 고쳐 적음)
+  //   5주인 달은 공휴일을 빼도 4회가 되므로 지금처럼 뺀다
+  const work = [], holi = [];
   for (let d = 1; d <= last; d++) {
     if (!dows.includes(new Date(year, month - 1, d).getDay())) continue;
     if (!schedOnDay(d)) continue;   // 그 날 살아 있던 요일줄만
-    if (_holidayFor(year, month, d)) continue;
-    all.push(d);
+    (_holidayFor(year, month, d) ? holi : work).push(d);
   }
-  return new Set(all.slice(0, SESSIONS));
+  const pick = work.slice(0, SESSIONS);
+  holi.forEach(d => { if (pick.length < SESSIONS) pick.push(d); });
+  return new Set(pick);
 }
 
 // 시작시간·종료시간 자동 (2026-10-02 은정님 정함 · 9/2 「손으로 적는 칸」 규칙을 바꿈)
