@@ -1107,6 +1107,10 @@
 .dayconf .dcbtn:disabled{background:#fff;color:#A39C95;border-color:#ECE8E3;cursor:default}
 .dayconf .dcok{color:#3b7a4a;font-weight:600}
 .dayconf .dcmsg{color:#6E6660;font-size:13px}
+/* 그룹 관리 작은 단추 (2026-10-02) */
+.gbtn{width:auto;margin:0 0 0 4px;padding:2px 10px;font-size:12.5px;border:1px solid #ECE8E3;border-radius:7px;background:#fff;color:#2F2926;cursor:pointer}
+.gbtn:hover{background:#F8F1E8}
+.gtag{display:inline-block;background:#EDE7F6;color:#5E35B1;border-radius:4px;padding:0 4px;margin-right:3px;font-size:10.5px;line-height:1.5;vertical-align:1px;font-weight:600}
 </style>
 </head>
 <body>
@@ -1157,6 +1161,7 @@
       <input id="findName" class="findbox" type="text" placeholder="아동 찾기 (이름·번호)">
       <button id="findJump" class="jumpbtn" style="display:none;">›</button>
       <button id="pairBtn" class="offbtn-top">연결시간 찾기</button>
+      <button id="grpBtn" class="offbtn-top" style="display:none;">그룹 관리</button>
       <button id="offBtn" class="offbtn-top">휴무 관리</button>
     </div>
     </div>
@@ -1198,6 +1203,37 @@
           cursor:pointer">닫기</button>
       </div>
       <div id="pairBody" style="font-size:14px;line-height:1.7"></div>
+    </div>
+  </div>
+
+  <!-- 그룹 관리 창 (2026-10-02) — 그룹 만들기 · 아동 넣기/빼기 · 진행 시작 -->
+  <div id="grpBox" class="panel grey-p" style="display:none; max-width:760px;">
+    <div class="panel-t">그룹 관리</div>
+    <div style="font-size:12.5px;color:#6E6660;line-height:1.7;margin-bottom:8px;">
+      정원 2~8명 · 1명이면 <b>대기</b> (회기 안 깔림) · 2명부터 <b>진행 시작</b> → 그날부터 아동마다 회기가 깔립니다.<br>
+      수업 시작 뒤 결석은 청구 그대로 · 보강 상자에 안 뜹니다. 1:1 보강은 차액을 더 받고 따로 잡습니다.
+    </div>
+    <div id="grpForm" style="border:1px solid #ECE8E3;border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#FBF5EE;">
+      <div style="font-weight:600;margin-bottom:6px;" id="grpFormT">새 그룹 만들기</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;font-size:13px;">
+        <label>이름<br><input id="gf_name" type="text" maxlength="40" placeholder="예: 화 사회성반" style="width:150px;"></label>
+        <label>선생님<br><select id="gf_th"></select></label>
+        <label>요일<br><select id="gf_wd"><option>월</option><option>화</option><option>수</option><option>목</option><option>금</option><option>토</option></select></label>
+        <label>시작<br><input id="gf_hm" type="time" step="600" value="16:00" style="width:110px;"></label>
+        <label>분<br><select id="gf_dur"><option>40</option><option>50</option><option>60</option></select></label>
+        <label>정원<br><select id="gf_cap"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></label>
+        <label>1회 금액<br><input id="gf_fee" type="number" min="0" step="1000" value="49000" style="width:100px;"></label>
+        <label>1:1 보강 차액<br><input id="gf_diff" type="number" min="0" step="1000" value="4000" style="width:90px;"></label>
+        <button id="gf_save" class="pbtn ok-btn" style="width:auto;margin:0;">만들기</button>
+        <button id="gf_cancel" class="pbtn grey" style="width:auto;margin:0;display:none;">고치기 그만</button>
+      </div>
+      <div style="font-size:12px;color:#A39C95;margin-top:6px;">진행 중인 그룹은 요일 · 시작 · 분 · 선생님을 여기서 바꾸지 않습니다 (아동마다 시간표 「수정」에서).</div>
+    </div>
+    <div id="grpList" style="font-size:13.5px;line-height:1.7;"></div>
+    <datalist id="grpKids"></datalist>
+    <div id="grpMsg" class="out"></div>
+    <div class="pbtns">
+      <button id="grpClose" class="pbtn grey">닫기</button>
     </div>
   </div>
 
@@ -2153,6 +2189,7 @@ let PAYCNT   = {};      // 아동|지원유형 -> 납부에서 확정한 회기 
 let PAYX8    = {};      // 아동 -> 납부에 적힌 발추 담당 치료사 번호
 let PAYWHY   = {};      // 아동|지원유형 -> 그때 적은 사유
 let KIDS = [];          // 아동 목록 (치료중 · 대기중)
+let GTH = {};           // 그룹 수업 번호 → 그룹 번호 (2026-10-02)
 let addKey = null;      // 지금 넣으려는 빈 칸
 let edRow  = null;      // 지금 고치는 수업
 let OFF    = new Set(); // 쉬는 날. 날짜 또는 날짜#치료사번호
@@ -9373,9 +9410,19 @@ async function loadMonth(){
 
   await loadUnpaid();
 
-  const nameOf = {}; ROWS.forEach(r => nameOf[r._cid] = r._name);
+  const nameOf = {}; ROWS.forEach(r => nameOf[r._cid] = String(r._name || '').replace(/^\[그룹\] /, ''));
   SESS.forEach(s => s._name = nameOf[s.child_id] || '');
   PREV.forEach(s => s._name = nameOf[s.child_id] || '');
+
+  // 그룹 수업 아동 — 이름 앞에 「[그룹]」 (화면에서는 딱지로 바뀜 · 2026-10-02)
+  //   수업(therapy) 단위로 붙인다 — 같은 아동의 보통 수업에는 안 붙음
+  GTH = {};
+  try {
+    const { data: gt } = await sb.from('nl_therapies').select('id, group_id').not('group_id', 'is', null);
+    (gt || []).forEach(x => { GTH[x.id] = x.group_id; });
+  } catch (e) {}
+  const _gpre = o => { if (o && o.therapy_id && GTH[o.therapy_id] && o._name && !String(o._name).startsWith('[그룹] ')) o._name = '[그룹] ' + o._name; };
+  SESS.forEach(_gpre); PREV.forEach(_gpre); ROWS.forEach(_gpre);
 
   // 수업 기록이 없는 아동(평가만 받는 대기중 아동)은 이름표에 없으므로 따로 채운다
   const need = SESS.filter(s => !s._name).map(s => s.child_id);
@@ -9490,6 +9537,7 @@ async function afterLogin(user){
 
   // 권한을 먼저 정한다 (아래에서 걸러낼 때 쓰이므로 순서가 중요)
   CAN_EDIT = (me.id === 8 || me.id === 9 || me.id === 11);   // 관리자·행정·데스크
+  try { $('grpBtn').style.display = CAN_EDIT ? '' : 'none'; } catch (e) {}   // 그룹 관리 (2026-10-02)
   MY_TH = (me.id >= 1 && me.id <= 7) ? me.id : null;  // 치료사는 자기 것만
   IS_BOSS = (me.id === 8);
   ME_ID = Number(me.id);
@@ -9898,6 +9946,248 @@ function pairFind(){
   $('pairWrap').style.display = 'flex';
 }
 
+
+// ===== 그룹 관리 (2026-10-02 은정님) =====
+//   그룹 = nl_groups 한 줄 · 아동은 보통 수업 줄(nl_therapies)에 group_id 로 묶음
+//   대기(1명) — 수업 줄만 있고 요일줄 · 회기 없음 / 진행 — 요일줄을 만들고 회기를 깖
+//   정원은 서버 장치 trg_y_group_cap 이 막음
+let GROUPS = [], GMEM = [], GEDIT = null;
+// 화면 글의 「[그룹]」 을 딱지로 바꾼다 — 시간표 · 찾기 창 · 상자 어디서 다시 그려도 (2026-10-02)
+function gTagify(root){
+  const w = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => (n.nodeValue.indexOf('[그룹]') >= 0
+      && !/^(OPTION|TEXTAREA|SCRIPT|STYLE|INPUT|TITLE)$/.test(n.parentNode.nodeName))
+      ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP });
+  const hits = []; while (w.nextNode()) hits.push(w.currentNode);
+  hits.forEach(n => {
+    const parts = n.nodeValue.split('[그룹]');
+    const frag = document.createDocumentFragment();
+    parts.forEach((t, i) => {
+      if (i) { const sp = document.createElement('span'); sp.className = 'gtag'; sp.textContent = '그룹'; frag.appendChild(sp); }
+      if (t) frag.appendChild(document.createTextNode(i ? t.replace(/^ /, '') : t));
+    });
+    n.parentNode.replaceChild(frag, n);
+  });
+}
+(function(){
+  let _q = false;
+  new MutationObserver(() => {
+    if (_q) return; _q = true;
+    requestAnimationFrame(() => { _q = false; gTagify(document.body); });
+  }).observe(document.body, { childList: true, subtree: true });
+})();
+function grpmsg(t, ok){ $('grpMsg').textContent = t; $('grpMsg').className = 'out ' + (ok ? 'ok' : 'err'); }
+function gToday(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function gShift(iso, n){ const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function gAlive(t){ return !t.ended_on || String(t.ended_on) >= gToday(); }
+async function loadGroups(){
+  const g = await sb.from('nl_groups').select('*').order('state').order('weekday').order('start_time');
+  if (g.error) { grpmsg('그룹을 읽지 못했습니다 — ' + g.error.message, false); return false; }
+  GROUPS = g.data || [];
+  const m = await sb.from('nl_therapies')
+    .select('id, child_id, group_id, group_signed_on, support_type_id, therapy_type_id, started_on, ended_on, nl_therapy_schedules(id, from_date, to_date)')
+    .not('group_id', 'is', null);
+  if (m.error) { grpmsg('그룹 아동을 읽지 못했습니다 — ' + m.error.message, false); return false; }
+  GMEM = m.data || [];
+  return true;
+}
+function gKidName(cid){ const k = KIDS.find(x => Number(x.id) === Number(cid)); return k ? k.name : ''; }
+function drawGroups(){
+  const sOpt = $('ad_st').innerHTML, tOpt = $('ad_tt').innerHTML;
+  $('grpKids').innerHTML = KIDS.filter(k => k.status !== '종결')
+    .map(k => '<option value="' + k.id + ' ' + esc(k.name) + '"></option>').join('');
+  if (!GROUPS.length) { $('grpList').innerHTML = '<div style="color:#A39C95;">아직 그룹이 없습니다.</div>'; return; }
+  $('grpList').innerHTML = GROUPS.map(g => {
+    const mem = GMEM.filter(t => Number(t.group_id) === Number(g.id) && gAlive(t));
+    const n = mem.length;
+    const tag = g.state === '대기' ? '<b style="color:#A39C95;">대기 ' + n + '/' + g.capacity + '</b>'
+              : g.state === '진행' ? '<b style="color:#3B6D11;">진행 ' + n + '/' + g.capacity + '명</b>'
+              : '<b style="color:#A39C95;">종결</b>';
+    let h = '<div style="border:1px solid #ECE8E3;border-radius:10px;padding:8px 12px;margin-bottom:8px;background:#fff;">'
+      + '<div><span style="background:#EDE7F6;color:#5E35B1;border-radius:6px;padding:0 6px;font-size:12px;">그룹</span> '
+      + '<b>' + esc(g.name) + '</b> · ' + g.weekday + ' ' + String(g.start_time).slice(0,5) + ' · ' + g.duration + '분 · '
+      + esc(thName(g.therapist_id)) + ' · ' + tag + ' · 1회 ' + Number(g.fee).toLocaleString() + '원 · 1:1 차액 '
+      + Number(g.mk_diff).toLocaleString() + '원'
+      + (g.started_on ? ' · ' + g.started_on + ' 시작' : '')
+      + ' <button class="gbtn" data-gedit="' + g.id + '">고치기</button></div>';
+    h += mem.map(t => '<div style="padding-left:14px;">· ' + t.child_id + '번 ' + esc(gKidName(t.child_id))
+      + ' · ' + esc(STYPE[t.support_type_id] || '') + ' · ' + esc(TTYPE[t.therapy_type_id] || '')
+      + ' · 신청서 ' + (t.group_signed_on ? '✓ ' + t.group_signed_on : '<b style="color:#C2553A;">안 받음</b>')
+      + (g.state !== '종결' ? ' <input type="date" class="gout" data-tid="' + t.id + '" value="' + gShift(gToday(), 1)
+         + '" title="이날부터 수업 없음"> <button class="gbtn" data-gdel="' + t.id + '">빼기</button>' : '')
+      + '</div>').join('');
+    if (g.state !== '종결') {
+      if (n < g.capacity) {
+        h += '<div style="padding-left:14px;margin-top:4px;">'
+          + '<input list="grpKids" class="gkid" data-g="' + g.id + '" placeholder="아동 번호 · 이름" style="width:140px;"> '
+          + '<select class="gst" data-g="' + g.id + '">' + sOpt + '</select> '
+          + '<select class="gtt" data-g="' + g.id + '">' + tOpt + '</select> '
+          + '신청서 <input type="date" class="gsign" data-g="' + g.id + '" value="' + gToday() + '"> '
+          + (g.state === '진행' ? '시작 <input type="date" class="gfrom" data-g="' + g.id + '" value="' + gShift(gToday(), 1) + '"> ' : '')
+          + '<button class="gbtn" data-gadd="' + g.id + '">＋ 넣기</button></div>';
+      }
+      if (g.state === '대기') {
+        h += '<div style="padding-left:14px;margin-top:4px;">'
+          + (n >= 2 ? '진행 시작일 <input type="date" class="gstart" data-g="' + g.id + '" value="' + gShift(gToday(), 1) + '"> '
+                      + '<button class="gbtn" data-gstart="' + g.id + '">진행 시작</button>'
+                    : '<span style="color:#A39C95;">2명이 모이면 진행을 시작할 수 있습니다.</span>')
+          + '</div>';
+      }
+    }
+    return h + '</div>';
+  }).join('');
+}
+function gfReset(){
+  GEDIT = null;
+  $('grpFormT').textContent = '새 그룹 만들기';
+  $('gf_save').textContent = '만들기'; $('gf_cancel').style.display = 'none';
+  $('gf_name').value = ''; $('gf_fee').value = '49000'; $('gf_diff').value = '4000'; $('gf_cap').value = '4';
+  ['gf_th','gf_wd','gf_hm','gf_dur'].forEach(id => { $(id).disabled = false; });
+}
+$('grpBtn').onclick = async () => {
+  const open = $('grpBox').style.display !== 'none';
+  if (open) { $('grpBox').style.display = 'none'; return; }
+  ['mkBox','addBox','edBox','offBox'].forEach(id => { if ($(id)) $(id).style.display = 'none'; });
+  $('gf_th').innerHTML = THS_ALL.map(t => '<option value="' + t.id + '">' + t.id + '번 ' + esc(t.name) + '</option>').join('');
+  gfReset(); grpmsg('', true); $('grpMsg').className = 'out';
+  $('grpBox').style.display = 'block';
+  floatOn('grpBox', lastClick);
+  if (await loadGroups()) drawGroups();
+};
+$('grpClose').onclick = () => { $('grpBox').style.display = 'none'; };
+$('gf_cancel').onclick = gfReset;
+$('gf_save').onclick = async () => {
+  const row = {
+    name: $('gf_name').value.trim(), therapist_id: Number($('gf_th').value),
+    weekday: $('gf_wd').value, start_time: ($('gf_hm').value || '') + ':00',
+    duration: Number($('gf_dur').value), capacity: Number($('gf_cap').value),
+    fee: Number($('gf_fee').value), mk_diff: Number($('gf_diff').value)
+  };
+  if (!row.name) { grpmsg('그룹 이름을 적어 주세요.', false); return; }
+  if (!/^\d{2}:\d{2}:00$/.test(row.start_time)) { grpmsg('시작 시각을 골라 주세요.', false); return; }
+  if (!(row.fee >= 0) || !(row.mk_diff >= 0)) { grpmsg('금액을 숫자로 적어 주세요.', false); return; }
+  $('gf_save').disabled = true;
+  try {
+    let r;
+    if (GEDIT) {
+      const g = GROUPS.find(x => x.id === GEDIT);
+      const n = GMEM.filter(t => Number(t.group_id) === Number(GEDIT) && gAlive(t)).length;
+      if (row.capacity < n) { grpmsg('지금 ' + n + '명이 있어 정원을 ' + row.capacity + '명으로 줄일 수 없습니다.', false); return; }
+      const up = { name: row.name, capacity: row.capacity, fee: row.fee, mk_diff: row.mk_diff, updated_at: new Date().toISOString() };
+      if (g && g.state === '대기') Object.assign(up, { therapist_id: row.therapist_id, weekday: row.weekday, start_time: row.start_time, duration: row.duration });
+      r = await sb.from('nl_groups').update(up).eq('id', GEDIT).select();
+    } else {
+      r = await sb.from('nl_groups').insert(row).select();
+    }
+    if (r.error || !(r.data && r.data.length)) { grpmsg('❌ 저장하지 못했습니다 — ' + (r.error ? r.error.message : '권한 없음'), false); return; }
+    grpmsg(GEDIT ? '✅ 고쳤습니다.' : '✅ 그룹을 만들었습니다. 아래에서 아동을 넣어 주세요.', true);
+    gfReset();
+    if (await loadGroups()) drawGroups();
+  } finally { $('gf_save').disabled = false; }
+};
+$('grpList').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const box = b.closest('div[style*="border"]');
+  if (b.dataset.gedit) {
+    const g = GROUPS.find(x => x.id === Number(b.dataset.gedit)); if (!g) return;
+    GEDIT = g.id;
+    $('grpFormT').textContent = '그룹 고치기 — ' + g.name;
+    $('gf_save').textContent = '고쳐 저장'; $('gf_cancel').style.display = '';
+    $('gf_name').value = g.name; $('gf_th').value = g.therapist_id; $('gf_wd').value = g.weekday;
+    $('gf_hm').value = String(g.start_time).slice(0,5); $('gf_dur').value = String(g.duration);
+    $('gf_cap').value = String(g.capacity); $('gf_fee').value = g.fee; $('gf_diff').value = g.mk_diff;
+    const lock = g.state !== '대기';
+    ['gf_th','gf_wd','gf_hm','gf_dur'].forEach(id => { $(id).disabled = lock; });
+    return;
+  }
+  if (b.dataset.gadd) {
+    const gid = Number(b.dataset.gadd), g = GROUPS.find(x => x.id === gid); if (!g) return;
+    const q = (box.querySelector('.gkid').value || '').trim();
+    const cid = Number((q.match(/^\d+/) || [])[0]);
+    const kid = KIDS.find(k => Number(k.id) === cid);
+    if (!kid) { grpmsg('아동을 목록에서 골라 주세요 (번호 · 이름).', false); return; }
+    if (GMEM.some(t => Number(t.group_id) === gid && Number(t.child_id) === cid && gAlive(t))) { grpmsg('이미 이 그룹에 있는 아동입니다.', false); return; }
+    const st = Number(box.querySelector('.gst').value), tt = Number(box.querySelector('.gtt').value);
+    const sign = box.querySelector('.gsign').value || null;
+    const from = g.state === '진행' ? (box.querySelector('.gfrom').value || gToday()) : null;
+    if (!sign && !confirm('신청서 받은 날이 비어 있습니다. 그래도 넣을까요?')) return;
+    b.disabled = true;
+    try {
+      const ins = await sb.from('nl_therapies').insert({
+        child_id: cid, therapy_type_id: tt, support_type_id: st, duration_min: g.duration,
+        started_on: from, monthly_count: st === 2 ? 4 : 5, count_mode: st === 2 ? '4회만' : '매주',
+        group_id: gid, group_signed_on: sign
+      }).select().single();
+      if (ins.error) { grpmsg('❌ 넣지 못했습니다 — ' + ins.error.message, false); return; }
+      if (from) {
+        const r = await gMakeSched(ins.data.id, g, from);
+        if (!r.ok) { grpmsg(r.msg, false); return; }
+        grpmsg('✅ ' + cid + '번을 넣었습니다. ' + from + '부터 회기를 깔았습니다 (' + r.months.join(' · ') + ').', true);
+      } else {
+        grpmsg('✅ ' + cid + '번을 넣었습니다 (대기 — 진행을 시작하면 회기가 깔립니다).', true);
+      }
+      if (await loadGroups()) drawGroups();
+      await loadMonth(); draw();
+    } finally { b.disabled = false; }
+    return;
+  }
+  if (b.dataset.gstart) {
+    const gid = Number(b.dataset.gstart), g = GROUPS.find(x => x.id === gid); if (!g) return;
+    const d = box.querySelector('.gstart').value;
+    if (!d) { grpmsg('진행 시작일을 골라 주세요.', false); return; }
+    const mem = GMEM.filter(t => Number(t.group_id) === gid && gAlive(t));
+    if (mem.length < 2) { grpmsg('2명 이상이어야 진행을 시작할 수 있습니다.', false); return; }
+    if (!confirm(g.name + ' 그룹을 ' + d + '부터 진행합니다.\n아동 ' + mem.length + '명의 회기가 깔립니다.')) return;
+    b.disabled = true;
+    try {
+      const bad = [];
+      for (const t of mem) {
+        if ((t.nl_therapy_schedules || []).length) continue;
+        await sb.from('nl_therapies').update({ started_on: d }).eq('id', t.id).is('started_on', null);
+        const r = await gMakeSched(t.id, g, d);
+        if (!r.ok) bad.push(t.child_id + '번 ' + r.msg);
+      }
+      const up = await sb.from('nl_groups').update({ state: '진행', started_on: d, updated_at: new Date().toISOString() }).eq('id', gid).select();
+      if (up.error || !(up.data && up.data.length)) bad.push('그룹 상태를 바꾸지 못함');
+      grpmsg(bad.length ? '⚠️ 일부를 못 했습니다\n' + bad.join('\n') : '✅ 진행을 시작했습니다.', !bad.length);
+      if (await loadGroups()) drawGroups();
+      await loadMonth(); draw();
+    } finally { b.disabled = false; }
+    return;
+  }
+  if (b.dataset.gdel) {
+    const tid = Number(b.dataset.gdel), t = GMEM.find(x => x.id === tid); if (!t) return;
+    const inp = box.querySelector('.gout[data-tid="' + tid + '"]');
+    const d = inp ? inp.value : '';
+    if (!d) { grpmsg('빼는 날(이날부터 수업 없음)을 골라 주세요.', false); return; }
+    if (!confirm(t.child_id + '번을 그룹에서 뺍니다.\n' + d + '부터 수업이 없습니다 (그 앞 기록은 그대로).')) return;
+    b.disabled = true;
+    try {
+      const end = (t.nl_therapy_schedules || []).length ? gShift(d, -1) : gToday();
+      const up = await sb.from('nl_therapies').update({ ended_on: end, end_reason: '그룹에서 뺌' }).eq('id', tid).select();
+      if (up.error || !(up.data && up.data.length)) { grpmsg('❌ 빼지 못했습니다 — ' + (up.error ? up.error.message : '권한 없음'), false); return; }
+      // 그날부터 아직 안 한 회기 지우기 (완료 · 결석 · 보강은 그대로)
+      await sb.from('nl_sessions').delete().eq('therapy_id', tid).gte('plan_date', d)
+        .in('status', ['예정', '쉼', '휴무']).is('makeup_for', null);
+      grpmsg('✅ ' + t.child_id + '번을 뺐습니다.', true);
+      if (await loadGroups()) drawGroups();
+      await loadMonth(); draw();
+    } finally { b.disabled = false; }
+  }
+});
+// 그룹 아동 한 명의 요일줄을 만들고 시작 달부터 석 달 회기를 깐다
+async function gMakeSched(tid, g, from){
+  const sc = await sb.from('nl_therapy_schedules').insert({
+    therapy_id: tid, weekday: g.weekday, start_time: g.start_time, therapist_id: g.therapist_id,
+    duration: g.duration, week1: true, week2: true, week3: true, week4: true,
+    from_date: from, from_month: String(from).slice(0, 7)
+  }).select().single();
+  if (sc.error) return { ok: false, msg: '요일줄을 만들지 못했습니다 — ' + sc.error.message };
+  const lay = await layNewSchedule(sc.data.id, from);
+  return lay.ok ? { ok: true, months: lay.months } : { ok: false, msg: '회기를 다 깔지 못했습니다 (' + lay.bad.join(', ') + ')' };
+}
+
 $('pairBtn').onclick = pairFind;
 $('pairX').onclick = () => { $('pairWrap').style.display = 'none'; };
 $('pairWrap').onclick = ev => {
