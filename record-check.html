@@ -156,6 +156,27 @@ function esc(s){
 }
 function monNo(k){ return Number(String(k).slice(5,7)); }
 function md(d){ return d ? Number(String(d).slice(5,7)) + '/' + Number(String(d).slice(8,10)) : ''; }
+// 점검 글 속 번호를 이름으로 (2026-10-02 은정님) — 4번 다른 아동 · 10번 겹친 아동 · 16번 선생님
+function rcIds(rows) {
+  const kid = new Set(), th = new Set();
+  (rows || []).forEach(r => {
+    const d = String(r.detail || ''), n = Number(r.item_no);
+    if (n === 4)  { const m = d.match(/(\d+)번 결제 뒤/); if (m) kid.add(Number(m[1])); }
+    if (n === 10) { const m = d.match(/ 이 (\d+)번 /);    if (m) kid.add(Number(m[1])); }
+    if (n === 16) { (d.match(/\d+(?:→\d+)*번/g) || []).forEach(x => x.replace('번', '').split('→').forEach(v => th.add(Number(v)))); }
+  });
+  return { kid: [...kid], th: [...th] };
+}
+function rcNamed(r, kidName, thName) {
+  let d = String(r.detail || '');
+  const n = Number(r.item_no);
+  const kn = id => kidName(id) || (id + '번');
+  if (n === 4)  d = d.replace(/(\d+)번 결제 뒤/, (m, id) => kn(Number(id)) + ' 결제 뒤');
+  if (n === 10) d = d.replace(/ 이 (\d+)번 /, (m, id) => ' 이 ' + kn(Number(id)) + ' ');
+  if (n === 16) d = d.replace(/(\d+(?:→\d+)*)번/g, (m, ids) =>
+    ids.split('→').map(v => thName(Number(v)) || (v + '번')).join('→') + ' 선생님');
+  return d;
+}
 function rkey(r){ return r.child_id + '|' + r.item_no + '|' + (r.item_key || ''); }
 // 갈래 나(10~14 · 18) — 목록만. 선생님이 기록지를 고치면 저절로 사라짐 (2026-10-02)
 function isList(r){ return (r.item_no >= 10 && r.item_no <= 14) || r.item_no === 18; }
@@ -210,8 +231,9 @@ async function run(){
 
   // 이름 — 결과에 나온 아동 · 선생님만
   KIDNM = {}; THNM = {};
-  const kids = [...new Set(ROWS.map(r => r.child_id).filter(Boolean))];
-  const ths  = [...new Set(ROWS.map(r => r.therapist_id).filter(Boolean))];
+  const _x = rcIds(ROWS);         // 글 속 다른 아동 · 선생님 번호도 함께 (2026-10-02)
+  const kids = [...new Set(ROWS.map(r => r.child_id).filter(Boolean).concat(_x.kid))];
+  const ths  = [...new Set(ROWS.map(r => r.therapist_id).filter(Boolean).concat(_x.th))];
   try {
     if (kids.length) {
       const { data } = await sb.from('nl_children').select('id, name').in('id', kids);
@@ -312,7 +334,7 @@ function draw(){
           + '<td class="cid">' + r.child_id + '번 ' + esc(KIDNM[r.child_id] || '') + '</td>'
           + '<td>' + md(r.on_date) + '</td>'
           + '<td><span class="it ' + it[1] + '">' + r.item_no + ' ' + esc(it[0]) + '</span></td>'
-          + '<td class="det">' + esc(r.detail)
+          + '<td class="det">' + esc(rcNamed(r, id => KIDNM[id] || '', id => THNM[id] || ''))
           + (noteOf(r).length ? '<div style="margin-top:4px;font-size:12px;color:#6D4C41;background:#FFF8E1;padding:3px 7px;border-radius:5px;">특이사항 · '
              + noteOf(r).map(esc).join('<br>') + '</div>' : '') + '</td>'
           + '<td>' + rcCell(r, i) + '</td></tr>';

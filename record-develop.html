@@ -1100,12 +1100,42 @@ async function loadRcBox(cid, mk) {
     if (error) return;
     if (Number($('pChild').value) !== Number(cid)) return;      // 그 사이 다른 아동을 불렀으면 그리지 않음
     RCSRV = (data || []).filter(r => Number(r.child_id) === Number(cid));
+    // 글 속 다른 아동 이름 (표 잠금 그대로 — 볼 수 있는 아동만, 못 보면 번호)
+    const ids = rcIds(RCSRV).kid.filter(id => !RCKID[id]);
+    if (ids.length) {
+      try {
+        const { data: kn } = await sb.from('nl_children').select('id, name').in('id', ids);
+        (kn || []).forEach(x => { RCKID[x.id] = x.name || ''; });
+      } catch (e) {}
+    }
     rcDraw();
   } catch (e) {}
 }
 
 // 노랑 점검 상자 (2026-10-02 은정님) — 기록지 칸으로 정해지는 1 · 12 · 18번은 화면에서 바로 센다
 //   고치는 순간 상자가 바뀐다. 결제 쪽 항목은 서버 값 그대로 · 저장하면 다시 받아 온다
+// 점검 글 속 번호를 이름으로 (2026-10-02 은정님) — 4번 다른 아동 · 10번 겹친 아동 · 16번 선생님
+function rcIds(rows) {
+  const kid = new Set(), th = new Set();
+  (rows || []).forEach(r => {
+    const d = String(r.detail || ''), n = Number(r.item_no);
+    if (n === 4)  { const m = d.match(/(\d+)번 결제 뒤/); if (m) kid.add(Number(m[1])); }
+    if (n === 10) { const m = d.match(/ 이 (\d+)번 /);    if (m) kid.add(Number(m[1])); }
+    if (n === 16) { (d.match(/\d+(?:→\d+)*번/g) || []).forEach(x => x.replace('번', '').split('→').forEach(v => th.add(Number(v)))); }
+  });
+  return { kid: [...kid], th: [...th] };
+}
+function rcNamed(r, kidName, thName) {
+  let d = String(r.detail || '');
+  const n = Number(r.item_no);
+  const kn = id => kidName(id) || (id + '번');
+  if (n === 4)  d = d.replace(/(\d+)번 결제 뒤/, (m, id) => kn(Number(id)) + ' 결제 뒤');
+  if (n === 10) d = d.replace(/ 이 (\d+)번 /, (m, id) => ' 이 ' + kn(Number(id)) + ' ');
+  if (n === 16) d = d.replace(/(\d+(?:→\d+)*)번/g, (m, ids) =>
+    ids.split('→').map(v => thName(Number(v)) || (v + '번')).join('→') + ' 선생님');
+  return d;
+}
+let RCKID = {};            // 점검 글에 나온 다른 아동 번호 → 이름
 let RCSRV = null;
 const RC_LOCAL = new Set([1, 12, 18, 19]);
 function rcLocal() {
@@ -1170,7 +1200,7 @@ function rcDraw() {
       box.innerHTML = '<b>기록지 점검 — ' + rows.length + '건</b> (1 · 12 · 18 · 19번은 고치면 바로 다시 셉니다 · 결제 쪽 항목은 저장 뒤 다시 셉니다)'
         + rows.map(r => '<div>· ' + r.item_no + ' ' + esc(RC_ITEM[r.item_no] || '')
             + (r.on_date ? ' · ' + Number(String(r.on_date).slice(5,7)) + '/' + Number(String(r.on_date).slice(8,10)) : '')
-            + ' — ' + esc(r.detail || '') + '</div>').join('');
+            + ' — ' + esc(rcNamed(r, id => RCKID[id] || (KIDS[id] && KIDS[id].name) || '', thrName)) + '</div>').join('');
     }
     box.style.display = 'block';
   }
