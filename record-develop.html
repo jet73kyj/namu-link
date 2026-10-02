@@ -797,7 +797,11 @@ function _showProvWarn(r) {
         ? '<div>이 달 바우처 결제 자료가 아직 없습니다.<br>「발달 올리기」에서 이 달 엑셀을 올린 뒤 다시 열어 주세요.</div>'
         : '<div style="margin-bottom:6px;">일정표와 바우처 승인일자가 다릅니다</div>'
           + line('일정표에만 있음', r.onlyS) + line('승인에만 있음', r.onlyV))
-    + '<div style="margin-top:8px;color:#8d6e63;">서비스 제공일자는 채우지 않았습니다.</div>'
+    + (r.noVoucher ? '' :
+        '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed #f9a825;line-height:1.6;">'
+        + '시간표의 날짜 · 시간이 일정표 제공날짜 · 시작 · 종료시간과 서비스 제공일자에 그대로 들어갑니다.<br>'
+        + '틀린 곳은 시간표를 고쳐 주세요.<br>'
+        + '제공일자와 승인일자가 다른 경우 사유를 「특이사항」에 적어 주세요.</div>')
     + '<div style="text-align:right;margin-top:14px;"><button id="_provWarnOk" style="width:auto;margin:0;background:#e65100;color:#fff;border:none;border-radius:6px;padding:8px 22px;font-size:13px;cursor:pointer;">확인</button></div>'
     + '</div>';
   document.body.appendChild(w);
