@@ -2156,6 +2156,14 @@ let KIDS = [];          // 아동 목록 (치료중 · 대기중)
 let addKey = null;      // 지금 넣으려는 빈 칸
 let edRow  = null;      // 지금 고치는 수업
 let OFF    = new Set(); // 쉬는 날. 날짜 또는 날짜#치료사번호
+// 같은 칸 · 같은 날에 실제 수업(예정·보강·완료)이 있으면 그 날 「휴무」 줄은 감춘다 (2026-10-02)
+//   나오는 날(공휴일)에 보강을 넣으면 공휴일 줄과 보강 줄이 두 줄로 보이던 것 (85번 10/3)
+function dropHoliDup(list) {
+  const live = new Set();
+  (list || []).forEach(x => { if (x && ['예정', '보강', '완료'].includes(x.status)) live.add(String(x.plan_date)); });
+  if (!live.size) return list || [];
+  return list.filter(x => !(x && x.status === '휴무' && live.has(String(x.plan_date))));
+}
 let WORKX  = {};        // 날짜#치료사 -> { s, e } 「나오는 날」(추가근무) 시각 (2026-09-11)
 let THDAYS = {};        // 치료사 -> 요일 -> { works, f, l } 출근 요일·첫 수업·마지막 수업 (nl_therapist_days)
 // 점선 ＋(보강 넣기)는 2026년 8월 화면에서만 쓴다.
@@ -3569,7 +3577,7 @@ function drawWeek(){
             return ths.map(() => '<td class="cell nosat"></td>').join('');
           const ds2 = dates[i2];
           return ths.map(th3 => {
-          const list = cell[s.no + '_' + d + '_' + th3.id] || [];
+          const list = dropHoliDup(cell[s.no + '_' + d + '_' + th3.id] || []);
           // ＋ 단추 — 그 치료사 자리에 바로 넣는다
           const plus = CAN_EDIT
             ? '<button class="addbtn" data-add2="' + s.no + '_' + th3.id + '">'
@@ -4139,7 +4147,7 @@ function drawOne(){
         + '<div class="htime">' + t12(slotT(s, null, wd)) + '</div>'
         + (lunch ? '<div class="thkind">점심</div>' : '') + '</td>'
       + ths.map(th3 => {
-          const list = cell[s.no + '_' + th3.id] || [];
+          const list = dropHoliDup(cell[s.no + '_' + th3.id] || []);
           const plus = CAN_EDIT
             ? '<button class="addbtn" data-add2="' + s.no + '_' + th3.id + '">'
               + '＋ 수업 넣기</button>'
@@ -4918,6 +4926,20 @@ function drawDay(){
           lines.sort(function(a, b){
             return a.d.localeCompare(b.d)
               || ((a.kind === 'open' ? 1 : 0) - (b.kind === 'open' ? 1 : 0)); });
+
+          // 같은 날 이 칸에 실제 수업(예정·보강·완료)이 있으면 그 날 「휴무」 줄은 감춘다 (2026-10-02)
+          {
+            const liveD = new Set(lines.filter(function(v){
+              return v.x && ['예정', '보강', '완료'].includes(v.x.status)
+                && (v.kind === 'run' || v.kind === 'mk' || v.kind === 'mn'); }).map(function(v){ return v.d; }));
+            for (let i4 = lines.length - 1; i4 >= 0; i4--) {
+              const v = lines[i4];
+              if (v.kind === 'run' && v.x && v.x.status === '휴무' && liveD.has(v.d)) {
+                if (v.r) seenSc[v.r.id] = true;
+                lines.splice(i4, 1);
+              }
+            }
+          }
 
           let html = '';
           html += restHtml;
