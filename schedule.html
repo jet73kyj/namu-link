@@ -6473,6 +6473,20 @@ $('edEnd').onclick = async () => {
       + '정말 ' + d + ' 부터 종결할까요?')) return;
   }
 
+  // ── 같은 수업에 살아 있는 다른 요일이 있으면 「이 요일만 / 수업 전체」를 묻는다 (2026-10-02) ──
+  //   까닭 — 34번: 수요일 줄에서 「이 수업 종결」을 누르자 치료 전체가 끝나 금요일 줄까지 닫혔음
+  let _mode = 'all';
+  try {
+    const { data: sibs } = await sb.from('nl_therapy_schedules')
+      .select('id, weekday, start_time, to_date')
+      .eq('therapy_id', edRow.therapy_id).neq('id', edRow.id);
+    const live = (sibs || []).filter(x => !x.to_date || String(x.to_date) >= d);
+    if (live.length) {
+      _mode = await askEndScope(edRow, live);
+      if (!_mode) return;
+    }
+  } catch (e) { edmsg('❌ 같은 수업의 다른 요일을 불러오지 못했습니다.\n' + e.message, false); return; }
+
   // ── 종결일부터의 줄을 가린다 ──
   //   보강을 10분이라도 한 줄 → 완료로 바꾸고 남김
   //   이미 완료 · 40분 보강을 한 결석 줄 → 그대로 남김
@@ -6544,6 +6558,7 @@ $('edEnd').onclick = async () => {
 
   // 종결 사유 — 나중에 무엇 때문에 끝났는지 볼 수 있게 (2026-09-10)
   let _why = String(($('ed_endwhy') || {}).value || '').trim();
+  if (_mode === 'line' && !_why) _why = '요일 정리 (이 요일만 끝냄)';
   if (!_why) {
     _why = (prompt('종결 사유를 적어 주세요.\n\n'
       + '  ' + _what + '\n\n'
@@ -6551,19 +6566,22 @@ $('edEnd').onclick = async () => {
     if (!_why) { edmsg('종결 사유를 적어 주세요.', false); return; }
   }
 
-  if (!confirm('아래 수업을 정말 그만둘까요?\n\n'
+  if (!confirm((_mode === 'line'
+        ? '아래 요일만 끝낼까요? 같은 수업의 다른 요일은 그대로 진행됩니다.\n\n'
+        : '아래 수업을 정말 그만둘까요?\n\n')
     + '  ' + _what + '\n'
-    + '  종결 사유 · ' + _why + '\n'
-    + _restTxt + '\n'
+    + (_mode === 'line' ? '' : '  종결 사유 · ' + _why + '\n' + _restTxt) + '\n'
     + _plan + '\n'
     + '이 아동의 이 수업이 맞는지 한 번 더 봐 주세요.\n'
     + '종결일 전의 기록은 그대로 남습니다.')) return;
 
   $('edEnd').disabled = true;
   try {
-    const { error: e1 } = await sb.from('nl_therapies')
-      .update({ ended_on: _last, end_reason: _why }).eq('id', edRow.therapy_id);
-    if (e1) throw e1;
+    if (_mode === 'all') {
+      const { error: e1 } = await sb.from('nl_therapies')
+        .update({ ended_on: _last, end_reason: _why }).eq('id', edRow.therapy_id);
+      if (e1) throw e1;
+    }
     // ⚠️ 요일줄을 지우지 않는다. 지우면 그 달 납부 계산 화면에서
     //    수업이 사라져 납부 내역이 안 보인다. 끝난달만 넣어 다음 달부터 안 나오게 한다
     //    끝나는 날짜(to_date)도 적어, 시간표가 그 달 남은 날을 다시 깔지 않게 한다
@@ -6595,13 +6613,14 @@ $('edEnd').onclick = async () => {
     await loadMonth();
     draw();
     // 처리가 끝났음을 확실히 알린다 (저장을 또 누르실까 봐)
-    alert('✅ 이 수업을 종결일 ' + d + ' 로 끝냈습니다.\n'
+    alert((_mode === 'line' ? '✅ 이 요일을 종결일 ' + d + ' 로 끝냈습니다. 같은 수업의 다른 요일은 그대로입니다.\n'
+                            : '✅ 이 수업을 종결일 ' + d + ' 로 끝냈습니다.\n')
       + '(완료로 바꿈 ' + _toDone.length + '줄 · 지움 ' + _delIds.length + '줄)\n\n'
       + '바로 적용되었습니다. 따로 「저장」을 누르지 않으셔도 됩니다.\n'
       + '지난 회기와 납부 기록은 그대로 남습니다.');
 
     // 마지막 수업이었으면 아동도 종결로 바꿀지 묻는다 (누락 막기)
-    if (!_rest.length && _kid) {
+    if (_mode === 'all' && !_rest.length && _kid) {
       if (confirm('이 아동의 마지막 수업이었습니다.\n\n'
         + '아동 상태를 「종결」로 바꿀까요?\n\n'
         + '확인 = 종결로 바꿈\n'
@@ -6618,6 +6637,28 @@ $('edEnd').onclick = async () => {
     $('edEnd').disabled = false;
   }
 };
+
+// 「이 요일만 끝내기 / 수업 전체 종결 / 취소」 고르는 창 (2026-10-02) → 'line' | 'all' | null
+function askEndScope(row, live){
+  return new Promise(res => {
+    const w = document.createElement('div');
+    w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    const ln = x => '<div style="margin:3px 0;">· ' + esc(x.weekday || '') + ' ' + String(x.start_time || '').slice(0, 5) + '</div>';
+    w.innerHTML = '<div style="background:#fff;border-radius:12px;width:400px;max-width:100%;border:1px solid #ECE8E3;font-size:13.5px;color:#2F2926;">'
+      + '<div style="background:#F8F1E8;border-bottom:2px solid #C9A27E;padding:12px 16px;font-weight:700;">확인해 주세요</div>'
+      + '<div style="padding:14px 16px;line-height:1.6;">이 수업에는 요일이 ' + (live.length + 1) + '개 있습니다'
+      + '<div style="margin:8px 0 0 4px;">' + ln(row).replace('</div>', ' <b>(지금 연 줄)</b></div>') + live.map(ln).join('') + '</div></div>'
+      + '<div style="padding:4px 16px 16px;display:flex;flex-direction:column;gap:8px;">'
+      + '<button data-m="line" style="width:100%;margin:0;padding:10px;border-radius:8px;border:1px solid #B07A4A;background:#B07A4A;color:#fff;font-weight:700;cursor:pointer;">이 요일만 끝내기 <span style="font-weight:400;font-size:12px;">— 다른 요일은 그대로</span></button>'
+      + '<button data-m="all" style="width:100%;margin:0;padding:10px;border-radius:8px;border:1px solid #D8684A;background:#fff;color:#D8684A;cursor:pointer;">수업 전체 종결 <span style="font-size:12px;">— 모든 요일이 끝남</span></button>'
+      + '<button data-m="" style="width:100%;margin:0;padding:10px;border-radius:8px;border:1px solid #E4E0DA;background:#fff;color:#2F2926;cursor:pointer;">취소</button>'
+      + '</div></div>';
+    document.body.appendChild(w);
+    w.querySelectorAll('button[data-m]').forEach(b => {
+      b.onclick = () => { w.remove(); res(b.dataset.m || null); };
+    });
+  });
+}
 
 // 날짜 문자열에 하루를 더하거나 뺀다 ('2026-09-11', 1 → '2026-09-12')
 function dayAdd(s, n){
