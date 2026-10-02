@@ -192,6 +192,8 @@
     <button onclick="_shareRecordHelp()" style="background:#fee500;color:#3c1e1e;">학부모 전달 안내</button>
     <a href="index.html" style="margin-left:auto;background:#eee;color:#555;text-decoration:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:bold;">처음으로</a>
   </div>
+  <!-- 이 아동 이 달 기록지 점검 결과 (nl_record_check · 2026-10-02) -->
+  <div id="rcBox" class="no-print" style="display:none;margin:0 0 12px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.7;"></div>
 
   <!-- ==================== 1. 서비스 일정표, 제공기록지 ==================== -->
   <div class="sheet" id="sheet1">
@@ -658,6 +660,7 @@ async function loadOne() {
     }
     $('pInfo').textContent = mk + ' · 바우처 ' + VOUCHER.length + '건'
       + (LOGID ? ' · 저장된 기록 있음' : ' · 새로 작성');
+    loadRcBox(cid, mk);
   } catch (e) {
     alert('불러오지 못했습니다.\n' + e.message);
   } finally {
@@ -1000,6 +1003,37 @@ function _statusRows() {
       result: r.reaction || '', note: r.staff_memo || ''
     };
   });
+}
+
+// ── 이 아동 이 달 기록지 점검 결과 (2026-10-02) — 셈은 서버 nl_record_check 한 곳 ──
+const RC_ITEM = {
+  1:'결제 이름', 2:'아동 중복 결제', 3:'연속 결제 80분 안', 4:'치료사 중복 결제', 5:'승인번호 이상',
+  6:'주 3회 이상', 7:'월 4회 미달', 8:'결제금액 불일치', 9:'예외 · 일괄 (참고)',
+  10:'기록지 시각 겹침', 11:'일정표 ↔ 승인일자', 12:'기록지 빈칸', 13:'승인번호 다름', 14:'기록지 없음',
+  15:'변경계약서 · 본인부담금', 16:'변경계약서 · 담당 변경'
+};
+async function loadRcBox(cid, mk) {
+  const box = $('rcBox');
+  if (!box) return;
+  box.style.display = 'none';
+  try {
+    const { data, error } = await sb.rpc('nl_record_check', { p_month: mk });
+    if (error) return;
+    const rows = (data || []).filter(r => Number(r.child_id) === Number(cid))
+      .sort((a, b) => a.item_no - b.item_no || String(a.on_date || '').localeCompare(String(b.on_date || '')));
+    if (Number($('pChild').value) !== Number(cid)) return;      // 그 사이 다른 아동을 불렀으면 그리지 않음
+    if (!rows.length) {
+      box.style.cssText = 'margin:0 0 12px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.7;background:#EAF4EC;border-left:3px solid #5E9A6E;color:#2E6B3E;';
+      box.innerHTML = '기록지 점검 — 이 달 걸린 것이 없습니다.';
+    } else {
+      box.style.cssText = 'margin:0 0 12px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.7;background:#FFF8E1;border-left:3px solid #F9A825;color:#4E342E;';
+      box.innerHTML = '<b>기록지 점검 — ' + rows.length + '건</b> (기록지를 고치고 저장하면 다시 열 때 사라집니다)'
+        + rows.map(r => '<div>· ' + r.item_no + ' ' + esc(RC_ITEM[r.item_no] || '')
+            + (r.on_date ? ' · ' + Number(String(r.on_date).slice(5,7)) + '/' + Number(String(r.on_date).slice(8,10)) : '')
+            + ' — ' + esc(r.detail || '') + '</div>').join('');
+    }
+    box.style.display = 'block';
+  } catch (e) {}
 }
 
 // 승인일자 — 날짜와 결제 시각(시:분:초)까지 (2026-10-02 은정님)

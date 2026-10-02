@@ -108,6 +108,8 @@
   <h1>기록지 점검</h1>
   <span class="who" id="who"></span>
   <span class="sp"></span>
+  <input id="kidQ" type="text" autocomplete="off" placeholder="아동 번호 · 이름"
+         style="font:inherit;font-size:13px;padding:6px 9px;border-radius:8px;border:1px solid var(--line);width:130px;">
   <select id="mon"></select>
   <button id="run">점검하기</button>
   <button id="pdf">PDF로 저장</button>
@@ -272,7 +274,11 @@ function rcCell(r, i){
 function draw(){
   const k = $('mon').value;
   const left = ROWS.filter(r => !isDone(r));
-  const list = VIEW === 'left' ? left : ROWS;
+  // 아동 번호 · 이름으로 거르기 (2026-10-02) — 숫자면 번호가 같은 아동, 아니면 이름에 그 글자
+  const q = String(($('kidQ') || {}).value || '').trim();
+  const hit = r => !q || (/^\d+$/.test(q) ? Number(r.child_id) === Number(q)
+                                          : String(KIDNM[r.child_id] || '').indexOf(q) >= 0);
+  const list = (VIEW === 'left' ? left : ROWS).filter(hit);
   const nList = ROWS.filter(isList).length;
   let h = '<div class="sum">' + monNo(k) + '월 · 점검 대상 <b>' + left.filter(r => r.item_no !== 9 && !isList(r)).length + '건</b>'
         + ' · 처리 끝 ' + ROWS.filter(r => r.item_no !== 9 && !isList(r) && isDone(r)).length + '건'
@@ -369,6 +375,7 @@ async function saveRc(box){
 $('run').onclick = run;
 $('mon').onchange = run;
 $('pdf').onclick = () => window.print();
+$('kidQ').addEventListener('input', () => { if (ROWS.length || $('body').querySelector('.sum')) draw(); });
 $('home').onclick = () => { location.href = 'index.html'; };
 
 (async () => {
