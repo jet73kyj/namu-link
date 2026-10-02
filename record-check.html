@@ -135,6 +135,7 @@ const $ = id => document.getElementById(id);
 
 const ADMIN = [8, 9];
 let ME = null, ROWS = [], CASES = [], RES = {}, KIDNM = {}, THNM = {}, VIEW = 'left';
+let NOTES = {};   // 아동|날짜 → 발달 기록지 특이사항 글들 · 아동|* → 그 달 전부 (2026-10-02)
 
 // 항목 이름 · 갈래 (g1 결제 · g2 기록지 · g3 서류 · g0 참고)
 const ITEM = {
@@ -177,7 +178,13 @@ function isDone(r){
   const x = RES[rkey(r)];
   if (!x || !x.case_id) return false;
   const c = CASES.find(c => c.id === x.case_id);
-  return c ? (!c.need_doc || x.doc_done) : false;
+  if (!c) return false;
+  // 특이사항 기재 사례 — 기록지 그 회차 특이사항이 적혔으면 끝 (서류 없음)
+  if (c.grp === '특이사항 기재') return noteOf(r).length > 0;
+  return !c.need_doc || x.doc_done;
+}
+function noteOf(r){
+  return NOTES[r.child_id + '|' + (r.on_date ? String(r.on_date).slice(0,10) : '*')] || [];
 }
 
 async function run(){
@@ -210,6 +217,27 @@ async function run(){
     if (ths.length) {
       const { data } = await sb.from('nl_therapists').select('id, name').in('id', ths);
       (data || []).forEach(x => { THNM[x.id] = x.name || ''; });
+    }
+  } catch (e) {}
+  // 발달 기록지 특이사항 — 결과에 나온 아동만
+  NOTES = {};
+  try {
+    if (kids.length) {
+      const { data: lgs } = await sb.from('nl_session_logs').select('id, child_id')
+        .eq('support_type_id', 2).eq('month_key', k).in('child_id', kids);
+      const ids = (lgs || []).map(x => x.id), cof = {};
+      (lgs || []).forEach(x => { cof[x.id] = x.child_id; });
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data: its } = await sb.from('nl_session_items')
+          .select('log_id, seq_no, service_date, staff_memo').in('log_id', ids.slice(i, i + 200));
+        (its || []).forEach(x => {
+          const t = String(x.staff_memo || '').trim();
+          if (!t) return;
+          const cid = cof[x.log_id], line = x.seq_no + '회째: ' + t;
+          if (x.service_date) (NOTES[cid + '|' + String(x.service_date).slice(0,10)] = NOTES[cid + '|' + String(x.service_date).slice(0,10)] || []).push(line);
+          (NOTES[cid + '|*'] = NOTES[cid + '|*'] || []).push(line);
+        });
+      }
     }
   } catch (e) {}
   draw();
@@ -277,14 +305,17 @@ function draw(){
           + '<td class="cid">' + r.child_id + '번 ' + esc(KIDNM[r.child_id] || '') + '</td>'
           + '<td>' + md(r.on_date) + '</td>'
           + '<td><span class="it ' + it[1] + '">' + r.item_no + ' ' + esc(it[0]) + '</span></td>'
-          + '<td class="det">' + esc(r.detail) + '</td>'
+          + '<td class="det">' + esc(r.detail)
+          + (noteOf(r).length ? '<div style="margin-top:4px;font-size:12px;color:#6D4C41;background:#FFF8E1;padding:3px 7px;border-radius:5px;">특이사항 · '
+             + noteOf(r).map(esc).join('<br>') + '</div>' : '') + '</td>'
           + '<td>' + rcCell(r, i) + '</td></tr>';
       });
       h += '</table></div>';
     });
   }
   h += '<div class="legend">결제 시각은 바우처 「결제일시」, 수업 시작은 시간표 회기 시각입니다. '
-     + '사례를 고르고(사유서 · 특이사항 · 변경계약서는 「서류 받음」까지) 저장하면 「남은 것」에서 빠집니다. '
+     + '사례를 고르고 저장하면 「남은 것」에서 빠집니다. 사유서 · 변경계약서는 「서류 받음」까지, '
+     + '특이사항 기재 사례는 기록지 그 회차 특이사항이 적혀 있어야 끝납니다 (적힌 글은 내용 아래 노란 칸). '
      + '기록지 점검(10~14)은 목록만 — 선생님이 기록지를 고치면 저절로 사라지고, 다시 열면 기록지 화면이 알려 줍니다. '
      + '사례 목록은 표에 담겨 있어 더 넣을 수 있습니다.</div>';
   $('body').innerHTML = h;
