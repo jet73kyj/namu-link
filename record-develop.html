@@ -1197,11 +1197,11 @@ function _openAbsenceModal(day) {
   const saved = ABS[day] || {};
   const modal = document.createElement('div');
   modal.id = '_absModal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:6000;display:flex;align-items:center;justify-content:center;';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.12);z-index:6000;display:flex;align-items:center;justify-content:center;';
   modal.innerHTML = `
-    <div style="background:white;border-radius:12px;padding:24px;width:360px;max-width:96vw;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <h3 style="margin:0;font-size:15px;color:#e65100;">📌 ${year}년 ${month}월 ${day}일 결석 · 보강</h3>
+    <div id="_absBox" style="background:white;border-radius:12px;padding:24px;width:360px;max-width:96vw;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+      <div id="_absHead" title="잡고 끌면 창이 옮겨집니다" style="display:flex;justify-content:space-between;align-items:center;margin:-12px -12px 14px;padding:12px;cursor:move;user-select:none;touch-action:none;border-radius:8px;">
+        <h3 style="margin:0;font-size:15px;color:#e65100;">✥ 📌 ${year}년 ${month}월 ${day}일 결석 · 보강</h3>
         <button onclick="document.getElementById('_absModal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#aaa;">✕</button>
       </div>
       <div style="margin-bottom:12px;">
@@ -1229,7 +1229,36 @@ function _openAbsenceModal(day) {
       </div>
     </div>`;
   document.body.appendChild(modal);
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  // 바깥을 눌러도 닫지 않는다 — ✕ · 취소로만 닫음 (뒤 기록지를 보며 옮겨 적을 수 있게 · 2026-10-02)
+  _makeDraggable($('_absBox'), $('_absHead'));
+}
+
+// 창 옮기기 — 제목 줄을 잡고 끈다 (마우스 · 손가락 · 2026-10-02)
+function _makeDraggable(box, handle) {
+  if (!box || !handle) return;
+  let sx = 0, sy = 0, bx = 0, by = 0, on = false;
+  handle.addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;          // ✕ 단추는 그대로 누름
+    const r = box.getBoundingClientRect();
+    box.style.position = 'fixed';
+    box.style.margin = '0';
+    box.style.left = r.left + 'px';
+    box.style.top  = r.top + 'px';
+    sx = e.clientX; sy = e.clientY; bx = r.left; by = r.top; on = true;
+    handle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', e => {
+    if (!on) return;
+    const w = box.offsetWidth, h = box.offsetHeight;
+    const nx = Math.min(Math.max(0, bx + e.clientX - sx), window.innerWidth  - w);
+    const ny = Math.min(Math.max(0, by + e.clientY - sy), window.innerHeight - Math.min(h, 60));
+    box.style.left = Math.max(0, nx) + 'px';
+    box.style.top  = Math.max(0, ny) + 'px';
+  });
+  const stop = e => { on = false; try { handle.releasePointerCapture(e.pointerId); } catch (_) {} };
+  handle.addEventListener('pointerup', stop);
+  handle.addEventListener('pointercancel', stop);
 }
 
 
