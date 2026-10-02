@@ -6263,6 +6263,40 @@ async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
         .in('status', ['예정','쉼','휴무']);
     }
 
+    // ④-1 옛 요일에 미리 표시해 둔 「앞날 결석」도 지운다 (2026-10-02)
+    //      변경 시작일(없으면 이 달 1일) 이후 · 내일부터 · 원래 수업 줄만
+    //      보강이 딸렸거나 학부모 결석 요청이 살아 있으면 남기고 알림 글에 적는다
+    //      (34번 10/7 — 옛 요일 결석이 남아 청구·보강 대상으로 잡혔던 일)
+    const _keptAbs = [];
+    {
+      const _t = new Date(); _t.setDate(_t.getDate() + 1);
+      const _tmr = _t.getFullYear() + '-'
+        + String(_t.getMonth()+1).padStart(2,'0') + '-'
+        + String(_t.getDate()).padStart(2,'0');
+      const _cut0 = _d || (mon + '-01');
+      const _cut  = (_cut0 > _tmr) ? _cut0 : _tmr;
+      const { data: fab, error: eF } = await sb.from('nl_sessions')
+        .select('id, plan_date')
+        .eq('schedule_id', edRow.id).eq('status', '결석')
+        .is('makeup_for', null).gte('plan_date', _cut);
+      if (eF) throw eF;
+      for (const a of (fab || [])) {
+        const { count: mkN } = await sb.from('nl_sessions')
+          .select('id', { count: 'exact', head: true }).eq('makeup_for', a.id);
+        const { count: rqN } = await sb.from('nl_absence_requests')
+          .select('id', { count: 'exact', head: true }).eq('session_id', a.id)
+          .not('state', 'in', '("반려","취소")');
+        if (mkN || rqN) {
+          _keptAbs.push(String(a.plan_date).slice(5).replace('-', '/')
+            + (mkN ? ' (보강 딸림)' : ' (학부모 요청)'));
+          continue;
+        }
+        const { error: eD } = await sb.from('nl_sessions').delete().eq('id', a.id);
+        if (eD) _keptAbs.push(String(a.plan_date).slice(5).replace('-', '/')
+          + ' (지우지 못함)');
+      }
+    }
+
     // ④-2 요일줄과 연결이 끊긴 예정 회기도 함께 지운다
     //     옛날에 요일줄을 지우던 시절의 흔적이 남아 있으면
     //     요일을 옮겨도 옛 자리가 그대로 보인다
@@ -6298,7 +6332,11 @@ async function changeFromThisMonth(nw, slot, th, du, hm, applyD){
         + ' 로 바꿨습니다.\n그 날 앞의 회기는 옛 시각 그대로 남아 있습니다.'
       : '✅ ' + monNo(mon) + '월부터 ' + nw + '요일 ' + slot.t + ' 로 바꿨습니다.\n'
         + monNo(prev) + '월까지는 지금 요일 그대로 남아 있습니다.')
-      + '\n다음 달 회기는 그 달 화면에서 다시 깔아 주세요.', true);
+      + '\n다음 달 회기는 그 달 화면에서 다시 깔아 주세요.'
+      + (_keptAbs.length
+        ? '\n\n⚠ 옛 요일에 남긴 결석 ' + _keptAbs.length + '건 — ' + _keptAbs.join(', ')
+          + '\n보강을 새 요일로 옮기거나 지운 뒤 정리해 주세요.'
+        : ''), true);
 
     const old = ROWS_ALL.find(x => x.id === edRow.id);
     if (old) Object.assign(old, oldUpd);
