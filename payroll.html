@@ -144,8 +144,9 @@
                  .hd { display:none; } .panel { border:none; padding:0; } }
 
 /* 정산 공개 (2026-10-02) */
-.pubst{font-size:12.5px;color:#6E6660}
-.pubst b.ok{color:#3B6D11}.pubst b.ask{color:#C2553A}
+.pubbtn.busy{background:#f2f1ee;color:#A39C95;border-color:#ECE8E3}
+.pubbtn.done{background:#3B6D11;color:#fff;border-color:#3B6D11}
+.pubbtn.ask{background:#C2553A;color:#fff;border-color:#C2553A}
 .pubsum{font-size:12.5px;color:#6E6660;margin:-6px 0 12px}
 .pubsum b{color:#2F2926;font-weight:600}
 /* 미확인 (2026-10-01) */
@@ -186,8 +187,7 @@
     <select id="mon" class="sel"></select>
     <select id="th" class="sel"></select>
     <button id="prt" class="prtbtn">인쇄 / PDF 저장</button>
-    <button id="pubBtn" class="prtbtn noprint">선생님께 공개</button>
-    <span id="pubSt" class="pubst noprint"></span>
+    <button id="pubBtn" class="prtbtn pubbtn noprint">선생님께 공개 전</button>
   </div>
   <div id="pubSum" class="pubsum noprint"></div>
 
@@ -599,14 +599,26 @@ function mdhm(t){
   return (d.getMonth() + 1) + '/' + d.getDate();
 }
 function drawPub(){
+  // 단추 하나가 상태를 보여 준다 (2026-10-02 은정님)
+  //   공개 전(흰) → 공개 중…(회색) → ✓ 공개 완료(초록) · 확인함 / ⚠ 문의 있음(코랄)
   const p = PUB[thId];
-  $('pubBtn').textContent = p ? '다시 공개' : '선생님께 공개';
-  $('pubBtn').disabled = !PAYSUM;
-  $('pubSt').innerHTML = !p ? '공개 전'
-    : mdhm(p.published_at) + ' 공개' + (p.ver > 1 ? ' (' + p.ver + '판)' : '') + ' · '
-      + (p.ask_text ? '<b class="ask">문의 있음 ⚠</b> — ' + esc(p.ask_text)
-         : p.seen_at ? '<b class="ok">' + mdhm(p.seen_at) + ' 확인 ✓</b>'
-         : '확인 안 함');
+  const b = $('pubBtn');
+  b.classList.remove('busy', 'done', 'ask');
+  b.disabled = !PAYSUM;
+  b.title = '';
+  if (!p) {
+    b.textContent = '선생님께 공개 전';
+  } else if (p.ask_text) {
+    b.classList.add('ask');
+    b.textContent = '⚠ 공개 완료 · 문의 있음';
+    b.title = mdhm(p.ask_at) + ' 문의 — ' + p.ask_text;
+  } else {
+    b.classList.add('done');
+    b.textContent = '✓ 공개 완료' + (p.seen_at ? ' · 확인함' : '');
+    b.title = mdhm(p.published_at) + ' 공개' + (p.ver > 1 ? ' (' + p.ver + '판)' : '')
+            + (p.seen_at ? ' · ' + mdhm(p.seen_at) + ' 확인' : ' · 선생님 확인 전')
+            + '\n다시 누르면 새 판으로 공개합니다';
+  }
   let ok = 0, no = 0, ask = 0, pre = 0;
   THS.forEach(t => {
     const q = PUB[t.id];
@@ -627,7 +639,7 @@ $('pubBtn').onclick = async () => {
   if (!confirm(nm + ' ' + monNo(mon) + '월 정산을 공개할까요?\n\n'
       + '실 지급액 ' + won(PAYSUM.net) + '원\n'
       + (unc ? '⚠ 선생님이 확인 안 한 날이 ' + unc + '일 있습니다.\n' : '')
-      + (p ? '이미 공개한 판이 있습니다. 새 판으로 공개하고, 확인은 다시 받습니다.\n' : '')
+      + (p ? '이미 공개한 판이 있습니다. 다시 공개하면 새 판이 되고, 확인은 다시 받습니다.\n' : '')
       + '\n공개한 순간의 내역이 그대로 선생님께 보입니다.')) return;
 
   // 세 표만 떠서 담는다 (화면용 칸 · 단추는 뺀다)
@@ -638,6 +650,7 @@ $('pubBtn').onclick = async () => {
   wrap.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
 
   $('pubBtn').disabled = true; $('pubBtn').textContent = '공개 중…';
+  $('pubBtn').classList.remove('done', 'ask'); $('pubBtn').classList.add('busy');
   const { data, error } = await sb.rpc('nl_pay_publish', {
     p_th: thId, p_month: mon, p_html: wrap.innerHTML,
     p_total: Math.round(PAYSUM.total), p_net: Math.round(PAYSUM.net) });
