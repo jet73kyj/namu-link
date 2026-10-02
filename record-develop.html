@@ -387,7 +387,8 @@ let CH_RAW = [];   // 발달재활 수업 원본 (달을 바꿀 때 목록을 �
 let KIDS   = {};   // 아동번호 → 아동 정보 (창구가 돌려준 번호를 이름으로 바꿀 때 쓴다)
 let SESSDAY = {};          // 'YYYY-MM-DD' -> 그 날 발달재활 회기 시각 (2026-10-02)
 let SESSROWS = [];         // 그 달 앞뒤 발달재활 회기 (일정표 ↔ 승인일자 견주기)
-let PROVCHK = null;        // 견준 결과 {same, onlyS, onlyV, filled}
+let PROVCHK = null;
+let BLANKFIX = 0;          // 저장된 기록지에 시각이 비어 있었는데 자동으로 채운 회차 수 (2026-10-02)        // 견준 결과 {same, onlyS, onlyV, filled}
 let TMAN = {};             // 손으로 고친 시각 칸 id -> true
 let ABS = {};              // 날짜 -> {absent, reason, makeupDate, makeupTime, makeupMemo}
 let year = new Date().getFullYear();
@@ -649,6 +650,12 @@ async function loadOne() {
     // 일정표 ↔ 승인일자 — 제공일자를 채웠으면 「저장 전」 · 다르면 확인 창 (2026-10-02)
     if (PROVCHK && PROVCHK.filled) { DIRTY = true; setSaveBtn('before'); }
     if (PROVCHK && !PROVCHK.same) _showProvWarn(PROVCHK);
+    // 시작 · 종료가 비어 저장돼 있던 기록지 — 자동으로 채웠으니 저장하라고 (2026-10-02)
+    if (BLANKFIX) {
+      DIRTY = true; setSaveBtn('before');
+      if (!(PROVCHK && !PROVCHK.same)) alert('이 기록지는 시작 · 종료 시간이 비어 저장돼 있습니다 (' + BLANKFIX + '회차).\n\n'
+        + '시간표 시각으로 자동으로 채웠으니 확인하신 뒤 「저장」을 눌러 주세요.');
+    }
     $('pInfo').textContent = mk + ' · 바우처 ' + VOUCHER.length + '건'
       + (LOGID ? ' · 저장된 기록 있음' : ' · 새로 작성');
   } catch (e) {
@@ -802,6 +809,7 @@ function _showProvWarn(r) {
         + '시간표의 날짜 · 시간이 일정표 제공날짜 · 시작 · 종료시간과 서비스 제공일자에 그대로 들어갑니다.<br>'
         + '틀린 곳은 시간표를 고쳐 주세요.<br>'
         + '제공일자와 승인일자가 다른 경우 사유를 「특이사항」에 적어 주세요.</div>')
+    + (BLANKFIX ? '<div style="margin-top:10px;color:#e65100;">시작 · 종료 시간이 비어 저장돼 있어 자동으로 채웠습니다 (' + BLANKFIX + '회차). 확인 후 「저장」을 눌러 주세요.</div>' : '')
     + '<div style="text-align:right;margin-top:14px;"><button id="_provWarnOk" style="width:auto;margin:0;background:#e65100;color:#fff;border:none;border-radius:6px;padding:8px 22px;font-size:13px;cursor:pointer;">확인</button></div>'
     + '</div>';
   document.body.appendChild(w);
@@ -937,8 +945,10 @@ function _fillSheet1Times() {
     if (en) { en.value = ''; delete TMAN[en.id]; }
   }
   _syncProvDates();                        // 제공날짜 → 시각 자동까지
+  BLANKFIX = 0;
   ITEMS.slice(0, SESSIONS).forEach((r, k) => {
     const i = k + 1, st = $('s1_startTime_' + i), en = $('s1_endTime_' + i);
+    if (LOGID && st && en && st.value && en.value && (!r.start_time || !r.end_time)) BLANKFIX++;
     if (st && r.start_time && _hm(r.start_time) !== _to24(st.value)) { st.value = _hm12(r.start_time); TMAN[st.id] = true; }
     if (en && r.end_time && _hm(r.end_time) !== _to24(en.value)) { en.value = _hm12(r.end_time); TMAN[en.id] = true; }
   });

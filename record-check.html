@@ -153,6 +153,8 @@ function esc(s){
 function monNo(k){ return Number(String(k).slice(5,7)); }
 function md(d){ return d ? Number(String(d).slice(5,7)) + '/' + Number(String(d).slice(8,10)) : ''; }
 function rkey(r){ return r.child_id + '|' + r.item_no + '|' + (r.item_key || ''); }
+// 갈래 나(10~14) — 목록만. 선생님이 기록지를 고치면 저절로 사라짐 (2026-10-02)
+function isList(r){ return r.item_no >= 10 && r.item_no <= 14; }
 function isAdmin(){ return ME && ADMIN.indexOf(Number(ME.id)) >= 0; }
 
 // 달 고르기 — 지난 6달 ~ 이번 달 · 처음은 지난달 (기록지는 달이 끝난 뒤 씀)
@@ -171,6 +173,7 @@ function fillMon(){
 // 처리 끝 = 사례를 골랐고, 서류가 필요한 사례면 「서류 받음」까지
 function isDone(r){
   if (r.item_no === 9) return true;
+  if (isList(r)) return false;
   const x = RES[rkey(r)];
   if (!x || !x.case_id) return false;
   const c = CASES.find(c => c.id === x.case_id);
@@ -224,6 +227,7 @@ function caseOpts(sel){
 function rcCell(r, i){
   const x = RES[rkey(r)] || {};
   if (r.item_no === 9) return '<span class="rcview">참고</span>';
+  if (isList(r)) return '<span class="rcview" style="color:var(--dim);">선생님이 고치면 사라짐</span>';
   if (!isAdmin()) {
     const c = CASES.find(c => c.id === x.case_id);
     return '<span class="rcview">' + (c ? esc(c.name) + (x.doc_done ? ' · 서류 받음' : '') : '')
@@ -241,8 +245,13 @@ function draw(){
   const k = $('mon').value;
   const left = ROWS.filter(r => !isDone(r));
   const list = VIEW === 'left' ? left : ROWS;
-  let h = '<div class="sum">' + monNo(k) + '월 · 점검 대상 <b>' + left.filter(r => r.item_no !== 9).length + '건</b>'
-        + ' · 처리 끝 ' + ROWS.filter(r => r.item_no !== 9 && isDone(r)).length + '건</div>'
+  const nList = ROWS.filter(isList).length;
+  let h = '<div class="sum">' + monNo(k) + '월 · 점검 대상 <b>' + left.filter(r => r.item_no !== 9 && !isList(r)).length + '건</b>'
+        + ' · 처리 끝 ' + ROWS.filter(r => r.item_no !== 9 && !isList(r) && isDone(r)).length + '건'
+        + ' · 선생님이 고칠 기록지 <b>' + nList + '건</b>'
+        + (isAdmin() && nList ? ' <button id="sendRc" style="margin-left:8px;">선생님께 알림 보내기</button>'
+                                + '<span id="sendRcMsg" style="font-size:12px;margin-left:8px;"></span>' : '')
+        + '</div>'
         + '<div class="tabs2"><button data-v="left"' + (VIEW === 'left' ? ' class="on"' : '') + '>남은 것</button>'
         + '<button data-v="all"' + (VIEW === 'all' ? ' class="on"' : '') + '>전체</button></div>';
   if (!list.length) {
@@ -275,10 +284,20 @@ function draw(){
     });
   }
   h += '<div class="legend">결제 시각은 바우처 「결제일시」, 수업 시작은 시간표 회기 시각입니다. '
-     + '사례를 고르고(서류가 필요한 사례는 「서류 받음」까지) 저장하면 「남은 것」에서 빠집니다. '
+     + '사례를 고르고(사유서 · 특이사항 · 변경계약서는 「서류 받음」까지) 저장하면 「남은 것」에서 빠집니다. '
+     + '기록지 점검(10~14)은 목록만 — 선생님이 기록지를 고치면 저절로 사라지고, 다시 열면 기록지 화면이 알려 줍니다. '
      + '사례 목록은 표에 담겨 있어 더 넣을 수 있습니다.</div>';
   $('body').innerHTML = h;
 
+  const sr = $('sendRc');
+  if (sr) sr.onclick = async () => {
+    if (!confirm(monNo(k) + '월 기록지에서 고칠 것을 담당 선생님마다 알림으로 보낼까요?\n(같은 달은 한 번만 갑니다)')) return;
+    sr.disabled = true; sr.textContent = '보내는 중…';
+    const { data, error } = await sb.rpc('nl_send_rc_alerts', { p_month: k });
+    sr.disabled = false; sr.textContent = '선생님께 알림 보내기';
+    $('sendRcMsg').textContent = error ? '보내지 못했습니다 — ' + error.message : String(data || '');
+    $('sendRcMsg').style.color = error ? 'var(--coralT)' : 'var(--sage)';
+  };
   document.querySelectorAll('.tabs2 button').forEach(b => {
     b.onclick = () => { VIEW = b.dataset.v; draw(); };
   });
