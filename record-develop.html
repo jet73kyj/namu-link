@@ -392,6 +392,8 @@ let SESSROWS = [];         // 그 달 앞뒤 발달재활 회기 (일정표 ↔ 
 let PROVCHK = null;
 let BLANKFIX = 0;          // 저장된 기록지에 시각이 비어 있었는데 자동으로 채운 회차 수 (2026-10-02)        // 견준 결과 {same, onlyS, onlyV, filled}
 let TMAN = {};             // 손으로 고친 시각 칸 id -> true
+let SLOTS = [];            // 일정표 4회 — 시간표(찾기 창) 회기에서 (2026-10-02 은정님)
+let SLOTCHG = false;       // 저장된 기록지와 시간표 값이 달라 다시 채웠는지
 let ABS = {};              // 날짜 -> {absent, reason, makeupDate, makeupTime, makeupMemo}
 let year = new Date().getFullYear();
 let month = new Date().getMonth() + 1;
@@ -594,7 +596,7 @@ async function loadOne() {
       sb.from('nl_session_logs').select('*').eq('child_id', cid)
         .eq('support_type_id', 2).eq('month_key', mk).maybeSingle(),
       // 일정표 시작시간 자동 — 그 날 실제 회기 시각 (보강 포함 · 앞뒤 한 달)
-      sb.from('nl_sessions').select('id, plan_date, start_time, status, minutes, makeup_for, month_key')
+      sb.from('nl_sessions').select('id, plan_date, start_time, status, minutes, makeup_for, month_key, therapist_id')
         .eq('child_id', cid).eq('support_type_id', 2)
         .gte('plan_date', _shiftIso(mk + '-01', -31)).lte('plan_date', _shiftIso(mk + '-01', 62))
     ]);
@@ -620,6 +622,7 @@ async function loadOne() {
       if (!o || _rank[r.status] < o.rank) SESSDAY[k] = { hm: _hm(r.start_time), rank: _rank[r.status] };
     });
     TMAN = {};
+    RCSRV = null;                    // 앞 아동 점검 값이 섞여 그려지지 않게 (2026-10-02)
 
     LOGID = lg.data ? lg.data.id : null;
     ITEMS = [];
@@ -649,15 +652,8 @@ async function loadOne() {
     drawAll(lg.data);
     DIRTY = false;
     setSaveBtn(LOGID ? 'done' : 'before');
-    // 일정표 ↔ 승인일자 — 제공일자를 채웠으면 「저장 전」 · 다르면 확인 창 (2026-10-02)
-    if (PROVCHK && PROVCHK.filled) { DIRTY = true; setSaveBtn('before'); }
-    if (PROVCHK && !PROVCHK.same) _showProvWarn(PROVCHK);
-    // 시작 · 종료가 비어 저장돼 있던 기록지 — 자동으로 채웠으니 저장하라고 (2026-10-02)
-    if (BLANKFIX) {
-      DIRTY = true; setSaveBtn('before');
-      if (!(PROVCHK && !PROVCHK.same)) alert('이 기록지는 시작 · 종료 시간이 비어 저장돼 있습니다 (' + BLANKFIX + '회차).\n\n'
-        + '시간표 시각으로 자동으로 채웠으니 확인하신 뒤 「저장」을 눌러 주세요.');
-    }
+    // 저장된 기록지가 시간표와 다르면 시간표 값으로 다시 채웠으니 「저장 전」 (2026-10-02)
+    if (SLOTCHG) { DIRTY = true; setSaveBtn('before'); }
     $('pInfo').textContent = mk + ' · 바우처 ' + VOUCHER.length + '건'
       + (LOGID ? ' · 저장된 기록 있음' : ' · 새로 작성');
     loadRcBox(cid, mk);
@@ -704,6 +700,7 @@ function schedThNames(nameOf) {
 // 화면 전체 그리기
 function drawAll(saved) {
   const mk = mkNow();
+  SLOTS = computeSlots();
   $('pageTitle').textContent = `발달재활 서비스 기록지 — ${year}년 ${month}월`;
   $('sheet1Title').textContent = `서비스 일정표, 제공기록지 (${month}월)`;
   $('sheet2Title').textContent = child ? esc(child.name) : '';
@@ -719,11 +716,10 @@ function drawAll(saved) {
   $('s1_svcType').value    = area;
   $('s1_costType').value   = area;
   $('s1_svcCharge').value  = tname;
-  const _days0 = [...(_getScheduledDaysCapped())].sort((a, b) => a - b);
   for (let i = 1; i <= SESSIONS; i++) {
-    // 회차마다 그 날 맡은 선생님 (달 중간에 바뀐 경우)
-    const _so = _days0[i - 1] ? schedOnDay(_days0[i - 1]) : null;
-    const el = $('s1_therapistName_' + i); if (el) el.value = _so ? thrName(_so.therapist_id) : tname;
+    // 회차마다 그 회기를 맡은 선생님 (시간표 회기 · 2026-10-02)
+    const _sl = SLOTS[i - 1];
+    const el = $('s1_therapistName_' + i); if (el) el.value = (_sl && _sl.th) ? thrName(_sl.th) : (_sl ? tname : '');
     const tt = $('s1_totalTime_' + i);     if (tt) tt.value = VOUCH_MIN + '분';
     const tc = $('s1_totalCost_' + i);     if (tc) tc.value = UNIT.toLocaleString() + '원';
   }
@@ -750,15 +746,10 @@ function drawAll(saved) {
     if (saved.written_on)   $('s1_writeDate').value   = String(saved.written_on).replace(/-/g,'.');
   }
 
+  // 달력 · 제공일 · 제공날짜 · 시각 · 서비스 제공일자는 모두 시간표 회기에서 (2026-10-02)
   buildCalendar();
-  for (let d = 1; d <= 31; d++) _applyAbsenceToCell(d);
-  _applyMakeupsToCalendar();
-  _updateSvcDays();
-  if (saved && saved.days_text) $('s1_svcDays').value = saved.days_text;
-
   buildStatusRows(_statusRows());
-  PROVCHK = _checkProvDates();
-  _fillSheet1Times();
+  fillFromSlots();
 }
 
 // ── 일정표 날짜 ↔ 바우처 승인일자 (2026-10-02 은정님 정함 · 9/2 「제공일자는 바우처에서 안 끌어옴」을 바꿈) ──
@@ -784,14 +775,15 @@ function _checkProvDates() {
   const left = vd.slice(), onlyS = [];
   sd.forEach(d => { const k = left.indexOf(d); if (k >= 0) left.splice(k, 1); else onlyS.push(d); });
   const same = !onlyS.length && !left.length && sd.length > 0;
+  // 빈 서비스 제공일자는 그 줄 승인일자로 채운다 — 결제일 우선 (2026-10-02 은정님)
+  //   같은 날 두 결제가 40분 이상 떨어져 있으면 두 회 (바우처 줄이 둘이므로 그대로 두 줄)
   let filled = false;
-  if (same) {
-    const ins = document.querySelectorAll('#statusTbl .st_provDate');
-    sd.slice(0, SESSIONS).forEach((d, i) => {
-      const el = ins[i];
-      if (el && !String(el.value || '').trim()) { el.value = d.replace(/-/g, '.'); filled = true; }
-    });
-  }
+  document.querySelectorAll('#statusTbl tbody tr').forEach(tr => {
+    const pv = tr.querySelector('.st_provDate'), ap = tr.querySelector('.st_apprDate');
+    if (!pv || !ap || String(pv.value || '').trim()) return;
+    const m = String(ap.value || '').match(/(\d{4})\D(\d{2})\D(\d{2})/);
+    if (m) { pv.value = m[1] + '.' + m[2] + '.' + m[3]; filled = true; }
+  });
   return { same, onlyS, onlyV: left, filled, noVoucher: !vd.length };
 }
 function _showProvWarn(r) {
@@ -866,6 +858,72 @@ function _getTimeSlotForEvt() {
   m += VOUCH_MIN; h += Math.floor(m / 60); m %= 60;
   return s + '~' + h + ':' + String(m).padStart(2,'0');
 }
+// ── 일정표 4회 = 시간표(찾기 창) 회기 (2026-10-02 은정님 정함) ──
+//   그 달 몫 발달재활 40분 회기 — 완료 · 보강 · 예정을 날짜 · 시각 차례로 4회
+//   휴무 · 결석 원래 줄은 빼고 그 보강 줄이 들어간다 (2번 9월: 5 · 12 · 12 · 19)
+//   쪼개기 보강으로 채운 원래 줄은 그 자리에 넣되 「공란」 — 선생님이 직접 적는다
+//     (조각이 40분을 못 채웠으면 「진행 중」)
+//   일정표 달력 · 제공일 · 제공날짜 · 시작/종료(+50분) · 서비스 제공일자가 모두 여기서 나온다
+function computeSlots() {
+  const mk = mkNow();
+  const isPiece = r => r.minutes != null && Number(r.minutes) < 40;
+  const piece = {};
+  SESSROWS.forEach(r => {
+    if (isPiece(r) && r.makeup_for && !['결석', '취소'].includes(r.status))
+      piece[r.makeup_for] = (piece[r.makeup_for] || 0) + Number(r.minutes || 0);
+  });
+  const out = [];
+  SESSROWS.filter(r => r.month_key === mk && !isPiece(r)).forEach(r => {
+    const base = { iso: String(r.plan_date), hm: _hm(r.start_time), th: r.therapist_id };
+    if (!r.makeup_for && piece[r.id] > 0) {
+      out.push(Object.assign(base, { split: true, done: piece[r.id] >= 40 }));
+    } else if (['완료', '보강', '예정'].includes(r.status)) {
+      out.push(Object.assign(base, { split: false }));
+    }
+  });
+  out.sort((a, b) => (a.iso + (a.hm || '')).localeCompare(b.iso + (b.hm || '')));
+  return out.slice(0, SESSIONS);
+}
+function _setLock(el, on) {
+  if (!el) return;
+  el.readOnly = !!on; el.tabIndex = on ? -1 : 0;
+  el.classList.toggle('s1lock', !!on);
+  el.title = on ? '시간표에서 오는 칸입니다 (고칠 곳은 시간표)' : '';
+}
+// 일정표 · 상태표 칸을 시간표 값으로 채운다
+function fillFromSlots() {
+  SLOTCHG = false;
+  const trs = document.querySelectorAll('#statusTbl tbody tr');
+  const dot = iso => iso ? iso.replace(/-/g, '.') : '';
+  for (let i = 0; i < SESSIONS; i++) {
+    const sl = SLOTS[i], it = ITEMS[i] || {};
+    const tr = trs[i];
+    const pv = tr ? tr.querySelector('.st_provDate') : null;
+    const dt = $('s1_provDate_' + (i + 1)), st = $('s1_startTime_' + (i + 1)), en = $('s1_endTime_' + (i + 1));
+    let d = '', a = '', b = '', lock = true;
+    if (sl && !sl.split) {
+      d = sl.iso; a = sl.hm || ''; b = a ? _addMin(a, VOUCH_MIN) : '';
+    } else if (sl && sl.split) {
+      lock = false;
+      // 선생님이 적어 둔 값만 살린다 (원래 결석한 날 그대로면 옛 자동 값으로 보고 비운다)
+      const sv = it.service_date ? String(it.service_date).slice(0, 10) : '';
+      if (sv && sv !== sl.iso) { d = sv; a = _hm(it.start_time) || ''; b = _hm(it.end_time) || ''; }
+    }
+    if (pv) { pv.value = dot(d); _setLock(pv, lock); }
+    if (dt) { dt.value = dot(d); _setLock(dt, lock); }
+    if (st) { st.value = a ? _hm12(a) : ''; _setLock(st, lock); }
+    if (en) { en.value = b ? _hm12(b) : ''; _setLock(en, lock); }
+    // 저장된 값과 다르면 「저장 전」
+    if (LOGID) {
+      const sv = it.service_date ? String(it.service_date).slice(0, 10) : '';
+      if (sv !== (d || '') || (_hm(it.start_time) || '') !== (a || '') || (_hm(it.end_time) || '') !== (b || ''))
+        SLOTCHG = true;
+    }
+  }
+  _updateSvcDays();
+  rcDraw();
+}
+
 // 그 달 수업일 (최대 4회, 공휴일 제외)
 function _getScheduledDaysCapped() {
   const dows = _getScheduleDows();
@@ -964,11 +1022,12 @@ function _fillSheet1Times() {
 // 결석 · 보강을 바꿀 때 — 손으로 고친 칸은 남기고 나머지만 다시 셈
 function _refreshSheet1Times() { _syncProvDates(); }
 // 시각 칸을 손으로 고치면 그 칸은 자동에서 뺀다 (비우면 다시 자동)
+// 쪼개기 칸에 시작을 적으면 종료가 +50분으로 따라간다 (종료는 다시 고칠 수 있음 · 2026-10-02)
 document.addEventListener('input', e => {
-  const id = e.target && e.target.id || '';
-  if (!/^s1_(startTime|endTime)_\d+$/.test(id)) return;
-  if (String(e.target.value).trim()) TMAN[id] = true; else delete TMAN[id];
-  if (id.startsWith('s1_startTime_')) _autoTimes();
+  const m = /^s1_startTime_(\d+)$/.exec((e.target && e.target.id) || '');
+  if (!m || e.target.readOnly) return;
+  const en = $('s1_endTime_' + m[1]), s24 = _to24(e.target.value);
+  if (en && !en.readOnly) en.value = s24 ? _hm12(_addMin(s24, VOUCH_MIN)) : '';
 });
 
 // 상태·결과기록의 서비스 제공일자 → 일정표 하단 제공날짜
@@ -981,7 +1040,8 @@ function _syncProvDates() {
     const s = src[i - 1];
     dt.value = s ? (s.value || '') : '';
   }
-  _autoTimes();
+  _updateSvcDays();
+  rcDraw();
 }
 
 // 일정표 제공날짜를 고치면 아래 「서비스 제공일자」도 같이 바뀐다 (2026-10-02)
@@ -993,7 +1053,8 @@ document.addEventListener('input', e => {
   const src = document.querySelectorAll('#statusTbl .st_provDate');
   const s = src[Number(m[1]) - 1];
   if (s) s.value = e.target.value;
-  _autoTimes();
+  _updateSvcDays();
+  rcDraw();
 });
 
 // 상태·결과 표에 넣을 줄 만들기
@@ -1004,7 +1065,9 @@ function _statusRows() {
   const vo = _prefillStatusFromVoucher();          // 바우처에서 뽑은 줄
   if (!ITEMS.length) return vo;
 
-  return ITEMS.slice(0, SESSIONS).map((r, i) => {
+  const base = ITEMS.slice(0, SESSIONS);
+  while (base.length < SESSIONS) base.push({});    // 늘 4줄 (2026-10-02)
+  return base.map((r, i) => {
     const v = vo[i] || {};
     return {
       // 서비스 제공일자는 치료사가 적은 것만 보여준다 (바우처에서 채우지 않는다)
@@ -1026,7 +1089,7 @@ const RC_ITEM = {
   1:'결제 이름', 2:'아동 중복 결제', 3:'연속 결제 80분 안', 4:'치료사 중복 결제', 5:'승인번호 이상',
   6:'주 3회 이상', 7:'월 4회 미달', 8:'결제금액 불일치', 9:'예외 · 일괄 (참고)',
   10:'기록지 시각 겹침', 11:'일정표 ↔ 승인일자', 12:'기록지 빈칸', 13:'승인번호 다름', 14:'기록지 없음',
-  15:'변경계약서 · 본인부담금', 16:'변경계약서 · 담당 변경'
+  15:'변경계약서 · 본인부담금', 16:'변경계약서 · 담당 변경', 18:'제공일자 ≠ 승인일자', 19:'쪼개기 보강 공란'
 };
 async function loadRcBox(cid, mk) {
   const box = $('rcBox');
@@ -1035,21 +1098,82 @@ async function loadRcBox(cid, mk) {
   try {
     const { data, error } = await sb.rpc('nl_record_check', { p_month: mk });
     if (error) return;
-    const rows = (data || []).filter(r => Number(r.child_id) === Number(cid))
-      .sort((a, b) => a.item_no - b.item_no || String(a.on_date || '').localeCompare(String(b.on_date || '')));
     if (Number($('pChild').value) !== Number(cid)) return;      // 그 사이 다른 아동을 불렀으면 그리지 않음
+    RCSRV = (data || []).filter(r => Number(r.child_id) === Number(cid));
+    rcDraw();
+  } catch (e) {}
+}
+
+// 노랑 점검 상자 (2026-10-02 은정님) — 기록지 칸으로 정해지는 1 · 12 · 18번은 화면에서 바로 센다
+//   고치는 순간 상자가 바뀐다. 결제 쪽 항목은 서버 값 그대로 · 저장하면 다시 받아 온다
+let RCSRV = null;
+const RC_LOCAL = new Set([1, 12, 18, 19]);
+function rcLocal() {
+  const out = [];
+  const trs = document.querySelectorAll('#statusTbl tbody tr');
+  const nPay = VOUCHER.filter(v => String(v.appr_no || '').trim()
+                                   && !String(v.pay_kind || '').includes('예외')).length;
+  const md = iso => Number(iso.slice(5, 7)) + '/' + Number(iso.slice(8, 10));
+  const mmdd = iso => iso.slice(5, 7) + '-' + iso.slice(8, 10);
+  for (let i = 0; i < SESSIONS; i++) {
+    const tr = trs[i];
+    if (!tr) continue;
+    const prov = _provIso(tr.querySelector('.st_provDate').value);
+    const am = String(tr.querySelector('.st_apprDate').value || '')
+                 .match(/(\d{4})\D(\d{2})\D(\d{2})(?:\s+(\d{2}):(\d{2}))?/);
+    const appr = am ? am[1] + '-' + am[2] + '-' + am[3] : null;
+    const st = _to24(($('s1_startTime_' + (i + 1)) || {}).value);
+    const en = _to24(($('s1_endTime_' + (i + 1)) || {}).value);
+    const note = String(tr.querySelector('.st_note').value || '').trim();
+    // 19 쪼개기 보강 공란 — 선생님이 직접 넣을 칸 (2026-10-02)
+    const sl = SLOTS[i];
+    if (sl && sl.split && (!prov || !st || !en)) {
+      const dd = Number(sl.iso.slice(5, 7)) === month ? Number(sl.iso.slice(8, 10)) + '일'
+               : Number(sl.iso.slice(5, 7)) + '월 ' + Number(sl.iso.slice(8, 10)) + '일';
+      out.push({ item_no: 19, on_date: sl.iso, detail: (i + 1) + '회째 · ' + dd + ' 수업이 쪼개기 보강으로 '
+        + (sl.done ? '진행되어' : '진행 중이라') + ' 공란 처리하였습니다. 확인 후 제공날짜 · 시작 · 종료 · 서비스 제공일자를 넣어 주세요.' });
+    }
+    // 12 빈칸 — 결제 수만큼의 회차에서 (쪼개기 공란은 위 19번 하나만)
+    else if (i < nPay && (!prov || !st || !en)) {
+      out.push({ item_no: 12, on_date: prov || appr, detail: (i + 1) + '회째 · '
+        + [!prov && '제공일자 빈칸', !st && '시작 빈칸', !en && '종료 빈칸'].filter(Boolean).join(' · ') });
+    }
+    // 18 제공일자 ≠ 승인일자 (특이사항이 비었을 때)
+    if (prov && appr && prov !== appr && !note) {
+      out.push({ item_no: 18, on_date: prov, detail: (i + 1) + '회째 · 제공일자 ' + mmdd(prov)
+        + ' · 승인일자 ' + mmdd(appr) });
+    }
+    // 1 결제가 이름 — 결제 시각이 그 회차 기록지 시작 + 30분보다 앞
+    if (appr && am[4] && st) {
+      const pay = Number(am[4]) * 60 + Number(am[5]);
+      const sm  = Number(st.slice(0, 2)) * 60 + Number(st.slice(3, 5));
+      if (pay < sm + 30) {
+        const g = pay - sm;
+        out.push({ item_no: 1, on_date: appr, detail: '결제 ' + am[4] + ':' + am[5] + ' · 기록지 시작 ' + st
+          + ' (' + (g < 0 ? -g + '분 앞 결제' : g + '분 뒤 결제') + ')' });
+      }
+    }
+  }
+  return out;
+}
+function rcDraw() {
+  const box = $('rcBox');
+  if (!box || RCSRV === null || !LOADED) return;
+  const rows = RCSRV.filter(r => !RC_LOCAL.has(Number(r.item_no))).concat(rcLocal())
+    .sort((a, b) => a.item_no - b.item_no || String(a.on_date || '').localeCompare(String(b.on_date || '')));
+  {
     if (!rows.length) {
       box.style.cssText = 'margin:0 0 12px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.7;background:#EAF4EC;border-left:3px solid #5E9A6E;color:#2E6B3E;';
       box.innerHTML = '기록지 점검 — 이 달 걸린 것이 없습니다.';
     } else {
       box.style.cssText = 'margin:0 0 12px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.7;background:#FFF8E1;border-left:3px solid #F9A825;color:#4E342E;';
-      box.innerHTML = '<b>기록지 점검 — ' + rows.length + '건</b> (기록지를 고치고 저장하면 다시 열 때 사라집니다)'
+      box.innerHTML = '<b>기록지 점검 — ' + rows.length + '건</b> (1 · 12 · 18 · 19번은 고치면 바로 다시 셉니다 · 결제 쪽 항목은 저장 뒤 다시 셉니다)'
         + rows.map(r => '<div>· ' + r.item_no + ' ' + esc(RC_ITEM[r.item_no] || '')
             + (r.on_date ? ' · ' + Number(String(r.on_date).slice(5,7)) + '/' + Number(String(r.on_date).slice(8,10)) : '')
             + ' — ' + esc(r.detail || '') + '</div>').join('');
     }
     box.style.display = 'block';
-  } catch (e) {}
+  }
 }
 
 // 승인일자 — 날짜와 결제 시각(시:분:초)까지 (2026-10-02 은정님)
@@ -1130,22 +1254,24 @@ async function saveRecord() {
       const provIso = tr ? d2iso(tr.querySelector('.st_provDate').value) : null;
       items.push({
         log_id: LOGID, seq_no: i + 1,
-        service_date: provIso || (day ? `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}` : null),
+        // 서비스 제공일자 = 화면 값 그대로 (시간표에서 채움 · 쪼개기 칸은 선생님이 적은 값 · 2026-10-02)
+        service_date: provIso || null,
         // 화면은 12시간(4:00) — 저장은 1~8시를 오후로 (2026-10-02 · 9월 82회차가 04:00 으로 들어갔던 일)
         start_time: $('s1_startTime_' + (i+1)).value ? _to24($('s1_startTime_' + (i+1)).value) : null,
         end_time:   $('s1_endTime_'   + (i+1)).value ? _to24($('s1_endTime_'   + (i+1)).value) : null,
-        therapist_id: day ? thOnIso(_ymd(day)) : thOnIso(null),
+        therapist_id: (SLOTS[i] && SLOTS[i].th) || (day ? thOnIso(_ymd(day)) : thOnIso(null)),
         reaction:   tr ? tr.querySelector('.st_result').value : null,
         staff_memo: tr ? tr.querySelector('.st_note').value : null,
         voucher_date: tr ? d2iso(tr.querySelector('.st_apprDate').value) : null,
         voucher_no:   tr ? (tr.querySelector('.st_apprNo').value || null) : null,
         state_json: tr ? { cloth:sel(tr,'cloth'), sock:sel(tr,'sock'), wear:sel(tr,'wear'),
                            face:sel(tr,'face'), health:sel(tr,'health') } : null,
-        status: ab.absent ? '결석' : '출석',
-        absent_reason: ab.reason || null,
-        makeup_date: ab.makeupDate || null,
-        makeup_time: ab.makeupTime || null,
-        makeup_memo: ab.makeupMemo || null
+        // 결석 · 보강은 시간표에서 관리 — 기록지 회차는 수업한 회만 (2026-10-02)
+        status: '출석',
+        absent_reason: null,
+        makeup_date: null,
+        makeup_time: null,
+        makeup_memo: null
       });
     }
     // 회차 줄은 다 만든 뒤에 바꾼다 (2026-09-21)
@@ -1167,6 +1293,7 @@ async function saveRecord() {
     $('pInfo').textContent = mk + ' · 바우처 ' + VOUCHER.length + '건 · 저장됨';
     DIRTY = false;
     setSaveBtn('done');
+    loadRcBox(childId, mk);          // 저장 뒤 서버 점검 다시 받기 (2026-10-02)
   } catch (e) {
     alert('❌ 저장하지 못했습니다.\n' + e.message);
     setSaveBtn('before');
@@ -1196,7 +1323,7 @@ function setSaveBtn(st) {
 (function lockSheet1(){
   const ids = ['s1_org','s1_area','s1_childName','s1_childBirth','s1_mgmtNo','s1_childName2',
                's1_provider','s1_svcProviderName','s1_svcTel','s1_svcCharge',
-               's1_costType','s1_costUnit','s1_costCount','s1_costTotal','s1_costSelf'];
+               's1_costType','s1_costUnit','s1_costCount','s1_costTotal','s1_costSelf','s1_svcDays'];
   for (let i = 1; i <= 4; i++) ids.push('s1_therapistName_' + i, 's1_totalTime_' + i, 's1_totalCost_' + i);
   ids.forEach(id => {
     const el = document.getElementById(id);
@@ -1213,6 +1340,7 @@ function markDirty() {
   if (!LOADED || SAVING) return;
   DIRTY = true;
   setSaveBtn('before');
+  rcDraw();
 }
 document.querySelector('.container').addEventListener('input',  markDirty);
 document.querySelector('.container').addEventListener('change', markDirty);
@@ -1303,9 +1431,8 @@ function buildCalendar() {
   const startDow = first.getDay();
   const tbody = document.querySelector('#calTbl tbody');
   tbody.innerHTML = '';
-  const scheduledSet = _getScheduledDaysCapped();
   const svcType = _getServiceType();
-  const timeStr = _getTimeSlotForEvt();
+  const mkc = mkNow();
   let day = 1;
   let rowCount = 0;
   while (day <= lastDay) {
@@ -1323,15 +1450,15 @@ function buildCalendar() {
         const holidayHtml = holiday
           ? `<div style="font-size:9px;color:#c62828;font-weight:bold;text-align:left;line-height:1.1;margin-bottom:1px;">🎌 ${holiday}</div>`
           : '';
-        // 스케줄 4회 캡: scheduledSet에 포함된 날짜만 자동 표기
+        // 시간표 회기(SLOTS)가 있는 날만 — 서비스 종류 · 시각 (쪼개기 · 공휴일도 같은 모양 · 2026-10-02)
         let evtDefault = '';
-        const isScheduled = scheduledSet.has(day);
-        if (isScheduled) {
-          evtDefault = `<div class="evt-svc" style="color:#1b5e20;font-weight:bold;">${svcType}</div>${timeStr?`<div class="evt-time">${timeStr}</div>`:''}`;
-        }
-        const scheduleBtn = isScheduled
-          ? `<button onclick="_openAbsenceModal(${day});event.stopPropagation();" style="position:absolute;top:2px;left:2px;background:#fff3e0;color:#e65100;border:1px solid #ffb74d;border-radius:3px;font-size:8px;padding:0 3px;cursor:pointer;font-weight:bold;line-height:1.3;">결석/보강</button>`
-          : '';
+        const _iso = mkc + '-' + String(day).padStart(2, '0');
+        SLOTS.filter(sl => sl.iso === _iso).forEach(sl => {
+          const t = sl.hm ? sl.hm + '~' + _addMin(sl.hm, VOUCH_MIN) : '';
+          evtDefault += `<div class="evt-svc" style="color:#1b5e20;font-weight:bold;">${svcType}</div>${t ? `<div class="evt-time">${t}</div>` : ''}`;
+        });
+        // 결석/보강 단추는 뺐다 — 결석 · 보강은 시간표에서 (2026-10-02)
+        const scheduleBtn = '';
         td.style.position = 'relative';
         td.innerHTML = `<span class="no-print">${scheduleBtn}</span><div style="color:${dayColor};font-weight:${holiday?'bold':'normal'};">${day}</div>${holidayHtml}<div class="evt" contenteditable="true" data-day="${day}">${evtDefault}</div>`;
         if (holiday) td.style.background = '#fff3e0';
@@ -1474,6 +1601,17 @@ function _applyMakeupsToCalendar() {
 // 제공일 자동 계산: 실제 수업이 진행된 날짜 (주기 요일 - 결석·공휴일 + 보강 일자)
 // 발본 4회 캡: scheduledSet(첫주부터 최대 4회) 기준으로 계산
 function _updateSvcDays() {
+  // 제공날짜가 적혀 있으면 「제공일」은 그대로 따라간다 (2026-10-02 · 5, 12, 12, 19)
+  {
+    const pv = [];
+    for (let i = 1; i <= SESSIONS; i++) {
+      const iso = _provIso(($('s1_provDate_' + i) || {}).value);
+      if (!iso) continue;
+      const mm = Number(iso.slice(5, 7)), dd = Number(iso.slice(8, 10));
+      pv.push(mm === month ? String(dd) : mm + '/' + dd);
+    }
+    if (pv.length) { const el = $('s1_svcDays'); if (el) el.value = pv.join(', '); return; }
+  }
   const lastDay = new Date(year, month, 0).getDate();
   const scheduledSet = _getScheduledDaysCapped(); // 이미 4회 캡 적용됨
   const provDays = [];
