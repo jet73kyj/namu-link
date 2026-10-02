@@ -386,6 +386,8 @@ let VOUCHER = [], LOGID = null, ITEMS = [];
 let CH_RAW = [];   // 발달재활 수업 원본 (달을 바꿀 때 목록을 다시 만든다)
 let KIDS   = {};   // 아동번호 → 아동 정보 (창구가 돌려준 번호를 이름으로 바꿀 때 쓴다)
 let SESSDAY = {};          // 'YYYY-MM-DD' -> 그 날 발달재활 회기 시각 (2026-10-02)
+let SESSROWS = [];         // 그 달 앞뒤 발달재활 회기 (일정표 ↔ 승인일자 견주기)
+let PROVCHK = null;        // 견준 결과 {same, onlyS, onlyV, filled}
 let TMAN = {};             // 손으로 고친 시각 칸 id -> true
 let ABS = {};              // 날짜 -> {absent, reason, makeupDate, makeupTime, makeupMemo}
 let year = new Date().getFullYear();
@@ -589,7 +591,7 @@ async function loadOne() {
       sb.from('nl_session_logs').select('*').eq('child_id', cid)
         .eq('support_type_id', 2).eq('month_key', mk).maybeSingle(),
       // 일정표 시작시간 자동 — 그 날 실제 회기 시각 (보강 포함 · 앞뒤 한 달)
-      sb.from('nl_sessions').select('plan_date, start_time, status, minutes')
+      sb.from('nl_sessions').select('id, plan_date, start_time, status, minutes, makeup_for, month_key')
         .eq('child_id', cid).eq('support_type_id', 2)
         .gte('plan_date', _shiftIso(mk + '-01', -31)).lte('plan_date', _shiftIso(mk + '-01', 62))
     ]);
@@ -606,6 +608,7 @@ async function loadOne() {
 
     // 그 날 회기 시각 — 조각(40분 미만) · 휴무 · 취소 · 쉼은 뺌. 보강 · 완료를 먼저
     SESSDAY = {};
+    SESSROWS = (ss && ss.data) || [];
     const _rank = { '보강':0, '완료':1, '예정':2, '결석':3 };
     (ss && ss.data || []).forEach(r => {
       if (!r.start_time || !(r.status in _rank)) return;
@@ -643,6 +646,9 @@ async function loadOne() {
     drawAll(lg.data);
     DIRTY = false;
     setSaveBtn(LOGID ? 'done' : 'before');
+    // 일정표 ↔ 승인일자 — 제공일자를 채웠으면 「저장 전」 · 다르면 확인 창 (2026-10-02)
+    if (PROVCHK && PROVCHK.filled) { DIRTY = true; setSaveBtn('before'); }
+    if (PROVCHK && !PROVCHK.same) _showProvWarn(PROVCHK);
     $('pInfo').textContent = mk + ' · 바우처 ' + VOUCHER.length + '건'
       + (LOGID ? ' · 저장된 기록 있음' : ' · 새로 작성');
   } catch (e) {
@@ -741,7 +747,61 @@ function drawAll(saved) {
   if (saved && saved.days_text) $('s1_svcDays').value = saved.days_text;
 
   buildStatusRows(_statusRows());
+  PROVCHK = _checkProvDates();
   _fillSheet1Times();
+}
+
+// ── 일정표 날짜 ↔ 바우처 승인일자 (2026-10-02 은정님 정함 · 9/2 「제공일자는 바우처에서 안 끌어옴」을 바꿈) ──
+//   일정표 = 그 달 몫 발달재활 40분 회기 중 완료 · 보강 · 예정 (오늘까지)
+//            쪼개기 조각 · 조각으로 채운 원래 날 · 휴무 · 결석은 뺌
+//   승인일자 = 바우처 결제 날짜 (VOUCHER)
+//   같으면 비어 있는 서비스 제공일자를 날짜 차례로 채움 · 다르면 채우지 않고 확인 창
+function _todayIso() {
+  const k = new Date(Date.now() + 9 * 3600 * 1000);
+  return k.toISOString().slice(0, 10);
+}
+function _checkProvDates() {
+  const mk = mkNow(), today = _todayIso();
+  const filledBy = new Set(SESSROWS.filter(r => r.makeup_for && r.minutes != null && Number(r.minutes) < 40
+                                           && !['결석', '취소'].includes(r.status)).map(r => r.makeup_for));
+  const sd = SESSROWS.filter(r => r.month_key === mk
+      && ['완료', '보강', '예정'].includes(r.status)
+      && !(r.minutes != null && Number(r.minutes) < 40)
+      && !filledBy.has(r.id)
+      && String(r.plan_date) <= today)
+    .map(r => String(r.plan_date)).sort();
+  const vd = VOUCHER.filter(v => v.service_date).map(v => String(v.service_date).slice(0, 10)).sort();
+  const left = vd.slice(), onlyS = [];
+  sd.forEach(d => { const k = left.indexOf(d); if (k >= 0) left.splice(k, 1); else onlyS.push(d); });
+  const same = !onlyS.length && !left.length && sd.length > 0;
+  let filled = false;
+  if (same) {
+    const ins = document.querySelectorAll('#statusTbl .st_provDate');
+    sd.slice(0, SESSIONS).forEach((d, i) => {
+      const el = ins[i];
+      if (el && !String(el.value || '').trim()) { el.value = d.replace(/-/g, '.'); filled = true; }
+    });
+  }
+  return { same, onlyS, onlyV: left, filled, noVoucher: !vd.length };
+}
+function _showProvWarn(r) {
+  document.getElementById('_provWarn')?.remove();
+  const md = d => Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
+  const line = (t, a) => '<div style="margin:4px 0;"><b>' + t + '</b> : ' + (a.length ? a.map(md).join(' · ') : '없음') + '</div>';
+  const w = document.createElement('div');
+  w.id = '_provWarn';
+  w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.12);z-index:6500;display:flex;align-items:center;justify-content:center;';
+  w.innerHTML = '<div style="background:#fffde7;border:1px solid #f9a825;border-radius:12px;padding:20px 22px;width:380px;max-width:94vw;box-shadow:0 8px 32px rgba(0,0,0,0.2);font-size:13px;color:#4e342e;">'
+    + '<div style="font-size:15px;font-weight:bold;color:#e65100;margin-bottom:10px;">확인해 주세요</div>'
+    + (r.noVoucher
+        ? '<div>이 달 바우처 결제 자료가 아직 없습니다.<br>「발달 올리기」에서 이 달 엑셀을 올린 뒤 다시 열어 주세요.</div>'
+        : '<div style="margin-bottom:6px;">일정표와 바우처 승인일자가 다릅니다</div>'
+          + line('일정표에만 있음', r.onlyS) + line('승인에만 있음', r.onlyV))
+    + '<div style="margin-top:8px;color:#8d6e63;">서비스 제공일자는 채우지 않았습니다.</div>'
+    + '<div style="text-align:right;margin-top:14px;"><button id="_provWarnOk" style="width:auto;margin:0;background:#e65100;color:#fff;border:none;border-radius:6px;padding:8px 22px;font-size:13px;cursor:pointer;">확인</button></div>'
+    + '</div>';
+  document.body.appendChild(w);
+  $('_provWarnOk').onclick = () => w.remove();
 }
 
 // 본인부담금 — 저장된 금액이 있으면 그대로, 없으면 등급 글자로 계산
