@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기록지 점검 - 나무링크</title>
+<style>
+  :root{
+    --bg:#F5F4F2; --sf:#FFFFFF; --line:#ECE8E3; --tx:#2F2926; --dim:#A39C95;
+    --cam:#B07A4A; --camL:#F8F1E8; --camB:#C9A27E;
+    --sage:#5E9A6E; --coral:#D8684A; --coralL:#FCEFEA; --coralT:#993C1D;
+  }
+  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:var(--bg);
+         margin:0; padding:0; color:var(--tx); }
+  .hd { background:var(--sf); border-bottom:1px solid var(--line);
+        display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+        padding:10px 16px; }
+  .hd img.lg { height:22px; display:block; }
+  .hd .bar { width:1px; height:16px; background:var(--line); }
+  .hd h1 { font-size:15px; font-weight:600; margin:0; color:var(--tx); }
+  .hd .who { font-size:12px; color:var(--dim); }
+  .hd .sp { flex:1 1 auto; }
+  .wrap { max-width:900px; margin:0 auto; padding:16px; }
+  button { font:inherit; border-radius:8px; padding:6px 13px; font-size:13px;
+           background:var(--sf); color:var(--tx); border:1px solid var(--dim);
+           cursor:pointer; font-weight:500; }
+  button:hover { background:var(--camL); }
+  button.grey { border-color:var(--line); color:var(--cam); }
+  button.grey:hover { background:var(--camL); }
+  select { font:inherit; font-size:13px; padding:6px 9px; border-radius:8px;
+           border:1px solid var(--line); background:var(--sf); color:var(--tx); }
+  .card { background:var(--sf); border:1px solid var(--line); border-radius:12px;
+          padding:18px 20px; margin-bottom:14px; }
+  .ok { background:var(--sf); border-left:3px solid var(--sage);
+        padding:22px; text-align:center; font-size:16px; font-weight:600;
+        color:var(--tx); }
+  .ok .sub { font-size:13px; font-weight:400; color:var(--dim); margin-top:7px; }
+  .grp { margin-bottom:22px; border-left:3px solid var(--coral); padding-left:13px; }
+  .grp:last-child { margin-bottom:0; }
+  .grp-t { font-size:14px; font-weight:600; color:var(--tx); margin-bottom:3px; }
+  .grp-n { display:inline-block; background:var(--coralL); color:var(--coralT);
+           border-radius:10px; padding:1px 9px; font-size:12px;
+           margin-left:6px; vertical-align:1px; font-weight:500; }
+  /* 기록지 좌우 — 왼쪽 지난달 미작성 · 오른쪽 이번 달 진행 (2026-09-22) */
+  .lgcols { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .lgR { border-left:1px solid #ECE8E3; padding-left:16px; }
+  .lgband { margin:0 0 12px; padding:8px 12px; font-size:13px; }
+  .lgrow { display:flex; justify-content:space-between; padding:6px 0;
+           border-bottom:1px solid #ECE8E3; font-size:13.5px; }
+  @media (max-width:700px) {
+    .lgcols { grid-template-columns:1fr; }
+    .lgR { border-left:none; padding-left:0; border-top:1px solid #ECE8E3; padding-top:12px; }
+  }
+  .grp-why { font-size:12.5px; color:var(--dim); margin-bottom:9px;
+             line-height:1.6; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { background:var(--camL); color:#4A1B0C; text-align:left; font-weight:500;
+       padding:6px 10px; border-bottom:1px solid var(--camB); white-space:nowrap; }
+  td { padding:7px 10px; border-bottom:1px solid #F0EEEA; }
+  tr:last-child td { border-bottom:none; }
+  .cid { font-weight:500; color:var(--cam); white-space:nowrap; }
+  .sum { font-size:13px; color:var(--dim); margin-bottom:14px; }
+  .err { background:var(--sf); border-left:3px solid var(--coral);
+         padding:14px 16px; color:var(--coralT); font-size:13.5px;
+         white-space:pre-wrap; line-height:1.7; }
+  .load { text-align:center; padding:34px; color:var(--dim); font-size:14px; }
+  .note { font-size:12px; color:var(--dim); line-height:1.8; margin-top:16px; }
+
+  /* 기록지 점검 (2026-10-02) */
+  .wrap { max-width:1100px; }
+  .tabs2 { display:flex; gap:14px; margin:0 0 12px; border-bottom:1px solid var(--line); }
+  .tabs2 button { border:none; border-bottom:2px solid transparent; border-radius:0;
+                  background:none; padding:6px 2px; color:var(--dim); }
+  .tabs2 button.on { color:var(--tx); border-bottom-color:var(--cam); font-weight:600; }
+  .thhd { font-size:15px; font-weight:600; margin:0 0 8px; padding-left:10px;
+          border-left:3px solid var(--cam); }
+  .thhd .n { font-size:12px; color:var(--dim); font-weight:400; margin-left:6px; }
+  .it { display:inline-block; font-size:11px; font-weight:600; border-radius:10px;
+        padding:2px 8px; white-space:nowrap; }
+  .g1 { background:#FDF3E6; color:#A9701C; }   /* 가 결제 */
+  .g2 { background:#E6F0FA; color:#2E5E8C; }   /* 나 기록지 */
+  .g3 { background:#F1ECFA; color:#5B3E96; }   /* 다 서류 */
+  .g0 { background:#EEF1F4; color:#5A6B7B; }   /* 참고 */
+  td.det { line-height:1.5; }
+  tr.done td { color:#B7B0A9; }
+  tr.done td .it { opacity:.55; }
+  .rc { display:flex; gap:6px; align-items:center; flex-wrap:wrap; min-width:300px; }
+  .rc select { max-width:260px; font-size:12px; padding:4px 6px; }
+  .rc input[type=text] { font:inherit; font-size:12px; padding:4px 7px; border:1px solid var(--line);
+                         border-radius:6px; width:150px; }
+  .rc label { font-size:12px; color:var(--tx); white-space:nowrap; }
+  .rc button { padding:4px 10px; font-size:12px; }
+  .rc button.saved { background:#EAF4EC; border-color:#9CC7A6; color:#2E6B3E; }
+  .rcview { font-size:12px; color:var(--tx); }
+  .legend { font-size:12px; color:var(--dim); line-height:1.9; margin-top:14px; }
+  @media print {
+    .hd button, .hd select, .tabs2, .rc button, .legend { display:none !important; }
+    body { background:#fff; }
+    .card { border:none; padding:0; }
+    .rc select, .rc input { border:none; }
+  }
+</style>
+</head>
+<body>
+<div class="hd">
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <span class="bar"></span>
+  <h1>기록지 점검</h1>
+  <span class="who" id="who"></span>
+  <span class="sp"></span>
+  <select id="mon"></select>
+  <button id="run">점검하기</button>
+  <button id="pdf">PDF로 저장</button>
+  <button id="home" class="grey">처음으로</button>
+</div>
+
+<div class="wrap">
+  <div id="body"><div class="load">불러오는 중…</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
+<script>
+// 기록지 점검 (2026-10-02 은정님 정함)
+//   셈은 서버 nl_record_check(달) 한 곳 — 이 화면은 그리기만
+//   처리 결과는 nl_rc_results (아동 · 달 · 항목 · 열쇠마다 한 줄) · 사례 목록은 nl_rc_cases
+//   8 · 9번 — 전체를 보고 처리 결과를 적음 / 선생님 — 자기 담당 줄만 보기
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: nlStore, persistSession: true,
+          autoRefreshToken: true, detectSessionInUrl: false }
+});
+const $ = id => document.getElementById(id);
+
+const ADMIN = [8, 9];
+let ME = null, ROWS = [], CASES = [], RES = {}, KIDNM = {}, THNM = {}, VIEW = 'left';
+
+// 항목 이름 · 갈래 (g1 결제 · g2 기록지 · g3 서류 · g0 참고)
+const ITEM = {
+  1:['결제 이름','g1'], 2:['아동 중복 결제','g1'], 3:['연속 결제 80분 안','g1'],
+  4:['치료사 중복 결제','g1'], 5:['승인번호 이상','g1'], 6:['주 3회 이상','g1'],
+  7:['월 4회 미달','g1'], 8:['결제금액 불일치','g1'], 9:['예외 · 일괄 (참고)','g0'],
+  10:['기록지 시각 겹침','g2'], 11:['일정표 ↔ 승인일자','g2'], 12:['기록지 빈칸','g2'],
+  13:['승인번호 다름','g2'], 14:['기록지 없음','g2'],
+  15:['변경계약서 · 본인부담금','g3'], 16:['변경계약서 · 담당 변경','g3']
+};
+
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function monNo(k){ return Number(String(k).slice(5,7)); }
+function md(d){ return d ? Number(String(d).slice(5,7)) + '/' + Number(String(d).slice(8,10)) : ''; }
+function rkey(r){ return r.child_id + '|' + r.item_no + '|' + (r.item_key || ''); }
+function isAdmin(){ return ME && ADMIN.indexOf(Number(ME.id)) >= 0; }
+
+// 달 고르기 — 지난 6달 ~ 이번 달 · 처음은 지난달 (기록지는 달이 끝난 뒤 씀)
+function fillMon(){
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  let h = '';
+  for (let i = -6; i <= 0; i++) {
+    const d = new Date(y, m + i, 1);
+    const k = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    h += '<option value="' + k + '"' + (i === -1 ? ' selected' : '') + '>'
+       + d.getFullYear() + '년 ' + (d.getMonth()+1) + '월</option>';
+  }
+  $('mon').innerHTML = h;
+}
+
+// 처리 끝 = 사례를 골랐고, 서류가 필요한 사례면 「서류 받음」까지
+function isDone(r){
+  if (r.item_no === 9) return true;
+  const x = RES[rkey(r)];
+  if (!x || !x.case_id) return false;
+  const c = CASES.find(c => c.id === x.case_id);
+  return c ? (!c.need_doc || x.doc_done) : false;
+}
+
+async function run(){
+  const k = $('mon').value;
+  $('body').innerHTML = '<div class="load">' + monNo(k) + '월 기록지를 점검하고 있습니다…</div>';
+  const [a, b, c] = await Promise.all([
+    sb.rpc('nl_record_check', { p_month: k }),
+    sb.from('nl_rc_cases').select('id, grp, name, need_doc, sort_no').eq('active', true).order('sort_no'),
+    sb.from('nl_rc_results').select('child_id, item_no, item_key, case_id, doc_done, memo').eq('month_key', k)
+  ]);
+  if (a.error) {
+    $('body').innerHTML = '<div class="err">점검하지 못했습니다.\n' + esc(a.error.message) + '</div>';
+    return;
+  }
+  ROWS = (a.data || []).map(r => Object.assign({}, r, { item_no: Number(r.item_no) }));
+  if (!isAdmin()) ROWS = ROWS.filter(r => Number(r.therapist_id) === Number(ME.id));
+  CASES = b.data || [];
+  RES = {};
+  (c.data || []).forEach(x => { RES[x.child_id + '|' + x.item_no + '|' + (x.item_key || '')] = x; });
+
+  // 이름 — 결과에 나온 아동 · 선생님만
+  KIDNM = {}; THNM = {};
+  const kids = [...new Set(ROWS.map(r => r.child_id).filter(Boolean))];
+  const ths  = [...new Set(ROWS.map(r => r.therapist_id).filter(Boolean))];
+  try {
+    if (kids.length) {
+      const { data } = await sb.from('nl_children').select('id, name').in('id', kids);
+      (data || []).forEach(x => { KIDNM[x.id] = x.name || ''; });
+    }
+    if (ths.length) {
+      const { data } = await sb.from('nl_therapists').select('id, name').in('id', ths);
+      (data || []).forEach(x => { THNM[x.id] = x.name || ''; });
+    }
+  } catch (e) {}
+  draw();
+}
+
+function caseOpts(sel){
+  let h = '<option value="">— 사례를 고르세요 —</option>', g = '';
+  CASES.forEach(c => {
+    if (c.grp !== g) { if (g) h += '</optgroup>'; h += '<optgroup label="' + esc(c.grp) + '">'; g = c.grp; }
+    h += '<option value="' + c.id + '"' + (Number(sel) === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+  });
+  return h + (g ? '</optgroup>' : '');
+}
+
+function rcCell(r, i){
+  const x = RES[rkey(r)] || {};
+  if (r.item_no === 9) return '<span class="rcview">참고</span>';
+  if (!isAdmin()) {
+    const c = CASES.find(c => c.id === x.case_id);
+    return '<span class="rcview">' + (c ? esc(c.name) + (x.doc_done ? ' · 서류 받음' : '') : '')
+         + (x.memo ? ' · ' + esc(x.memo) : '') + '</span>';
+  }
+  return '<div class="rc" data-i="' + i + '">'
+    + '<select class="rcCase">' + caseOpts(x.case_id) + '</select>'
+    + '<label><input type="checkbox" class="rcDoc"' + (x.doc_done ? ' checked' : '') + '> 서류 받음</label>'
+    + '<input type="text" class="rcMemo" maxlength="300" placeholder="메모" value="' + esc(x.memo || '') + '">'
+    + '<button class="rcSave' + (x.case_id || x.memo ? ' saved' : '') + '">' + (x.case_id || x.memo ? '✓ 저장됨' : '저장') + '</button>'
+    + '</div>';
+}
+
+function draw(){
+  const k = $('mon').value;
+  const left = ROWS.filter(r => !isDone(r));
+  const list = VIEW === 'left' ? left : ROWS;
+  let h = '<div class="sum">' + monNo(k) + '월 · 점검 대상 <b>' + left.filter(r => r.item_no !== 9).length + '건</b>'
+        + ' · 처리 끝 ' + ROWS.filter(r => r.item_no !== 9 && isDone(r)).length + '건</div>'
+        + '<div class="tabs2"><button data-v="left"' + (VIEW === 'left' ? ' class="on"' : '') + '>남은 것</button>'
+        + '<button data-v="all"' + (VIEW === 'all' ? ' class="on"' : '') + '>전체</button></div>';
+  if (!list.length) {
+    h += '<div class="ok">' + monNo(k) + '월 — 남은 점검 대상이 없습니다</div>';
+  } else {
+    // 선생님별로 묶기
+    const g = {}, ord = [];
+    list.forEach(r => {
+      const t = r.therapist_id || 0;
+      if (!g[t]) { g[t] = []; ord.push(t); }
+      g[t].push(r);
+    });
+    ord.sort((a, b) => (a || 99) - (b || 99));
+    ord.forEach(t => {
+      const rs = g[t].sort((a, b) => a.child_id - b.child_id || a.item_no - b.item_no
+                         || String(a.on_date || '').localeCompare(String(b.on_date || '')));
+      h += '<div class="card"><div class="thhd">' + (t ? t + '번 ' + esc(THNM[t] || '') + ' 선생님' : '담당 미상')
+         + '<span class="n">' + rs.length + '건</span></div>'
+         + '<table><tr><th>아동</th><th>날짜</th><th>항목</th><th>내용</th><th>처리 결과</th></tr>';
+      rs.forEach(r => {
+        const i = ROWS.indexOf(r), it = ITEM[r.item_no] || ['?','g0'];
+        h += '<tr' + (isDone(r) ? ' class="done"' : '') + '>'
+          + '<td class="cid">' + r.child_id + '번 ' + esc(KIDNM[r.child_id] || '') + '</td>'
+          + '<td>' + md(r.on_date) + '</td>'
+          + '<td><span class="it ' + it[1] + '">' + r.item_no + ' ' + esc(it[0]) + '</span></td>'
+          + '<td class="det">' + esc(r.detail) + '</td>'
+          + '<td>' + rcCell(r, i) + '</td></tr>';
+      });
+      h += '</table></div>';
+    });
+  }
+  h += '<div class="legend">결제 시각은 바우처 「결제일시」, 수업 시작은 시간표 회기 시각입니다. '
+     + '사례를 고르고(서류가 필요한 사례는 「서류 받음」까지) 저장하면 「남은 것」에서 빠집니다. '
+     + '사례 목록은 표에 담겨 있어 더 넣을 수 있습니다.</div>';
+  $('body').innerHTML = h;
+
+  document.querySelectorAll('.tabs2 button').forEach(b => {
+    b.onclick = () => { VIEW = b.dataset.v; draw(); };
+  });
+  document.querySelectorAll('.rc').forEach(box => {
+    const btn = box.querySelector('.rcSave');
+    box.querySelectorAll('select, input').forEach(el => {
+      el.addEventListener('input', () => { btn.textContent = '저장'; btn.classList.remove('saved'); });
+      el.addEventListener('change', () => { btn.textContent = '저장'; btn.classList.remove('saved'); });
+    });
+    btn.onclick = () => saveRc(box);
+  });
+}
+
+async function saveRc(box){
+  const r = ROWS[Number(box.dataset.i)];
+  const btn = box.querySelector('.rcSave');
+  const caseId = Number(box.querySelector('.rcCase').value) || null;
+  const memo = box.querySelector('.rcMemo').value.trim() || null;
+  const c = CASES.find(x => x.id === caseId);
+  if (c && c.name === '직접 적기' && !memo) { alert('「직접 적기」는 메모를 적어 주세요.'); return; }
+  btn.disabled = true; btn.textContent = '저장 중…';
+  const row = { child_id: r.child_id, month_key: $('mon').value, item_no: r.item_no,
+                item_key: r.item_key || '', case_id: caseId,
+                doc_done: box.querySelector('.rcDoc').checked, memo: memo,
+                updated_by: ME.id, updated_at: new Date().toISOString() };
+  const { data, error } = await sb.from('nl_rc_results')
+    .upsert(row, { onConflict: 'child_id,month_key,item_no,item_key' }).select();
+  btn.disabled = false;
+  if (error || !data || !data.length) {
+    btn.textContent = '저장';
+    alert('저장하지 못했습니다.\n' + (error ? error.message : '돌려받은 줄이 없습니다.'));
+    return;
+  }
+  RES[rkey(r)] = data[0];
+  draw();
+}
+
+$('run').onclick = run;
+$('mon').onchange = run;
+$('pdf').onclick = () => window.print();
+$('home').onclick = () => { location.href = 'index.html'; };
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { location.replace('index.html'); return; }
+  const user = data.session.user;
+  const { data: me, error } = await sb.from('nl_therapists')
+    .select('id, name, role').eq('login_email', user.email.toLowerCase()).maybeSingle();
+  if (error || !me) {
+    $('body').innerHTML = '<div class="err">직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.</div>';
+    return;
+  }
+  nlKeep(me.id);
+  ME = me;
+  const id = Number(me.id);
+  if (!(ADMIN.indexOf(id) >= 0 || (id >= 1 && id <= 7))) {
+    $('body').innerHTML = '<div class="err">이 화면을 볼 권한이 없습니다.</div>';
+    return;
+  }
+  $('who').textContent = me.name + ' 님으로 로그인됨';
+  fillMon();
+  run();
+})();
+</script>
+</body>
+</html>
