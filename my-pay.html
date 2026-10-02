@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>내 정산 - 나무링크</title>
+<style>
+  body { font-family:-apple-system,"Malgun Gothic",sans-serif; background:#F5F4F2;
+         margin:0; padding:0; color:#2F2926; }
+  .hd { background:#fff; border-bottom:1px solid #ECE8E3; display:flex;
+        align-items:center; gap:10px; flex-wrap:wrap; padding:10px 16px; }
+  .hd img.lg { height:22px; display:block; }
+  .hd .bar0 { width:1px; height:16px; background:#ECE8E3; }
+  .hd h1 { font-size:15px; font-weight:600; margin:0; }
+  .hd .sp { flex:1 1 auto; }
+  .who { font-size:12px; color:#A39C95; }
+  .btn-home { display:inline-block; background:#fff; color:#B07A4A; border:1px solid #ECE8E3;
+              padding:5px 12px; border-radius:8px; font-size:13px; text-decoration:none; white-space:nowrap; }
+  .wide { max-width:1000px; margin:0 auto; padding:16px; }
+  .tools { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+  .sel { padding:8px 12px; font-size:14px; border:1px solid #ECE8E3; border-radius:8px;
+         background:#fff; color:#2F2926; font-family:inherit; }
+  .bt { padding:8px 16px; font-size:13.5px; border:1px solid #ECE8E3; border-radius:8px;
+        background:#fff; color:#2F2926; cursor:pointer; font-family:inherit; }
+  .bt:hover { background:#F8F1E8; }
+  .bt:disabled { background:#f2f1ee; color:#A39C95; cursor:default; }
+  .bt.main { background:#3B6D11; color:#fff; border-color:#3B6D11; }
+  .bt.main:disabled { background:#EAF3DE; color:#3B6D11; border-color:#97C459; }
+  .sheet { background:#fff; border:1px solid #ECE8E3; border-radius:12px; padding:16px; }
+  .pshead { font-size:16px; font-weight:600; margin-bottom:4px; }
+  .pubinfo { font-size:12.5px; color:#A39C95; margin-bottom:6px; }
+  .empty { background:#fff; border:1px solid #ECE8E3; border-radius:12px; padding:28px;
+           text-align:center; color:#A39C95; font-size:14px; }
+  .sec { margin-top:22px; overflow-x:auto; }
+  .sec-t { font-size:14px; font-weight:600; margin-bottom:10px; padding-bottom:6px;
+           border-bottom:2px solid #C9A27E; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th { background:#F8F1E8; color:#4A1B0C; font-weight:500; padding:9px 8px; text-align:left;
+       border-bottom:1px solid #C9A27E; font-size:12.5px; white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid #F0EEEA; }
+  td.n, th.n { text-align:right; }
+  tfoot td { background:#FBF5EE; border-top:2px solid #C9A27E; font-weight:500; }
+  .pay { max-width:520px; }
+  .pay .lab { color:#5a6156; }
+  .pay .amt { text-align:right; font-variant-numeric:tabular-nums; }
+  .pay .sum td { font-weight:bold; background:#f7faf4; }
+  .pay .minus .amt { color:#c62828; }
+  .pay .plus  .amt { color:#00695c; }
+  .pay .final td { font-size:16px; font-weight:800; background:#e8f5e9;
+                   color:#1b5e20; border-top:2px solid #a5d6a7; }
+  .note, .small { font-size:12.5px; color:#A39C95; line-height:1.8; }
+  .act { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:18px; }
+  .askbox { margin-top:10px; display:none; }
+  .askbox textarea { width:100%; box-sizing:border-box; min-height:80px; padding:10px;
+           border:1px solid #ECE8E3; border-radius:8px; font-size:14px; font-family:inherit; }
+  .asked { margin-top:10px; background:#FBEDE6; border-left:3px solid #C2553A;
+           border-radius:8px; padding:10px 12px; font-size:13.5px; white-space:pre-wrap; }
+  .msg { margin-top:10px; font-size:13.5px; white-space:pre-wrap; }
+  .msg.err { color:#993C1D; }
+  .sheetlogo { text-align:center; margin-top:20px; }
+  .sheetlogo img { height:40px; }
+  @media print {
+    body { background:#fff; }
+    .hd, .tools, .act, .askbox, .asked, .msg, .noprint { display:none !important; }
+    .wide { padding:0; } .sheet { border:none; padding:0; }
+  }
+</style>
+</head>
+<body>
+<div class="hd noprint">
+  <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
+  <span class="bar0"></span>
+  <h1>내 정산</h1>
+  <span class="who" id="who"></span>
+  <span class="sp"></span>
+  <a href="index.html" class="btn-home">처음으로</a>
+</div>
+<div class="wide">
+  <div class="tools">
+    <select id="mon" class="sel"></select>
+    <button id="prt" class="bt">인쇄 / PDF 저장</button>
+  </div>
+  <div id="body"><div class="empty">불러오는 중…</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="nl-login.js"></script>
+<script>
+// 내 정산 (2026-10-02) — 대표가 공개한 위탁수수료 내역을 선생님 본인만 본다
+//   nl_pay_share 의 그 달 가장 늦은 판 · 확인 nl_pay_seen · 문의 nl_pay_ask
+const URL_ = 'https://mrezaqgfyvgdtukzkidb.supabase.co';
+const KEY_ = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yZXphcWdmeXZnZHR1a3praWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjMxNjEsImV4cCI6MjA5NzI5OTE2MX0.xNWlRG9XajOg4cE6SgeVne8kFiO8ZiQCatJHRymT6nc';
+const sb = window.supabase.createClient(URL_, KEY_, {
+  auth: { storage: nlStore, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+});
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function won(n){ return Number(n||0).toLocaleString('ko-KR'); }
+function md(t){ const d = new Date(t); return (d.getMonth()+1) + '/' + d.getDate(); }
+
+let ME = null, ALL = [], CUR = null;
+
+async function load(){
+  ALL = [];
+  const { data, error } = await sb.from('nl_pay_share')
+    .select('id, month_key, ver, sheet_html, net, published_at, seen_at, ask_text, ask_at')
+    .eq('therapist_id', ME.id)
+    .order('month_key', { ascending: false }).order('ver', { ascending: false });
+  if (error) { $('body').innerHTML = '<div class="empty">불러오지 못했습니다.<br>' + esc(error.message) + '</div>'; return false; }
+  const seen = {};
+  (data || []).forEach(x => { if (!seen[x.month_key]) { seen[x.month_key] = 1; ALL.push(x); } });
+  return true;
+}
+function drawMonths(keep){
+  $('mon').innerHTML = ALL.map(x => '<option value="' + x.month_key + '">'
+    + Number(x.month_key.slice(5)) + '월 (' + x.month_key.slice(0,4) + ')</option>').join('');
+  if (keep && ALL.some(x => x.month_key === keep)) $('mon').value = keep;
+  $('mon').style.display = ALL.length ? '' : 'none';
+  $('prt').style.display = ALL.length ? '' : 'none';
+}
+function draw(){
+  CUR = ALL.find(x => x.month_key === $('mon').value) || ALL[0] || null;
+  if (!CUR) { $('body').innerHTML = '<div class="empty">아직 공개된 정산이 없습니다.</div>'; return; }
+  const st = CUR.seen_at ? md(CUR.seen_at) + ' 확인 ✓' : '확인했습니다';
+  $('body').innerHTML =
+      '<div class="sheet">'
+    + '<div class="pubinfo">' + md(CUR.published_at) + ' 공개' + (CUR.ver > 1 ? ' · 고친 판(' + CUR.ver + '판)' : '') + '</div>'
+    + CUR.sheet_html
+    + '<div class="sheetlogo"><img src="img/nl-logo.png" alt="자라는나무"></div>'
+    + '</div>'
+    + '<div class="act">'
+    +   '<button id="seenBtn" class="bt main"' + (CUR.seen_at ? ' disabled' : '') + '>' + st + '</button>'
+    +   '<button id="askBtn" class="bt">문의하기</button>'
+    + '</div>'
+    + (CUR.ask_text ? '<div class="asked">보낸 문의 (' + md(CUR.ask_at) + ')\n' + esc(CUR.ask_text) + '</div>' : '')
+    + '<div class="askbox" id="askBox"><textarea id="askTx" maxlength="500" placeholder="어느 아동 · 어느 날짜가 다른지 적어 주세요 (500자까지)"></textarea>'
+    +   '<div class="act" style="margin-top:8px;"><button id="askSend" class="bt">보내기</button>'
+    +   '<button id="askNo" class="bt">닫기</button></div></div>'
+    + '<div class="msg" id="msg"></div>';
+  $('seenBtn').onclick = doSeen;
+  $('askBtn').onclick = () => { $('askBox').style.display = 'block'; $('askTx').focus(); };
+  $('askNo').onclick  = () => { $('askBox').style.display = 'none'; };
+  $('askSend').onclick = doAsk;
+}
+function msg(t, bad){ $('msg').textContent = t; $('msg').className = 'msg' + (bad ? ' err' : ''); }
+async function doSeen(){
+  if (!CUR) return;
+  $('seenBtn').disabled = true; $('seenBtn').textContent = '저장 중…';
+  const { error } = await sb.rpc('nl_pay_seen', { p_id: CUR.id });
+  if (error) { $('seenBtn').disabled = false; $('seenBtn').textContent = '확인했습니다'; msg('❌ ' + error.message, true); return; }
+  const k = CUR.month_key; await load(); drawMonths(k); draw();
+}
+async function doAsk(){
+  if (!CUR) return;
+  const t = $('askTx').value.trim();
+  if (!t) { msg('문의 내용을 적어 주세요.', true); return; }
+  $('askSend').disabled = true; $('askSend').textContent = '보내는 중…';
+  const { error } = await sb.rpc('nl_pay_ask', { p_id: CUR.id, p_text: t });
+  if (error) { $('askSend').disabled = false; $('askSend').textContent = '보내기'; msg('❌ ' + error.message, true); return; }
+  const k = CUR.month_key; await load(); drawMonths(k); draw();
+  msg('문의를 보냈습니다. 원장님 확인 뒤 답을 드립니다.');
+}
+
+$('mon').onchange = draw;
+$('prt').onclick = () => window.print();
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (!data || !data.session) { location.replace('index.html'); return; }
+  const em = String(data.session.user.email || '').toLowerCase();
+  const { data: me } = await sb.from('nl_therapists')
+    .select('id, name, role').eq('login_email', em).maybeSingle();
+  if (!me) { $('body').innerHTML = '<div class="empty">직원 계정으로 들어와 주세요.</div>'; return; }
+  ME = me;
+  if (typeof nlKeep === 'function') nlKeep(me.id);
+  $('who').textContent = me.id + '번 ' + me.name + ' 선생님';
+  if (await load()) { drawMonths(); draw(); }
+})();
+</script>
+</body>
+</html>

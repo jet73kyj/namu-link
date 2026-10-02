@@ -143,6 +143,11 @@
   @media print { body { background:#fff; } .wide { padding:10px; }
                  .hd { display:none; } .panel { border:none; padding:0; } }
 
+/* 정산 공개 (2026-10-02) */
+.pubst{font-size:12.5px;color:#6E6660}
+.pubst b.ok{color:#3B6D11}.pubst b.ask{color:#C2553A}
+.pubsum{font-size:12.5px;color:#6E6660;margin:-6px 0 12px}
+.pubsum b{color:#2F2926;font-weight:600}
 /* 미확인 (2026-10-01) */
 .unconf{background:#FBEDE6;border:1px solid #E7B9A6;border-left:4px solid #C2553A;border-radius:10px;padding:10px 14px;margin:10px 0;font-size:13.5px;color:#6E6660;line-height:1.7}
 .unconf b{color:#C2553A}
@@ -181,7 +186,10 @@
     <select id="mon" class="sel"></select>
     <select id="th" class="sel"></select>
     <button id="prt" class="prtbtn">인쇄 / PDF 저장</button>
+    <button id="pubBtn" class="prtbtn noprint">선생님께 공개</button>
+    <span id="pubSt" class="pubst noprint"></span>
   </div>
+  <div id="pubSum" class="pubsum noprint"></div>
 
   <div id="warnBox" class="warn" style="display:none;"></div>
   <div id="unconfBox" class="unconf noprint" style="display:none;"></div>
@@ -347,6 +355,8 @@ let HASPART = {};   // 쪼갠 조각이 딸린 원래 줄 { 줄번호: 조각 �
 let EVALS = [];   // 그 달 평가
 let TRIALS = [];  // 그 달 체험 수업 — 완료만. 정규 1회처럼 센다 (2026-09-16)
 let mon = '', thId = 0;
+let PAYSUM = null;  // 지금 그린 정산의 총 수수료·실 지급액 (2026-10-02)
+let PUB = {};       // 선생님 번호 → 그 달 가장 늦은 공개본 (2026-10-02)
 
 function show(t, ok){ $('msg').textContent=t; $('msg').className='out '+(ok?'ok':'err'); }
 function evmsg(t, ok){ $('evMsg').textContent=t; $('evMsg').className='out '+(ok?'ok':'err'); }
@@ -402,6 +412,7 @@ function calc(){
     $('rows1').innerHTML = ''; $('foot1').innerHTML = '';
     $('rows2').innerHTML = ''; $('foot2').innerHTML = '';
     $('rows3').innerHTML = '';
+    PAYSUM = null; drawPub();
     return;
   }
 
@@ -568,7 +579,73 @@ function calc(){
     + '4대보험 — ' + insTxt + '<br>'
     + (r.daily_fuel ? '주유비는 <b>완료 회차가 있는 날</b>만 셉니다. 보강만 있는 날은 빠집니다. 비과세라 원천징수 뒤에 더합니다.<br>' : '')
     + '<b>아동별 진행 날짜</b>가 위 표에 있으니 숫자가 안 맞으면 그 표에서 찾으세요.';
+  PAYSUM = { total: total, net: net };
+  drawPub();
 }
+
+// ── 선생님께 공개 (2026-10-02) ─────────────────────────────
+//   공개한 순간의 세 표를 그대로 저장한다 (nl_pay_publish)
+//   뒤에 회기를 고쳐도 선생님 화면은 안 바뀐다 → 다시 공개하면 새 판
+async function loadPub(){
+  PUB = {};
+  const { data, error } = await sb.from('nl_pay_share')
+    .select('id, therapist_id, ver, published_at, seen_at, ask_text, ask_at')
+    .eq('month_key', mon).order('ver');
+  if (error) return;
+  (data || []).forEach(x => { PUB[x.therapist_id] = x; });
+}
+function mdhm(t){
+  const d = new Date(t);
+  return (d.getMonth() + 1) + '/' + d.getDate();
+}
+function drawPub(){
+  const p = PUB[thId];
+  $('pubBtn').textContent = p ? '다시 공개' : '선생님께 공개';
+  $('pubBtn').disabled = !PAYSUM;
+  $('pubSt').innerHTML = !p ? '공개 전'
+    : mdhm(p.published_at) + ' 공개' + (p.ver > 1 ? ' (' + p.ver + '판)' : '') + ' · '
+      + (p.ask_text ? '<b class="ask">문의 있음 ⚠</b> — ' + esc(p.ask_text)
+         : p.seen_at ? '<b class="ok">' + mdhm(p.seen_at) + ' 확인 ✓</b>'
+         : '확인 안 함');
+  let ok = 0, no = 0, ask = 0, pre = 0;
+  THS.forEach(t => {
+    const q = PUB[t.id];
+    if (!q) pre++;
+    else if (q.ask_text) ask++;
+    else if (q.seen_at) ok++;
+    else no++;
+  });
+  $('pubSum').innerHTML = monNo(mon) + '월 공개 현황 &nbsp; 확인 <b>' + ok + '</b> · 안 함 <b>' + no
+    + '</b> · 문의 <b>' + ask + '</b> · 공개 전 <b>' + pre + '</b>';
+}
+$('pubBtn').onclick = async () => {
+  if (!PAYSUM || !thId) return;
+  const t = THS.find(x => x.id === thId);
+  const nm = thId + '번 ' + (t ? t.name : '') + ' 선생님';
+  const unc = (UNCONF[thId] || []).length;
+  const p = PUB[thId];
+  if (!confirm(nm + ' ' + monNo(mon) + '월 정산을 공개할까요?\n\n'
+      + '실 지급액 ' + won(PAYSUM.net) + '원\n'
+      + (unc ? '⚠ 선생님이 확인 안 한 날이 ' + unc + '일 있습니다.\n' : '')
+      + (p ? '이미 공개한 판이 있습니다. 새 판으로 공개하고, 확인은 다시 받습니다.\n' : '')
+      + '\n공개한 순간의 내역이 그대로 선생님께 보입니다.')) return;
+
+  // 세 표만 떠서 담는다 (화면용 칸 · 단추는 뺀다)
+  const wrap = document.createElement('div');
+  wrap.innerHTML = '<div class="pshead">' + monNo(mon) + '월 업무위탁 수수료 · ' + esc(nm) + '</div>';
+  document.querySelectorAll('#mainBox .sec').forEach(sec => wrap.appendChild(sec.cloneNode(true)));
+  wrap.querySelectorAll('.noprint, button, input, select, script').forEach(el => el.remove());
+  wrap.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+
+  $('pubBtn').disabled = true; $('pubBtn').textContent = '공개 중…';
+  const { data, error } = await sb.rpc('nl_pay_publish', {
+    p_th: thId, p_month: mon, p_html: wrap.innerHTML,
+    p_total: Math.round(PAYSUM.total), p_net: Math.round(PAYSUM.net) });
+  if (error) { alert('❌ 공개하지 못했습니다.\n' + error.message); }
+  else       { alert('✅ ' + data); }
+  await loadPub();
+  drawPub();
+};
 
 // ===== 평가 넣기 =====
 // ===== 지급 단가 =====
@@ -765,13 +842,14 @@ async function afterLogin(user){
   $('loginBox').style.display = 'none';
   $('mainBox').style.display  = 'block';
   await loadUnconf();
+  await loadPub();
   calc();
   drawWorkDays();
 }
 
 $('mon').onchange = async () => { mon = $('mon').value;
   try { localStorage.setItem('nl_payroll_mon', mon); } catch(e) {}
-  await loadMonth(); await loadUnconf(); calc(); };
+  await loadMonth(); await loadUnconf(); await loadPub(); calc(); };
 $('th').onchange  = () => { thId = Number($('th').value); calc(); drawWorkDays(); };
 
 // ── 출근 요일 · 수업 시각 (2026-09-11) ───────────────────────
