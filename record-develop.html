@@ -1179,8 +1179,8 @@ function rcLocal() {
       const sm  = Number(st.slice(0, 2)) * 60 + Number(st.slice(3, 5));
       if (pay < sm + 30) {
         const g = pay - sm;
-        out.push({ item_no: 1, on_date: appr, detail: '결제 ' + am[4] + ':' + am[5] + ' · 기록지 시작 ' + st
-          + ' (' + (g < 0 ? -g + '분 앞 결제' : g + '분 뒤 결제') + ')' });
+        out.push({ item_no: 1, on_date: appr, detail: '결제 ' + am[4] + ':' + am[5] + ' · 수업 시작 ' + st
+          + ' (' + (g < 0 ? -g + '분 전 결제' : g + '분 뒤 결제') + ')' });   // msgPayBefore (2026-10-02 「○분 전 결제」)
       }
     }
   }
