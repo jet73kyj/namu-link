@@ -152,6 +152,7 @@
 /* 미확인 (2026-10-01) */
 .unconf{background:#FBEDE6;border:1px solid #E7B9A6;border-left:4px solid #C2553A;border-radius:10px;padding:10px 14px;margin:10px 0;font-size:13.5px;color:#6E6660;line-height:1.7}
 .unconf b{color:#C2553A}
+.gtag{display:inline-block;background:#EDE7F6;color:#5E35B1;border-radius:4px;padding:0 4px;margin-right:4px;font-size:10.5px;font-weight:600}
 </style>
 </head>
 <body>
@@ -212,6 +213,10 @@
       <div>
         <label for="rt_sp">심리치료 단가</label>
         <input id="rt_sp" type="text" inputmode="numeric" placeholder="없으면 비움">
+      </div>
+      <div>
+        <label for="rt_grp">그룹 1인당</label>
+        <input id="rt_grp" type="text" inputmode="numeric" placeholder="그룹 수업 시">
       </div>
       <div>
         <label for="rt_fuel">주유비 (하루)</label>
@@ -355,7 +360,8 @@ let HASPART = {};   // 쪼갠 조각이 딸린 원래 줄 { 줄번호: 조각 �
 let EVALS = [];   // 그 달 평가
 let TRIALS = [];  // 그 달 체험 수업 — 완료만. 정규 1회처럼 센다 (2026-09-16)
 let mon = '', thId = 0;
-let PAYSUM = null;  // 지금 그린 정산의 총 수수료·실 지급액 (2026-10-02)
+let PAYSUM = null;
+let GRPMISS = false;   // 그룹 수업이 있는데 그룹 1인당 단가가 비었음 (2026-10-02)  // 지금 그린 정산의 총 수수료·실 지급액 (2026-10-02)
 let PUB = {};       // 선생님 번호 → 그 달 가장 늦은 공개본 (2026-10-02)
 
 function show(t, ok){ $('msg').textContent=t; $('msg').className='out '+(ok?'ok':'err'); }
@@ -454,12 +460,15 @@ function calc(){
 
   // 아동별로 모으기
   const byKid = {};
+  GRPMISS = false;
   done.forEach(s => {
     const sc = ROWS.find(x => x.id === s.schedule_id);
     const dur = s._trialDur || (sc ? Number(sc.duration || 40) : 40);
     const tt  = sc ? sc._tt : null;
     const stid = s.support_type_id || (sc ? sc.support_type_id : null);
-    const nm  = (KIDS[s.child_id] || ('아동 ' + s.child_id + '번'))
+    // 그룹 수업 원래 줄 — 출석 아동 1명마다 그룹 1인당 단가 (1:1 보강은 보통 단가 · 2026-10-02)
+    const isGrp = !!(sc && sc._grp && !s.makeup_for);
+    const nm  = (isGrp ? '[그룹] ' : '') + (KIDS[s.child_id] || ('아동 ' + s.child_id + '번'))
               + (stid ? ' · ' + (STYPE[stid] || ('유형'+stid)) : '');
     const k = byKid[nm] = byKid[nm] || { m40:0, m60:0, sp:0, days:[], fee:0 };
     // 심리치료(특수 단가)는 치료종류가 아니라 메모로 구분해야 하므로
@@ -470,7 +479,8 @@ function calc(){
     const rest = (HASPART[s.id] > 0 && HASPART[s.id] < 40) ? (40 - HASPART[s.id]) : 0;
     const part = rest ? rest / 40 : Number(s.minutes || 40) / 40;
     let fee;
-    if (isSp)          { k.sp  += part; fee = r.special_fee * part; }
+    if (isGrp)         { k.m40 += part; fee = (Number(r.group_fee) || 0) * part; if (!r.group_fee) GRPMISS = true; }
+    else if (isSp)     { k.sp  += part; fee = r.special_fee * part; }
     else if (dur >= 60){ k.m60 += part; fee = r.session_fee * 1.5 * part; }
     else               { k.m40 += part; fee = r.session_fee * part; }
     k.fee += Math.round(fee);
@@ -492,7 +502,7 @@ function calc(){
     const cnt = rd(k.m40 + k.m60 + k.sp);
     t40+=k.m40; t60+=k.m60; tsp+=k.sp; tcnt+=cnt; tfee+=k.fee;
     k.days.sort((a,b)=>parseInt(a)-parseInt(b));
-    return '<tr><td>' + esc(nm) + '</td>'
+    return '<tr><td>' + esc(nm).replace('[그룹] ', '<span class="gtag">그룹</span>') + '</td>'
       + '<td class="n">' + (k.m40 ? rd(k.m40) : '–') + '</td>'
       + '<td class="n">' + (k.m60 ? rd(k.m60) : '–') + '</td>'
       + '<td class="n">' + (k.sp  ? rd(k.sp)  : '–') + '</td>'
@@ -579,6 +589,11 @@ function calc(){
     + '4대보험 — ' + insTxt + '<br>'
     + (r.daily_fuel ? '주유비는 <b>완료 회차가 있는 날</b>만 셉니다. 보강만 있는 날은 빠집니다. 비과세라 원천징수 뒤에 더합니다.<br>' : '')
     + '<b>아동별 진행 날짜</b>가 위 표에 있으니 숫자가 안 맞으면 그 표에서 찾으세요.';
+  if (GRPMISS) {
+    $('warnBox').style.display = 'block';
+    $('warnBox').innerHTML = '<b>그룹 수업이 있는데 이 선생님의 「그룹 1인당」 단가가 비어 있습니다.</b> '
+      + '위 「지급 단가 넣기」에서 넣어 주세요. (지금은 그룹 수업이 0원으로 셈됨)';
+  }
   PAYSUM = { total: total, net: net };
   drawPub();
 }
@@ -669,17 +684,19 @@ function drawRateBox(){
     $('rtNow').innerHTML = '지금 적용 중: <b>' + won(r.session_fee) + '원</b>'
       + ' · ' + (r.started_on ? r.started_on.slice(0,7) + '부터' : '시작일 없음')
       + (r.special_fee ? ' · 심리 ' + won(r.special_fee) + '원' : '')
+      + (r.group_fee ? ' · 그룹 1인당 ' + won(r.group_fee) + '원' : '')
       + (r.daily_fuel ? ' · 주유비 ' + won(r.daily_fuel) + '원' : '')
       + ' · 4대보험 ' + (r.insured ? '가입' : '미가입');
     $('rt_fee').value  = r.session_fee || '';
     $('rt_sp').value   = r.special_fee || '';
+    $('rt_grp').value  = r.group_fee || '';
     $('rt_fuel').value = r.daily_fuel  || '';
     $('rt_ins').value  = r.insured ? 'yes' : 'no';
     $('rt_dec').value  = r.declared_amt || '';
   } else {
     $('rtNow').innerHTML = '<b style="color:#c62828;">이 달에 적용되는 단가가 없습니다.</b>'
       + ' 아래에 넣어주세요.';
-    $('rt_fee').value = ''; $('rt_sp').value = '';
+    $('rt_fee').value = ''; $('rt_sp').value = ''; $('rt_grp').value = '';
     $('rt_fuel').value = ''; $('rt_dec').value = ''; $('rt_ins').value = 'no';
   }
   $('rt_from').value = mon;
@@ -712,6 +729,7 @@ $('rtSave').onclick = async () => {
     started_on:   from + '-01',
     session_fee:  fee,
     special_fee:  numOf($('rt_sp').value),
+    group_fee:    numOf($('rt_grp').value),
     daily_fuel:   numOf($('rt_fuel').value),
     insured:      ins,
     declared_amt: dec
@@ -815,13 +833,14 @@ async function afterLogin(user){
   const { data: sc } = await sb.from('nl_therapy_schedules')
     .select('id, therapy_id, duration, therapist_id');
   const { data: tp } = await sb.from('nl_therapies')
-    .select('id, child_id, therapy_type_id, support_type_id');
+    .select('id, child_id, therapy_type_id, support_type_id, group_id');
   const { data: kids } = await sb.from('nl_children').select('id, name');
   const tpMap = {}; (tp||[]).forEach(x => tpMap[x.id] = x);
   (kids||[]).forEach(k => KIDS[k.id] = k.name);
   ROWS = (sc||[]).map(r => {
     const t = tpMap[r.therapy_id];
     r._tt = t ? t.therapy_type_id : null;
+    r._grp = t ? (t.group_id || null) : null;   // 그룹 수업 (2026-10-02)
     r.support_type_id = t ? t.support_type_id : null;
     return r;
   });

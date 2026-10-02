@@ -403,6 +403,7 @@
   .nfoot .nmsg { color:#7E5530; }
   .saved { color:#7E5530; }
   /* ===== 꾸밈 B 끝 ===== */
+.gtag{display:inline-block;background:#EDE7F6;color:#5E35B1;border-radius:4px;padding:0 4px;margin-right:4px;font-size:10.5px;line-height:1.5;vertical-align:1px;font-weight:600}
 </style>
 </head>
 <body>
@@ -522,6 +523,8 @@ function carryWhy(supportTypeId, seq) {
   return '';
 }
 let SCHED = {};             // child_id -> 수업 목록
+let GRPS  = {};             // 그룹 번호 -> {name, fee, mk_diff} (2026-10-02)
+let XDIFF = {};             // 'child|st' -> {n, unit} 그룹 1:1 보강 차액
 let SESSCNT = {};           // 수업번호 -> { 지원유형: 회기수 }
 // 회기 단추 (2026-09-11) — 켜진 단추 수 = 청구 회수 (예정 교육비 nl_estimate_calc 와 같은 규칙)
 let SROWS   = {};           // '수업번호|지원유형' -> 그 달 원래 수업 줄들 (날짜 차례)
@@ -1024,7 +1027,7 @@ async function load() {
 
     const [th, fe, ru, gr, pay, px, pv, ss] = await Promise.all([
       sb.from('nl_therapies')
-        .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode, memo, ended_on, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration, week1, week2, week3, week4, from_month, to_month)')
+        .select('id, child_id, therapy_type_id, support_type_id, monthly_count, count_mode, memo, ended_on, group_id, nl_therapy_schedules(id, weekday, start_time, therapist_id, duration, week1, week2, week3, week4, from_month, to_month)')
         .in('child_id', ids),
       sb.from('nl_therapist_fees').select('*'),
       sb.from('nl_support_rules').select('*'),
@@ -1350,12 +1353,39 @@ async function load() {
       });
     });
 
+    // 그룹 수업 — 그룹 금액 · 1:1 보강 차액 (2026-10-02)
+    GRPS = {}; XDIFF = {};
+    try {
+      const gq = await sb.from('nl_groups').select('id, name, fee, mk_diff');
+      (gq.data || []).forEach(g => { GRPS[g.id] = g; });
+      const gSc = {};   // 요일줄 번호 -> 그룹 번호
+      (th.data || []).forEach(t => {
+        if (!t.group_id) return;
+        (t.nl_therapy_schedules || []).forEach(s => { gSc[s.id] = t.group_id; });
+      });
+      const gAbs = {};  // 그룹 수업 결석 원래 줄 -> 그 줄
+      sess.forEach(x => {
+        if (!x.makeup_for && x.status === '결석' && gSc[x.schedule_id]) gAbs[x.id] = x;
+      });
+      sess.forEach(x => {
+        const o = x.makeup_for ? gAbs[x.makeup_for] : null;
+        if (!o || ['결석', '취소'].includes(x.status)) return;
+        if (x.minutes != null && Number(x.minutes) < 40) return;
+        const g = GRPS[gSc[o.schedule_id]];
+        if (!g || !(Number(g.mk_diff) > 0)) return;
+        const k = o.child_id + '|' + (o.support_type_id || 0);
+        XDIFF[k] = XDIFF[k] || { n: 0, unit: Number(g.mk_diff) };
+        XDIFF[k].n++;
+      });
+    } catch (e) { GRPS = {}; XDIFF = {}; }
+
     SCHED = {};
     (th.data || []).forEach(t => {
       liveScs(t).forEach(s => {
         (SCHED[t.child_id] = SCHED[t.child_id] || []).push({
           sched_id: s.id,
           therapy_id: t.id,
+          group_id: t.group_id || null,
           therapy_type_id: t.therapy_type_id,
           support_type_id: t.support_type_id,
           weekday: s.weekday,
@@ -1447,7 +1477,10 @@ function buildRows(childId, mk) {
 
   list.forEach(s => {
     const fee = FEES[s.therapist_id];
-    const unit = !fee ? null
+    const grp = s.group_id ? GRPS[s.group_id] : null;
+    // 그룹 수업은 그룹 1회 금액 (2026-10-02)
+    const unit = grp ? Number(grp.fee)
+      : !fee ? null
       : s.duration === 60 ? fee.fee_60
       : s.duration === 50 ? fee.fee_50
       : fee.fee_40;
@@ -1460,6 +1493,7 @@ function buildRows(childId, mk) {
       unit: unit,
       sched_id: s.sched_id,
       therapy_id: s.therapy_id,
+      group: !!grp,
       ttname: TTYPES[s.therapy_type_id] || '치료',
       hm: String(s.start_time).slice(0,5),
       dur: s.duration,
@@ -1928,7 +1962,7 @@ function drawKid(c) {
           + ' data-sched="' + (it.sched_id || '') + '"'
           + ' data-five="' + (/5주차/.test(it.label) ? '1' : '0') + '">'
           + '<span class="nm">' + (i === 0 ? sd : '') + '</span>'
-          + '<span class="de">' + tagOf(it) + esc(it.label)
+          + '<span class="de">' + (it.group ? '<span class="gtag">그룹</span>' : '') + tagOf(it) + esc(it.label)
           + ' · <b class="thr">' + esc(it.therapist_name) + '</b></span>'
           + '<span class="ap"><input class="apu" type="text" inputmode="numeric" placeholder="적용단가" value="'
           + (ap ? ap.toLocaleString() : '') + '"></span>'
@@ -1938,6 +1972,17 @@ function drawKid(c) {
           + '</div>'
           + btnRowHtml(it);
       });
+      // 그룹 결석의 1:1 보강 차액 (2026-10-02) — 회기 칸 저장과 섞이지 않게 .line 이 아닌 줄
+      const xd = XDIFF[c.id + '|' + g.support_type_id];
+      if (xd && xd.n > 0) {
+        b += '<div class="r xdiffrow" data-st="' + g.support_type_id + '" data-amt="' + (xd.n * xd.unit) + '">'
+          + '<span class="nm"></span>'
+          + '<span class="de"><span class="gtag">그룹</span>1:1 보강 차액</span>'
+          + '<span class="ap"></span>'
+          + '<span class="ct">' + xd.n + '회</span>'
+          + '<span class="up">' + xd.unit.toLocaleString() + '</span>'
+          + '<span class="am">' + (xd.n * xd.unit).toLocaleString() + '</span></div>';
+      }
       if (g.deduction > 0) {
         b += '<div class="r sub2"><span class="nm"></span>'
           + '<span class="de">지원금 제외</span><span class="ct"></span><span class="up"></span>'
@@ -2496,6 +2541,9 @@ function calcKid(childId) {
       let base = 0;
       box.querySelectorAll('.line[data-st="' + st + '"] .lineamt')
          .forEach(td => base += numOf(td.textContent));
+      // 그룹 1:1 보강 차액 (2026-10-02)
+      box.querySelectorAll('.xdiffrow[data-st="' + st + '"]')
+         .forEach(tr => base += Number(tr.dataset.amt || 0));
       amt = Math.max(0, base - Number(tr.dataset.ded || 0));
     }
 
