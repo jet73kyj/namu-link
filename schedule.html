@@ -4150,7 +4150,8 @@ function drawOne(){
                   : '')
             : '';
           // 공휴일·센터휴무인 날은 「공휴일」 한 줄만 그린다 (2026-09-10)
-          if (isHoli(oneDate)) {
+          //   그 선생님 「나오는 날」이면 수업 · 보강을 그대로 그린다 (2026-10-02 · 85번 10/3 개천절 보강)
+          if (isHoli(oneDate) && !WORKX[oneDate + '#' + th3.id]) {
             return '<td class="cell"><div class="ln ln-off">'
               + '<span class="n">' + esc(OFFTXT[oneDate] || '공휴일')
               + '</span></div></td>';
@@ -4946,7 +4947,8 @@ function drawDay(){
             if (L2.kind === 'run' && isBlankRest(x)) return;
 
             // 공휴일인 날은 「공휴일」 한 줄만 (2026-09-10)
-            if (isHoli(L2.d)) {
+            //   그 선생님 「나오는 날」이면 수업 · 보강을 그대로 그린다 (2026-10-02)
+            if (isHoli(L2.d) && !WORKX[L2.d + '#' + t.id]) {
               // 공휴일 줄로 대신 그린 수업도 「그렸다」로 둔다 — 안 그러면 아래에서 「회기 없음」이 뜬다 (2026-09-17)
               if (L2.kind === 'run' && L2.r) seenSc[L2.r.id] = true;
               if (holiDone[L2.d]) return;
