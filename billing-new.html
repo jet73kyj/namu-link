@@ -407,6 +407,32 @@
   .saved { color:#7E5530; }
   /* ===== 꾸밈 B 끝 ===== */
 .gtag{display:inline-block;background:#EDE7F6;color:#5E35B1;border-radius:4px;padding:0 4px;margin-right:4px;font-size:10.5px;line-height:1.5;vertical-align:1px;font-weight:600}
+
+  /* 분 변경 (2026-10-03) */
+  .sbrow .durbtn { width:auto; margin:0 0 0 6px; padding:2px 9px; font-size:12px; border:1px solid #E4E0DA;
+            border-radius:10px; background:#fff; color:#6b625b; cursor:pointer; }
+  .sb .durtag { font-size:11px; color:#C2553A; }
+  .corow.coauto { background:#FFF8E1; }
+  .durnote { margin:2px 0 6px 182px; font-size:12px; color:#9A6E20; background:#FFF8E1; border-radius:6px; padding:4px 8px; display:inline-block; }
+  @media (max-width:640px) { .durnote { margin-left:0; } }
+  .corow .cowhy { display:block; font-size:11px; color:#9A6E20; font-weight:400; }
+
+  .durbg { position:fixed; inset:0; background:rgba(0,0,0,.25); z-index:900; display:none; align-items:center; justify-content:center; }
+  .durpop { background:#fff; border-radius:10px; width:min(460px, 94vw); max-height:86vh; display:flex; flex-direction:column; }
+  .durhd { padding:12px 14px; background:#F8F1E8; border-bottom:2px solid #C9A27E; font-weight:600; border-radius:10px 10px 0 0; }
+  .durhd small { font-weight:400; color:#9A6E20; }
+  .durbd { padding:8px 14px; overflow:auto; }
+  .durrow { display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid #F0ECE7; }
+  .durd { flex:1; font-size:14px; }
+  .durm { width:auto; margin:0; padding:4px 10px; border:1px solid #E4E0DA; border-radius:8px; background:#fff; cursor:pointer; }
+  .durm.on { background:#B07A4A; color:#fff; border-color:#B07A4A; }
+  /* 고르지 않은 단추 글이 흰색으로 덮여 안 보이던 것 (2026-10-03) */
+  .durm:not(.on) { color:#9a928b !important; background:#fff !important; }
+  .durft .durx { color:#4A433F !important; background:#fff !important; }
+  .durchg { font-size:11px; color:#C2553A; }
+  .durft { display:flex; justify-content:flex-end; gap:6px; padding:10px 14px; border-top:1px solid #ECE8E3; }
+  .durft button { width:auto; margin:0; padding:6px 14px; border:1px solid #E4E0DA; border-radius:8px; background:#fff; cursor:pointer; }
+  .durft .durgo { background:#B07A4A; color:#fff; border-color:#B07A4A; }
 </style>
 </head>
 <body>
@@ -1047,7 +1073,7 @@ async function load() {
         let all = [];
         for (let f = 0; ; f += 1000) {
           const r = await sb.from('nl_sessions')
-            .select('id, child_id, schedule_id, support_type_id, status, plan_date, start_time, month_key, run_no, makeup_for, no_makeup, no_makeup_why, want_makeup, minutes')
+            .select('id, child_id, schedule_id, support_type_id, status, plan_date, start_time, month_key, run_no, makeup_for, no_makeup, no_makeup_why, want_makeup, minutes, dur_min')
             .eq('month_key', mk).order('id').range(f, f + 999);
           if (r.error) return r;
           all = all.concat(r.data || []);
@@ -1426,6 +1452,21 @@ async function load() {
       (nts || []).forEach(x => { PAYNOTE[String(x.child_id)] = x.card_note || ''; });
     } catch (e) {
       console.error('특이사항 읽기 실패', e);
+    }
+    // 분 변경 차액 이월 (2026-10-03)
+    CARRYOUT = {}; CARRYIN = {};
+    try {
+      const { data: cr, error: eC } = await sb.from('nl_carry')
+        .select('id, child_id, support_type_id, session_id, amount, reason, from_month, to_month')
+        .or('from_month.eq.' + mk + ',to_month.eq.' + mk);
+      if (eC) throw eC;
+      (cr || []).forEach(x => {
+        if (x.from_month === mk && x.session_id) CARRYOUT[x.session_id] = x;
+        if (x.to_month === mk) (CARRYIN[x.child_id] = CARRYIN[x.child_id] || []).push(x);
+      });
+    } catch (e) {
+      console.error('분 변경 이월 읽기 실패', e);
+      show($('msg2'), '⚠ 분 변경 이월을 읽지 못했습니다. 새로고침 해 주세요.', false);
       show($('msg2'), '⚠ 카드 특이사항을 읽지 못했습니다. 새로고침 해 주세요.', false);
     }
 
@@ -1652,6 +1693,8 @@ function isUnpaid(childId) {
 // 확정 — 학부모와 이야기를 마치고 「예정」 단추를 눌러 확정으로 바꾼 아동
 //   nl_pay_fix 표에 담긴다. 눌러서 예정 <-> 확정을 오갈 수 있다.
 let FIXED = {};   // 아동번호 -> true
+let CARRYOUT = {}; // 회기줄 -> 이 달 분 변경 차액이 다음 달로 넘어간 것 (nl_carry · 2026-10-03)
+let CARRYIN  = {}; // 아동번호 -> [{amount, reason}] 지난달에서 넘어온 분 변경 차액
 let PAYNOTE = {}; // 아동번호(글자) -> 카드 특이사항 · 지울 때까지 달마다 그대로 (nl_pay_notes · 2026-10-03)
 function isFixed(childId) {
   return !!FIXED[childId];
@@ -1779,7 +1822,28 @@ function btnRowHtml(it) {
   const rows = SROWS[it.sched_id + '|' + it.row_st];
   if (!rows || !rows.length) return '';
   return '<div class="sbrow" data-sched="' + it.sched_id + '" data-bst="' + it.row_st + '">'
-    + rows.map(sbHtml).join('') + '</div>';
+    + rows.map(sbHtml).join('')
+    + (it.group ? '' : '<button class="durbtn" type="button" data-sched="' + it.sched_id + '" data-bst="' + it.row_st
+       + '" data-dur="' + (it.dur || 40) + '" data-th="' + (it.therapist_id || '') + '">분 변경</button>')
+    + '</div>' + carryNote(rows);
+}
+// 확정한 달 — 분을 바꿔 다음 달로 넘긴 차액을 그 줄 아래에 적는다 (2026-10-03)
+function carryNote(rows) {
+  const cs = rows.map(x => CARRYOUT[x.id]).filter(Boolean);
+  if (!cs.length) return '';
+  return '<div class="durnote">' + cs.map(c => {
+      const a = Number(c.amount || 0), m = Number(String(c.to_month || '').slice(5, 7));
+      return esc(c.reason || '') + ' · ' + (a > 0 ? Math.abs(a).toLocaleString() + '원 ' + m + '월 「전월 이월」로 넘김'
+                                               : Math.abs(a).toLocaleString() + '원 ' + m + '월에 더 받을 돈');
+    }).join('<br>') + '</div>';
+}
+// 분 변경 — 그 날만 수업 시간을 바꾼 회기 (2026-10-03)
+//   이 달 금액에 넣는 것 = 분을 바꿨고, 켜져 있고(청구), 다음 달로 차액이 넘어가지 않은 것
+function durAdjs(it) {
+  const rows = SROWS[it.sched_id + '|' + it.row_st] || [];
+  const dur = Number(it.dur) || 40;
+  return rows.filter(x => x.dur_min && Number(x.dur_min) !== dur && sessOn(x) && !CARRYOUT[x.id])
+             .map(x => Number(x.dur_min));
 }
 // 공휴일 이름 줄이기 — 「추석 연휴」 → 「추석」, 「대체공휴일」 → 「공휴일」 (찾기 창과 같음)
 function holiShort(v) {
@@ -1807,7 +1871,8 @@ function sbHtml(x) {
            : (on ? ' · 누르면 회색 (청구 안 함)' : ' · 누르면 켜짐 (청구)'));
   return '<span class="sb s' + sp + (on ? '' : ' off') + (dev ? ' lock' : '') + '"'
     + ' data-sid="' + x.id + '" title="' + esc(tip) + '">'
-    + esc(txt) + (dev && x.status === '휴무' ? ' \uD83D\uDD12' : '') + '</span>';
+    + esc(txt) + (x.dur_min ? ' <b class="durtag">' + x.dur_min + '분</b>' : '')
+    + (dev && x.status === '휴무' ? ' \uD83D\uDD12' : '') + '</span>';
 }
 // 발추 단추 (이) — 켜짐 = 이번 달 발추 청구 / 회색 = 청구 안 함 (적용 없음)
 function x8BtnHtml(cid, mode, cnt) {
@@ -1966,7 +2031,9 @@ function drawKid(c) {
       ? '' : '';
 
     if (g.calc_type === '회기계산') {
-      const savedCnt = countsOf(sv[g.support_type_id]);
+      let savedCnt = countsOf(sv[g.support_type_id]);
+      // 저장된 회기 표시는 줄 순서로 맞춘다. 저장한 뒤 줄 수가 바뀌었으면(요일 변경 등) 쓰지 않는다 (2026-10-03 · 34번 10월)
+      if (savedCnt && savedCnt.length !== g.items.length) savedCnt = null;
       // 적용단가 — 이번 달 저장분이 없으면 지난달 것을 이어받는다
       const apList = unitsOf(sv[g.support_type_id]) || unitsOf(lastM[g.support_type_id]);
       g.items.forEach((it, i) => {
@@ -1975,6 +2042,8 @@ function drawKid(c) {
         const ap = (apList && apList[i] > 0) ? apList[i] : '';
         b += '<div class="r line' + (ap ? ' hasap' : '') + '" data-st="' + g.support_type_id + '"'
           + ' data-sched="' + (it.sched_id || '') + '"'
+          + ' data-th="' + (it.therapist_id || '') + '" data-dur="' + (it.dur || 40) + '"'
+          + ' data-adjs="' + (it.group ? '' : durAdjs(it).join(',')) + '"'
           + ' data-five="' + (/5주차/.test(it.label) ? '1' : '0') + '">'
           + '<span class="nm">' + (i === 0 ? sd : '') + '</span>'
           + '<span class="de">' + (it.group ? '<span class="gtag">그룹</span>' : '') + tagOf(it) + esc(it.label)
@@ -2013,7 +2082,7 @@ function drawKid(c) {
           + '<span class="am gamt">0</span></div>';
       }
       lastCoSt = g.support_type_id;
-      if (gIdx === lastCalcIdx) b += coHtml(g.support_type_id, sv);
+      if (gIdx === lastCalcIdx) b += coHtml(g.support_type_id, sv, c.id);
 
     } else if (g.calc_type === '치료사정액') {
       const savedT = sv[8] ? extraTherapistOf(sv[8]) : null;
@@ -2166,6 +2235,8 @@ function drawKid(c) {
     .find(p => Number(p.support_type_id) !== 2 && p.paid_on);
   const cm = Object.keys(sv).map(k => sv[k])
     .find(p => Number(p.support_type_id) !== 2 && memoOf(p, false));
+  // 지난달 차액이 저절로 채워졌으면 저장 전으로 보인다 (2026-10-03)
+  const cardDone = sideSaved(c.id, 'card') && !(CHANGED[c.id] && CHANGED[c.id].card);
   // 승인번호는 이번 달 저장분에서만 가져온다. 지난달 것을 끌어오지 않는다.
   b += '<div class="pay">'
     + '<input class="dt pday" type="date" value="' + (cp ? cp.paid_on : '') + '">'
@@ -2173,8 +2244,8 @@ function drawKid(c) {
     + esc(cm ? memoOf(cm, false) : '') + '">'
     + '<input class="tx knote" type="text" maxlength="500" placeholder="특이사항 (지울 때까지 달마다 그대로)" value="'
     + esc(PAYNOTE[String(c.id)] || '') + '">'
-    + '<button class="ksave2' + (sideSaved(c.id, 'card') ? ' done' : '') + '" type="button" data-only="card"'
-    + ' data-ttl="카드 저장 전">' + (sideSaved(c.id, 'card') ? '\u2713 저장됨' : '카드 저장 전') + '</button></div>';
+    + '<button class="ksave2' + (cardDone ? ' done' : '') + '" type="button" data-only="card"'
+    + ' data-ttl="카드 저장 전">' + (cardDone ? '\u2713 저장됨' : '카드 저장 전') + '</button></div>';
 
   const dev = groups.find(g => g.support_type_id === 2);
   if (dev) {
@@ -2274,7 +2345,7 @@ function thrName(tid) {
   return t ? t.name : ('치료사' + (tid == null ? '?' : tid));
 }
 // 전월 이월 입력 줄 — 그달 한 번만 쓰는 값이라 다음 달로 넘기지 않는다
-function coHtml(st, sv) {
+function coHtml(st, sv, cid) {
   // 전월 이월은 아동당 하나. 어느 항목에 저장돼 있든 찾아서 보여준다
   let v = 0;
   if (sv) {
@@ -2283,9 +2354,15 @@ function coHtml(st, sv) {
       if (c > v) v = c;
     });
   }
-  return '<div class="r sub2 corow" data-st="' + st + '">'
+  // 저장한 이월이 없으면 지난달 분 변경 차액을 채운다 (2026-10-03)
+  const cin = (CARRYIN[cid] || []);
+  const cinSum = cin.reduce((t, x) => t + Number(x.amount || 0), 0);
+  const auto = !v && cinSum > 0;
+  if (auto) { v = cinSum; CHANGED[cid] = Object.assign(CHANGED[cid] || {}, { card: true }); }
+  return '<div class="r sub2 corow' + (auto ? ' coauto' : '') + '" data-st="' + st + '">'
     + '<span class="nm"></span>'
-    + '<span class="de">전월 이월</span>'
+    + '<span class="de">전월 이월' + (cin.length ? '<small class="cowhy">'
+        + esc(cin.map(x => x.reason).join(' · ')) + '</small>' : '') + '</span>'
     + '<span class="ap"></span>'
     + '<span class="ct"><input class="cnt co" type="text" inputmode="numeric" value="'
     + (v ? v.toLocaleString() : '') + '" placeholder="0"></span>'
@@ -2508,7 +2585,15 @@ function calcKid(childId) {
     const cnt  = numOf(tr.querySelector('.cnt').value);
 
     const use = ap > 0 ? ap : (base === '' ? null : Number(base));
-    const amt = use == null ? 0 : use * cnt;
+    let amt = use == null ? 0 : use * cnt;
+    // 그 날만 분을 바꾼 회기 — 단가 비율로 더하고 뺌 (2026-10-03 분 변경)
+    if (use != null && tr.dataset.adjs) {
+      const th = Number(tr.dataset.th), dur = Number(tr.dataset.dur) || 40;
+      const f0 = xlFee(th, dur);
+      if (f0 > 0) tr.dataset.adjs.split(',').filter(Boolean).forEach(dm => {
+        amt += Math.round(use * xlFee(th, Number(dm)) / f0) - use;
+      });
+    }
     tr.querySelector('.lineamt').textContent = amt.toLocaleString();
 
     // 단가 칸 표시 — 할인 중이면 원래 단가에 줄을 긋는다
@@ -3441,6 +3526,8 @@ $('kids').addEventListener('click', e => {
   // 날짜 단추 (2026-09-11)
   const sbEl = e.target.closest ? e.target.closest('.sb') : null;
   if (sbEl) { toggleSb(sbEl); return; }
+  const durEl = e.target.closest ? e.target.closest('.durbtn') : null;
+  if (durEl) { changeDur(durEl); return; }
   // 저장 회기와 단추 수가 다를 때 — 눌러서 단추 수로 맞춘다
   if (e.target.classList.contains('cntwarn')) {
     const line = e.target.closest('.r.line');
@@ -3547,6 +3634,113 @@ $('kids').addEventListener('click', e => {
 // ── 1회 수업 추가 (2026-09-30) ─────────────────────────────
 //   체험 표(nl_trial_lessons)에 갈래 「추가」로 넣는다 → 시간표 · 알림 · 빈 자리 · 급여가 체험과 같은 길로 돈다
 //   납부는 지원유형 11 「추가수업」 줄 (카드 저장 때 함께 저장)
+// ── 분 변경 (2026-10-03) ─────────────────────────────
+//   그 날만 수업 시간을 바꾼다 (회기 줄 dur_min · 비우면 요일줄 시간)
+//   예정 — 이 달 금액이 바로 다시 셈됨
+//   확정 — 이 달 금액은 그대로 · 차액을 다음 달 「전월 이월」로 (nl_carry)
+async function changeDur(btn) {
+  const kid = btn.closest('.kid');
+  if (!kid) return;
+  const cid = Number(kid.dataset.child);
+  const ch = CHANGED[cid];
+  if (ch && (ch.card || ch.bank)) {
+    alert('이 아동에 저장하지 않은 칸이 있습니다.\n먼저 「카드 저장」 · 「계좌 저장」을 눌러 주세요.');
+    return;
+  }
+  const sched = btn.dataset.sched, bst = btn.dataset.bst;
+  const dur0 = Number(btn.dataset.dur) || 40, th = Number(btn.dataset.th);
+  const rows = (SROWS[sched + '|' + bst] || []).filter(x => sessOn(x));
+  if (!rows.length) { alert('분을 바꿀 수 있는 날이 없습니다 (청구하는 날만 바꿀 수 있습니다).'); return; }
+  const fixed = isFixed(cid);
+
+  // 날짜마다 40 · 50 · 60 단추 — 고른 뒤 「저장」 (2026-10-03 은정님: 날짜와 분을 한 창에서)
+  let wrap = document.getElementById('durBox');
+  if (!wrap) { wrap = document.createElement('div'); wrap.id = 'durBox'; wrap.className = 'durbg'; document.body.appendChild(wrap); }
+  const pickV = {};
+  rows.forEach(x => { pickV[x.id] = Number(x.dur_min || dur0); });
+  const draw = () => {
+    wrap.innerHTML = '<div class="durpop"><div class="durhd">분 변경 · 요일줄 수업 시간 ' + dur0 + '분'
+      + (fixed ? '<br><small>확정한 달 — 이번 달 금액은 그대로, 차액은 다음 달 「전월 이월」로 넘어갑니다</small>' : '') + '</div>'
+      + '<div class="durbd">' + rows.map(x => '<div class="durrow"><span class="durd">' + dayOnly(x.plan_date) + '일</span>'
+          + [40, 50, 60].map(m => '<button type="button" class="durm' + (pickV[x.id] === m ? ' on' : '') + '" data-id="' + x.id + '" data-m="' + m + '">' + m + '분</button>').join('')
+          + (pickV[x.id] !== Number(x.dur_min || dur0) ? '<span class="durchg">바뀜</span>' : '')
+          + '</div>').join('') + '</div>'
+      + '<div class="durft"><button type="button" class="durx">닫기</button><button type="button" class="durgo">저장</button></div></div>';
+    wrap.style.display = 'flex';
+  };
+  draw();
+  wrap.onclick = async ev => {
+    const m = ev.target.closest('.durm');
+    if (m) { pickV[m.dataset.id] = Number(m.dataset.m); draw(); return; }
+    if (ev.target.closest('.durx')) { wrap.style.display = 'none'; return; }
+    if (!ev.target.closest('.durgo')) return;
+    const todo = rows.filter(x => pickV[x.id] !== Number(x.dur_min || dur0));
+    if (!todo.length) { wrap.style.display = 'none'; return; }
+    const go = ev.target.closest('.durgo'); go.disabled = true; go.textContent = '저장 중…';
+    const msgs = [];
+    for (const x of todo) {
+      const r = await saveDurOne(kid, cid, x, pickV[x.id], dur0, th, sched, bst, fixed);
+      msgs.push(r);
+      if (/^❌/.test(r)) break;
+    }
+    wrap.style.display = 'none';
+    redrawKid(cid);
+    if (!fixed) { const nb = document.querySelector('.kid[data-child="' + cid + '"] .kmemo'); if (nb) unDone(nb); }
+    const bad = msgs.some(t => /^❌/.test(t));
+    show($('msg2'), msgs.join('\n') + (!fixed && !bad ? '\n이 달 금액에 반영했습니다. 「카드 저장」을 눌러 주세요.' : ''), !bad);
+  };
+}
+// 한 날 분 바꾸기 — 글을 돌려준다 (❌ 로 시작하면 실패)
+async function saveDurOne(kid, cid, x, nv, dur0, th, sched, bst, fixed) {
+  const cur = Number(x.dur_min || dur0);
+  const tr = kid.querySelector('.line[data-sched="' + sched + '"][data-st="' + bst + '"]');
+  const apEl = tr ? tr.querySelector('.apu') : null;
+  const ap = apEl ? numOf(apEl.value) : 0;
+  const base = tr ? Number(tr.querySelector('.lineamt').dataset.unit || 0) : 0;
+  const use = ap > 0 ? ap : base;
+  const f0 = xlFee(th, dur0);
+  const amtOf = d => (!f0 || !use) ? 0 : Math.round(use * xlFee(th, d) / f0);
+  const newDm = (nv === dur0) ? null : nv;
+  const old = CARRYOUT[x.id] || null;
+  const dd = dayOnly(x.plan_date) + '일 ' + cur + '→' + nv + '분';
+  let diff = 0, toM = null;
+  if (fixed) {
+    if (!use || !f0) return '❌ ' + dd + ' · 단가를 찾지 못해 바꾸지 않았습니다';
+    diff = amtOf(cur) + (old ? Number(old.amount) : 0) - amtOf(nv);
+    toM = nextMonthOf(LOADED_MK);
+  }
+  try {
+    const { data: up, error: eU } = await sb.from('nl_sessions').update({ dur_min: newDm }).eq('id', x.id).select('id');
+    if (eU) throw eU;
+    if (!up || !up.length) throw new Error('회기 줄이 바뀌지 않았습니다.');
+    try {
+      if (fixed && diff !== 0) {
+        const reason = Number(String(x.plan_date).slice(5, 7)) + '/' + dayOnly(x.plan_date) + ' ' + dur0 + '→' + nv + '분 차액';
+        const q = old
+          ? sb.from('nl_carry').update({ amount: diff, reason: reason, to_month: toM }).eq('id', old.id).select('id, amount, reason, to_month')
+          : sb.from('nl_carry').insert({ child_id: cid, support_type_id: Number(bst), from_month: LOADED_MK, to_month: toM,
+              session_id: x.id, amount: diff, reason: reason }).select('id, amount, reason, to_month');
+        const { data: cr, error: eC } = await q;
+        if (eC) throw eC;
+        if (!cr || !cr.length) throw new Error('이월이 저장되지 않았습니다.');
+        CARRYOUT[x.id] = Object.assign({}, old || {}, cr[0], { session_id: x.id });
+      } else if (old) {
+        const { error: eD } = await sb.from('nl_carry').delete().eq('id', old.id);
+        if (eD) throw eD;
+        delete CARRYOUT[x.id];
+      }
+    } catch (e2) {
+      await sb.from('nl_sessions').update({ dur_min: x.dur_min || null }).eq('id', x.id);
+      throw e2;
+    }
+    x.dur_min = newDm;
+    return '✅ ' + dd + (fixed ? (diff > 0 ? ' · 차액 ' + diff.toLocaleString() + '원 다음 달 이월'
+                                : diff < 0 ? ' · 더 받을 ' + (-diff).toLocaleString() + '원 다음 달로 (직접 더해 주세요)' : '') : '');
+  } catch (e) {
+    return '❌ ' + dd + ' · ' + (e.message || e);
+  }
+}
+
 function redrawKid(childId) {
   const kid = document.querySelector('.kid[data-child="' + childId + '"]');
   const c = CHILDREN.find(x => x.id === childId);
