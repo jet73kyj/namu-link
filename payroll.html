@@ -356,6 +356,10 @@ let EVFEE = {};   // 평가 개수 -> 수수료
 const ETYPE = {1:'심리평가', 2:'발달평가', 3:'언어평가'};
 let THS   = [];
 let SESS  = [], ROWS = [], KIDS = {};
+let DEADMK = [];   // 보강이 두 번 결석해 소멸한 회 — 급여 인정 (교육비 미입금 뺌 · 2026-10-03)
+let WORKWD = {};   // 선생님 -> 정규 출근 요일 Set (주유비)
+let XWORK  = {};   // '선생님|날짜' -> 나오는 날 (공휴일 대신 출근 · 주유비 인정)
+let FUTPRE = [];   // 다음 달 몫을 이 달에 미리 한 줄 (선보강 · 주유비 날짜용 · 2026-10-03)
 let HASPART = {};   // 쪼갠 조각이 딸린 원래 줄 { 줄번호: 조각 분의 합 }
 let EVALS = [];   // 그 달 평가
 let TRIALS = [];  // 그 달 체험 수업 — 완료만. 정규 1회처럼 센다 (2026-09-16)
@@ -437,6 +441,10 @@ function calc(){
                  && (s.status === '완료'
                      || (s.status === '보강' && String(s.plan_date) <= _today))
                  && !(HASPART[s.id] > 0));
+  // 소멸한 회 — 원래 담당 선생님께 지급 (미입금이면 줄은 보이되 지급 안 함 · 2026-10-03)
+  DEADMK.filter(o => o.therapist_id === thId).forEach(o => {
+    done.push(Object.assign({}, o, { id: 'D' + o.id, plan_date: o._deadOn, status: '완료', makeup_for: null }));
+  });
   // 완료된 체험 수업도 정규 1회처럼 센다 (2026-09-16) — 수업 시간은 _trialDur 로
   TRIALS.filter(t => t.therapist_id === thId).forEach(t => {
     // 추가 수업(갈래 「추가」 · 2026-09-30)도 같은 규칙 — 표기만 「(추가)」
@@ -478,7 +486,7 @@ function calc(){
     const isSp = r.special_fee && String(s.memo||'').includes('심리');
     // 쪼개서 보강한 줄은 분만큼만 센다. 10분이면 0.25회 (2026-09-08)
     const rest = (HASPART[s.id] > 0 && HASPART[s.id] < 40) ? (40 - HASPART[s.id]) : 0;
-    const part = rest ? rest / 40 : Number(s.minutes || 40) / 40;
+    const part = s._unpaid ? 0 : (rest ? rest / 40 : Number(s.minutes || 40) / 40);
     let fee;
     if (isGrp)         { k.m40 += part; fee = (Number(r.group_fee) || 0) * part; if (!r.group_fee) GRPMISS = true; }
     else if (isSp)     { k.sp  += part; fee = r.special_fee * part; }
@@ -488,6 +496,8 @@ function calc(){
     k.days.push(dayNo(s.plan_date)
       + (s._trialDur ? (s._isX ? '(추가)' : '(체험)') : '')
       + (s.dur_min ? '(' + s.dur_min + '분)' : '')
+      + (s._dead ? (s._unpaid ? '(소멸 · 교육비 미입금 · 지급 안 함)' : '(소멸 인정)') : '')
+      + (s._pre ? '(선보강 ' + Number(String(s.plan_date).slice(5, 7)) + '/' + Number(String(s.plan_date).slice(8, 10)) + ')' : '')
       + (rest ? '(완료 처리 ' + rest + '분)'
               : (part !== 1 ? '(+' + Number(s.minutes) + '분)' : ''))
       + (s.status==='보강'
@@ -540,10 +550,13 @@ function calc(){
 
   // 주유비 — 완료 회차가 있는 날만 (보강만 있는 날은 뺀다)
   const fuelDays = new Set();
-  SESS.filter(s => s.therapist_id === thId && s.status === '완료' && !(HASPART[s.id] > 0))
-      .forEach(s => fuelDays.add(s.plan_date));
+  // 정규 출근 요일에 나온 날만 · 공휴일 대신 나온 날(나오는 날)은 인정 (2026-10-03 은정님)
+  const wdOf = d => '일월화수목금토'[new Date(d + 'T00:00:00').getDay()];
+  const fuelOk = d => (WORKWD[thId] ? WORKWD[thId].has(wdOf(d)) : true) || !!XWORK[thId + '|' + d];
+  SESS.concat(FUTPRE || []).filter(s => s.therapist_id === thId && s.status === '완료' && !(HASPART[s.id] > 0) && !s._pre)
+      .forEach(s => { if (fuelOk(String(s.plan_date))) fuelDays.add(s.plan_date); });
   // 체험한 날도 나오신 날이다 (2026-09-16)
-  TRIALS.filter(t => t.therapist_id === thId).forEach(t => fuelDays.add(t.lesson_date));
+  TRIALS.filter(t => t.therapist_id === thId).forEach(t => { if (fuelOk(String(t.lesson_date))) fuelDays.add(t.lesson_date); });
   const fuel = (r.daily_fuel || 0) * fuelDays.size;
 
   // 4대보험
@@ -589,7 +602,7 @@ function calc(){
     + '60분 수업은 회기 단가의 1.5배입니다. 회기 단가 ' + won(r.session_fee) + '원'
     + (r.special_fee ? ' · 특수 단가 ' + won(r.special_fee) + '원' : '') + '<br>'
     + '4대보험 — ' + insTxt + '<br>'
-    + (r.daily_fuel ? '주유비는 <b>완료 회차가 있는 날</b>만 셉니다. 보강만 있는 날은 빠집니다. 비과세라 원천징수 뒤에 더합니다.<br>' : '')
+    + (r.daily_fuel ? '주유비는 <b>정규 출근 요일에 완료 회차가 있는 날</b>만 셉니다. 공휴일 대신 나온 날(나오는 날)은 셉니다. 비과세라 원천징수 뒤에 더합니다.<br>' : '')
     + '<b>아동별 진행 날짜</b>가 위 표에 있으니 숫자가 안 맞으면 그 표에서 찾으세요.';
   if (GRPMISS) {
     $('warnBox').style.display = 'block';
@@ -791,6 +804,20 @@ async function loadMonth(){
     SESS = SESS.concat(data);
     if (data.length < 1000) break;
   }
+  // 선보강 — 몫인 달의 급여로 (2026-10-03 은정님)
+  //   다음 달 몫을 이 달 날짜에 미리 한 줄은 이 달에서 빼고,
+  //   이 달 몫을 지난달 날짜에 미리 한 줄은 이 달에 더한다
+  //   (후보강 · 다음달 보강처럼 날짜가 몫인 달보다 뒤인 것은 지금처럼 날짜 달에 셈)
+  // 주유비는 실제 나온 날이므로 빼낸 줄도 날짜로는 남겨 둔다
+  FUTPRE = SESS.filter(x => x.month_key && String(x.month_key) > mon);
+  SESS = SESS.filter(x => !(x.month_key && String(x.month_key) > mon));
+  {
+    const { data: pre, error: ePre } = await sb.from('nl_sessions')
+      .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id, month_key, minutes, makeup_for, dur_min')
+      .eq('month_key', mon).lt('plan_date', mon + '-01');
+    if (ePre) { alert('선보강 회기를 읽지 못했습니다. 새로고침 해 주세요.\n' + ePre.message); }
+    else (pre || []).forEach(x => { x._pre = true; SESS.push(x); });
+  }
   // 쪼갠 조각(10·20·30분)이 딸린 원래 줄을 찾아 둔다 (2026-09-11)
   HASPART = {};
   const _ids = SESS.filter(x => !x.makeup_for && x.status === '완료').map(x => x.id);
@@ -803,7 +830,64 @@ async function loadMonth(){
       HASPART[x.makeup_for] = (HASPART[x.makeup_for] || 0) + Number(x.minutes || 0);
     });
   }
+  await loadDeadAndFuel();
   await loadEvals();
+}
+
+// ── 소멸 회 인정 · 주유비 날짜 (2026-10-03 은정님) ─────────────
+//   소멸 — 원래 줄(결석)에 딸린 40분 보강이 두 번 결석하면 그 회는 소멸.
+//          선생님께는 지급한다. 두 번째 결석한 보강 날짜의 달에 원래 담당 선생님께.
+//          단 그 달 몫 교육비가 미입금(금액 있고 낸 날 없음)이면 지급하지 않는다
+//   주유비 — 정규 출근 요일에 나온 날만. 공휴일 대신 나온 날(휴무 관리 「나오는 날」)도 인정
+async function loadDeadAndFuel(){
+  DEADMK = []; WORKWD = {}; XWORK = {};
+  try {
+    const { data: ab } = await sb.from('nl_sessions')
+      .select('makeup_for').eq('status', '결석').not('makeup_for', 'is', null)
+      .gte('plan_date', mon + '-01').lte('plan_date', monEnd(mon));
+    const oids = [...new Set((ab || []).map(x => x.makeup_for))];
+    for (let i = 0; i < oids.length; i += 200) {
+      const part = oids.slice(i, i + 200);
+      const [{ data: mks }, { data: ors }] = await Promise.all([
+        sb.from('nl_sessions').select('makeup_for, plan_date, status, minutes').in('makeup_for', part),
+        sb.from('nl_sessions').select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id, month_key, minutes, makeup_for, dur_min').in('id', part)
+      ]);
+      const byO = {};
+      (mks || []).forEach(m => {
+        if (Number(m.minutes || 40) !== 40) return;               // 쪼개기 조각은 소멸 셈에서 뺌
+        (byO[m.makeup_for] = byO[m.makeup_for] || []).push(m);
+      });
+      for (const o of (ors || [])) {
+        if (o.status !== '결석' || o.makeup_for) continue;
+        const ms = (byO[o.id] || []).sort((a, b) => String(a.plan_date).localeCompare(String(b.plan_date)));
+        if (ms.some(m => m.status !== '결석' && m.status !== '취소')) continue;   // 한 번이라도 한 보강이 있으면 아님
+        const abs = ms.filter(m => m.status === '결석');
+        if (abs.length < 2) continue;
+        const d2 = abs[1].plan_date;                              // 두 번째 결석 날 = 소멸한 날
+        if (String(d2).slice(0, 7) !== mon) continue;
+        DEADMK.push(Object.assign({}, o, { _dead: true, _deadOn: d2 }));
+      }
+    }
+    // 그 달 몫 교육비 미입금이면 뺀다
+    if (DEADMK.length) {
+      const kids = [...new Set(DEADMK.map(x => x.child_id))];
+      const { data: pays } = await sb.from('nl_payments')
+        .select('child_id, month_key, support_type_id, amount, paid_on').in('child_id', kids);
+      DEADMK = DEADMK.filter(o => {
+        const p = (pays || []).find(x => x.child_id === o.child_id && x.month_key === o.month_key
+                                      && Number(x.support_type_id) === Number(o.support_type_id));
+        o._unpaid = !!(p && Number(p.amount) > 0 && !p.paid_on);
+        return true;
+      });
+    }
+  } catch (e) { console.error('소멸 회 읽기 실패', e); DEADMK = []; }
+  try {
+    const { data: wd } = await sb.from('nl_therapist_days').select('therapist_id, weekday, works');
+    (wd || []).forEach(r => { if (r.works) (WORKWD[r.therapist_id] = WORKWD[r.therapist_id] || new Set()).add(r.weekday); });
+    const { data: xw } = await sb.from('nl_offdays').select('therapist_id, off_date')
+      .eq('kind', '추가근무').gte('off_date', mon + '-01').lte('off_date', monEnd(mon));
+    (xw || []).forEach(r => { XWORK[r.therapist_id + '|' + r.off_date] = 1; });
+  } catch (e) { console.error('출근 요일 읽기 실패', e); }
 }
 
 $('prt').onclick = () => window.print();
