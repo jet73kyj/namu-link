@@ -1143,6 +1143,8 @@
   .thask-go:not(:disabled) { background:#B07A4A; color:#fff; border-color:#B07A4A; }
   body.isth #shortTop, body.isth #gapTop, body.isth #prevHint, body.isth #short,
   body.isth #gapBox, body.isth #prevBox, body.isth #allok, body.isth #dock { display:none !important; }
+
+  .durtag { font-size:11px; color:#C2553A; margin-left:2px; font-weight:600; }
 </style>
 </head>
 <body>
@@ -1992,7 +1994,7 @@ async function sessOfMonth(mk){
   let all = [];
   for (let f = 0; ; f += 1000) {
     const r = await sb.from('nl_sessions')
-      .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, want_makeup, minutes')
+      .select('id, child_id, therapy_id, schedule_id, month_key, run_no, plan_date, status, therapist_id, start_time, makeup_for, memo, support_type_id, no_makeup, no_makeup_why, want_makeup, minutes, dur_min')
       .eq('month_key', mk).order('id').range(f, f + 999);
     if (r.error) return { data: null, error: r.error };
     all = all.concat(r.data || []);
@@ -2108,8 +2110,11 @@ function fillNote(id, pool){
 
 // 쪼갠 보강 줄에 붙는 「+10분」 (2026-09-08)
 function minTag(x){
+  // 그 날만 분을 바꾼 회기 (납부 계산 「분 변경」 · 2026-10-03)
+  const dm = Number(x && x.dur_min);
+  const dTag = dm ? '<b class="durtag">' + dm + '분</b>' : '';
   const m = Number(x && x.minutes);
-  if (!m || m === 40) return '';
+  if (!m || m === 40) return dTag;
   return bfTag(x) + '<b class="mintag">+' + m + '</b>';
 }
 // 수업 앞에 붙은 조각이면 실제 시작 시각을 주황으로 적는다 (2026-09-09)
@@ -2973,6 +2978,7 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   const grey = !filled && (!on || x.status === '결석');
   const cls = 'fb s' + sp + (grey ? ' off' : ((x.status === '완료' || filled) ? ' fdn' : ''));
   return '<span class="' + cls + '" data-sid="' + x.id + '">' + esc(txt)
+    + (x.dur_min ? ' <b class="durtag">' + x.dur_min + '분</b>' : '')
     + (sm ? '<small>' + esc(sm) + '</small>' : '')
     + mvBtn
     + (plus ? ' <b class="fplus">＋</b>' : '') + '</span>';

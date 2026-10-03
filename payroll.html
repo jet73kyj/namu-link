@@ -463,7 +463,8 @@ function calc(){
   GRPMISS = false;
   done.forEach(s => {
     const sc = ROWS.find(x => x.id === s.schedule_id);
-    const dur = s._trialDur || (sc ? Number(sc.duration || 40) : 40);
+    // 그 날만 분을 바꾼 회기는 그 분으로 (납부 계산 「분 변경」 · 2026-10-03)
+    const dur = s._trialDur || Number(s.dur_min || 0) || (sc ? Number(sc.duration || 40) : 40);
     const tt  = sc ? sc._tt : null;
     const stid = s.support_type_id || (sc ? sc.support_type_id : null);
     // 그룹 수업 원래 줄 — 출석 아동 1명마다 그룹 1인당 단가 (1:1 보강은 보통 단가 · 2026-10-02)
@@ -486,6 +487,7 @@ function calc(){
     k.fee += Math.round(fee);
     k.days.push(dayNo(s.plan_date)
       + (s._trialDur ? (s._isX ? '(추가)' : '(체험)') : '')
+      + (s.dur_min ? '(' + s.dur_min + '분)' : '')
       + (rest ? '(완료 처리 ' + rest + '분)'
               : (part !== 1 ? '(+' + Number(s.minutes) + '분)' : ''))
       + (s.status==='보강'
@@ -782,7 +784,7 @@ async function loadMonth(){
   SESS = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await sb.from('nl_sessions')
-      .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id, month_key, minutes, makeup_for')
+      .select('id, child_id, schedule_id, plan_date, status, therapist_id, memo, support_type_id, month_key, minutes, makeup_for, dur_min')
       .gte('plan_date', mon + '-01').lte('plan_date', monEnd(mon))
       .order('id').range(from, from + 999);
     if (error || !data) break;
