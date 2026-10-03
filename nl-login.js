@@ -186,24 +186,19 @@
   //   「처음으로」 오른쪽에 끼운다. 화면 안에서 보기를 바꾸는 곳(지급 모음 등)도 뒤로로 돌아온다
   function putNav(ref) {
     if (document.getElementById('nlBack')) return;
-    var last = ref;
-    [['nlBack', '‹', '직전 작업 화면으로', function () { w.history.back(); }],
-     ['nlFwd',  '›', '다음 화면으로', function () { w.history.forward(); }]].forEach(function (d) {
-      var b = document.createElement(ref.tagName === 'A' ? 'a' : 'button');
-      b.id = d[0]; b.className = ref.className; b.textContent = d[1]; b.title = d[2];
-      if (b.tagName === 'A') { b.href = '#'; b.setAttribute('role', 'button'); } else { b.type = 'button'; }
-      b.style.marginLeft = '4px'; b.style.minWidth = '34px'; b.style.fontWeight = '700';
-      b.onclick = function (ev) { ev.preventDefault(); d[3](); };
-      // 「처음으로」 오른쪽에 ‹ › 차례로 (2026-10-03 은정님)
-      ref.parentNode.insertBefore(b, last.nextSibling);
-      last = b;
-    });
+    // ‹ 하나만 — 「처음으로」 바로 왼쪽 · 크게 (2026-10-03 은정님)
+    var b = document.createElement(ref.tagName === 'A' ? 'a' : 'button');
+    b.id = 'nlBack'; b.className = ref.className; b.textContent = '‹'; b.title = '직전 작업 화면으로';
+    if (b.tagName === 'A') { b.href = '#'; b.setAttribute('role', 'button'); } else { b.type = 'button'; }
+    b.style.marginRight = '6px'; b.style.minWidth = '40px';
+    b.style.fontSize = '22px'; b.style.fontWeight = '700'; b.style.lineHeight = '1';
+    b.onclick = function (ev) { ev.preventDefault(); w.history.back(); };
+    ref.parentNode.insertBefore(b, ref);
   }
   function put() {
     if (document.getElementById('nlReload')) return;
     var ref = findRef();
     if (!ref || !ref.parentNode) return;
-    putNav(ref);
     var b = document.createElement(ref.tagName === 'A' ? 'a' : 'button');
     b.id = 'nlReload';
     b.className = ref.className;
@@ -213,6 +208,7 @@
     b.style.marginRight = '6px';
     b.onclick = function (ev) { ev.preventDefault(); w.location.reload(); };
     ref.parentNode.insertBefore(b, ref);
+    putNav(ref);
   }
   function soon() {
     if (busy || (document.getElementById('nlReload') && document.getElementById('nlBack'))) return;
