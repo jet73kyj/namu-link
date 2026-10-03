@@ -363,7 +363,6 @@
           <th>아동명 · 사업</th>
           <th class="n">40분</th>
           <th class="n">60분</th>
-          <th class="n" title="이 달 완료한 평가 건수 · 수수료는 2번 평가 표에서">평가</th>
           <th class="n" title="합계에 들어 있음 · 지난달 몫을 이 달에 한 보강">전월보강</th>
           <th class="n" title="합계에 들어 있음 · 이 달 몫을 지난달에 미리 한 보강">선보강</th>
           <th class="n">합계</th>
@@ -624,13 +623,6 @@ function calc(){
   });
 
   // 아동 번호 차례로 (숫자로 견줌)
-  // 평가 — 아동마다 「· 평가」 줄로 건수만 (수수료는 2번 평가 표 · 2026-10-03)
-  EVALS.filter(e => e.therapist_id === thId).forEach(e => {
-    const nm = e.child_id + '번 ' + (KIDS[e.child_id] || '') + ' · 평가';
-    const k = byKid[nm] = byKid[nm] || { m40:0, m60:0, sp:0, pv:0, pre:0, ev:0, days:[], fee:0 };
-    k.ev = (k.ev || 0) + 1;
-    k.days.push(dayNo(e.eval_date) + '(평가 ' + (Number(e.item_cnt) || 1) + '개)');
-  });
   const names = Object.keys(byKid).sort((a,b)=>a.localeCompare(b,'ko',{ numeric:true }));
   let t40=0, t60=0, tsp=0, tcnt=0, tfee=0, tpv=0, tpre=0, tev=0;
   $('rows1').innerHTML = names.map(nm => {
@@ -642,18 +634,16 @@ function calc(){
     return '<tr><td>' + esc(nm).replace('[그룹] ', '<span class="gtag">그룹</span>') + '</td>'
       + '<td class="n">' + (k.m40 ? rd(k.m40) : '–') + '</td>'
       + '<td class="n">' + (k.m60 ? rd(k.m60) : '–') + '</td>'
-      + '<td class="n">' + (k.ev  ? k.ev : '–') + '</td>'
       + '<td class="n">' + (k.pv  ? rd(k.pv)  : '–') + '</td>'
       + '<td class="n">' + (k.pre ? rd(k.pre) : '–') + '</td>'
-      + '<td class="n">' + (cnt || (k.ev ? '–' : 0)) + '</td>'
-      + '<td class="n">' + (k.fee || !k.ev ? won(k.fee) : '–') + '</td>'
+      + '<td class="n">' + cnt + '</td>'
+      + '<td class="n">' + won(k.fee) + '</td>'
       + '<td class="small">' + k.days.join(', ') + '</td></tr>';
   }).join('');
   const nKid = new Set(done.map(x => x.child_id)).size;
   $('foot1').innerHTML = '<tr><td>세션 소계 아동 ' + nKid + '명 · ' + names.length + '줄</td>'
     + '<td class="n">' + (Math.round(t40*100)/100) + '</td>'
     + '<td class="n">' + (Math.round(t60*100)/100) + '</td>'
-    + '<td class="n">' + tev + '</td>'
     + '<td class="n">' + (Math.round(tpv*100)/100) + '</td>'
     + '<td class="n">' + (Math.round(tpre*100)/100) + '</td>'
     + '<td class="n">' + (Math.round(tcnt*100)/100) + '</td>'
