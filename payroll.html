@@ -1190,94 +1190,95 @@ $('mon').onchange = async () => { mon = $('mon').value;
 $('th').onchange  = () => { thId = Number($('th').value); calc(); drawWorkDays(); loadCard(); };
 
 
-
-// ── 이 달 지급 모음 · 세무사 전달 (2026-10-03 은정님) ─────────────
-//   선생님마다 지금 화면 셈(calc)을 차례로 돌려 금액을 모은다 → 고른 선생님으로 되돌림
-//   세무사 전달 — 비영리: 근로+프리랜서는 4대보험 신고금액 · 프리랜서(3.3%만)는 과세대상액 ·
-//                 급여명세서 근로자는 기본급 · 추가 줄(nl_tax_extra)은 적어 둔 금액
-//               면세: 근로+프리랜서의 과세대상액 · 추가 줄의 면세 금액
-let SUMROWS = [], TAXROWS = [];
-async function buildSum(){
-  const box = $('sumBox');
-  box.style.display = ''; box.innerHTML = '<div class="small">모으는 중…</div>';
-  const keep = thId; const rows = [];
-  for (const t of THS) {
-    thId = t.id;
-    try { calc(); } catch (e) { console.error('셈 실패', t.id, e); }
-    const p = PAYSUM;
-    if (!p || !(p.total || p.wage || p.fuel)) continue;
-    rows.push(Object.assign({ id: t.id, name: t.name }, p));
-  }
-  thId = keep; $('th').value = String(keep); try { calc(); } catch (e) {}
-  const ids = rows.map(r => r.id);
-  const [pv, sal, ex] = await Promise.all([
-    ids.length ? sb.from('nl_th_private').select('therapist_id, bank, account_no').in('therapist_id', ids) : Promise.resolve({ data: [] }),
-    sb.from('nl_salary').select('staff_id, base_pay, pension, health, care, employ, income_tax, local_tax').eq('month_key', mon),
-    sb.from('nl_tax_extra').select('name, nonprofit, taxfree, from_month, to_month, memo').lte('from_month', mon)
-  ]);
-  const err = [pv, sal, ex].find(x => x && x.error);
-  if (err) { box.innerHTML = '<div class="ctwarn">불러오지 못했습니다. ' + esc(err.error.message) + '</div>'; return; }
-  const PV = {}; (pv.data || []).forEach(x => { PV[x.therapist_id] = x; });
-  const sids = (sal.data || []).map(x => x.staff_id);
-  let SNM = {};
-  if (sids.length) { const { data: nm } = await sb.from('nl_therapists').select('id, name').in('id', sids); (nm || []).forEach(x => { SNM[x.id] = x.name; }); }
-  const exs = (ex.data || []).filter(x => !x.to_month || x.to_month >= mon);
-
-  SUMROWS = rows.map(r => ({ who: r.id + '번 ' + r.name, bank: (PV[r.id] || {}).bank || '', acc: (PV[r.id] || {}).account_no || '',
-    wageNet: r.wage ? r.wage - r.wkShare : 0, netFee: r.netFee, fuel: r.fuel, fuelName: r.fuelName }));
-  (sal.data || []).forEach(x => {
-    const net = (x.base_pay || 0) - (x.pension || 0) - (x.health || 0) - (x.care || 0) - (x.employ || 0) - (x.income_tax || 0) - (x.local_tax || 0);
-    SUMROWS.push({ who: x.staff_id + '번 ' + (SNM[x.staff_id] || ''), bank: '', acc: '', wageNet: net, netFee: 0, fuel: 0, emp: true });
-  });
-  TAXROWS = rows.map(r => r.insured
-      ? { name: r.name, np: r.wage, tf: r.taxBase, note: '근로 + 프리랜서 (비영리 = 4대보험 신고금액 · 면세 = 과세대상액)' }
-      : { name: r.name, np: r.taxBase, tf: 0, note: '프리랜서 3.3% (비영리 = 과세대상액)' });
-  (sal.data || []).forEach(x => TAXROWS.push({ name: SNM[x.staff_id] || (x.staff_id + '번'), np: x.base_pay || 0, tf: 0, note: '급여명세서 근로자 (비영리 = 기본급)' }));
-  exs.forEach(x => TAXROWS.push({ name: x.name, np: x.nonprofit || 0, tf: x.taxfree || 0, note: '추가 줄' + (x.to_month ? ' · ' + x.to_month + '까지' : '') + (x.memo ? ' · ' + x.memo : '') }));
-  drawSum();
-}
-function drawSum(){
-  const box = $('sumBox');
-  const sum = k => SUMROWS.reduce((t, r) => t + (r[k] || 0), 0);
-  const tsum = k => TAXROWS.reduce((t, r) => t + (r[k] || 0), 0);
-  const maskA = v => v ? '****' + String(v).replace(/[^0-9]/g, '').slice(-4) : '';
-  box.innerHTML = '<div class="cthd">' + mon.slice(0, 4) + '년 ' + monNo(mon) + '월 지급 모음'
-      + '<button type="button" class="ctsm" id="sumAcc">계좌 보기</button><button type="button" class="ctsm" id="sumClose">닫기</button></div>'
-    + '<table class="sumt"><thead><tr><th>이름</th><th>은행 · 계좌</th><th class="n">급여 실수령액</th><th class="n">실 지급액(수수료)</th>'
-    + '<th class="n">주유 · 교통비</th><th class="n">이체 합계</th></tr></thead><tbody>'
-    + SUMROWS.map(r => '<tr><td>' + esc(r.who) + (r.emp ? ' <span class="small">(급여명세서)</span>' : '') + '</td>'
-        + '<td>' + esc(r.bank) + ' <span class="acc" data-full="' + esc(r.acc) + '">' + esc(maskA(r.acc)) + '</span></td>'
-        + '<td class="n">' + (r.wageNet ? won(r.wageNet) : '–') + '</td><td class="n">' + (r.netFee ? won(r.netFee) : '–') + '</td>'
-        + '<td class="n">' + (r.fuel ? won(r.fuel) + ' <span class="small">' + esc(r.fuelName || '') + '</span>' : '–') + '</td>'
-        + '<td class="n"><b>' + won((r.wageNet || 0) + (r.netFee || 0) + (r.fuel || 0)) + '</b></td></tr>').join('')
-    + '</tbody><tfoot><tr><td>합계</td><td></td><td class="n">' + won(sum('wageNet')) + '</td><td class="n">' + won(sum('netFee')) + '</td>'
-    + '<td class="n">' + won(sum('fuel')) + '</td><td class="n">' + won(sum('wageNet') + sum('netFee') + sum('fuel')) + '</td></tr></tfoot></table>'
-    + '<div class="cthd" style="margin-top:18px;">세무사 전달<button type="button" class="ctgo" id="sumXls">엑셀 내려받기</button></div>'
-    + '<table class="sumt"><thead><tr><th>이름</th><th class="n">비영리</th><th class="n">면세</th><th>비고</th></tr></thead><tbody>'
-    + TAXROWS.map(r => '<tr><td>' + esc(r.name) + '</td><td class="n">' + (r.np ? won(r.np) : '–') + '</td><td class="n">' + (r.tf ? won(r.tf) : '–')
-        + '</td><td class="small">' + esc(r.note) + '</td></tr>').join('')
-    + '</tbody><tfoot><tr><td>합계</td><td class="n">' + won(tsum('np')) + '</td><td class="n">' + won(tsum('tf')) + '</td><td></td></tr></tfoot></table>';
-  $('sumClose').onclick = () => { box.style.display = 'none'; };
-  $('sumAcc').onclick = () => { box.querySelectorAll('.acc').forEach(e => { e.textContent = e.dataset.full; }); $('sumAcc').remove(); };
-  $('sumXls').onclick = downXls;
-}
-async function downXls(){
-  if (!window.XLSX) {
-    await new Promise((ok, no) => { const sc = document.createElement('script');
-      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); })
-      .catch(() => alert('엑셀 도구를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'));
-    if (!window.XLSX) return;
-  }
-  const aoa = [[mon.slice(0, 4) + '년 ' + monNo(mon) + '월 세무사 전달 자료'], [], ['이름', '비영리', '면세', '비고']];
-  TAXROWS.forEach(r => aoa.push([r.name, r.np || 0, r.tf || 0, r.note]));
-  aoa.push(['합계', TAXROWS.reduce((t, r) => t + (r.np || 0), 0), TAXROWS.reduce((t, r) => t + (r.tf || 0), 0), '']);
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 50 }];
-  for (let i = 3; i < aoa.length; i++) ['B', 'C'].forEach(c => { const a = ws[c + (i + 1)]; if (a && typeof a.v === 'number') a.z = '#,##0'; });
-  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '세무사전달');
-  XLSX.writeFile(wb, mon + '_세무사전달.xlsx');
-}
-if ($('sumBtn')) $('sumBtn').onclick = buildSum;
+
+// ── 이 달 지급 모음 · 세무사 전달 (2026-10-03 은정님) ─────────────
+//   선생님마다 지금 화면 셈(calc)을 차례로 돌려 금액을 모은다 → 고른 선생님으로 되돌림
+//   세무사 전달 — 비영리: 근로+프리랜서는 4대보험 신고금액 · 프리랜서(3.3%만)는 과세대상액 ·
+//                 급여명세서 근로자는 기본급 · 추가 줄(nl_tax_extra)은 적어 둔 금액
+//               면세: 근로+프리랜서의 과세대상액 · 추가 줄의 면세 금액
+let SUMROWS = [], TAXROWS = [];
+async function buildSum(){
+  const box = $('sumBox');
+  box.style.display = ''; box.innerHTML = '<div class="small">모으는 중…</div>';
+  const keep = thId; const rows = [];
+  for (const t of THS) {
+    thId = t.id;
+    try { calc(); } catch (e) { console.error('셈 실패', t.id, e); }
+    const p = PAYSUM;
+    if (!p || !(p.total || p.wage || p.fuel)) continue;
+    rows.push(Object.assign({ id: t.id, name: t.name }, p));
+  }
+  thId = keep; $('th').value = String(keep); try { calc(); } catch (e) {}
+  const ids = rows.map(r => r.id);
+  const [pv, sal, ex] = await Promise.all([
+    ids.length ? sb.from('nl_th_private').select('therapist_id, bank, account_no').in('therapist_id', ids) : Promise.resolve({ data: [] }),
+    sb.from('nl_salary').select('staff_id, base_pay, pension, health, care, employ, income_tax, local_tax').eq('month_key', mon),
+    sb.from('nl_tax_extra').select('name, nonprofit, taxfree, from_month, to_month, memo').lte('from_month', mon)
+  ]);
+  const err = [pv, sal, ex].find(x => x && x.error);
+  if (err) { box.innerHTML = '<div class="ctwarn">불러오지 못했습니다. ' + esc(err.error.message) + '</div>'; return; }
+  const PV = {}; (pv.data || []).forEach(x => { PV[x.therapist_id] = x; });
+  const sids = (sal.data || []).map(x => x.staff_id);
+  let SNM = {};
+  if (sids.length) { const { data: nm } = await sb.from('nl_therapists').select('id, name').in('id', sids); (nm || []).forEach(x => { SNM[x.id] = x.name; }); }
+  const exs = (ex.data || []).filter(x => !x.to_month || x.to_month >= mon);
+
+  // 프리랜서(4대보험 미가입)는 실 지급액을 「급여 실수령액」 칸에 · 「실지급액 (면세)」 칸은 근로 + 프리랜서만 (2026-10-03 은정님)
+  SUMROWS = rows.map(r => ({ who: r.id + '번 ' + r.name, bank: (PV[r.id] || {}).bank || '', acc: (PV[r.id] || {}).account_no || '',
+    wageNet: r.wage ? r.wage - r.wkShare : r.netFee, netFee: r.wage ? r.netFee : 0, fuel: r.fuel, fuelName: r.fuelName }));
+  (sal.data || []).forEach(x => {
+    const net = (x.base_pay || 0) - (x.pension || 0) - (x.health || 0) - (x.care || 0) - (x.employ || 0) - (x.income_tax || 0) - (x.local_tax || 0);
+    SUMROWS.push({ who: x.staff_id + '번 ' + (SNM[x.staff_id] || ''), bank: '', acc: '', wageNet: net, netFee: 0, fuel: 0, emp: true });
+  });
+  TAXROWS = rows.map(r => r.insured
+      ? { name: r.name, np: r.wage, tf: r.taxBase, note: '근로 + 프리랜서 (비영리 = 4대보험 신고금액 · 면세 = 과세대상액)' }
+      : { name: r.name, np: r.taxBase, tf: 0, note: '프리랜서 3.3% (비영리 = 과세대상액)' });
+  (sal.data || []).forEach(x => TAXROWS.push({ name: SNM[x.staff_id] || (x.staff_id + '번'), np: x.base_pay || 0, tf: 0, note: '급여명세서 근로자 (비영리 = 기본급)' }));
+  exs.forEach(x => TAXROWS.push({ name: x.name, np: x.nonprofit || 0, tf: x.taxfree || 0, note: '추가 줄' + (x.to_month ? ' · ' + x.to_month + '까지' : '') + (x.memo ? ' · ' + x.memo : '') }));
+  drawSum();
+}
+function drawSum(){
+  const box = $('sumBox');
+  const sum = k => SUMROWS.reduce((t, r) => t + (r[k] || 0), 0);
+  const tsum = k => TAXROWS.reduce((t, r) => t + (r[k] || 0), 0);
+  const maskA = v => v ? '****' + String(v).replace(/[^0-9]/g, '').slice(-4) : '';
+  box.innerHTML = '<div class="cthd">' + mon.slice(0, 4) + '년 ' + monNo(mon) + '월 지급 모음'
+      + '<button type="button" class="ctsm" id="sumAcc">계좌 보기</button><button type="button" class="ctsm" id="sumClose">닫기</button></div>'
+    + '<table class="sumt"><thead><tr><th>이름</th><th>은행 · 계좌</th><th class="n">급여 실수령액</th><th class="n">실지급액 (면세)</th>'
+    + '<th class="n">주유 · 교통비</th><th class="n">이체 합계</th></tr></thead><tbody>'
+    + SUMROWS.map(r => '<tr><td>' + esc(r.who) + (r.emp ? ' <span class="small">(급여명세서)</span>' : '') + '</td>'
+        + '<td>' + esc(r.bank) + ' <span class="acc" data-full="' + esc(r.acc) + '">' + esc(maskA(r.acc)) + '</span></td>'
+        + '<td class="n">' + (r.wageNet ? won(r.wageNet) : '–') + '</td><td class="n">' + (r.netFee ? won(r.netFee) : '–') + '</td>'
+        + '<td class="n">' + (r.fuel ? won(r.fuel) + ' <span class="small">' + esc(r.fuelName || '') + '</span>' : '–') + '</td>'
+        + '<td class="n"><b>' + won((r.wageNet || 0) + (r.netFee || 0) + (r.fuel || 0)) + '</b></td></tr>').join('')
+    + '</tbody><tfoot><tr><td>합계</td><td></td><td class="n">' + won(sum('wageNet')) + '</td><td class="n">' + won(sum('netFee')) + '</td>'
+    + '<td class="n">' + won(sum('fuel')) + '</td><td class="n">' + won(sum('wageNet') + sum('netFee') + sum('fuel')) + '</td></tr></tfoot></table>'
+    + '<div class="cthd" style="margin-top:18px;">세무사 전달<button type="button" class="ctgo" id="sumXls">엑셀 내려받기</button></div>'
+    + '<table class="sumt"><thead><tr><th>이름</th><th class="n">비영리</th><th class="n">면세</th><th>비고</th></tr></thead><tbody>'
+    + TAXROWS.map(r => '<tr><td>' + esc(r.name) + '</td><td class="n">' + (r.np ? won(r.np) : '–') + '</td><td class="n">' + (r.tf ? won(r.tf) : '–')
+        + '</td><td class="small">' + esc(r.note) + '</td></tr>').join('')
+    + '</tbody><tfoot><tr><td>합계</td><td class="n">' + won(tsum('np')) + '</td><td class="n">' + won(tsum('tf')) + '</td><td></td></tr></tfoot></table>';
+  $('sumClose').onclick = () => { box.style.display = 'none'; };
+  $('sumAcc').onclick = () => { box.querySelectorAll('.acc').forEach(e => { e.textContent = e.dataset.full; }); $('sumAcc').remove(); };
+  $('sumXls').onclick = downXls;
+}
+async function downXls(){
+  if (!window.XLSX) {
+    await new Promise((ok, no) => { const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); })
+      .catch(() => alert('엑셀 도구를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.'));
+    if (!window.XLSX) return;
+  }
+  const aoa = [[mon.slice(0, 4) + '년 ' + monNo(mon) + '월 세무사 전달 자료'], [], ['이름', '비영리', '면세', '비고']];
+  TAXROWS.forEach(r => aoa.push([r.name, r.np || 0, r.tf || 0, r.note]));
+  aoa.push(['합계', TAXROWS.reduce((t, r) => t + (r.np || 0), 0), TAXROWS.reduce((t, r) => t + (r.tf || 0), 0), '']);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 50 }];
+  for (let i = 3; i < aoa.length; i++) ['B', 'C'].forEach(c => { const a = ws[c + (i + 1)]; if (a && typeof a.v === 'number') a.z = '#,##0'; });
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '세무사전달');
+  XLSX.writeFile(wb, mon + '_세무사전달.xlsx');
+}
+if ($('sumBtn')) $('sumBtn').onclick = buildSum;
 // ── 위탁계약 카드 (2026-10-03 은정님) ──────────────────────────
 //   8번만 보는 화면 맨 위 · 공개본 · 인쇄에 안 들어감 (noprint)
 //   주민번호 · 계좌는 nl_th_private (대표만) · 화면에는 가려 보이고 [보기]로만
