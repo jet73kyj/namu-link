@@ -238,10 +238,11 @@ function drawX8(r) {
   const wait = r.state === '신청';
   const tag = wait ? '<span class="tag t-x8">발추 일정 요청 · 확인 필요</span>'
             : r.state === '확정' ? '<span class="tag t-ok">확정됨</span>'
-            : r.state === '취소' ? '<span class="tag t-cx">학부모 취소</span>'
+            : r.state === '취소' ? '<span class="tag t-cx">' + (r.staff_id ? '선생님 취소' : '학부모 취소') + '</span>'
             : '<span class="tag t-no">반려</span>';
+  const thTag = r.staff_id ? '<span class="tag t-th">' + esc(THRS[r.staff_id] || '') + ' 선생님 요청</span>' : '';
   let h = '<div class="rq' + (wait ? ' wait' : '') + '">'
-    + '<div class="rqhead"><span class="rqkid">' + esc(kidName(r.child_id)) + '</span>' + tag + '</div>'
+    + '<div class="rqhead"><span class="rqkid">' + esc(kidName(r.child_id)) + '</span>' + tag + thTag + '</div>'
     + '<div class="rqline">발달추가 수업 · <b>' + esc(x8Mon(r.x8_month)) + '</b></div>'
     + '<div class="rqline">요청 일정 · <b>' + dm(r.want_date) + ' ' + hm(r.want_time) + '</b>'
     + (r.therapist_id ? ' · ' + esc(THRS[r.therapist_id] || '') + ' 선생님' : '') + '</div>';
@@ -355,7 +356,7 @@ async function loadAll() {
   X8REQS = [];
   {
     const { data: xd, error: xe } = await sb.from('nl_x8_requests')
-      .select('id, child_id, x8_month, want_date, want_time, therapist_id, state, staff_memo')
+      .select('id, child_id, x8_month, want_date, want_time, therapist_id, state, staff_memo, staff_id')
       .order('id', { ascending: false });
     if (xe) show($('msg2'), '⚠️ 발추 일정 요청을 불러오지 못했습니다.\n' + xe.message, false);
     else X8REQS = xd || [];

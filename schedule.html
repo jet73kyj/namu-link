@@ -2208,6 +2208,7 @@ let MY_TH    = null;    // 치료사로 로그인했으면 그 번호. 자기 �
 // 「보강이 필요한 줄」 — 서버 한 곳(nl_need_rows)이 정한 것 (2026-09-11)
 //   직원은 nl_staff_need_all, 치료사는 nl_th_need 로 받는다. 학부모(nl_parent_need)와 같은 셈
 //   null 이면 서버를 못 부른 것 → 옛 셈으로 그린다
+let THX8     = {};      // '아동|몫인 달' -> 살아 있는 발추 요청 (2026-10-03)
 let THREQ    = {};      // 회기줄 -> 살아 있는 결석·보강 요청 (선생님 맨 위 줄 · 2026-10-03)
 let NEEDRAW  = [];      // 서버 셈 줄 그대로 — 선생님 맨 위 줄에 씀 (2026-10-03)
 let NEEDSRV  = null;    // { miss:{줄:까닭}, holi:{줄:1}, prev:{줄:까닭}, x8:{아동:1}, pay:{'아동|사업':회수} }
@@ -9518,11 +9519,35 @@ async function loadThReqs(){
     if (error) throw error;
     (data || []).forEach(q => { THREQ[q.session_id] = q; });
   }
+  THX8 = {};
+  const cids = [...new Set((NEEDRAW || []).filter(r => Number(r.support_type_id) === 8 && !r.session_id)
+                                         .map(r => Number(r.child_id)))];
+  if (cids.length) {
+    const { data: xd, error: xe } = await sb.from('nl_x8_requests')
+      .select('id, child_id, x8_month, want_date, want_time, staff_id, state')
+      .in('child_id', cids).in('state', ['신청', '확정']);
+    if (xe) throw xe;
+    (xd || []).forEach(q => { THX8[q.child_id + '|' + q.x8_month] = q; });
+  }
 }
 function thT(t){ const p = String(t || '').split(':'); const h = Number(p[0]); return (h > 12 ? h - 12 : h) + ':' + (p[1] || '00'); }
 function thD(d){ const x = new Date(d + 'T00:00:00'); return (x.getMonth() + 1) + '/' + x.getDate() + '(' + '일월화수목금토'[x.getDay()] + ')'; }
 function thLast(mk, st){ return Number(st) === 2 ? monEnd(mk) : monEnd(nextMon(mk)); }
 function thReqPart(x){
+  // 발추 자리 없음 (회기 줄 없음) — 발추 일정 요청 (2026-10-03 3단계)
+  if (!x.sid && Number(x.st) === 8) {
+    const q = THX8[x.cid + '|' + x.mk];
+    if (q) {
+      const when = thD(q.want_date) + ' ' + thT(q.want_time);
+      if (Number(q.staff_id) === Number(MY_TH) && q.state === '신청')
+        return ' <span class="thn-st">→ ' + when + ' · 확인 중</span>'
+          + '<button class="thn-b thn-cx" data-req="' + q.id + '" data-x8="1">요청 취소</button>';
+      return ' <span class="thn-st">→ ' + when + ' · ' + (q.staff_id ? '선생님' : '학부모') + ' 요청 · '
+        + (q.state === '신청' ? '확인 중' : '확정') + '</span>';
+    }
+    return '<button class="thn-b thn-find" data-x8="1" data-cid="' + x.cid + '" data-st="8"'
+      + ' data-mk="' + x.mk + '" data-txt="' + esc(x.txt) + '">자리 찾기</button>';
+  }
   if (!x.sid || !(x.k === 'miss' || x.k === 'holi' || x.k === 'prev')) return '';
   const q = THREQ[x.sid];
   if (q && q.makeup_date) {
@@ -9536,7 +9561,7 @@ function thReqPart(x){
     + '" data-mk="' + x.mk + '" data-txt="' + esc(x.txt) + '">자리 찾기</button>';
 }
 async function openThAsk(ds){
-  const last = thLast(ds.mk, ds.st);
+  const last = ds.x8 ? monEnd(nextMon(ds.mk)) : thLast(ds.mk, ds.st);
   let wrap = $('thAskBox');
   if (!wrap) {
     wrap = document.createElement('div'); wrap.id = 'thAskBox'; wrap.className = 'thask-bg';
@@ -9569,7 +9594,9 @@ async function openThAsk(ds){
   wrap.querySelector('.thask-go').onclick = async ev => {
     if (!pick) return;
     const go = ev.currentTarget; go.disabled = true; go.textContent = '보내는 중…';
-    const { data: msg, error: e2 } = await sb.rpc('nl_th_makeup_ask', { p_session: Number(ds.sid), p_date: pick.d, p_time: pick.t });
+    const { data: msg, error: e2 } = ds.x8
+      ? await sb.rpc('nl_th_x8_ask', { p_child: Number(ds.cid), p_mk: ds.mk, p_date: pick.d, p_time: pick.t })
+      : await sb.rpc('nl_th_makeup_ask', { p_session: Number(ds.sid), p_date: pick.d, p_time: pick.t });
     go.textContent = '요청 보내기';
     if (e2) { alert('요청하지 못했습니다.\n' + e2.message); go.disabled = false; return; }
     alert(msg || '');
@@ -9577,10 +9604,12 @@ async function openThAsk(ds){
     await loadNeed();
   };
 }
-async function thAskCancel(id, btn){
+async function thAskCancel(id, btn, isX8){
   if (!confirm('보강 요청을 거둘까요?')) return;
   btn.disabled = true;
-  const { data: msg, error } = await sb.rpc('nl_th_makeup_cancel', { p_req_id: Number(id) });
+  const { data: msg, error } = isX8
+    ? await sb.rpc('nl_th_x8_cancel', { p_req: Number(id) })
+    : await sb.rpc('nl_th_makeup_cancel', { p_req_id: Number(id) });
   if (error) { alert('거두지 못했습니다.\n' + error.message); btn.disabled = false; return; }
   alert(msg || '');
   await loadNeed();
@@ -9634,7 +9663,7 @@ function drawThNeed(){
     const fb = ev.target.closest('.thn-find');
     if (fb) { ev.stopPropagation(); openThAsk(fb.dataset); return; }
     const cb = ev.target.closest('.thn-cx');
-    if (cb) { ev.stopPropagation(); thAskCancel(cb.dataset.req, cb); return; }
+    if (cb) { ev.stopPropagation(); thAskCancel(cb.dataset.req, cb, cb.dataset.x8); return; }
     if (ev.target.closest('.thn-st')) return;
     const c = ev.target.closest('.thn-c');
     if (!c) return;

@@ -1523,7 +1523,7 @@ async function loadMonth() {
   // 발추 일정 요청 중인 것 (2026-10-01) — 확인 중이면 [요청 취소]
   try {
     const { data: xr } = await sb.from('nl_x8_requests')
-      .select('id, want_date, want_time, therapist_id, state')
+      .select('id, want_date, want_time, therapist_id, state, staff_id')
       .eq('child_id', CURKID).eq('x8_month', CURMK).eq('state', '신청').maybeSingle();
     X8REQ = xr || null;
   } catch (e) {}
@@ -1730,7 +1730,9 @@ async function drawNeed() {
       x8gap = true;
       if (X8REQ) {
         lines.push({ t: mname(CURMK) + ' 발달추가 → ' + slotDay(X8REQ.want_date) + ' '
-                        + String(X8REQ.want_time).slice(0, 5) + ' · 확인 중', x8c: X8REQ.id });
+                        + String(X8REQ.want_time).slice(0, 5)
+                        + (X8REQ.staff_id ? ' · 선생님 요청 · 확인 중' : ' · 확인 중'),
+                   x8c: X8REQ.staff_id ? 0 : X8REQ.id });   // 선생님 요청은 보기만 (2026-10-03)
       } else {
         lines.push({ t: mname(CURMK) + ' 발달추가 수업', x8a: FIXED ? 1 : 0 });
       }
