@@ -724,12 +724,13 @@ function calc(){
             : line('4대보험', '미가입', 'minus'))
     + line('과세대상액', won(taxBase), 'sum')
     + line('원천징수 3.3%', '(' + won(tax) + ')', 'minus')
+    + line('실 지급액 <span class="small">(수수료)</span>', won(netFee), 'sum')
+    // 주유 · 교통비는 수수료와 따로 (비과세) — 실 지급액 다음 줄에 (2026-10-03 엑셀 차림)
     + (r.daily_fuel
-        ? line(esc(r.fuel_name || '주유비') + ' <span class="small">(' + fuelDays.size + '일 × '
-               + won(r.daily_fuel) + '원 · 비과세)</span>',
+        ? line('+ ' + esc(r.fuel_name || '주유비') + ' <span class="small">(근무일 ' + fuelDays.size + '일 × '
+               + won(r.daily_fuel) + '원 · 비과세 · 별도)</span>',
                '+' + won(fuel), 'plus')
         : '')
-    + line('실 지급액 <span class="small">(수수료)</span>', won(netFee))
     + line('총 지급 합계', won(net) + ' 원', 'final');
 
   $('payNote').innerHTML =
@@ -1297,7 +1298,13 @@ async function saveCard(){
     if (areas.length) { const iA = await sb.from('nl_th_areas').insert(areas).select('therapist_id');
       if (iA.error || !iA.data || iA.data.length !== areas.length) { if (oldA.length) await sb.from('nl_th_areas').insert(oldA); throw (iA.error || new Error('치료 영역이 저장되지 않았습니다.')); } }
     // 수당 단가 — 바꿨을 때만 (안 바꿨는데 저장하면 이 달부터 새 줄이 생기므로)
-    if (rtSnap() !== CT_RT0) await $('rtSave').onclick();
+    if (rtSnap() !== CT_RT0) {
+      $('rtMsg').className = 'out'; $('rtMsg').textContent = '';
+      await $('rtSave').onclick();
+      // 단가 저장이 막혔으면 창을 닫지 않고 까닭을 띄운다 (2026-10-03 — 2번 선생님 주유비가 말없이 빠졌던 것)
+      if (/err/.test($('rtMsg').className) || !/저장했습니다/.test($('rtMsg').textContent))
+        throw new Error('수당 단가: ' + ($('rtMsg').textContent || '저장되지 않았습니다'));
+    }
     // 출근 요일 · 수업 시각
     await $('wdSave').onclick();
     await loadCard();
