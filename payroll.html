@@ -301,7 +301,7 @@
         <input id="rt_grp" type="text" inputmode="numeric" placeholder="그룹 수업 시">
       </div>
       <div>
-        <label for="rt_fuel">주유비 (하루)</label>
+        <label for="rt_fuel">주유비 · 교통비 (하루) <select id="rt_fname" style="padding:1px 4px;font-size:12px;"><option>주유비</option><option>교통비</option></select></label>
         <input id="rt_fuel" type="text" inputmode="numeric" placeholder="없으면 비움">
       </div>
       <div>
@@ -725,7 +725,7 @@ function calc(){
     + line('과세대상액', won(taxBase), 'sum')
     + line('원천징수 3.3%', '(' + won(tax) + ')', 'minus')
     + (r.daily_fuel
-        ? line('주유비 <span class="small">(' + fuelDays.size + '일 × '
+        ? line(esc(r.fuel_name || '주유비') + ' <span class="small">(' + fuelDays.size + '일 × '
                + won(r.daily_fuel) + '원 · 비과세)</span>',
                '+' + won(fuel), 'plus')
         : '')
@@ -737,7 +737,7 @@ function calc(){
     + '60분 수업은 회기 단가의 1.5배입니다. 회기 단가 ' + won(r.session_fee) + '원'
     + (r.special_fee ? ' · 특수 단가 ' + won(r.special_fee) + '원' : '') + '<br>'
     + '4대보험 — ' + insTxt + '<br>'
-    + (r.daily_fuel ? '주유비는 <b>정규 출근 요일에 완료 회차가 있는 날</b>만 셉니다. 공휴일 대신 나온 날(나오는 날)은 셉니다. 비과세라 원천징수 뒤에 더합니다.<br>' : '')
+    + (r.daily_fuel ? '주유비 · 교통비는 <b>정규 출근 요일에 완료 회차가 있는 날</b>만 셉니다. 공휴일 대신 나온 날(나오는 날)은 셉니다. 비과세라 원천징수 뒤에 더합니다.<br>' : '')
     + '<b>아동별 진행 날짜</b>가 위 표에 있으니 숫자가 안 맞으면 그 표에서 찾으세요.';
   if (GRPMISS) {
     $('warnBox').style.display = 'block';
@@ -842,7 +842,7 @@ function drawRateBox(){
       + ' · ' + (r.started_on ? r.started_on.slice(0,7) + '부터' : '시작일 없음')
       + (r.special_fee ? ' · 심리 ' + won(r.special_fee) + '원' : '')
       + (r.group_fee ? ' · 그룹 1인당 ' + won(r.group_fee) + '원' : '')
-      + (r.daily_fuel ? ' · 주유비 ' + won(r.daily_fuel) + '원' : '')
+      + (r.daily_fuel ? ' · ' + (r.fuel_name || '주유비') + ' ' + won(r.daily_fuel) + '원' : '')
       + ' · 4대보험 ' + (r.insured ? '가입' : '미가입');
     $('rt_fee').value  = r.session_fee || '';
     $('rt_sp').value   = r.special_fee || '';
@@ -851,12 +851,13 @@ function drawRateBox(){
     $('rt_ins').value  = r.insured ? 'yes' : 'no';
     $('rt_dec').value  = r.declared_amt || '';
     $('rt_ev1').value = r.eval1 || ''; $('rt_ev2').value = r.eval2 || ''; $('rt_ev3').value = r.eval3 || '';
+    $('rt_fname').value = r.fuel_name || '주유비';
   } else {
     $('rtNow').innerHTML = '<b style="color:#c62828;">이 달에 적용되는 단가가 없습니다.</b>'
       + ' 아래에 넣어주세요.';
     $('rt_fee').value = ''; $('rt_sp').value = ''; $('rt_grp').value = '';
     $('rt_fuel').value = ''; $('rt_dec').value = ''; $('rt_ins').value = 'no';
-    $('rt_ev1').value = ''; $('rt_ev2').value = ''; $('rt_ev3').value = '';
+    $('rt_ev1').value = ''; $('rt_ev2').value = ''; $('rt_ev3').value = ''; $('rt_fname').value = '주유비';
   }
   $('rt_from').value = mon;
 }
@@ -892,7 +893,8 @@ $('rtSave').onclick = async () => {
     daily_fuel:   numOf($('rt_fuel').value),
     insured:      ins,
     declared_amt: dec,
-    eval1: numOf($('rt_ev1').value), eval2: numOf($('rt_ev2').value), eval3: numOf($('rt_ev3').value)
+    eval1: numOf($('rt_ev1').value), eval2: numOf($('rt_ev2').value), eval3: numOf($('rt_ev3').value),
+    fuel_name: $('rt_fname').value || '주유비'
   };
 
   $('rtSave').disabled = true;
@@ -1173,7 +1175,7 @@ function initCard(){
   $('ct_licAdd').onclick = () => addLicRow('', '');
   $('ctSave').onclick = saveCard;
 }
-function rtSnap(){ return ['rt_fee','rt_sp','rt_grp','rt_fuel','rt_ins','rt_dec','rt_ev1','rt_ev2','rt_ev3'].map(i => $(i).value).join('|'); }
+function rtSnap(){ return ['rt_fee','rt_sp','rt_grp','rt_fuel','rt_fname','rt_ins','rt_dec','rt_ev1','rt_ev2','rt_ev3'].map(i => $(i).value).join('|'); }
 // 퇴사 뒤 상태 글 — 다음 날부터 14일은 기록지만, 그 뒤는 막힘 (서버 nl_me 와 같은 셈)
 function leftNote(d){
   const t0 = new Date(); const today = t0.getFullYear() + '-' + String(t0.getMonth() + 1).padStart(2, '0') + '-' + String(t0.getDate()).padStart(2, '0');
@@ -1213,7 +1215,7 @@ function drawCard(){
   const rl = r => String(r.started_on || '').slice(0, 7) + '~ · 회기 ' + won(r.session_fee) + ' · 60분 ' + won(Math.round((r.session_fee || 0) * 1.5))
     + (r.special_fee ? ' · 심리 ' + won(r.special_fee) : '') + (r.group_fee ? ' · 그룹 1인당 ' + won(r.group_fee) : '')
     + ((r.eval1 || r.eval2 || r.eval3) ? ' · 평가 ' + [r.eval1, r.eval2, r.eval3].map(v => v ? won(v) : '공통').join('/') : ' · 평가 공통 단가')
-    + (r.daily_fuel ? ' · 주유 ' + won(r.daily_fuel) + '/일' : '')
+    + (r.daily_fuel ? ' · ' + (r.fuel_name || '주유비') + ' ' + won(r.daily_fuel) + '/일' : '')
     + ' · 4대보험 ' + (r.insured ? '가입 (기본급 ' + won(r.declared_amt) + ')' : '미가입');
   $('ctCard').innerHTML = '<div class="cthd">' + thId + '번 ' + esc(t.name || '') + ' 선생님 · 위탁계약'
       + '<button id="ctEditBtn" type="button" class="ctsm">수정</button></div>'
