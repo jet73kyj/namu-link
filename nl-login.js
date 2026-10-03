@@ -190,8 +190,11 @@
     var b = document.createElement(ref.tagName === 'A' ? 'a' : 'button');
     b.id = 'nlBack'; b.className = ref.className; b.textContent = '‹'; b.title = '직전 작업 화면으로';
     if (b.tagName === 'A') { b.href = '#'; b.setAttribute('role', 'button'); } else { b.type = 'button'; }
-    b.style.marginRight = '6px'; b.style.minWidth = '40px';
-    b.style.fontSize = '22px'; b.style.fontWeight = '700'; b.style.lineHeight = '1';
+    // 다른 단추와 같은 글자 크기 · 높이 — 글자는 가운데 (2026-10-03)
+    b.style.marginRight = '6px'; b.style.minWidth = '40px'; b.style.fontWeight = '700';
+    b.style.display = 'inline-flex'; b.style.alignItems = 'center'; b.style.justifyContent = 'center';
+    b.style.boxSizing = 'border-box'; b.style.verticalAlign = 'middle';
+    try { var hh = ref.getBoundingClientRect().height; if (hh) b.style.height = hh + 'px'; } catch (e) {}
     b.onclick = function (ev) { ev.preventDefault(); w.history.back(); };
     ref.parentNode.insertBefore(b, ref);
   }
