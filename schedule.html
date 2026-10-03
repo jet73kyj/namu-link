@@ -1136,6 +1136,8 @@
   .thask-d { flex:0 0 72px; font-size:13px; color:#555; }
   .thask-t { width:auto; margin:0; padding:4px 10px; border:1px solid #E4E0DA; border-radius:8px; background:#fff; cursor:pointer; }
   .thask-t.on { background:#B07A4A; color:#fff; border-color:#B07A4A; }
+  .thask-sec { margin:8px 0 2px; font-size:12px; font-weight:700; color:#8a7f75; }
+  .thask-why { font-size:12px; color:#3E7A50; }
   .thask-f { display:flex; gap:6px; align-items:center; padding:10px 14px; border-top:1px solid #ECE8E3; }
   .thask-pick { flex:1; font-size:13px; color:#555; }
   .thask-go:not(:disabled) { background:#B07A4A; color:#fff; border-color:#B07A4A; }
@@ -9581,7 +9583,38 @@ async function openThAsk(ds){
   if (!data || !data.length) { body.textContent = '기한 안 2주 사이에 빈 자리가 없습니다. 행정에 말씀해 주세요.'; return; }
   const byD = {};
   data.forEach(r => { (byD[r.slot_date] = byD[r.slot_date] || []).push(r.slot_time); });
-  body.innerHTML = Object.keys(byD).sort().map(d => '<div class="thask-r"><span class="thask-d">' + thD(d) + '</span>'
+  // 연결 자리 — 그 아동이 그날 받는 다른 수업 바로 앞뒤(50분 차이) (2026-10-03 4단계)
+  //   선생님은 표 잠금으로 자기 회기만 보이므로 nl_pair_mates(달)로 그 아동 수업을 받는다
+  const tm = t => { const p = String(t || '').split(':'); return Number(p[0]) * 60 + Number(p[1] || 0); };
+  const mates = {};
+  try {
+    const mons = [...new Set(Object.keys(byD).map(d => d.slice(0, 7)))];
+    for (const m of mons) {
+      const { data: pm } = await sb.rpc('nl_pair_mates', { p_month: m });
+      (pm || []).forEach(x => {
+        if (Number(x.child_id) !== Number(ds.cid)) return;
+        (mates[x.plan_date] = mates[x.plan_date] || []).push(x);
+      });
+    }
+  } catch (e) { console.error('연결 자리 읽기 실패', e); }
+  const links = [];
+  Object.keys(byD).sort().forEach(d => {
+    (mates[d] || []).forEach(x => {
+      byD[d].forEach(t => {
+        const gap = tm(t) - tm(x.start_time);
+        if (gap === 50 || gap === -50) links.push({ d: d, t: t,
+          why: (FTOP[x.support_type_id] || '수업') + ' ' + thT(x.start_time) + (gap > 0 ? ' 뒤' : ' 앞') });
+      });
+    });
+  });
+  const seenL = {};
+  const linkH = links.filter(l => !seenL[l.d + l.t] && (seenL[l.d + l.t] = 1)).map(l =>
+      '<div class="thask-r"><span class="thask-d">' + thD(l.d) + '</span>'
+    + '<button class="thask-t" data-d="' + l.d + '" data-t="' + l.t + '">' + thT(l.t) + '</button>'
+    + '<span class="thask-why">' + esc(l.why) + '</span></div>').join('');
+  body.innerHTML = (linkH ? '<div class="thask-sec">연결 자리 — 그날 다른 수업 바로 앞뒤</div>' + linkH
+                          + '<div class="thask-sec">모든 빈 자리</div>' : '')
+    + Object.keys(byD).sort().map(d => '<div class="thask-r"><span class="thask-d">' + thD(d) + '</span>'
     + byD[d].sort().map(t => '<button class="thask-t" data-d="' + d + '" data-t="' + t + '">' + thT(t) + '</button>').join('')
     + '</div>').join('');
   body.onclick = ev => {
