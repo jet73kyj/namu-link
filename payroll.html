@@ -161,6 +161,28 @@
   .xrow button { width:auto; margin:0; padding:5px 14px; }
   #x_list .xli { font-size:13px; padding:3px 0; }
   #x_list .xdel { width:auto; margin:0 0 0 6px; padding:0 8px; font-size:12px; background:#fff; color:#c62828; border:1px solid #e0b4b4; }
+
+  /* 위탁계약 카드 (2026-10-03) */
+  .ctcard { margin:10px 0 14px; padding:14px 16px; background:#fff; border:1px solid #ECE8E3; border-left:4px solid #B07A4A; border-radius:10px; }
+  .cthd { font-weight:700; font-size:15px; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+  .cthd .ctsm { margin-left:auto; }
+  .ctl { font-size:13.5px; line-height:1.7; color:#3a332f; }
+  .ctrate { font-size:12.5px; padding-left:10px; }
+  .ctrate.old { color:#a39c95; }
+  .ctwarn { color:#c62828; }
+  .ctsm { width:auto; margin:0 0 0 4px; padding:2px 10px; font-size:12px; border:1px solid #E4E0DA; border-radius:8px; background:#fff; color:#4A433F; cursor:pointer; }
+  .ctedit { margin:10px 0 14px; padding:14px 16px; background:#FBF5EE; border:1px solid #F0E4D6; border-radius:10px; }
+  .cthd2 { font-weight:700; margin-bottom:10px; }
+  .ctgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px 12px; }
+  .ctgrid label { font-size:12.5px; color:#6b625b; display:flex; flex-direction:column; gap:3px; }
+  .ctsub { margin:12px 0 4px; font-weight:600; font-size:13px; }
+  .ctareas { display:flex; flex-wrap:wrap; gap:10px; }
+  .ctchk { font-size:13px; font-weight:normal; }
+  .ctlic { display:flex; gap:6px; margin-bottom:4px; }
+  .ctlic .lnm { flex:1; } .ctlic .lno { width:140px; }
+  .ctfoot { display:flex; gap:6px; justify-content:flex-end; align-items:center; margin-top:12px; }
+  .ctfoot #ctMsg { flex:1; color:#c62828; }
+  .ctgo { width:auto; margin:0; padding:6px 18px; background:#B07A4A; color:#fff; border:1px solid #B07A4A; border-radius:8px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -197,6 +219,33 @@
     <select id="th" class="sel"></select>
     <button id="prt" class="prtbtn">인쇄 / PDF 저장</button>
     <button id="pubBtn" class="prtbtn pubbtn noprint">선생님께 공개 전</button>
+    <a href="staff.html" class="prtbtn noprint" style="text-decoration:none;" title="직원 계정 화면에서 임시 아이디로 새 선생님을 만든 뒤 여기서 계약 카드를 채웁니다">＋ 신규 채용</a>
+  </div>
+  <!-- 위탁계약 카드 (2026-10-03) — 8번만 · 공개본 · 인쇄에 안 들어감 -->
+  <div id="ctCard" class="ctcard noprint"></div>
+  <div id="ctEdit" class="ctedit noprint" style="display:none;">
+    <div class="cthd2">위탁계약 고치기 <span class="small">— 아래 「저장」 하나로 모두 저장됩니다</span></div>
+    <div class="ctgrid">
+      <label>입사일<input id="ct_hired" type="date"></label>
+      <label>연락처<input id="ct_phone" type="text" placeholder="010-0000-0000"></label>
+      <label>계정 아이디<input id="ct_login" type="text" disabled></label>
+      <label>계약 형태<select id="ct_type"><option value="">— 고르기 —</option>
+        <option>프리랜서</option><option>근로+프리랜서</option><option>근로기본회기+수당</option></select></label>
+      <label>발달 제공인력번호<input id="ct_prov" type="text" maxlength="40"></label>
+      <label>주민번호<input id="ct_rrn" type="text" placeholder="000000-0000000" maxlength="14" autocomplete="off"></label>
+      <label>은행<input id="ct_bank" type="text" maxlength="30"></label>
+      <label>계좌번호<input id="ct_acc" type="text" placeholder="숫자와 - 만" maxlength="30" autocomplete="off"></label>
+    </div>
+    <div class="ctsub">치료 영역</div>
+    <div id="ct_areas" class="ctareas"></div>
+    <div class="ctsub">면허 <button id="ct_licAdd" type="button" class="ctsm">＋ 면허</button></div>
+    <div id="ct_lics"></div>
+    <div class="ctsub">메모</div>
+    <textarea id="ct_memo" maxlength="500" rows="2" style="width:100%;box-sizing:border-box;"></textarea>
+    <div id="ctMove"></div>
+    <div class="ctfoot"><span id="ctMsg" class="small"></span>
+      <button id="ctCancel" type="button" class="ctsm">닫기</button>
+      <button id="ctSave" type="button" class="ctgo">저장</button></div>
   </div>
   <div id="pubSum" class="pubsum noprint"></div>
 
@@ -240,6 +289,12 @@
       <div>
         <label for="rt_dec">4대보험 신고 금액</label>
         <input id="rt_dec" type="text" inputmode="numeric" placeholder="가입일 때만">
+      </div>
+      <div>
+        <label for="rt_ev1">평가 1 · 2 · 3개 단가</label>
+        <span style="display:flex;gap:4px;"><input id="rt_ev1" type="text" inputmode="numeric" placeholder="1개" style="width:80px;">
+        <input id="rt_ev2" type="text" inputmode="numeric" placeholder="2개" style="width:80px;">
+        <input id="rt_ev3" type="text" inputmode="numeric" placeholder="3개" style="width:80px;"></span>
       </div>
       <button id="rtSave" class="addb">저장</button>
     </div>
@@ -319,7 +374,7 @@
   <div class="sec">
     <div class="sec-t">3. 지급 내역</div>
     <table class="pay"><tbody id="rows3"></tbody></table>
-    <div class="note" id="payNote"></div>
+    <div class="note nopub" id="payNote"></div>
   </div>
   <div class="sheetlogo"><img src="img/nl-logo.png" alt="자라는나무"></div>
   </div>
@@ -522,7 +577,7 @@ function calc(){
     else if (dur >= 60){ k.m60 += part; fee = r.session_fee * 1.5 * part; }
     else               { k.m40 += part; fee = r.session_fee * part; }
     k.fee += Math.round(fee);
-    k.days.push((s._extra ? '번외(' + (s._why || '') + ')' : dayNo(s.plan_date))
+    k.days.push((s._extra ? '번외<span class="nopub">(' + esc(s._why || '') + ')</span>' : dayNo(s.plan_date))
       + (s._trialDur ? (s._isX ? '(추가)' : '(체험)') : '')
       + (s.dur_min ? '(' + s.dur_min + '분)' : '')
       + (s._dead ? (s._unpaid ? '(소멸 · 교육비 미입금 · 지급 안 함)' : '(소멸 인정)') : '')
@@ -565,7 +620,8 @@ function calc(){
   let efee = 0;
   $('rows2').innerHTML = evs.length ? evs.map(e => {
     const cnt = Number(e.item_cnt) || 1;
-    const f = EVFEE[cnt] || 0; efee += f;
+    const own = cnt === 1 ? r.eval1 : cnt === 2 ? r.eval2 : cnt === 3 ? r.eval3 : null;
+    const f = (own != null && own !== '' ? Number(own) : (EVFEE[cnt] || 0)); efee += f;
     const nm = KIDS[e.child_id] || ('아동 ' + e.child_id + '번');
     return '<tr><td>' + esc(e.eval_date) + '</td><td>' + esc(nm) + '</td>'
       + '<td>' + esc(ETYPE[e.eval_type_id] || '') + '</td>'
@@ -721,7 +777,7 @@ $('pubBtn').onclick = async () => {
   const wrap = document.createElement('div');
   wrap.innerHTML = '<div class="pshead">' + monNo(mon) + '월 업무위탁 수수료 · ' + esc(nm) + '</div>';
   document.querySelectorAll('#mainBox .sec').forEach(sec => wrap.appendChild(sec.cloneNode(true)));
-  wrap.querySelectorAll('.noprint, button, input, select, script').forEach(el => el.remove());
+  wrap.querySelectorAll('.noprint, .nopub, button, input, select, script').forEach(el => el.remove());
   wrap.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
 
   $('pubBtn').disabled = true; $('pubBtn').textContent = '공개 중…';
@@ -753,11 +809,13 @@ function drawRateBox(){
     $('rt_fuel').value = r.daily_fuel  || '';
     $('rt_ins').value  = r.insured ? 'yes' : 'no';
     $('rt_dec').value  = r.declared_amt || '';
+    $('rt_ev1').value = r.eval1 || ''; $('rt_ev2').value = r.eval2 || ''; $('rt_ev3').value = r.eval3 || '';
   } else {
     $('rtNow').innerHTML = '<b style="color:#c62828;">이 달에 적용되는 단가가 없습니다.</b>'
       + ' 아래에 넣어주세요.';
     $('rt_fee').value = ''; $('rt_sp').value = ''; $('rt_grp').value = '';
     $('rt_fuel').value = ''; $('rt_dec').value = ''; $('rt_ins').value = 'no';
+    $('rt_ev1').value = ''; $('rt_ev2').value = ''; $('rt_ev3').value = '';
   }
   $('rt_from').value = mon;
 }
@@ -792,7 +850,8 @@ $('rtSave').onclick = async () => {
     group_fee:    numOf($('rt_grp').value),
     daily_fuel:   numOf($('rt_fuel').value),
     insured:      ins,
-    declared_amt: dec
+    declared_amt: dec,
+    eval1: numOf($('rt_ev1').value), eval2: numOf($('rt_ev2').value), eval3: numOf($('rt_ev3').value)
   };
 
   $('rtSave').disabled = true;
@@ -1050,13 +1109,151 @@ async function afterLogin(user){
   await loadPub();
   calc();
   drawWorkDays();
+  initCard();
+  loadCard();
 }
 
 $('mon').onchange = async () => { mon = $('mon').value;
   try { localStorage.setItem('nl_payroll_mon', mon); } catch(e) {}
   await loadMonth(); await loadUnconf(); await loadPub(); calc(); };
-$('th').onchange  = () => { thId = Number($('th').value); calc(); drawWorkDays(); };
+$('th').onchange  = () => { thId = Number($('th').value); calc(); drawWorkDays(); loadCard(); };
 
+
+// ── 위탁계약 카드 (2026-10-03 은정님) ──────────────────────────
+//   8번만 보는 화면 맨 위 · 공개본 · 인쇄에 안 들어감 (noprint)
+//   주민번호 · 계좌는 nl_th_private (대표만) · 화면에는 가려 보이고 [보기]로만
+let CT = null, TTYPES = [], CT_RT0 = '';
+function initCard(){
+  // 지급 단가 · 출근 요일 상자를 고치기 창 안으로 옮긴다 (저장은 아래 「저장」 하나로)
+  const mv = $('ctMove');
+  [$('rtSave'), $('wdSave')].forEach(b => { const box = b && b.closest('.evalbox'); if (box) mv.appendChild(box); });
+  $('rtSave').style.display = 'none'; $('wdSave').style.display = 'none';
+  $('ctCancel').onclick = () => { $('ctEdit').style.display = 'none'; $('ctCard').style.display = ''; };
+  $('ct_licAdd').onclick = () => addLicRow('', '');
+  $('ctSave').onclick = saveCard;
+}
+function rtSnap(){ return ['rt_fee','rt_sp','rt_grp','rt_fuel','rt_ins','rt_dec','rt_ev1','rt_ev2','rt_ev3'].map(i => $(i).value).join('|'); }
+function maskAcc(v){ v = String(v || ''); return v ? '****' + v.replace(/[^0-9]/g, '').slice(-4) : ''; }
+function maskTel(v){ v = String(v || ''); return v ? v.replace(/(\d{3})-?(\d{3,4})-?(\d{4})/, '$1-****-$3') : ''; }
+async function loadCard(){
+  if (!thId) return;
+  try {
+    if (!TTYPES.length) { const { data: tt } = await sb.from('nl_therapy_types').select('id, name').order('id'); TTYPES = tt || []; }
+    const [a, b, c, d, e, f] = await Promise.all([
+      sb.from('nl_therapists').select('id, name, phone, hired_on, login_id, login_email').eq('id', thId).maybeSingle(),
+      sb.from('nl_th_private').select('rrn, bank, account_no').eq('therapist_id', thId).maybeSingle(),
+      sb.from('nl_th_contract').select('contract_type, provider_no, memo').eq('therapist_id', thId).maybeSingle(),
+      sb.from('nl_th_licenses').select('id, lic_name, lic_no').eq('therapist_id', thId).order('id'),
+      sb.from('nl_th_areas').select('therapy_type_id').eq('therapist_id', thId),
+      sb.from('nl_therapist_days').select('weekday, works, first_hm, last_hm').eq('therapist_id', thId)
+    ]);
+    const err = [a, b, c, d, e, f].find(x => x.error);
+    if (err) throw err.error;
+    CT = { th: a.data || {}, pv: b.data || {}, ct: c.data || {}, lic: d.data || [], areas: (e.data || []).map(x => x.therapy_type_id), days: f.data || [] };
+  } catch (e) { $('ctCard').innerHTML = '<div class="ctwarn">위탁계약을 읽지 못했습니다. ' + esc(e.message || e) + '</div>'; return; }
+  drawCard();
+}
+function drawCard(){
+  const t = CT.th, pv = CT.pv, ct = CT.ct;
+  const tn = id => (TTYPES.find(x => x.id === id) || {}).name || id;
+  const hm = v => v ? String(v).slice(0, 5) : '';
+  const days = ['월','화','수','목','금','토','일'].map(w => CT.days.find(x => x.weekday === w)).filter(x => x && x.works)
+    .map(x => x.weekday + (x.first_hm ? ' ' + hm(x.first_hm) + '~' + hm(x.last_hm) : '')).join(' · ') || '정하지 않음';
+  const rates = RATES_ALL.filter(x => x.therapist_id === thId).sort((p, q) => String(q.started_on).localeCompare(String(p.started_on)));
+  const rl = r => String(r.started_on || '').slice(0, 7) + '~ · 회기 ' + won(r.session_fee) + ' · 60분 ' + won(Math.round((r.session_fee || 0) * 1.5))
+    + (r.special_fee ? ' · 심리 ' + won(r.special_fee) : '') + (r.group_fee ? ' · 그룹 1인당 ' + won(r.group_fee) : '')
+    + ((r.eval1 || r.eval2 || r.eval3) ? ' · 평가 ' + [r.eval1, r.eval2, r.eval3].map(v => v ? won(v) : '공통').join('/') : ' · 평가 공통 단가')
+    + (r.daily_fuel ? ' · 주유 ' + won(r.daily_fuel) + '/일' : '')
+    + ' · 4대보험 ' + (r.insured ? '가입 (기본급 ' + won(r.declared_amt) + ')' : '미가입');
+  $('ctCard').innerHTML = '<div class="cthd">' + thId + '번 ' + esc(t.name || '') + ' 선생님 · 위탁계약'
+      + '<button id="ctEditBtn" type="button" class="ctsm">수정</button></div>'
+    + '<div class="ctl">입사일 <b>' + esc(t.hired_on || '—') + '</b> · 연락처 ' + esc(maskTel(t.phone) || '—')
+      + ' · 계정 아이디 ' + esc(t.login_id || t.login_email || '—') + '</div>'
+    + '<div class="ctl">발달 제공인력번호 ' + esc(ct.provider_no || '—') + ' · 치료 영역 '
+      + esc(CT.areas.map(tn).join(' · ') || '—') + ' · 계약 형태 <b>' + esc(ct.contract_type || '—') + '</b></div>'
+    + '<div class="ctl">주민번호 <span id="ctRrn">' + (pv.rrn ? '******-*******' : '—') + '</span>'
+      + (pv.rrn ? ' <button type="button" class="ctsm" data-show="rrn">보기</button>' : '')
+      + ' · 계좌 ' + esc(pv.bank || '') + ' <span id="ctAcc">' + esc(maskAcc(pv.account_no) || '—') + '</span>'
+      + (pv.account_no ? ' <button type="button" class="ctsm" data-show="acc">보기</button>' : '') + '</div>'
+    + '<div class="ctl">면허 ' + (CT.lic.length ? CT.lic.map(l => esc(l.lic_name) + (l.lic_no ? ' ' + esc(l.lic_no) : '')).join(' · ') : '—') + '</div>'
+    + '<div class="ctl">근무 ' + esc(days) + '</div>'
+    + '<div class="ctl">수당 단가 <span class="small">(적용 시작 달마다 쌓임 · 지난 기록 그대로)</span>'
+      + (rates.length ? rates.map((r, i) => '<div class="ctrate' + (i ? ' old' : '') + '">' + esc(rl(r)) + '</div>').join('') : ' —') + '</div>'
+    + (ct.memo ? '<div class="ctl small">메모 · ' + esc(ct.memo) + '</div>' : '');
+  $('ctCard').onclick = ev => {
+    const sb2 = ev.target.closest('[data-show]');
+    if (sb2) {
+      if (sb2.dataset.show === 'rrn') $('ctRrn').textContent = CT.pv.rrn || '';
+      else $('ctAcc').textContent = CT.pv.account_no || '';
+      sb2.remove(); return;
+    }
+    if (ev.target.closest('#ctEditBtn')) openCardEdit();
+  };
+}
+function addLicRow(nm, no){
+  const d = document.createElement('div'); d.className = 'ctlic';
+  d.innerHTML = '<input class="lnm" type="text" maxlength="60" placeholder="면허 이름 (예: 언어재활사 1급)" value="' + esc(nm) + '">'
+    + '<input class="lno" type="text" maxlength="40" placeholder="번호" value="' + esc(no) + '">'
+    + '<button type="button" class="ctsm lx">✕</button>';
+  d.querySelector('.lx').onclick = () => d.remove();
+  $('ct_lics').appendChild(d);
+}
+function openCardEdit(){
+  const t = CT.th, pv = CT.pv, ct = CT.ct;
+  $('ct_hired').value = t.hired_on || ''; $('ct_phone').value = t.phone || '';
+  $('ct_login').value = t.login_id || t.login_email || '';
+  $('ct_type').value = ct.contract_type || ''; $('ct_prov').value = ct.provider_no || '';
+  $('ct_rrn').value = pv.rrn || ''; $('ct_bank').value = pv.bank || ''; $('ct_acc').value = pv.account_no || '';
+  $('ct_memo').value = ct.memo || '';
+  $('ct_areas').innerHTML = TTYPES.map(x => '<label class="ctchk"><input type="checkbox" value="' + x.id + '"'
+    + (CT.areas.indexOf(x.id) >= 0 ? ' checked' : '') + '> ' + esc(x.name) + '</label>').join('');
+  $('ct_lics').innerHTML = ''; CT.lic.forEach(l => addLicRow(l.lic_name, l.lic_no || ''));
+  drawRateBox(); CT_RT0 = rtSnap();
+  $('ctMsg').textContent = '';
+  $('ctCard').style.display = 'none'; $('ctEdit').style.display = '';
+}
+async function saveCard(){
+  const v = id => $(id).value.trim();
+  const rrn = v('ct_rrn'), acc = v('ct_acc');
+  if (rrn && !/^\d{6}-\d{7}$/.test(rrn)) { alert('주민번호는 000000-0000000 모양으로 적어 주세요.'); return; }
+  if (acc && !/^[0-9-]{6,30}$/.test(acc)) { alert('계좌번호는 숫자와 - 만 적어 주세요.'); return; }
+  const lics = Array.from($('ct_lics').querySelectorAll('.ctlic'))
+    .map(d => ({ therapist_id: thId, lic_name: d.querySelector('.lnm').value.trim(), lic_no: d.querySelector('.lno').value.trim() || null }))
+    .filter(x => x.lic_name);
+  const areas = Array.from($('ct_areas').querySelectorAll('input:checked')).map(x => ({ therapist_id: thId, therapy_type_id: Number(x.value) }));
+  const btn = $('ctSave'); btn.disabled = true; btn.textContent = '저장 중…';
+  try {
+    const r1 = await sb.from('nl_therapists').update({ hired_on: v('ct_hired') || null, phone: v('ct_phone') || null }).eq('id', thId).select('id');
+    if (r1.error) throw r1.error;
+    if (!r1.data || !r1.data.length) throw new Error('입사일 · 연락처가 저장되지 않았습니다 (직원 표 권한).');
+    const pvRow = { therapist_id: thId, rrn: rrn || null, bank: v('ct_bank') || null, account_no: acc || null, updated_at: new Date().toISOString() };
+    const r2 = await sb.from('nl_th_private').upsert(pvRow, { onConflict: 'therapist_id' }).select('therapist_id');
+    if (r2.error) throw r2.error;
+    const r3 = await sb.from('nl_th_contract').upsert({ therapist_id: thId, contract_type: v('ct_type') || null, provider_no: v('ct_prov') || null,
+      memo: v('ct_memo') || null, updated_at: new Date().toISOString() }, { onConflict: 'therapist_id' }).select('therapist_id');
+    if (r3.error) throw r3.error;
+    // 면허 · 영역 — 지우고 넣기 (실패하면 옛 줄을 되살림)
+    const oldL = CT.lic.map(l => ({ therapist_id: thId, lic_name: l.lic_name, lic_no: l.lic_no }));
+    const dL = await sb.from('nl_th_licenses').delete().eq('therapist_id', thId);
+    if (dL.error) throw dL.error;
+    if (lics.length) { const iL = await sb.from('nl_th_licenses').insert(lics).select('id');
+      if (iL.error || !iL.data || iL.data.length !== lics.length) { if (oldL.length) await sb.from('nl_th_licenses').insert(oldL); throw (iL.error || new Error('면허가 저장되지 않았습니다.')); } }
+    const oldA = CT.areas.map(id => ({ therapist_id: thId, therapy_type_id: id }));
+    const dA = await sb.from('nl_th_areas').delete().eq('therapist_id', thId);
+    if (dA.error) throw dA.error;
+    if (areas.length) { const iA = await sb.from('nl_th_areas').insert(areas).select('therapist_id');
+      if (iA.error || !iA.data || iA.data.length !== areas.length) { if (oldA.length) await sb.from('nl_th_areas').insert(oldA); throw (iA.error || new Error('치료 영역이 저장되지 않았습니다.')); } }
+    // 수당 단가 — 바꿨을 때만 (안 바꿨는데 저장하면 이 달부터 새 줄이 생기므로)
+    if (rtSnap() !== CT_RT0) await $('rtSave').onclick();
+    // 출근 요일 · 수업 시각
+    await $('wdSave').onclick();
+    await loadCard();
+    $('ctEdit').style.display = 'none'; $('ctCard').style.display = '';
+  } catch (e) {
+    $('ctMsg').textContent = '❌ ' + (e.message || e);
+    alert('저장하지 못했습니다.\n' + (e.message || e));
+  } finally { btn.disabled = false; btn.textContent = '저장'; }
+}
 // ── 출근 요일 · 수업 시각 (2026-09-11) ───────────────────────
 //   nl_therapist_days 에 선생님 · 요일마다 한 줄. 대표(8번)만 고친다
 const WD7 = ['월','화','수','목','금','토','일'];
