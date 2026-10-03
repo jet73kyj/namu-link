@@ -363,7 +363,7 @@
           <th>아동명 · 사업</th>
           <th class="n">40분</th>
           <th class="n">60분</th>
-          <th class="n">특수</th>
+          <th class="n" title="이 달 완료한 평가 건수 · 수수료는 2번 평가 표에서">평가</th>
           <th class="n" title="합계에 들어 있음 · 지난달 몫을 이 달에 한 보강">전월보강</th>
           <th class="n" title="합계에 들어 있음 · 이 달 몫을 지난달에 미리 한 보강">선보강</th>
           <th class="n">합계</th>
@@ -603,7 +603,7 @@ function calc(){
     const part = s._unpaid ? 0 : (rest ? rest / 40 : Number(s.minutes || 40) / 40);
     let fee;
     if (isGrp)         { k.m40 += part; fee = (Number(r.group_fee) || 0) * part; if (!r.group_fee) GRPMISS = true; }
-    else if (isSp)     { k.sp  += part; fee = r.special_fee * part; }
+    else if (isSp)     { k.m40 += part; fee = r.special_fee * part; }   // 특수(심리)도 40분 칸에 · 단가는 특수 (2026-10-03)
     else if (dur >= 60){ k.m60 += part; fee = r.session_fee * 1.5 * part; }
     else               { k.m40 += part; fee = r.session_fee * part; }
     k.fee += Math.round(fee);
@@ -624,29 +624,36 @@ function calc(){
   });
 
   // 아동 번호 차례로 (숫자로 견줌)
+  // 평가 — 아동마다 「· 평가」 줄로 건수만 (수수료는 2번 평가 표 · 2026-10-03)
+  EVALS.filter(e => e.therapist_id === thId).forEach(e => {
+    const nm = e.child_id + '번 ' + (KIDS[e.child_id] || '') + ' · 평가';
+    const k = byKid[nm] = byKid[nm] || { m40:0, m60:0, sp:0, pv:0, pre:0, ev:0, days:[], fee:0 };
+    k.ev = (k.ev || 0) + 1;
+    k.days.push(dayNo(e.eval_date) + '(평가 ' + (Number(e.item_cnt) || 1) + '개)');
+  });
   const names = Object.keys(byKid).sort((a,b)=>a.localeCompare(b,'ko',{ numeric:true }));
-  let t40=0, t60=0, tsp=0, tcnt=0, tfee=0, tpv=0, tpre=0;
+  let t40=0, t60=0, tsp=0, tcnt=0, tfee=0, tpv=0, tpre=0, tev=0;
   $('rows1').innerHTML = names.map(nm => {
     const k = byKid[nm];
     const rd = v => Math.round(Number(v) * 100) / 100;
     const cnt = rd(k.m40 + k.m60 + k.sp);
-    t40+=k.m40; t60+=k.m60; tsp+=k.sp; tcnt+=cnt; tfee+=k.fee; tpv+=k.pv; tpre+=k.pre;
+    t40+=k.m40; t60+=k.m60; tsp+=k.sp; tcnt+=cnt; tfee+=k.fee; tpv+=k.pv; tpre+=k.pre; tev+=(k.ev || 0);
     k.days.sort((a,b)=>parseInt(a)-parseInt(b));
     return '<tr><td>' + esc(nm).replace('[그룹] ', '<span class="gtag">그룹</span>') + '</td>'
       + '<td class="n">' + (k.m40 ? rd(k.m40) : '–') + '</td>'
       + '<td class="n">' + (k.m60 ? rd(k.m60) : '–') + '</td>'
-      + '<td class="n">' + (k.sp  ? rd(k.sp)  : '–') + '</td>'
+      + '<td class="n">' + (k.ev  ? k.ev : '–') + '</td>'
       + '<td class="n">' + (k.pv  ? rd(k.pv)  : '–') + '</td>'
       + '<td class="n">' + (k.pre ? rd(k.pre) : '–') + '</td>'
-      + '<td class="n">' + cnt + '</td>'
-      + '<td class="n">' + won(k.fee) + '</td>'
+      + '<td class="n">' + (cnt || (k.ev ? '–' : 0)) + '</td>'
+      + '<td class="n">' + (k.fee || !k.ev ? won(k.fee) : '–') + '</td>'
       + '<td class="small">' + k.days.join(', ') + '</td></tr>';
   }).join('');
   const nKid = new Set(done.map(x => x.child_id)).size;
   $('foot1').innerHTML = '<tr><td>세션 소계 아동 ' + nKid + '명 · ' + names.length + '줄</td>'
     + '<td class="n">' + (Math.round(t40*100)/100) + '</td>'
     + '<td class="n">' + (Math.round(t60*100)/100) + '</td>'
-    + '<td class="n">' + (Math.round(tsp*100)/100) + '</td>'
+    + '<td class="n">' + tev + '</td>'
     + '<td class="n">' + (Math.round(tpv*100)/100) + '</td>'
     + '<td class="n">' + (Math.round(tpre*100)/100) + '</td>'
     + '<td class="n">' + (Math.round(tcnt*100)/100) + '</td>'
