@@ -223,6 +223,10 @@
   body.summode #ctCard, body.summode #ctEdit, body.summode #payDoc, body.summode #pubSum,
   body.summode #warnBox, body.summode #unconfBox, body.summode .evalbox, body.summode #pubBtn,
   body.summode #prt { display:none !important; }
+
+  .backbtn { width:auto; margin:0 0 10px; padding:7px 16px; background:#fff; color:#B07A4A; border:1px solid #E4E0DA;
+            border-radius:8px; font-size:13.5px; cursor:pointer; }
+  .backbtn:hover { background:#F8F1E8; }
 </style>
 </head>
 <body>
@@ -1259,8 +1263,9 @@ function drawSum(){
   const sum = k => SUMROWS.reduce((t, r) => t + (r[k] || 0), 0);
   const tsum = k => TAXROWS.reduce((t, r) => t + (r[k] || 0), 0);
   const maskA = v => v ? '****' + String(v).replace(/[^0-9]/g, '').slice(-4) : '';
-  box.innerHTML = '<div class="cthd">' + mon.slice(0, 4) + '년 ' + monNo(mon) + '월 지급 모음'
-      + '<button type="button" class="ctsm" id="sumAcc">계좌 보기</button><button type="button" class="ctsm" id="sumClose">닫기</button></div>'
+  box.innerHTML = '<button type="button" class="backbtn sumBack">← 위탁수수료로 돌아가기</button>'
+    + '<div class="cthd">' + mon.slice(0, 4) + '년 ' + monNo(mon) + '월 지급 모음'
+      + '<button type="button" class="ctsm" id="sumAcc">계좌 보기</button></div>'
     + '<table class="sumt"><thead><tr><th>이름</th><th>은행 · 계좌</th><th class="n">급여 실수령액</th><th class="n">실지급액 (면세)</th>'
     + '<th class="n">주유 · 교통비</th><th class="n">이체 합계</th></tr></thead><tbody>'
     + SUMROWS.map(r => '<tr><td>' + esc(r.who) + (r.emp ? ' <span class="small">(급여명세서)</span>' : '') + '</td>'
@@ -1278,8 +1283,9 @@ function drawSum(){
     + '<div class="edubox"><b>교육청 지원금액</b>'
     +   '<input id="eduAmt" type="text" inputmode="numeric" placeholder="금액" value="' + (EDU.amount != null ? won(EDU.amount) : '') + '">'
     +   '<input id="eduMemo" type="text" maxlength="500" placeholder="메모 (예: 치료지원 ○명 · 방과후 ○명)" value="' + esc(EDU.memo) + '">'
-    +   '<button type="button" class="ctsm" id="eduSave">저장</button><span id="eduMsg" class="small"></span></div>';
-  $('sumClose').onclick = () => { box.style.display = 'none'; document.body.classList.remove('summode'); };
+    +   '<button type="button" class="ctsm" id="eduSave">저장</button><span id="eduMsg" class="small"></span></div>'
+    + '<button type="button" class="backbtn sumBack" style="margin-top:14px;">← 위탁수수료로 돌아가기</button>';
+  box.querySelectorAll('.sumBack').forEach(b => { b.onclick = () => { box.style.display = 'none'; document.body.classList.remove('summode'); window.scrollTo(0, 0); }; });
   $('sumAcc').onclick = () => { box.querySelectorAll('.acc').forEach(e => { e.textContent = e.dataset.full; }); $('sumAcc').remove(); };
   $('sumXls').onclick = downXls;
   $('eduSave').onclick = saveEdu;
