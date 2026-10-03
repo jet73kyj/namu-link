@@ -227,6 +227,9 @@
   .backbtn { width:auto; margin:0 0 10px; padding:7px 16px; background:#fff; color:#B07A4A; border:1px solid #E4E0DA;
             border-radius:8px; font-size:13.5px; cursor:pointer; }
   .backbtn:hover { background:#F8F1E8; }
+
+  .vtabp { background:#fff !important; color:#4A433F !important; border:1px solid #E4E0DA !important; }
+  .vtabp.on { background:#B07A4A !important; color:#fff !important; border-color:#B07A4A !important; }
 </style>
 </head>
 <body>
@@ -263,7 +266,8 @@
     <select id="th" class="sel"></select>
     <button id="prt" class="prtbtn">인쇄 / PDF 저장</button>
     <button id="pubBtn" class="prtbtn pubbtn noprint">선생님께 공개 전</button>
-    <button id="sumBtn" type="button" class="prtbtn noprint">이 달 지급 모음</button>
+    <button id="sheetBtn" type="button" class="prtbtn noprint vtabp on">위탁수수료</button>
+    <button id="sumBtn" type="button" class="prtbtn noprint vtabp">이 달 지급 모음</button>
     <a href="staff.html" class="prtbtn noprint" style="text-decoration:none;" title="직원 계정 화면에서 임시 아이디로 새 선생님을 만든 뒤 여기서 계약 카드를 채웁니다">＋ 신규 채용</a>
   </div>
   <!-- 이 달 지급 모음 · 세무사 전달 (2026-10-03) — 8번만 -->
@@ -1202,6 +1206,7 @@ $('mon').onchange = async () => { mon = $('mon').value;
   try { localStorage.setItem('nl_payroll_mon', mon); } catch(e) {}
   await loadMonth(); await loadUnconf(); await loadPub(); calc(); };
 $('th').onchange  = () => { document.body.classList.remove('summode'); $('sumBox').style.display = 'none';
+  $('sumBtn').classList.remove('on'); $('sheetBtn').classList.add('on');
   thId = Number($('th').value); calc(); drawWorkDays(); loadCard(); };
 
 
@@ -1216,6 +1221,7 @@ async function buildSum(){
   const box = $('sumBox');
   // 지급 모음을 보는 동안 선생님 한 분 화면은 숨긴다 (2026-10-03)
   document.body.classList.add('summode');
+  $('sheetBtn').classList.remove('on'); $('sumBtn').classList.add('on');
   box.style.display = ''; box.innerHTML = '<div class="small">모으는 중…</div>';
   const keep = thId; const rows = [];
   for (const t of THS) {
@@ -1285,7 +1291,7 @@ function drawSum(){
     +   '<input id="eduMemo" type="text" maxlength="500" placeholder="메모 (예: 치료지원 ○명 · 방과후 ○명)" value="' + esc(EDU.memo) + '">'
     +   '<button type="button" class="ctsm" id="eduSave">저장</button><span id="eduMsg" class="small"></span></div>'
     + '<button type="button" class="backbtn sumBack" style="margin-top:14px;">← 위탁수수료로 돌아가기</button>';
-  box.querySelectorAll('.sumBack').forEach(b => { b.onclick = () => { box.style.display = 'none'; document.body.classList.remove('summode'); window.scrollTo(0, 0); }; });
+  box.querySelectorAll('.sumBack').forEach(b => { b.onclick = backToSheet; });
   $('sumAcc').onclick = () => { box.querySelectorAll('.acc').forEach(e => { e.textContent = e.dataset.full; }); $('sumAcc').remove(); };
   $('sumXls').onclick = downXls;
   $('eduSave').onclick = saveEdu;
@@ -1323,6 +1329,14 @@ async function downXls(){
   XLSX.writeFile(wb, mon + '_세무사전달.xlsx');
 }
 if ($('sumBtn')) $('sumBtn').onclick = buildSum;
+// 「위탁수수료」 — 고른 선생님 한 분 화면으로 (2026-10-03 · 같은 선생님을 다시 고르면 바뀌지 않던 것)
+function backToSheet(){
+  $('sumBox').style.display = 'none'; document.body.classList.remove('summode');
+  $('sumBtn').classList.remove('on'); $('sheetBtn').classList.add('on');
+  try { calc(); } catch (e) {}
+  window.scrollTo(0, 0);
+}
+if ($('sheetBtn')) $('sheetBtn').onclick = backToSheet;
 // ── 위탁계약 카드 (2026-10-03 은정님) ──────────────────────────
 //   8번만 보는 화면 맨 위 · 공개본 · 인쇄에 안 들어감 (noprint)
 //   주민번호 · 계좌는 nl_th_private (대표만) · 화면에는 가려 보이고 [보기]로만
