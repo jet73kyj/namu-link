@@ -63,6 +63,7 @@
   .t-ok   { background:#EAF3DE; color:#3B6D11; }
   .t-no   { background:#F1EFE8; color:#5F5E5A; }
   .t-cx   { background:#EEF1F4; color:#5A6B7B; }   /* 학부모 취소 (2026-09-21) */
+  .t-th   { background:#EAF2EC; color:#3E7A50; }   /* 선생님 요청 (2026-10-03) */
   .t-mk   { background:#E6F0FA; color:#2E5E8C; }   /* 결석 뒤 보강 요청 (2026-09-30) */
   .t-x8   { background:#F1ECFA; color:#5B3E96; }   /* 발추 일정 요청 (2026-10-02) */
   .t-pair { background:#EEEDFE; color:#3C3489; margin-left:6px; }   /* 두 수업 묶음 (2026-09-22) */
@@ -84,7 +85,7 @@
 <div class="box" id="loginBox">
   <img src="img/nl-logo.png" alt="" class="lg" onerror="this.style.display='none'">
   <h1 style="text-align:center">결석 · 보강 신청</h1>
-  <div class="sub">나무링크 · 학부모가 낸 신청을 확인합니다</div>
+  <div class="sub">나무링크 · 학부모 · 선생님이 낸 신청을 확인합니다</div>
   <label for="em">이메일</label>
   <input id="em" type="email" autocomplete="username">
   <label for="pw">비밀번호</label>
@@ -185,12 +186,14 @@ function draw() {
     const tag = mkAsk ? '<span class="tag t-mk">보강 요청 · 확인 필요</span>'
               : wait ? '<span class="tag t-wait">확인 필요</span>'
               : r.state === '확정' ? '<span class="tag t-ok">확정됨</span>'
-              : r.state === '취소' ? '<span class="tag t-cx">학부모 취소</span>'
+              : r.state === '취소' ? '<span class="tag t-cx">' + (r.staff_id && !r.account_id ? '선생님 취소' : '학부모 취소') + '</span>'
               : '<span class="tag t-no">반려</span>';
+    // 선생님이 넣은 보강 요청 (2026-10-03)
+    const thTag = r.staff_id ? '<span class="tag t-th">' + esc(THRS[r.staff_id] || '') + ' 선생님 요청</span>' : '';
 
     h += '<div class="rq' + (wait ? ' wait' : '') + '">'
       + '<div class="rqhead"><span class="rqkid">' + esc(kidName(r.child_id))
-      + '</span>' + tag + '</div>'
+      + '</span>' + tag + thTag + '</div>'
       + '<div class="rqline">못 오는 수업 · <b>' + dm(s.plan_date) + ' ' + hm(s.start_time) + '</b>'
       + (s.therapist_id ? ' · ' + esc(THRS[s.therapist_id] || '') + ' 선생님' : '') + '</div>'
       + '<div class="rqline">보강 · '
@@ -343,7 +346,7 @@ async function loadAll() {
   const { data, error } = await sb
     .from('nl_absence_requests')
     .select('id, child_id, session_id, reason, makeup_date, makeup_time,'
-          + ' makeup_therapist_id, state, staff_memo, pair_key')
+          + ' makeup_therapist_id, state, staff_memo, pair_key, staff_id, account_id')
     .order('id', { ascending: false });
   if (error) { show($('msg2'), '❌ 신청을 불러오지 못했습니다.\n' + error.message, false); return; }
   REQS = data || [];
@@ -457,13 +460,16 @@ async function doReject(id) {
 // 보강 요청만 반려 — 결석은 그대로 두고 보강 자리만 비운다 (2026-09-30)
 //   상태를 「확정」으로 되돌리므로 학부모가 다른 시간으로 다시 요청할 수 있다
 async function doRejectMk(rr) {
-  const why = prompt('보강 요청을 반려합니다. 결석은 그대로 남고,\n학부모가 다른 시간으로 다시 요청하실 수 있습니다.\n\n왜 반려하시는지 적어주세요.');
+  const why = prompt('보강 요청을 반려합니다. 결석은 그대로 남고,\n' + (rr.staff_id ? '선생님' : '학부모') + '이 다른 시간으로 다시 요청하실 수 있습니다.\n\n왜 반려하시는지 적어주세요.');
   if (why === null) return;
   const btn = document.querySelector('button[data-no="' + rr.id + '"]');
   if (btn) { btn.disabled = true; btn.textContent = '반려 중…'; }
   try {
     const { data: upd, error } = await sb.from('nl_absence_requests')
-      .update({ state: '확정', makeup_date: null, makeup_time: null, makeup_therapist_id: null,
+      // 선생님이 새로 넣은 줄(학부모 계정 없음)은 「반려」로 닫는다 · 결석 줄에 얹은 것은 보강만 비운다 (2026-10-03)
+      .update(!rr.account_id
+        ? { state: '반려', staff_memo: (rr.staff_memo ? rr.staff_memo + ' / ' : '') + '보강 반려: ' + (why || '') }
+        : { state: '확정', makeup_date: null, makeup_time: null, makeup_therapist_id: null, staff_id: null,
                 staff_memo: (rr.staff_memo ? rr.staff_memo + ' / ' : '') + '보강 반려: ' + (why || '') })
       .eq('id', rr.id).eq('state', '보강신청')
       .select('id');

@@ -1500,7 +1500,7 @@ async function loadMonth() {
   REQS = {};
   try {
     const { data: rq } = await sb.from('nl_absence_requests')
-      .select('id, session_id, state, makeup_date, makeup_time, pair_key')
+      .select('id, session_id, state, makeup_date, makeup_time, pair_key, staff_id')
       .eq('child_id', CURKID);
     (rq || []).forEach(r => {
       if (r.state === '취소' || r.state === '반려') return;   // 되돌린 것은 다시 신청할 수 있게
@@ -1855,6 +1855,10 @@ function mkPart(r, d, rq, tname) {
   if (mks.length) {
     return '<span class="mkinfo">→ ' + esc(mks.map(v => mmdd(v.plan_date) + ' ' + hhmm(v.start_time)
       + (Number(v.minutes || 40) !== 40 ? ' +' + v.minutes + '분' : '')).join(', ')) + ' 보강</span>';
+  }
+  // 선생님이 넣은 보강 요청 — 보기만 (거두기는 선생님만 · 2026-10-03 은정님)
+  if (rq && rq.state === '보강신청' && rq.makeup_date && rq.staff_id) {
+    return '<span class="mkinfo wait">→ ' + esc(mmdd(rq.makeup_date) + ' ' + hhmm(rq.makeup_time)) + ' 보강 · 선생님 요청 · 확인 중</span>';
   }
   if (rq && rq.state === '보강신청' && rq.makeup_date) {
     return '<span class="mkinfo wait">→ ' + esc(mmdd(rq.makeup_date) + ' ' + hhmm(rq.makeup_time)) + ' 보강 · 확인 중</span>'

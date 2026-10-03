@@ -1123,6 +1123,22 @@
   .thneed .thn-c { padding:3px 9px; border:1px solid #F2D3C8; border-radius:12px; background:#fff;
             font-size:13px; cursor:pointer; white-space:nowrap; }
   .thneed .thn-c:hover { border-color:#D8684A; }
+  .thneed .thn-st { color:#9A6E20; font-size:12px; margin-left:4px; }
+  .thneed .thn-b { margin-left:6px; padding:2px 8px; border:1px solid #D8684A; border-radius:10px;
+            background:#fff; color:#D8684A; font-size:12px; cursor:pointer; width:auto; }
+  .thask-bg { position:fixed; inset:0; background:rgba(0,0,0,.25); z-index:900; display:none;
+            align-items:center; justify-content:center; }
+  .thask { background:#fff; border-radius:10px; width:min(520px, 94vw); max-height:86vh; display:flex; flex-direction:column; }
+  .thask-h { padding:12px 14px; background:#F8F1E8; border-bottom:2px solid #C9A27E; font-weight:600; border-radius:10px 10px 0 0; }
+  .thask-h small { font-weight:400; color:#8a7f75; }
+  .thask-b { padding:10px 14px; overflow:auto; }
+  .thask-r { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid #F0ECE7; }
+  .thask-d { flex:0 0 72px; font-size:13px; color:#555; }
+  .thask-t { width:auto; margin:0; padding:4px 10px; border:1px solid #E4E0DA; border-radius:8px; background:#fff; cursor:pointer; }
+  .thask-t.on { background:#B07A4A; color:#fff; border-color:#B07A4A; }
+  .thask-f { display:flex; gap:6px; align-items:center; padding:10px 14px; border-top:1px solid #ECE8E3; }
+  .thask-pick { flex:1; font-size:13px; color:#555; }
+  .thask-go:not(:disabled) { background:#B07A4A; color:#fff; border-color:#B07A4A; }
   body.isth #shortTop, body.isth #gapTop, body.isth #prevHint, body.isth #short,
   body.isth #gapBox, body.isth #prevBox, body.isth #allok, body.isth #dock { display:none !important; }
 </style>
@@ -2192,6 +2208,7 @@ let MY_TH    = null;    // 치료사로 로그인했으면 그 번호. 자기 �
 // 「보강이 필요한 줄」 — 서버 한 곳(nl_need_rows)이 정한 것 (2026-09-11)
 //   직원은 nl_staff_need_all, 치료사는 nl_th_need 로 받는다. 학부모(nl_parent_need)와 같은 셈
 //   null 이면 서버를 못 부른 것 → 옛 셈으로 그린다
+let THREQ    = {};      // 회기줄 -> 살아 있는 결석·보강 요청 (선생님 맨 위 줄 · 2026-10-03)
 let NEEDRAW  = [];      // 서버 셈 줄 그대로 — 선생님 맨 위 줄에 씀 (2026-10-03)
 let NEEDSRV  = null;    // { miss:{줄:까닭}, holi:{줄:1}, prev:{줄:까닭}, x8:{아동:1}, pay:{'아동|사업':회수} }
 // 이 줄이 서버 기준으로 보강이 필요한가 (결석 보강 · 발달재활 공휴일 · 넘어온 보강)
@@ -9479,12 +9496,96 @@ async function loadNeed(){
       NEEDSRV = o;
     }
   } catch (e) { NEEDSRV = null; }
+  try { await loadThReqs(); } catch (e) { THREQ = {}; }
   try { drawThNeed(); } catch (e) { console.error('일정 줄 그리기 실패', e); }
 }
 
 // ===== 선생님 계정 — 일정을 잡아야 할 아동 (2026-10-03) =====
 //   서버 셈(nl_th_need)이 준 줄을 그대로 그린다. 보강을 잡으면 다음 셈에서 빠진다
 //   결석 보강 · 모자란 회기(휴무 몫 · 발추 자리 없음 · 납부보다 적음) · 전월 보강
+// ===== 선생님 보강 요청 (2026-10-03) =====
+//   요청 → 행정이 결석 확인 화면에서 확정 (학부모 요청과 같은 표 · 같은 확정 창구)
+//   먼저 들어온 요청 한 건만 받는다. 늦은 쪽은 서버가 「○○께서 먼저 요청하셨습니다」로 알린다
+//   빈 자리는 학부모와 같은 셈 nl_free_slots (내일부터 14일 · 기한 안)
+async function loadThReqs(){
+  THREQ = {};
+  if (!MY_TH) return;
+  const sids = [...new Set((NEEDRAW || []).map(r => r.session_id).filter(Boolean))];
+  for (let i = 0; i < sids.length; i += 200) {
+    const { data, error } = await sb.from('nl_absence_requests')
+      .select('id, session_id, state, makeup_date, makeup_time, staff_id')
+      .in('session_id', sids.slice(i, i + 200)).not('state', 'in', '("반려","취소")');
+    if (error) throw error;
+    (data || []).forEach(q => { THREQ[q.session_id] = q; });
+  }
+}
+function thT(t){ const p = String(t || '').split(':'); const h = Number(p[0]); return (h > 12 ? h - 12 : h) + ':' + (p[1] || '00'); }
+function thD(d){ const x = new Date(d + 'T00:00:00'); return (x.getMonth() + 1) + '/' + x.getDate() + '(' + '일월화수목금토'[x.getDay()] + ')'; }
+function thLast(mk, st){ return Number(st) === 2 ? monEnd(mk) : monEnd(nextMon(mk)); }
+function thReqPart(x){
+  if (!x.sid || !(x.k === 'miss' || x.k === 'holi' || x.k === 'prev')) return '';
+  const q = THREQ[x.sid];
+  if (q && q.makeup_date) {
+    const when = thD(q.makeup_date) + ' ' + thT(q.makeup_time);
+    if (Number(q.staff_id) === Number(MY_TH))
+      return ' <span class="thn-st">→ ' + when + ' · 확인 중</span>'
+        + '<button class="thn-b thn-cx" data-req="' + q.id + '">요청 취소</button>';
+    return ' <span class="thn-st">→ ' + when + ' · ' + (q.staff_id ? '센터' : '학부모') + ' 요청 · 확인 중</span>';
+  }
+  return '<button class="thn-b thn-find" data-sid="' + x.sid + '" data-cid="' + x.cid + '" data-st="' + x.st
+    + '" data-mk="' + x.mk + '" data-txt="' + esc(x.txt) + '">자리 찾기</button>';
+}
+async function openThAsk(ds){
+  const last = thLast(ds.mk, ds.st);
+  let wrap = $('thAskBox');
+  if (!wrap) {
+    wrap = document.createElement('div'); wrap.id = 'thAskBox'; wrap.className = 'thask-bg';
+    document.body.appendChild(wrap);
+  }
+  wrap.innerHTML = '<div class="thask"><div class="thask-h">' + esc(ds.txt) + '<br><small>기한 '
+    + Number(last.slice(5, 7)) + '월 ' + Number(last.slice(8, 10)) + '일 · 내 빈 자리 (내일부터 2주)</small></div>'
+    + '<div class="thask-b">빈 자리를 찾는 중…</div>'
+    + '<div class="thask-f"><span class="thask-pick">자리를 골라 주세요</span>'
+    + '<button class="thn-b thask-x">닫기</button><button class="thn-b thask-go" disabled>요청 보내기</button></div></div>';
+  wrap.style.display = 'flex';
+  const body = wrap.querySelector('.thask-b');
+  let pick = null;
+  wrap.querySelector('.thask-x').onclick = () => { wrap.style.display = 'none'; };
+  const { data, error } = await sb.rpc('nl_free_slots', { p_therapist_id: MY_TH, p_last: last, p_child: Number(ds.cid) });
+  if (error) { body.textContent = '빈 자리를 읽지 못했습니다. ' + error.message; return; }
+  if (!data || !data.length) { body.textContent = '기한 안 2주 사이에 빈 자리가 없습니다. 행정에 말씀해 주세요.'; return; }
+  const byD = {};
+  data.forEach(r => { (byD[r.slot_date] = byD[r.slot_date] || []).push(r.slot_time); });
+  body.innerHTML = Object.keys(byD).sort().map(d => '<div class="thask-r"><span class="thask-d">' + thD(d) + '</span>'
+    + byD[d].sort().map(t => '<button class="thask-t" data-d="' + d + '" data-t="' + t + '">' + thT(t) + '</button>').join('')
+    + '</div>').join('');
+  body.onclick = ev => {
+    const b = ev.target.closest('.thask-t'); if (!b) return;
+    body.querySelectorAll('.thask-t.on').forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); pick = { d: b.dataset.d, t: b.dataset.t };
+    wrap.querySelector('.thask-pick').textContent = '고른 자리: ' + thD(pick.d) + ' ' + thT(pick.t);
+    wrap.querySelector('.thask-go').disabled = false;
+  };
+  wrap.querySelector('.thask-go').onclick = async ev => {
+    if (!pick) return;
+    const go = ev.currentTarget; go.disabled = true; go.textContent = '보내는 중…';
+    const { data: msg, error: e2 } = await sb.rpc('nl_th_makeup_ask', { p_session: Number(ds.sid), p_date: pick.d, p_time: pick.t });
+    go.textContent = '요청 보내기';
+    if (e2) { alert('요청하지 못했습니다.\n' + e2.message); go.disabled = false; return; }
+    alert(msg || '');
+    if (/요청했습니다/.test(msg || '')) wrap.style.display = 'none'; else go.disabled = false;
+    await loadNeed();
+  };
+}
+async function thAskCancel(id, btn){
+  if (!confirm('보강 요청을 거둘까요?')) return;
+  btn.disabled = true;
+  const { data: msg, error } = await sb.rpc('nl_th_makeup_cancel', { p_req_id: Number(id) });
+  if (error) { alert('거두지 못했습니다.\n' + error.message); btn.disabled = false; return; }
+  alert(msg || '');
+  await loadNeed();
+}
+
 function drawThNeed(){
   const el = $('thNeed');
   if (!el) return;
@@ -9513,7 +9614,7 @@ function drawThNeed(){
     } else {
       t = (FTOP[st] || '') + ' ' + (Number(r.short) || 1) + '회 모자람';
     }
-    items.push({ k: r.kind, cid: Number(r.child_id), sid: s ? s.id : '',
+    items.push({ k: r.kind, cid: Number(r.child_id), sid: s ? s.id : '', st: st, mk: (s && s.month_key) || r.month_key || mon,
       txt: r.child_id + '번 ' + (KIDNM[r.child_id] || '') + ' · ' + t });
   });
   if (!items.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
@@ -9523,12 +9624,18 @@ function drawThNeed(){
     const its = items.filter(x => (g === 'holi' ? (x.k === 'holi' || x.k === 'short') : x.k === g));
     if (!its.length) return;
     h += '<div class="thn-r"><span class="thn-k">' + KN[g] + '</span>'
-      + its.map(x => '<span class="thn-c" data-cid="' + x.cid + '" data-sid="' + x.sid + '">' + esc(x.txt) + '</span>').join('')
+      + its.map(x => '<span class="thn-c" data-cid="' + x.cid + '" data-sid="' + x.sid + '">' + esc(x.txt)
+        + thReqPart(x) + '</span>').join('')
       + '</div>';
   });
   el.innerHTML = h;
   el.style.display = 'block';
   el.onclick = ev => {
+    const fb = ev.target.closest('.thn-find');
+    if (fb) { ev.stopPropagation(); openThAsk(fb.dataset); return; }
+    const cb = ev.target.closest('.thn-cx');
+    if (cb) { ev.stopPropagation(); thAskCancel(cb.dataset.req, cb); return; }
+    if (ev.target.closest('.thn-st')) return;
     const c = ev.target.closest('.thn-c');
     if (!c) return;
     openFindFor({ id: c.dataset.sid ? Number(c.dataset.sid) : 0, child_id: Number(c.dataset.cid) });
