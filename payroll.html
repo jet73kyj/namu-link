@@ -477,7 +477,8 @@ function calc(){
     const stid = s.support_type_id || (sc ? sc.support_type_id : null);
     // 그룹 수업 원래 줄 — 출석 아동 1명마다 그룹 1인당 단가 (1:1 보강은 보통 단가 · 2026-10-02)
     const isGrp = !!(sc && sc._grp && !s.makeup_for);
-    const nm  = (isGrp ? '[그룹] ' : '') + (KIDS[s.child_id] || ('아동 ' + s.child_id + '번'))
+    // 아동 번호를 이름 앞에 (2026-10-03 은정님)
+    const nm  = (isGrp ? '[그룹] ' : '') + s.child_id + '번 ' + (KIDS[s.child_id] || '')
               + (stid ? ' · ' + (STYPE[stid] || ('유형'+stid)) : '');
     const k = byKid[nm] = byKid[nm] || { m40:0, m60:0, sp:0, days:[], fee:0 };
     // 심리치료(특수 단가)는 치료종류가 아니라 메모로 구분해야 하므로
@@ -506,7 +507,8 @@ function calc(){
           : ''));
   });
 
-  const names = Object.keys(byKid).sort((a,b)=>a.localeCompare(b,'ko'));
+  // 아동 번호 차례로 (숫자로 견줌)
+  const names = Object.keys(byKid).sort((a,b)=>a.localeCompare(b,'ko',{ numeric:true }));
   let t40=0, t60=0, tsp=0, tcnt=0, tfee=0;
   $('rows1').innerHTML = names.map(nm => {
     const k = byKid[nm];
