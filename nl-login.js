@@ -192,6 +192,8 @@
     if (b.tagName === 'A') { b.href = '#'; b.setAttribute('role', 'button'); } else { b.type = 'button'; }
     // 다른 단추와 같은 글자 크기 · 높이 — 글자는 가운데 (2026-10-03)
     b.style.marginRight = '6px'; b.style.minWidth = '40px'; b.style.fontWeight = '700';
+    // ‹ 는 기호라 한글보다 작게 보인다 → 한글 한 글자만 하게 키움 · 단추 높이는 아래에서 그대로 고정
+    b.style.fontSize = '1.7em'; b.style.lineHeight = '1'; b.style.paddingTop = '0'; b.style.paddingBottom = '0';
     b.style.display = 'inline-flex'; b.style.alignItems = 'center'; b.style.justifyContent = 'center';
     b.style.boxSizing = 'border-box'; b.style.verticalAlign = 'middle';
     try { var hh = ref.getBoundingClientRect().height; if (hh) b.style.height = hh + 'px'; } catch (e) {}
