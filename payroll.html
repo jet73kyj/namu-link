@@ -175,6 +175,10 @@
   .cthd2 { font-weight:700; margin-bottom:10px; }
   .ctgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px 12px; }
   .ctgrid label { font-size:12.5px; color:#6b625b; display:flex; flex-direction:column; gap:3px; }
+  /* 칸 높이 · 모양을 모두 같게 (2026-10-03 — 칸마다 위아래가 어긋나던 것) */
+  .ctgrid input, .ctgrid select { width:100%; height:38px; box-sizing:border-box; margin:0; padding:6px 10px;
+            border:1px solid #E4E0DA; border-radius:8px; background:#fff; font-size:14px; }
+  .ctgrid input:disabled { background:#F5F4F2; color:#8a817a; }
   .ctsub { margin:12px 0 4px; font-weight:600; font-size:13px; }
   .ctareas { display:flex; flex-wrap:wrap; gap:10px; }
   .ctchk { font-size:13px; font-weight:normal; }
@@ -228,7 +232,7 @@
     <div class="cthd2">위탁계약 고치기 <span class="small">— 아래 「저장」 하나로 모두 저장됩니다</span></div>
     <div class="ctgrid">
       <label>입사일<input id="ct_hired" type="date"></label>
-      <label>퇴사일 <span class="small">(다음 날부터 14일은 기록지만)</span><input id="ct_left" type="date"></label>
+      <label title="퇴사일 다음 날부터 14일은 기록지만 쓸 수 있고, 그 뒤로는 계정이 막힙니다">퇴사일<input id="ct_left" type="date"></label>
       <label>연락처<input id="ct_phone" type="text" placeholder="010-0000-0000"></label>
       <label>계정 아이디<input id="ct_login" type="text" disabled></label>
       <label>계약 형태<select id="ct_type"><option value="">— 고르기 —</option>
