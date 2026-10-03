@@ -182,10 +182,25 @@
     }
     return home || out;
   }
+  // ‹ 뒤로 · › 앞으로 (2026-10-03 은정님) — 브라우저의 뒤로 · 앞으로와 같다
+  //   새로고침 단추 왼쪽에 끼운다. 화면 안에서 보기를 바꾸는 곳(지급 모음 등)도 뒤로로 돌아온다
+  function putNav(ref) {
+    if (document.getElementById('nlBack')) return;
+    [['nlBack', '‹', '뒤로 (전 화면)', function () { w.history.back(); }],
+     ['nlFwd',  '›', '앞으로 (다음 화면)', function () { w.history.forward(); }]].forEach(function (d) {
+      var b = document.createElement(ref.tagName === 'A' ? 'a' : 'button');
+      b.id = d[0]; b.className = ref.className; b.textContent = d[1]; b.title = d[2];
+      if (b.tagName === 'A') { b.href = '#'; b.setAttribute('role', 'button'); } else { b.type = 'button'; }
+      b.style.marginRight = '4px'; b.style.minWidth = '34px'; b.style.fontWeight = '700';
+      b.onclick = function (ev) { ev.preventDefault(); d[3](); };
+      ref.parentNode.insertBefore(b, ref);
+    });
+  }
   function put() {
     if (document.getElementById('nlReload')) return;
     var ref = findRef();
     if (!ref || !ref.parentNode) return;
+    putNav(ref);
     var b = document.createElement(ref.tagName === 'A' ? 'a' : 'button');
     b.id = 'nlReload';
     b.className = ref.className;
@@ -197,7 +212,7 @@
     ref.parentNode.insertBefore(b, ref);
   }
   function soon() {
-    if (busy || document.getElementById('nlReload')) return;
+    if (busy || (document.getElementById('nlReload') && document.getElementById('nlBack'))) return;
     busy = true;
     w.requestAnimationFrame(function () { busy = false; put(); });
   }

@@ -272,8 +272,8 @@
     <select id="th" class="sel"></select>
     <button id="prt" class="prtbtn">인쇄 / PDF 저장</button>
     <button id="pubBtn" class="prtbtn pubbtn noprint">선생님께 공개 전</button>
-    <button id="sheetBtn" type="button" class="prtbtn noprint navbtn" title="고른 선생님 위탁수수료로">‹ 위탁수수료</button>
-    <button id="sumBtn" type="button" class="prtbtn noprint navbtn" title="이 달 모든 선생님 지급 모음으로">이 달 지급 모음 ›</button>
+    <button id="sheetBtn" type="button" class="prtbtn noprint navbtn" style="display:none !important;">위탁수수료</button>
+    <button id="sumBtn" type="button" class="prtbtn noprint navbtn" title="이 달 모든 선생님 지급 모음으로">이 달 지급 모음</button>
     <a href="staff.html" class="prtbtn noprint" style="text-decoration:none;" title="직원 계정 화면에서 임시 아이디로 새 선생님을 만든 뒤 여기서 계약 카드를 채웁니다">＋ 신규 채용</a>
   </div>
   <!-- 이 달 지급 모음 · 세무사 전달 (2026-10-03) — 8번만 -->
@@ -1331,7 +1331,12 @@ async function downXls(){
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '세무사전달');
   XLSX.writeFile(wb, mon + '_세무사전달.xlsx');
 }
-if ($('sumBtn')) $('sumBtn').onclick = buildSum;
+// 지급 모음을 열면 주소 끝에 #sum — 위쪽 ‹(뒤로)로 위탁수수료 화면에 돌아온다 (2026-10-03)
+if ($('sumBtn')) $('sumBtn').onclick = () => { if (location.hash !== '#sum') history.pushState({ sum: 1 }, '', '#sum'); buildSum(); };
+window.addEventListener('popstate', () => {
+  if (location.hash === '#sum') buildSum();
+  else if (document.body.classList.contains('summode')) backToSheet();
+});
 // 「위탁수수료」 — 고른 선생님 한 분 화면으로 (2026-10-03 · 같은 선생님을 다시 고르면 바뀌지 않던 것)
 function backToSheet(){
   $('sumBox').style.display = 'none'; document.body.classList.remove('summode');
