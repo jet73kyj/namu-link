@@ -2966,8 +2966,12 @@ function fBtn(x, mkOf, PARTS, HOSTADD){
   const done40 = (mk && Number(mk.minutes || 40) === 40 && pCount(mk)) || psum >= 40;
   const plus = CAN_EDIT && on && !done40 && !mkDead(x.id)
     && (x.status === '결석' || x.status === '휴무');
-  const grey = !on || x.status === '결석';
-  const cls = 'fb s' + sp + (grey ? ' off' : (x.status === '완료' ? ' fdn' : ''));
+  // 결석 · 휴무였어도 보강을 마쳐 40분을 채웠으면 완료처럼 흰 바탕 (2026-10-03 은정님)
+  const mkDone = (mk && mk.status === '완료' && Number(mk.minutes || 40) === 40)
+    || ps.reduce(function(t, v){ return v.status === '완료' ? t + Number(v.minutes || 0) : t; }, 0) >= 40;
+  const filled = on && (x.status === '결석' || x.status === '휴무') && mkDone;
+  const grey = !filled && (!on || x.status === '결석');
+  const cls = 'fb s' + sp + (grey ? ' off' : ((x.status === '완료' || filled) ? ' fdn' : ''));
   return '<span class="' + cls + '" data-sid="' + x.id + '">' + esc(txt)
     + (sm ? '<small>' + esc(sm) + '</small>' : '')
     + mvBtn
