@@ -410,9 +410,11 @@
     <div class="xbox noprint">
       <div class="xhd">＋ 번외 회기 <span class="small">시간표에 없는 회기를 이 선생님 · 이 달 급여에만 더합니다 (시간표 · 납부는 그대로)</span></div>
       <div class="xrow">
+        <select id="x_mode"><option value="cnt">회기로</option><option value="amt">금액으로</option></select>
         <input id="x_kid" type="text" inputmode="numeric" placeholder="아동 번호" style="width:90px;">
         <select id="x_dur"><option value="40">40분</option><option value="50">50분</option><option value="60">60분</option></select>
         <input id="x_cnt" type="text" inputmode="decimal" placeholder="회수" value="1" style="width:60px;">
+        <input id="x_amt" type="text" inputmode="numeric" placeholder="금액" style="width:110px;display:none;">
         <input id="x_why" type="text" maxlength="200" placeholder="사유 (예: 시스템 사용 전 8월분 보강)" style="flex:1;min-width:200px;">
         <button id="x_add" type="button">넣기</button>
       </div>
@@ -590,7 +592,7 @@ function calc(){
                      || (s.status === '보강' && String(s.plan_date) <= _today))
                  && !(HASPART[s.id] > 0));
   // 번외 회기 — 시간표에 없는 회기를 급여에만 (2026-10-03)
-  EXTRA.filter(x => x.therapist_id === thId).forEach(x => {
+  EXTRA.filter(x => x.therapist_id === thId && x.cnt).forEach(x => {
     done.push({ id: 'E' + x.id, child_id: x.child_id, plan_date: mon + '-01', status: '완료', therapist_id: thId,
                 support_type_id: null, schedule_id: null, memo: '', minutes: 40 * Number(x.cnt), dur_min: x.dur,
                 _extra: true, _why: x.reason });
@@ -665,6 +667,13 @@ function calc(){
   });
 
   // 아동 번호 차례로 (숫자로 견줌)
+  // 금액 번외 (미지급분 등) — 회기 수 없이 수수료에만 · 총 수수료에 들어가 원천징수까지 (2026-10-03)
+  EXTRA.filter(x => x.therapist_id === thId && x.fee_amt).forEach(x => {
+    const nm = (x.child_id ? x.child_id + '번 ' + (KIDS[x.child_id] || '') : '번외') + ' · 번외 금액';
+    const k = byKid[nm] = byKid[nm] || { m40:0, m60:0, sp:0, pv:0, pre:0, days:[], fee:0 };
+    k.fee += Number(x.fee_amt);
+    k.days.push('번외<span class="nopub">(' + esc(x.reason || '') + ')</span>');
+  });
   const names = Object.keys(byKid).sort((a,b)=>a.localeCompare(b,'ko',{ numeric:true }));
   let t40=0, t60=0, tsp=0, tcnt=0, tfee=0, tpv=0, tpre=0, tev=0;
   $('rows1').innerHTML = names.map(nm => {
@@ -1037,33 +1046,45 @@ async function loadMonth(){
 async function loadExtra(){
   EXTRA = [];
   const { data, error } = await sb.from('nl_pay_extra')
-    .select('id, therapist_id, month_key, child_id, dur, cnt, reason').eq('month_key', mon).order('id');
+    .select('id, therapist_id, month_key, child_id, dur, cnt, fee_amt, reason').eq('month_key', mon).order('id');
   if (error) { console.error('번외 회기 읽기 실패', error); return; }
   EXTRA = data || [];
 }
 function drawExtra(){
   const box = $('x_list'); if (!box) return;
   const mine = EXTRA.filter(x => x.therapist_id === thId);
-  box.innerHTML = mine.length ? mine.map(x => '<div class="xli">' + x.child_id + '번 ' + esc(KIDS[x.child_id] || '')
-      + ' · ' + x.dur + '분 ' + Number(x.cnt) + '회 · ' + esc(x.reason)
+  box.innerHTML = mine.length ? mine.map(x => '<div class="xli">' + (x.child_id ? x.child_id + '번 ' + esc(KIDS[x.child_id] || '') : '아동 없음')
+      + ' · ' + (x.fee_amt ? '금액 ' + won(x.fee_amt) + '원' : x.dur + '분 ' + Number(x.cnt) + '회') + ' · ' + esc(x.reason)
       + '<button class="xdel" type="button" data-id="' + x.id + '">✕ 지우기</button></div>').join('')
     : '<div class="xli small">이 선생님 · 이 달 번외 회기 없음</div>';
 }
+// 회기로 / 금액으로 — 금액은 총 수수료에 더해 원천징수까지 (미지급분 등 · 2026-10-03)
+if ($('x_mode')) $('x_mode').onchange = () => {
+  const amt = $('x_mode').value === 'amt';
+  $('x_dur').style.display = amt ? 'none' : ''; $('x_cnt').style.display = amt ? 'none' : '';
+  $('x_amt').style.display = amt ? '' : 'none';
+  $('x_kid').placeholder = amt ? '아동 번호 (없으면 비움)' : '아동 번호';
+};
 if ($('x_add')) $('x_add').onclick = async () => {
-  const kid = Number(String($('x_kid').value).replace(/[^0-9]/g, ''));
+  const amtMode = $('x_mode').value === 'amt';
+  const kid = Number(String($('x_kid').value).replace(/[^0-9]/g, '')) || null;
   const cnt = Number(String($('x_cnt').value).trim());
+  const amt = Number(String($('x_amt').value).replace(/[^0-9]/g, '')) || 0;
   const why = $('x_why').value.trim();
-  if (!kid) { alert('아동 번호를 넣어 주세요.'); return; }
-  if (!(cnt > 0 && cnt <= 20)) { alert('회수를 확인해 주세요 (0.25 · 0.5 · 1 …).'); return; }
+  if (!amtMode && !kid) { alert('아동 번호를 넣어 주세요.'); return; }
+  if (!amtMode && !(cnt > 0 && cnt <= 20)) { alert('회수를 확인해 주세요 (0.25 · 0.5 · 1 …).'); return; }
+  if (amtMode && !(amt > 0)) { alert('금액을 넣어 주세요.'); return; }
   if (!why) { alert('사유를 적어 주세요.'); return; }
-  if (!confirm(mon + ' · ' + thId + '번 선생님 · ' + kid + '번 · ' + $('x_dur').value + '분 ' + cnt + '회를 급여에 더할까요?')) return;
+  if (!confirm(mon + ' · ' + thId + '번 선생님 · ' + (kid ? kid + '번 · ' : '')
+      + (amtMode ? won(amt) + '원 (총 수수료에 더해 원천징수 3.3%)' : $('x_dur').value + '분 ' + cnt + '회') + '를 급여에 더할까요?')) return;
   $('x_add').disabled = true;
-  const { data, error } = await sb.from('nl_pay_extra').insert({ therapist_id: thId, month_key: mon, child_id: kid,
-    dur: Number($('x_dur').value), cnt: cnt, reason: why }).select('id');
+  const { data, error } = await sb.from('nl_pay_extra').insert(amtMode
+    ? { therapist_id: thId, month_key: mon, child_id: kid, dur: 40, cnt: null, fee_amt: amt, reason: why }
+    : { therapist_id: thId, month_key: mon, child_id: kid, dur: Number($('x_dur').value), cnt: cnt, reason: why }).select('id');
   $('x_add').disabled = false;
   if (error) { alert('넣지 못했습니다.\n' + error.message); return; }
   if (!data || !data.length) { alert('넣지 못했습니다.'); return; }
-  $('x_kid').value = ''; $('x_cnt').value = '1'; $('x_why').value = '';
+  $('x_kid').value = ''; $('x_cnt').value = '1'; $('x_amt').value = ''; $('x_why').value = '';
   await loadExtra(); calc();
 };
 if ($('x_list')) $('x_list').onclick = async ev => {
