@@ -59,10 +59,28 @@
   .msg.err { color:#993C1D; }
   .sheetlogo { text-align:center; margin-top:20px; }
   .sheetlogo img { height:40px; }
+  /* 위탁수수료 문서 차림 (2026-10-03 · 정산 화면과 같게) */
+  .sheet { border:3px double #5a7a5e; border-radius:0; padding:30px; }
+  .pdhead, .pshead { text-align:center; margin-bottom:18px; }
+  .pdtitle { font-size:20px; font-weight:700; letter-spacing:2px; color:#2F2926; }
+  .pdsub { font-size:13px; color:#555; margin-top:6px; }
+  .pubinfo { text-align:right; }
+  .sheet .sec-t { border-bottom:none; padding-bottom:0; font-size:14.5px; }
+  .sheet table { border:0.8px solid #4a4a4a; }
+  .sheet th { background:#f2f6f0; color:#2F2926; border:0.8px solid #4a4a4a; font-weight:600; }
+  .sheet td { border:0.8px solid #4a4a4a; }
+  .sheet tfoot td { background:#f2f6f0; border-top:0.8px solid #4a4a4a; }
+  .sheet .pay { max-width:none; }
+  .sheet .pay .lab { color:#2F2926; }
+  .sheet .pay .minus .amt, .sheet .pay .plus .amt { color:#2F2926; }
+  .sheet .pay .sum td { background:#f7f9f5; }
+  .sheet .pay .info td { color:#777; }
+  .sheet .pay .final td { font-size:16px; font-weight:800; background:#f2f6f0; color:#2F2926; border-top:3px double #4a4a4a; }
+  @media (max-width:640px) { .sheet { padding:14px; } }
   @media print {
     body { background:#fff; }
     .hd, .tools, .act, .askbox, .asked, .msg, .noprint { display:none !important; }
-    .wide { padding:0; } .sheet { border:none; padding:0; }
+    .wide { padding:0; } .sheet { padding:20px; }
   }
 </style>
 </head>
