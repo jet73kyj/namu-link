@@ -212,6 +212,9 @@
   .pay { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px; }
   .pay input.dt { width:150px; }
   .pay input.tx { flex:1; min-width:150px; }
+  /* 카드 줄 한 줄 — 날짜 / 승인번호(좁게) / 특이사항(남은 폭) / 카드 저장 (2026-10-03) */
+  .pay input.kmemo { flex:0 0 130px; width:130px; min-width:0; }
+  .pay input.knote { flex:1; min-width:160px; }
   .kidfoot { display:flex; gap:8px; margin-top:20px; }
   .kidfoot .ksave { margin-left:auto; }
   /* 신규 상담 평가 줄 (2026-09-16) */
@@ -1415,6 +1418,17 @@ async function load() {
       (fxs || []).forEach(x => { if (x.fixed) FIXED[x.child_id] = true; });
     } catch (e) {}
 
+    // 카드 특이사항 — 아동마다 한 줄 · 달과 상관없이 지울 때까지 그대로 (2026-10-03)
+    PAYNOTE = {};
+    try {
+      const { data: nts, error: eN } = await sb.from('nl_pay_notes').select('child_id, card_note');
+      if (eN) throw eN;
+      (nts || []).forEach(x => { PAYNOTE[String(x.child_id)] = x.card_note || ''; });
+    } catch (e) {
+      console.error('특이사항 읽기 실패', e);
+      show($('msg2'), '⚠ 카드 특이사항을 읽지 못했습니다. 새로고침 해 주세요.', false);
+    }
+
     // 지난달 기록 — 적용단가와 발추 방식만 이어받는다. 승인번호는 이어받지 않는다.
     PREV = {};
     (pv.data || []).forEach(p => {
@@ -1638,6 +1652,7 @@ function isUnpaid(childId) {
 // 확정 — 학부모와 이야기를 마치고 「예정」 단추를 눌러 확정으로 바꾼 아동
 //   nl_pay_fix 표에 담긴다. 눌러서 예정 <-> 확정을 오갈 수 있다.
 let FIXED = {};   // 아동번호 -> true
+let PAYNOTE = {}; // 아동번호(글자) -> 카드 특이사항 · 지울 때까지 달마다 그대로 (nl_pay_notes · 2026-10-03)
 function isFixed(childId) {
   return !!FIXED[childId];
 }
@@ -2154,8 +2169,10 @@ function drawKid(c) {
   // 승인번호는 이번 달 저장분에서만 가져온다. 지난달 것을 끌어오지 않는다.
   b += '<div class="pay">'
     + '<input class="dt pday" type="date" value="' + (cp ? cp.paid_on : '') + '">'
-    + '<input class="tx kmemo" type="text" placeholder="카드 승인번호" value="'
+    + '<input class="tx kmemo" type="text" placeholder="승인번호" value="'
     + esc(cm ? memoOf(cm, false) : '') + '">'
+    + '<input class="tx knote" type="text" maxlength="500" placeholder="특이사항 (지울 때까지 달마다 그대로)" value="'
+    + esc(PAYNOTE[String(c.id)] || '') + '">'
     + '<button class="ksave2' + (sideSaved(c.id, 'card') ? ' done' : '') + '" type="button" data-only="card"'
     + ' data-ttl="카드 저장 전">' + (sideSaved(c.id, 'card') ? '\u2713 저장됨' : '카드 저장 전') + '</button></div>';
 
@@ -2855,7 +2872,15 @@ async function saveKid(childId, btn, only) {
     partSt.indexOf(st) >= 0 && keepSt.indexOf(st) < 0
     && (!only || (only === 'bank' ? st === 2 : st !== 2)));
 
-  if (!rows.length && !deadSt.length) {
+  // 카드 특이사항 — 카드 저장(또는 전부 저장) 때 함께 (2026-10-03)
+  const nEl = (!only || only === 'card') ? box.querySelector('.knote') : null;
+  const noteNew = nEl ? nEl.value.trim() : '';
+  const noteDirty = !!nEl && noteNew !== (PAYNOTE[String(childId)] || '');
+  if (noteDirty && noteNew.length > 500) {
+    alert('특이사항은 500자까지 적을 수 있습니다.'); nEl.focus(); return;
+  }
+
+  if (!rows.length && !deadSt.length && !noteDirty) {
     show($('msg2'), '저장할 내용이 없습니다.', false); return 'empty';
   }
 
@@ -2892,6 +2917,17 @@ async function saveKid(childId, btn, only) {
       if (eD) throw eD;
       deadSt.forEach(st => { delete SAVED[childId][st]; });
     }
+    if (noteDirty) {
+      // 비우면 줄을 지운다 · 돌려받은 줄 수로 실제로 됐는지 본다
+      const q = noteNew
+        ? sb.from('nl_pay_notes').upsert({ child_id: Number(childId), card_note: noteNew,
+            updated_at: new Date().toISOString() }, { onConflict: 'child_id' }).select('child_id')
+        : sb.from('nl_pay_notes').delete().eq('child_id', Number(childId)).select('child_id');
+      const { data: nd, error: eNt } = await q;
+      if (eNt) throw eNt;
+      if (noteNew && !(nd && nd.length)) throw new Error('특이사항이 저장되지 않았습니다.');
+      if (noteNew) PAYNOTE[String(childId)] = noteNew; else delete PAYNOTE[String(childId)];
+    }
     rows.forEach(r => {
       (SAVED[childId] = SAVED[childId] || {})[r.support_type_id] = r;
     });
@@ -2905,6 +2941,7 @@ async function saveKid(childId, btn, only) {
     show($('msg2'), '✅ ' + rows.length + '건 저장했습니다.'
       + (deadSt.length ? ' (0원이 된 ' + deadSt.length + '건은 지웠습니다)' : '')
       + (unpaid ? ' (그중 ' + unpaid + '건은 날짜가 없어 미납으로 저장)' : '')
+      + (noteDirty ? (noteNew ? ' · 특이사항 저장' : ' · 특이사항 지움') : '')
       + wkMsg + evMsg + nmMsg, true);
     if (/풀었습니다/.test(nmMsg)) setTimeout(() => load(), 900);   // 시간표 회수로 다시 그린다
     delete TYPED[String(childId)];
