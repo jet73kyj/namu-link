@@ -188,6 +188,25 @@
   .ctfoot #ctMsg { flex:1; color:#c62828; }
   .ctgo { width:auto; margin:0; padding:6px 18px; background:#B07A4A; color:#fff; border:1px solid #B07A4A; border-radius:8px; cursor:pointer; }
   .ctleft { color:#C2553A; }
+
+  /* 지급내역 문서 차림 (2026-10-03 · 급여명세서 · 세무와 같은 인쇄 문서 차림) */
+  .paydoc { margin-top:20px; padding:30px; background:#fff; border:3px double #5a7a5e; }
+  .pdhead { text-align:center; margin-bottom:18px; }
+  .pdtitle { font-size:20px; font-weight:700; letter-spacing:2px; color:#2F2926; }
+  .pdsub { font-size:13px; color:#555; margin-top:6px; }
+  .paydoc .sec-t { color:#2F2926; border-bottom:none; padding-bottom:0; font-size:14.5px; }
+  .paydoc table { border:0.8px solid #4a4a4a; }
+  .paydoc th { background:#f2f6f0; color:#2F2926; border:0.8px solid #4a4a4a; font-weight:600; }
+  .paydoc td { border:0.8px solid #4a4a4a; }
+  .paydoc tr:hover td { background:transparent; }
+  .paydoc tfoot td { background:#f2f6f0; border-top:0.8px solid #4a4a4a; }
+  .paydoc .pay { max-width:none; }
+  .paydoc .pay .lab { color:#2F2926; }
+  .paydoc .pay .minus .amt, .paydoc .pay .plus .amt { color:#2F2926; }
+  .paydoc .pay .sum td { background:#f7f9f5; }
+  .paydoc .pay .info td { border-top:none; color:#777; }
+  .paydoc .pay .final td { font-size:16px; font-weight:800; background:#f2f6f0; color:#2F2926; border-top:3px double #4a4a4a; }
+  @media print { .paydoc { border:3px double #5a7a5e; padding:20px; } }
 </style>
 </head>
 <body>
@@ -334,6 +353,8 @@
     <div id="wdMsg" class="out" style="display:none;"></div>
   </div>
 
+  <div id="payDoc" class="paydoc">
+  <div class="pdhead"><div class="pdtitle" id="pdTitle">업무위탁 수수료 내역서</div><div class="pdsub" id="pdSub"></div></div>
   <div class="sec">
     <div class="sec-t">1. 세션 진행 내역</div>
     <table id="t1">
@@ -343,6 +364,8 @@
           <th class="n">40분</th>
           <th class="n">60분</th>
           <th class="n">특수</th>
+          <th class="n" title="합계에 들어 있음 · 지난달 몫을 이 달에 한 보강">전월보강</th>
+          <th class="n" title="합계에 들어 있음 · 이 달 몫을 지난달에 미리 한 보강">선보강</th>
           <th class="n">합계</th>
           <th class="n">수수료</th>
           <th>진행 날짜</th>
@@ -383,6 +406,7 @@
     <div class="note nopub" id="payNote"></div>
   </div>
   <div class="sheetlogo"><img src="img/nl-logo.png" alt="자라는나무"></div>
+  </div>
   </div>
 </div>
 
@@ -569,7 +593,7 @@ function calc(){
     // 아동 번호를 이름 앞에 (2026-10-03 은정님)
     const nm  = (isGrp ? '[그룹] ' : '') + s.child_id + '번 ' + (KIDS[s.child_id] || '')
               + (stid ? ' · ' + (STYPE[stid] || ('유형'+stid)) : '');
-    const k = byKid[nm] = byKid[nm] || { m40:0, m60:0, sp:0, days:[], fee:0 };
+    const k = byKid[nm] = byKid[nm] || { m40:0, m60:0, sp:0, pv:0, pre:0, days:[], fee:0 };
     // 심리치료(특수 단가)는 치료종류가 아니라 메모로 구분해야 하므로
     // 지금은 특수 단가가 있는 치료사의 60분 아닌 수업 중
     // 메모에 '심리'가 있는 것만 특수로 본다
@@ -583,6 +607,9 @@ function calc(){
     else if (dur >= 60){ k.m60 += part; fee = r.session_fee * 1.5 * part; }
     else               { k.m40 += part; fee = r.session_fee * part; }
     k.fee += Math.round(fee);
+    // 전월보강 · 선보강 회수 (합계에 들어 있음 · 따로 보이기만 · 2026-10-03)
+    if (s._pre) k.pre += part;
+    else if (s.makeup_for && s.month_key && String(s.month_key) < mon) k.pv += part;
     k.days.push((s._extra ? '번외<span class="nopub">(' + esc(s._why || '') + ')</span>' : dayNo(s.plan_date))
       + (s._trialDur ? (s._isX ? '(추가)' : '(체험)') : '')
       + (s.dur_min ? '(' + s.dur_min + '분)' : '')
@@ -598,17 +625,19 @@ function calc(){
 
   // 아동 번호 차례로 (숫자로 견줌)
   const names = Object.keys(byKid).sort((a,b)=>a.localeCompare(b,'ko',{ numeric:true }));
-  let t40=0, t60=0, tsp=0, tcnt=0, tfee=0;
+  let t40=0, t60=0, tsp=0, tcnt=0, tfee=0, tpv=0, tpre=0;
   $('rows1').innerHTML = names.map(nm => {
     const k = byKid[nm];
     const rd = v => Math.round(Number(v) * 100) / 100;
     const cnt = rd(k.m40 + k.m60 + k.sp);
-    t40+=k.m40; t60+=k.m60; tsp+=k.sp; tcnt+=cnt; tfee+=k.fee;
+    t40+=k.m40; t60+=k.m60; tsp+=k.sp; tcnt+=cnt; tfee+=k.fee; tpv+=k.pv; tpre+=k.pre;
     k.days.sort((a,b)=>parseInt(a)-parseInt(b));
     return '<tr><td>' + esc(nm).replace('[그룹] ', '<span class="gtag">그룹</span>') + '</td>'
       + '<td class="n">' + (k.m40 ? rd(k.m40) : '–') + '</td>'
       + '<td class="n">' + (k.m60 ? rd(k.m60) : '–') + '</td>'
       + '<td class="n">' + (k.sp  ? rd(k.sp)  : '–') + '</td>'
+      + '<td class="n">' + (k.pv  ? rd(k.pv)  : '–') + '</td>'
+      + '<td class="n">' + (k.pre ? rd(k.pre) : '–') + '</td>'
       + '<td class="n">' + cnt + '</td>'
       + '<td class="n">' + won(k.fee) + '</td>'
       + '<td class="small">' + k.days.join(', ') + '</td></tr>';
@@ -618,6 +647,8 @@ function calc(){
     + '<td class="n">' + (Math.round(t40*100)/100) + '</td>'
     + '<td class="n">' + (Math.round(t60*100)/100) + '</td>'
     + '<td class="n">' + (Math.round(tsp*100)/100) + '</td>'
+    + '<td class="n">' + (Math.round(tpv*100)/100) + '</td>'
+    + '<td class="n">' + (Math.round(tpre*100)/100) + '</td>'
     + '<td class="n">' + (Math.round(tcnt*100)/100) + '</td>'
     + '<td class="n">' + won(tfee) + '</td><td></td></tr>';
 
@@ -717,6 +748,11 @@ function calc(){
       + '위 「지급 단가 넣기」에서 넣어 주세요. (지금은 그룹 수업이 0원으로 셈됨)';
   }
   PAYSUM = { total: total, net: net };
+  try {
+    const _t = THS.find(x => x.id === thId);
+    $('pdTitle').textContent = mon.slice(0, 4) + '년 ' + monNo(mon) + '월 업무위탁 수수료 내역서';
+    $('pdSub').textContent = '수탁자 ' + (_t ? _t.name : '') + ' 선생님 · 산정기간 ' + monNo(mon) + '. 1. ~ ' + monNo(mon) + '. ' + Number(monEnd(mon).slice(8)) + '.';
+  } catch (e) {}
   drawPub();
 }
 
