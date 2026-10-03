@@ -410,7 +410,7 @@
     <div class="xbox noprint">
       <div class="xhd">＋ 번외 회기 <span class="small">시간표에 없는 회기를 이 선생님 · 이 달 급여에만 더합니다 (시간표 · 납부는 그대로)</span></div>
       <div class="xrow">
-        <select id="x_mode"><option value="cnt">회기로</option><option value="amt">금액으로</option></select>
+        <select id="x_mode"><option value="cnt">회기로</option><option value="amt">미지급분 (금액)</option></select>
         <input id="x_kid" type="text" inputmode="numeric" placeholder="아동 번호" style="width:90px;">
         <select id="x_dur"><option value="40">40분</option><option value="50">50분</option><option value="60">60분</option></select>
         <input id="x_cnt" type="text" inputmode="decimal" placeholder="회수" value="1" style="width:60px;">
@@ -669,10 +669,10 @@ function calc(){
   // 아동 번호 차례로 (숫자로 견줌)
   // 금액 번외 (미지급분 등) — 회기 수 없이 수수료에만 · 총 수수료에 들어가 원천징수까지 (2026-10-03)
   EXTRA.filter(x => x.therapist_id === thId && x.fee_amt).forEach(x => {
-    const nm = (x.child_id ? x.child_id + '번 ' + (KIDS[x.child_id] || '') : '번외') + ' · 번외 금액';
+    const nm = (x.child_id ? x.child_id + '번 ' + (KIDS[x.child_id] || '') + ' · ' : '') + '미지급분';
     const k = byKid[nm] = byKid[nm] || { m40:0, m60:0, sp:0, pv:0, pre:0, days:[], fee:0 };
     k.fee += Number(x.fee_amt);
-    k.days.push('번외<span class="nopub">(' + esc(x.reason || '') + ')</span>');
+    k.days.push('미지급분<span class="nopub">(' + esc(x.reason || '') + ')</span>');
   });
   const names = Object.keys(byKid).sort((a,b)=>a.localeCompare(b,'ko',{ numeric:true }));
   let t40=0, t60=0, tsp=0, tcnt=0, tfee=0, tpv=0, tpre=0, tev=0;
@@ -1054,7 +1054,7 @@ function drawExtra(){
   const box = $('x_list'); if (!box) return;
   const mine = EXTRA.filter(x => x.therapist_id === thId);
   box.innerHTML = mine.length ? mine.map(x => '<div class="xli">' + (x.child_id ? x.child_id + '번 ' + esc(KIDS[x.child_id] || '') : '아동 없음')
-      + ' · ' + (x.fee_amt ? '금액 ' + won(x.fee_amt) + '원' : x.dur + '분 ' + Number(x.cnt) + '회') + ' · ' + esc(x.reason)
+      + ' · ' + (x.fee_amt ? '미지급분 ' + won(x.fee_amt) + '원' : x.dur + '분 ' + Number(x.cnt) + '회') + ' · ' + esc(x.reason)
       + '<button class="xdel" type="button" data-id="' + x.id + '">✕ 지우기</button></div>').join('')
     : '<div class="xli small">이 선생님 · 이 달 번외 회기 없음</div>';
 }
