@@ -153,6 +153,14 @@
 .unconf{background:#FBEDE6;border:1px solid #E7B9A6;border-left:4px solid #C2553A;border-radius:10px;padding:10px 14px;margin:10px 0;font-size:13.5px;color:#6E6660;line-height:1.7}
 .unconf b{color:#C2553A}
 .gtag{display:inline-block;background:#EDE7F6;color:#5E35B1;border-radius:4px;padding:0 4px;margin-right:4px;font-size:10.5px;font-weight:600}
+
+  .xbox { margin-top:10px; padding:10px 12px; background:#FFF8E1; border:1px solid #F0DFA8; border-radius:8px; }
+  .xhd { font-weight:600; margin-bottom:6px; }
+  .xrow { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .xrow input, .xrow select { margin:0; }
+  .xrow button { width:auto; margin:0; padding:5px 14px; }
+  #x_list .xli { font-size:13px; padding:3px 0; }
+  #x_list .xdel { width:auto; margin:0 0 0 6px; padding:0 8px; font-size:12px; background:#fff; color:#c62828; border:1px solid #e0b4b4; }
 </style>
 </head>
 <body>
@@ -282,6 +290,18 @@
       <tbody id="rows1"></tbody>
       <tfoot id="foot1"></tfoot>
     </table>
+    <!-- 번외 회기 (2026-10-03) — 시간표에 없는 회기를 급여에만 더한다 -->
+    <div class="xbox noprint">
+      <div class="xhd">＋ 번외 회기 <span class="small">시간표에 없는 회기를 이 선생님 · 이 달 급여에만 더합니다 (시간표 · 납부는 그대로)</span></div>
+      <div class="xrow">
+        <input id="x_kid" type="text" inputmode="numeric" placeholder="아동 번호" style="width:90px;">
+        <select id="x_dur"><option value="40">40분</option><option value="50">50분</option><option value="60">60분</option></select>
+        <input id="x_cnt" type="text" inputmode="decimal" placeholder="회수" value="1" style="width:60px;">
+        <input id="x_why" type="text" maxlength="200" placeholder="사유 (예: 시스템 사용 전 8월분 보강)" style="flex:1;min-width:200px;">
+        <button id="x_add" type="button">넣기</button>
+      </div>
+      <div id="x_list"></div>
+    </div>
   </div>
 
   <div class="sec">
@@ -356,6 +376,7 @@ let EVFEE = {};   // 평가 개수 -> 수수료
 const ETYPE = {1:'심리평가', 2:'발달평가', 3:'언어평가'};
 let THS   = [];
 let SESS  = [], ROWS = [], KIDS = {};
+let EXTRA = [];    // 번외 회기 (nl_pay_extra · 2026-10-03)
 let DEADMK = [];   // 보강이 두 번 결석해 소멸한 회 — 급여 인정 (교육비 미입금 뺌 · 2026-10-03)
 let WORKWD = {};   // 선생님 -> 정규 출근 요일 Set (주유비)
 let XWORK  = {};   // '선생님|날짜' -> 나오는 날 (공휴일 대신 출근 · 주유비 인정)
@@ -409,6 +430,7 @@ function drawUnconf(){
                    + '(' + WDN[new Date(d + 'T00:00:00').getDay()] + ')').join(' · ');
 }
 function calc(){
+  try { drawExtra(); } catch (e) {}
   drawUnconf();
   RATES = pickRates(mon);          // 그 달에 맞는 단가를 고른다
   const r = RATES[thId];
@@ -441,6 +463,12 @@ function calc(){
                  && (s.status === '완료'
                      || (s.status === '보강' && String(s.plan_date) <= _today))
                  && !(HASPART[s.id] > 0));
+  // 번외 회기 — 시간표에 없는 회기를 급여에만 (2026-10-03)
+  EXTRA.filter(x => x.therapist_id === thId).forEach(x => {
+    done.push({ id: 'E' + x.id, child_id: x.child_id, plan_date: mon + '-01', status: '완료', therapist_id: thId,
+                support_type_id: null, schedule_id: null, memo: '', minutes: 40 * Number(x.cnt), dur_min: x.dur,
+                _extra: true, _why: x.reason });
+  });
   // 소멸한 회 — 원래 담당 선생님께 지급 (미입금이면 줄은 보이되 지급 안 함 · 2026-10-03)
   DEADMK.filter(o => o.therapist_id === thId).forEach(o => {
     done.push(Object.assign({}, o, { id: 'D' + o.id, plan_date: o._deadOn, status: '완료', makeup_for: null }));
@@ -494,7 +522,7 @@ function calc(){
     else if (dur >= 60){ k.m60 += part; fee = r.session_fee * 1.5 * part; }
     else               { k.m40 += part; fee = r.session_fee * part; }
     k.fee += Math.round(fee);
-    k.days.push(dayNo(s.plan_date)
+    k.days.push((s._extra ? '번외(' + (s._why || '') + ')' : dayNo(s.plan_date))
       + (s._trialDur ? (s._isX ? '(추가)' : '(체험)') : '')
       + (s.dur_min ? '(' + s.dur_min + '분)' : '')
       + (s._dead ? (s._unpaid ? '(소멸 · 교육비 미입금 · 지급 안 함)' : '(소멸 인정)') : '')
@@ -848,8 +876,50 @@ async function loadMonth(){
     });
   }
   await loadDeadAndFuel();
+  await loadExtra();
   await loadEvals();
 }
+
+// ── 번외 회기 (2026-10-03) ─────────────────────────────
+async function loadExtra(){
+  EXTRA = [];
+  const { data, error } = await sb.from('nl_pay_extra')
+    .select('id, therapist_id, month_key, child_id, dur, cnt, reason').eq('month_key', mon).order('id');
+  if (error) { console.error('번외 회기 읽기 실패', error); return; }
+  EXTRA = data || [];
+}
+function drawExtra(){
+  const box = $('x_list'); if (!box) return;
+  const mine = EXTRA.filter(x => x.therapist_id === thId);
+  box.innerHTML = mine.length ? mine.map(x => '<div class="xli">' + x.child_id + '번 ' + esc(KIDS[x.child_id] || '')
+      + ' · ' + x.dur + '분 ' + Number(x.cnt) + '회 · ' + esc(x.reason)
+      + '<button class="xdel" type="button" data-id="' + x.id + '">✕ 지우기</button></div>').join('')
+    : '<div class="xli small">이 선생님 · 이 달 번외 회기 없음</div>';
+}
+if ($('x_add')) $('x_add').onclick = async () => {
+  const kid = Number(String($('x_kid').value).replace(/[^0-9]/g, ''));
+  const cnt = Number(String($('x_cnt').value).trim());
+  const why = $('x_why').value.trim();
+  if (!kid) { alert('아동 번호를 넣어 주세요.'); return; }
+  if (!(cnt > 0 && cnt <= 20)) { alert('회수를 확인해 주세요 (0.25 · 0.5 · 1 …).'); return; }
+  if (!why) { alert('사유를 적어 주세요.'); return; }
+  if (!confirm(mon + ' · ' + thId + '번 선생님 · ' + kid + '번 · ' + $('x_dur').value + '분 ' + cnt + '회를 급여에 더할까요?')) return;
+  $('x_add').disabled = true;
+  const { data, error } = await sb.from('nl_pay_extra').insert({ therapist_id: thId, month_key: mon, child_id: kid,
+    dur: Number($('x_dur').value), cnt: cnt, reason: why }).select('id');
+  $('x_add').disabled = false;
+  if (error) { alert('넣지 못했습니다.\n' + error.message); return; }
+  if (!data || !data.length) { alert('넣지 못했습니다.'); return; }
+  $('x_kid').value = ''; $('x_cnt').value = '1'; $('x_why').value = '';
+  await loadExtra(); calc();
+};
+if ($('x_list')) $('x_list').onclick = async ev => {
+  const b = ev.target.closest('.xdel'); if (!b) return;
+  if (!confirm('이 번외 회기를 지울까요?')) return;
+  const { data, error } = await sb.from('nl_pay_extra').delete().eq('id', Number(b.dataset.id)).select('id');
+  if (error || !data || !data.length) { alert('지우지 못했습니다.' + (error ? '\n' + error.message : '')); return; }
+  await loadExtra(); calc();
+};
 
 // ── 소멸 회 인정 · 주유비 날짜 (2026-10-03 은정님) ─────────────
 //   소멸 — 원래 줄(결석)에 딸린 40분 보강이 두 번 결석하면 그 회는 소멸.
