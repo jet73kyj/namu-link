@@ -112,8 +112,24 @@
     return true;
   }
 
+  // 퇴사 뒤 14일 — 기록지 화면만 (2026-10-03)
+  //   홈(index.html)이 로그인할 때 「nl_left_mode = 번호|퇴사일」을 남긴다
+  //   그 직원이면 기록지 · 홈 말고는 홈으로 돌려보낸다 (15일째부터는 서버가 자료를 막음)
+  function leftGate(id) {
+    try {
+      var v = String(w.localStorage.getItem('nl_left_mode') || '');
+      if (!v || v.split('|')[0] !== String(id)) return false;
+      var f = String(w.location.pathname || '').split('/').pop() || 'index.html';
+      if (/^record-/.test(f) || f === 'index.html' || f === '') return false;
+      w.alert('퇴사 처리된 계정입니다.\n기록지 화면만 열 수 있습니다.');
+      w.location.replace('index.html');
+      return true;
+    } catch (e) { return false; }
+  }
+
   // 로그인해서 누구인지 알아낸 뒤 부른다
   w.nlKeep = function (id) {
+    if (leftGate(id)) return;
     if (blockIfMobile(id)) return;
     var keep = (Number(id) === BOSS) || w.nlIsMobile();
     if (!keep) { w.nlKeepOff(); return; }

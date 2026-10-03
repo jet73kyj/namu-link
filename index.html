@@ -318,7 +318,7 @@ async function nlMaintCheck(){
 
 async function afterLogin(user) {
   const { data: me, error } = await sb
-    .from('nl_therapists').select('id, name, role, must_change')
+    .from('nl_therapists').select('id, name, role, must_change, left_on')
     .eq('login_email', user.email.toLowerCase()).maybeSingle();
   if (error) { show($('msg'), '❌ 직원 조회 실패\n' + error.message, false); return; }
   if (!me)   {
@@ -326,6 +326,14 @@ async function afterLogin(user) {
     try { await sb.auth.signOut({ scope: 'local' }); } catch (e) {}
     show($('msg'), '⚠️ 직원 표에 이 이메일이 없습니다.\n관리자에게 문의하세요.', false); return;
   }
+  // 퇴사 뒤 14일 — 기록지만 (2026-10-03 은정님 · 서버 nl_me 는 15일째부터 막음)
+  const _t0 = new Date();
+  const _today = _t0.getFullYear() + '-' + String(_t0.getMonth() + 1).padStart(2, '0') + '-' + String(_t0.getDate()).padStart(2, '0');
+  const LEFT = !!(me.left_on && _today > me.left_on);
+  try {
+    if (LEFT) localStorage.setItem('nl_left_mode', me.id + '|' + me.left_on);
+    else localStorage.removeItem('nl_left_mode');
+  } catch (e) {}
   nlKeep(me.id);   // 대표(8번)만 로그인을 브라우저에 남긴다
   // 첫 로그인 · 초기화 뒤 — 비밀번호부터 정한다 (2026-09-26)
   if (me.must_change) { showStaffPw(user); return; }
@@ -371,7 +379,8 @@ async function afterLogin(user) {
   const isBoss = (Number(me.id) === 8);
   MENU.forEach(g => {
     if (g.boss && !isBoss) return;      // 대표만 보는 묶음
-    const list = g.items.filter(it => it.roles.includes(role));
+    const list = g.items.filter(it => it.roles.includes(role)
+      && (!LEFT || /^record-/.test(it.f)));          // 퇴사 뒤에는 기록지만
     if (!list.length) return;
     html += '<div class="grp" style="--gc:' + (GCOLOR[g.grp] || '#C9A27E') + '"><h2>' + esc(g.grp) + '</h2>'
       + '<div class="cards' + (g.grp === '일정' ? ' two' : '') + '">'
