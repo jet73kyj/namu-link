@@ -230,6 +230,12 @@
 
   .vtabp { background:#fff !important; color:#4A433F !important; border:1px solid #E4E0DA !important; }
   .vtabp.on { background:#B07A4A !important; color:#fff !important; border-color:#B07A4A !important; }
+
+  /* 화면 오가기 ‹ › (2026-10-03) — 위탁수수료 화면에는 「지급 모음 ›」만, 지급 모음에는 「‹ 위탁수수료」만 · 선생님 고르는 칸 숨김 */
+  .navbtn { background:#fff !important; color:#B07A4A !important; border:1px solid #E4E0DA !important; }
+  #sheetBtn { display:none; }
+  body.summode #sheetBtn { display:inline-block; }
+  body.summode #sumBtn, body.summode #th { display:none !important; }
 </style>
 </head>
 <body>
@@ -266,8 +272,8 @@
     <select id="th" class="sel"></select>
     <button id="prt" class="prtbtn">인쇄 / PDF 저장</button>
     <button id="pubBtn" class="prtbtn pubbtn noprint">선생님께 공개 전</button>
-    <button id="sheetBtn" type="button" class="prtbtn noprint vtabp on">위탁수수료</button>
-    <button id="sumBtn" type="button" class="prtbtn noprint vtabp">이 달 지급 모음</button>
+    <button id="sheetBtn" type="button" class="prtbtn noprint navbtn" title="고른 선생님 위탁수수료로">‹ 위탁수수료</button>
+    <button id="sumBtn" type="button" class="prtbtn noprint navbtn" title="이 달 모든 선생님 지급 모음으로">이 달 지급 모음 ›</button>
     <a href="staff.html" class="prtbtn noprint" style="text-decoration:none;" title="직원 계정 화면에서 임시 아이디로 새 선생님을 만든 뒤 여기서 계약 카드를 채웁니다">＋ 신규 채용</a>
   </div>
   <!-- 이 달 지급 모음 · 세무사 전달 (2026-10-03) — 8번만 -->
@@ -1206,7 +1212,6 @@ $('mon').onchange = async () => { mon = $('mon').value;
   try { localStorage.setItem('nl_payroll_mon', mon); } catch(e) {}
   await loadMonth(); await loadUnconf(); await loadPub(); calc(); };
 $('th').onchange  = () => { document.body.classList.remove('summode'); $('sumBox').style.display = 'none';
-  $('sumBtn').classList.remove('on'); $('sheetBtn').classList.add('on');
   thId = Number($('th').value); calc(); drawWorkDays(); loadCard(); };
 
 
@@ -1221,7 +1226,7 @@ async function buildSum(){
   const box = $('sumBox');
   // 지급 모음을 보는 동안 선생님 한 분 화면은 숨긴다 (2026-10-03)
   document.body.classList.add('summode');
-  $('sheetBtn').classList.remove('on'); $('sumBtn').classList.add('on');
+
   box.style.display = ''; box.innerHTML = '<div class="small">모으는 중…</div>';
   const keep = thId; const rows = [];
   for (const t of THS) {
@@ -1269,8 +1274,7 @@ function drawSum(){
   const sum = k => SUMROWS.reduce((t, r) => t + (r[k] || 0), 0);
   const tsum = k => TAXROWS.reduce((t, r) => t + (r[k] || 0), 0);
   const maskA = v => v ? '****' + String(v).replace(/[^0-9]/g, '').slice(-4) : '';
-  box.innerHTML = '<button type="button" class="backbtn sumBack">← 위탁수수료로 돌아가기</button>'
-    + '<div class="cthd">' + mon.slice(0, 4) + '년 ' + monNo(mon) + '월 지급 모음'
+  box.innerHTML = '<div class="cthd">' + mon.slice(0, 4) + '년 ' + monNo(mon) + '월 지급 모음'
       + '<button type="button" class="ctsm" id="sumAcc">계좌 보기</button></div>'
     + '<table class="sumt"><thead><tr><th>이름</th><th>은행 · 계좌</th><th class="n">급여 실수령액</th><th class="n">실지급액 (면세)</th>'
     + '<th class="n">주유 · 교통비</th><th class="n">이체 합계</th></tr></thead><tbody>'
@@ -1290,8 +1294,7 @@ function drawSum(){
     +   '<input id="eduAmt" type="text" inputmode="numeric" placeholder="금액" value="' + (EDU.amount != null ? won(EDU.amount) : '') + '">'
     +   '<input id="eduMemo" type="text" maxlength="500" placeholder="메모 (예: 치료지원 ○명 · 방과후 ○명)" value="' + esc(EDU.memo) + '">'
     +   '<button type="button" class="ctsm" id="eduSave">저장</button><span id="eduMsg" class="small"></span></div>'
-    + '<button type="button" class="backbtn sumBack" style="margin-top:14px;">← 위탁수수료로 돌아가기</button>';
-  box.querySelectorAll('.sumBack').forEach(b => { b.onclick = backToSheet; });
+;
   $('sumAcc').onclick = () => { box.querySelectorAll('.acc').forEach(e => { e.textContent = e.dataset.full; }); $('sumAcc').remove(); };
   $('sumXls').onclick = downXls;
   $('eduSave').onclick = saveEdu;
@@ -1332,7 +1335,6 @@ if ($('sumBtn')) $('sumBtn').onclick = buildSum;
 // 「위탁수수료」 — 고른 선생님 한 분 화면으로 (2026-10-03 · 같은 선생님을 다시 고르면 바뀌지 않던 것)
 function backToSheet(){
   $('sumBox').style.display = 'none'; document.body.classList.remove('summode');
-  $('sumBtn').classList.remove('on'); $('sheetBtn').classList.add('on');
   try { calc(); } catch (e) {}
   window.scrollTo(0, 0);
 }
