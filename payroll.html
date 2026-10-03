@@ -218,6 +218,11 @@
   .edubox { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px 10px; background:#FBF5EE; border:1px solid #F0E4D6; border-radius:8px; }
   .edubox input { margin:0; padding:5px 8px; border:1px solid #E4E0DA; border-radius:6px; font-size:13.5px; }
   .edubox #eduAmt { width:130px; text-align:right; } .edubox #eduMemo { flex:1; min-width:220px; }
+
+  /* 지급 모음 보는 동안 — 선생님 한 분 화면 숨김 */
+  body.summode #ctCard, body.summode #ctEdit, body.summode #payDoc, body.summode #pubSum,
+  body.summode #warnBox, body.summode #unconfBox, body.summode .evalbox, body.summode #pubBtn,
+  body.summode #prt { display:none !important; }
 </style>
 </head>
 <body>
@@ -1189,9 +1194,11 @@ async function afterLogin(user){
 }
 
 $('mon').onchange = async () => { mon = $('mon').value;
+  document.body.classList.remove('summode'); $('sumBox').style.display = 'none';
   try { localStorage.setItem('nl_payroll_mon', mon); } catch(e) {}
   await loadMonth(); await loadUnconf(); await loadPub(); calc(); };
-$('th').onchange  = () => { thId = Number($('th').value); calc(); drawWorkDays(); loadCard(); };
+$('th').onchange  = () => { document.body.classList.remove('summode'); $('sumBox').style.display = 'none';
+  thId = Number($('th').value); calc(); drawWorkDays(); loadCard(); };
 
 
 
@@ -1203,6 +1210,8 @@ $('th').onchange  = () => { thId = Number($('th').value); calc(); drawWorkDays()
 let SUMROWS = [], TAXROWS = [], EDU = { amount: null, memo: '' };
 async function buildSum(){
   const box = $('sumBox');
+  // 지급 모음을 보는 동안 선생님 한 분 화면은 숨긴다 (2026-10-03)
+  document.body.classList.add('summode');
   box.style.display = ''; box.innerHTML = '<div class="small">모으는 중…</div>';
   const keep = thId; const rows = [];
   for (const t of THS) {
@@ -1270,7 +1279,7 @@ function drawSum(){
     +   '<input id="eduAmt" type="text" inputmode="numeric" placeholder="금액" value="' + (EDU.amount != null ? won(EDU.amount) : '') + '">'
     +   '<input id="eduMemo" type="text" maxlength="500" placeholder="메모 (예: 치료지원 ○명 · 방과후 ○명)" value="' + esc(EDU.memo) + '">'
     +   '<button type="button" class="ctsm" id="eduSave">저장</button><span id="eduMsg" class="small"></span></div>';
-  $('sumClose').onclick = () => { box.style.display = 'none'; };
+  $('sumClose').onclick = () => { box.style.display = 'none'; document.body.classList.remove('summode'); };
   $('sumAcc').onclick = () => { box.querySelectorAll('.acc').forEach(e => { e.textContent = e.dataset.full; }); $('sumAcc').remove(); };
   $('sumXls').onclick = downXls;
   $('eduSave').onclick = saveEdu;
