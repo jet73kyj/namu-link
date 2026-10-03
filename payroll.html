@@ -183,6 +183,7 @@
   .ctfoot { display:flex; gap:6px; justify-content:flex-end; align-items:center; margin-top:12px; }
   .ctfoot #ctMsg { flex:1; color:#c62828; }
   .ctgo { width:auto; margin:0; padding:6px 18px; background:#B07A4A; color:#fff; border:1px solid #B07A4A; border-radius:8px; cursor:pointer; }
+  .ctleft { color:#C2553A; }
 </style>
 </head>
 <body>
@@ -227,6 +228,7 @@
     <div class="cthd2">위탁계약 고치기 <span class="small">— 아래 「저장」 하나로 모두 저장됩니다</span></div>
     <div class="ctgrid">
       <label>입사일<input id="ct_hired" type="date"></label>
+      <label>퇴사일 <span class="small">(다음 날부터 14일은 기록지만)</span><input id="ct_left" type="date"></label>
       <label>연락처<input id="ct_phone" type="text" placeholder="010-0000-0000"></label>
       <label>계정 아이디<input id="ct_login" type="text" disabled></label>
       <label>계약 형태<select id="ct_type"><option value="">— 고르기 —</option>
@@ -1133,6 +1135,15 @@ function initCard(){
   $('ctSave').onclick = saveCard;
 }
 function rtSnap(){ return ['rt_fee','rt_sp','rt_grp','rt_fuel','rt_ins','rt_dec','rt_ev1','rt_ev2','rt_ev3'].map(i => $(i).value).join('|'); }
+// 퇴사 뒤 상태 글 — 다음 날부터 14일은 기록지만, 그 뒤는 막힘 (서버 nl_me 와 같은 셈)
+function leftNote(d){
+  const t0 = new Date(); const today = t0.getFullYear() + '-' + String(t0.getMonth() + 1).padStart(2, '0') + '-' + String(t0.getDate()).padStart(2, '0');
+  const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() + 14);
+  const end = x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+  if (today <= d) return '퇴사 전 · ' + end + '까지 기록지 사용 가능';
+  if (today <= end) return '기록지만 사용 중 · ' + end + '까지';
+  return '계정 막힘 (' + end + ' 지남)';
+}
 function maskAcc(v){ v = String(v || ''); return v ? '****' + v.replace(/[^0-9]/g, '').slice(-4) : ''; }
 function maskTel(v){ v = String(v || ''); return v ? v.replace(/(\d{3})-?(\d{3,4})-?(\d{4})/, '$1-****-$3') : ''; }
 async function loadCard(){
@@ -1140,7 +1151,7 @@ async function loadCard(){
   try {
     if (!TTYPES.length) { const { data: tt } = await sb.from('nl_therapy_types').select('id, name').order('id'); TTYPES = tt || []; }
     const [a, b, c, d, e, f] = await Promise.all([
-      sb.from('nl_therapists').select('id, name, phone, hired_on, login_id, login_email').eq('id', thId).maybeSingle(),
+      sb.from('nl_therapists').select('id, name, phone, hired_on, left_on, login_id, login_email').eq('id', thId).maybeSingle(),
       sb.from('nl_th_private').select('rrn, bank, account_no').eq('therapist_id', thId).maybeSingle(),
       sb.from('nl_th_contract').select('contract_type, provider_no, memo').eq('therapist_id', thId).maybeSingle(),
       sb.from('nl_th_licenses').select('id, lic_name, lic_no').eq('therapist_id', thId).order('id'),
@@ -1167,6 +1178,7 @@ function drawCard(){
     + ' · 4대보험 ' + (r.insured ? '가입 (기본급 ' + won(r.declared_amt) + ')' : '미가입');
   $('ctCard').innerHTML = '<div class="cthd">' + thId + '번 ' + esc(t.name || '') + ' 선생님 · 위탁계약'
       + '<button id="ctEditBtn" type="button" class="ctsm">수정</button></div>'
+    + (t.left_on ? '<div class="ctl ctleft">퇴사일 <b>' + esc(t.left_on) + '</b> · ' + esc(leftNote(t.left_on)) + '</div>' : '')
     + '<div class="ctl">입사일 <b>' + esc(t.hired_on || '—') + '</b> · 연락처 ' + esc(maskTel(t.phone) || '—')
       + ' · 계정 아이디 ' + esc(t.login_id || t.login_email || '—') + '</div>'
     + '<div class="ctl">발달 제공인력번호 ' + esc(ct.provider_no || '—') + ' · 치료 영역 '
@@ -1200,7 +1212,7 @@ function addLicRow(nm, no){
 }
 function openCardEdit(){
   const t = CT.th, pv = CT.pv, ct = CT.ct;
-  $('ct_hired').value = t.hired_on || ''; $('ct_phone').value = t.phone || '';
+  $('ct_hired').value = t.hired_on || ''; $('ct_left').value = t.left_on || ''; $('ct_phone').value = t.phone || '';
   $('ct_login').value = t.login_id || t.login_email || '';
   $('ct_type').value = ct.contract_type || ''; $('ct_prov').value = ct.provider_no || '';
   $('ct_rrn').value = pv.rrn || ''; $('ct_bank').value = pv.bank || ''; $('ct_acc').value = pv.account_no || '';
@@ -1223,7 +1235,7 @@ async function saveCard(){
   const areas = Array.from($('ct_areas').querySelectorAll('input:checked')).map(x => ({ therapist_id: thId, therapy_type_id: Number(x.value) }));
   const btn = $('ctSave'); btn.disabled = true; btn.textContent = '저장 중…';
   try {
-    const r1 = await sb.from('nl_therapists').update({ hired_on: v('ct_hired') || null, phone: v('ct_phone') || null }).eq('id', thId).select('id');
+    const r1 = await sb.from('nl_therapists').update({ hired_on: v('ct_hired') || null, left_on: v('ct_left') || null, phone: v('ct_phone') || null }).eq('id', thId).select('id');
     if (r1.error) throw r1.error;
     if (!r1.data || !r1.data.length) throw new Error('입사일 · 연락처가 저장되지 않았습니다 (직원 표 권한).');
     const pvRow = { therapist_id: thId, rrn: rrn || null, bank: v('ct_bank') || null, account_no: acc || null, updated_at: new Date().toISOString() };
