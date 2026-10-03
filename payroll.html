@@ -214,6 +214,10 @@
   .sumt th { background:#f2f6f0; color:#2F2926; border:0.8px solid #4a4a4a; }
   .sumt td { border:0.8px solid #4a4a4a; }
   .sumt tfoot td { background:#f2f6f0; font-weight:700; }
+
+  .edubox { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px 10px; background:#FBF5EE; border:1px solid #F0E4D6; border-radius:8px; }
+  .edubox input { margin:0; padding:5px 8px; border:1px solid #E4E0DA; border-radius:6px; font-size:13.5px; }
+  .edubox #eduAmt { width:130px; text-align:right; } .edubox #eduMemo { flex:1; min-width:220px; }
 </style>
 </head>
 <body>
@@ -1196,7 +1200,7 @@ $('th').onchange  = () => { thId = Number($('th').value); calc(); drawWorkDays()
 //   세무사 전달 — 비영리: 근로+프리랜서는 4대보험 신고금액 · 프리랜서(3.3%만)는 과세대상액 ·
 //                 급여명세서 근로자는 기본급 · 추가 줄(nl_tax_extra)은 적어 둔 금액
 //               면세: 근로+프리랜서의 과세대상액 · 추가 줄의 면세 금액
-let SUMROWS = [], TAXROWS = [];
+let SUMROWS = [], TAXROWS = [], EDU = { amount: null, memo: '' };
 async function buildSum(){
   const box = $('sumBox');
   box.style.display = ''; box.innerHTML = '<div class="small">모으는 중…</div>';
@@ -1222,6 +1226,10 @@ async function buildSum(){
   let SNM = {};
   if (sids.length) { const { data: nm } = await sb.from('nl_therapists').select('id, name').in('id', sids); (nm || []).forEach(x => { SNM[x.id] = x.name; }); }
   const exs = (ex.data || []).filter(x => !x.to_month || x.to_month >= mon);
+  // 교육청 지원금액 — 달마다 직접 적음 (nl_tax_month · 2026-10-03)
+  EDU = { amount: null, memo: '' };
+  { const { data: em } = await sb.from('nl_tax_month').select('edu_amount, edu_memo').eq('month_key', mon).maybeSingle();
+    if (em) EDU = { amount: em.edu_amount, memo: em.edu_memo || '' }; }
 
   // 프리랜서(4대보험 미가입)는 실 지급액을 「급여 실수령액」 칸에 · 「실지급액 (면세)」 칸은 근로 + 프리랜서만 (2026-10-03 은정님)
   SUMROWS = rows.map(r => ({ who: r.id + '번 ' + r.name, bank: (PV[r.id] || {}).bank || '', acc: (PV[r.id] || {}).account_no || '',
@@ -1257,10 +1265,27 @@ function drawSum(){
     + '<table class="sumt"><thead><tr><th>이름</th><th class="n">비영리</th><th class="n">면세</th><th>비고</th></tr></thead><tbody>'
     + TAXROWS.map(r => '<tr><td>' + esc(r.name) + '</td><td class="n">' + (r.np ? won(r.np) : '–') + '</td><td class="n">' + (r.tf ? won(r.tf) : '–')
         + '</td><td class="small">' + esc(r.note) + '</td></tr>').join('')
-    + '</tbody><tfoot><tr><td>합계</td><td class="n">' + won(tsum('np')) + '</td><td class="n">' + won(tsum('tf')) + '</td><td></td></tr></tfoot></table>';
+    + '</tbody><tfoot><tr><td>합계</td><td class="n">' + won(tsum('np')) + '</td><td class="n">' + won(tsum('tf')) + '</td><td></td></tr></tfoot></table>'
+    + '<div class="edubox"><b>교육청 지원금액</b>'
+    +   '<input id="eduAmt" type="text" inputmode="numeric" placeholder="금액" value="' + (EDU.amount != null ? won(EDU.amount) : '') + '">'
+    +   '<input id="eduMemo" type="text" maxlength="500" placeholder="메모 (예: 치료지원 ○명 · 방과후 ○명)" value="' + esc(EDU.memo) + '">'
+    +   '<button type="button" class="ctsm" id="eduSave">저장</button><span id="eduMsg" class="small"></span></div>';
   $('sumClose').onclick = () => { box.style.display = 'none'; };
   $('sumAcc').onclick = () => { box.querySelectorAll('.acc').forEach(e => { e.textContent = e.dataset.full; }); $('sumAcc').remove(); };
   $('sumXls').onclick = downXls;
+  $('eduSave').onclick = saveEdu;
+  ['eduAmt', 'eduMemo'].forEach(id => { $(id).oninput = () => { $('eduMsg').textContent = '저장 전'; }; });
+}
+async function saveEdu(){
+  const a = String($('eduAmt').value).replace(/[^0-9]/g, '');
+  const row = { month_key: mon, edu_amount: a === '' ? null : Number(a), edu_memo: $('eduMemo').value.trim() || null, updated_at: new Date().toISOString() };
+  $('eduSave').disabled = true;
+  const { data, error } = await sb.from('nl_tax_month').upsert(row, { onConflict: 'month_key' }).select('month_key');
+  $('eduSave').disabled = false;
+  if (error || !data || !data.length) { $('eduMsg').textContent = '❌ 저장하지 못했습니다' + (error ? ' · ' + error.message : ''); return; }
+  EDU = { amount: row.edu_amount, memo: row.edu_memo || '' };
+  $('eduAmt').value = row.edu_amount != null ? won(row.edu_amount) : '';
+  $('eduMsg').textContent = '✓ 저장됨';
 }
 async function downXls(){
   if (!window.XLSX) {
@@ -1272,6 +1297,10 @@ async function downXls(){
   const aoa = [[mon.slice(0, 4) + '년 ' + monNo(mon) + '월 세무사 전달 자료'], [], ['이름', '비영리', '면세', '비고']];
   TAXROWS.forEach(r => aoa.push([r.name, r.np || 0, r.tf || 0, r.note]));
   aoa.push(['합계', TAXROWS.reduce((t, r) => t + (r.np || 0), 0), TAXROWS.reduce((t, r) => t + (r.tf || 0), 0), '']);
+  // 교육청 지원금액 — 화면 칸의 지금 값 (저장 안 했어도 적힌 그대로)
+  const ea = String(($('eduAmt') || {}).value || '').replace(/[^0-9]/g, '');
+  aoa.push([]);
+  aoa.push(['교육청 지원금액', ea === '' ? '' : Number(ea), '', String(($('eduMemo') || {}).value || '').trim()]);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 50 }];
   for (let i = 3; i < aoa.length; i++) ['B', 'C'].forEach(c => { const a = ws[c + (i + 1)]; if (a && typeof a.v === 'number') a.z = '#,##0'; });
